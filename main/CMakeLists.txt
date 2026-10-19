@@ -1,0 +1,43 @@
+idf_component_register(
+    SRCS
+        "main.cpp"
+        "network_service.cpp"
+        "time_service.c"
+        "date_math.c"
+        "deck_model.c"
+        "deck_images.cpp"
+        "ui/ui.cpp"
+        "ui/fonts/deck_lucide_60.c"
+        "ui/fonts/fq_dejavu_14.c"
+        "ui/fonts/fq_dejavu_16.c"
+        "ui/fonts/fq_dejavu_20.c"
+        "ui/fonts/fq_dejavu_24.c"
+        "ui/fonts/fq_dejavu_28.c"
+        "ui/fonts/fq_dejavu_bold_20.c"
+        "ui/fonts/fq_dejavu_bold_24.c"
+        "ui/fonts/fq_dejavu_bold_28.c"
+    INCLUDE_DIRS
+        "."
+        "ui"
+        "compat"
+        "../vendor/arduinojson/src"
+        "../managed_components/lvgl__lvgl"
+    REQUIRES
+        espressif__esp32_p4_function_ev_board
+        lvgl__lvgl
+        espressif__cjson
+        78__esp-wifi-connect
+        espressif__esp_hosted
+        espressif__esp_wifi_remote
+        esp_http_server
+        esp_timer
+        esp_event
+        esp_netif
+        lwip
+        esp_app_format
+        nvs_flash
+        mbedtls
+        bootloader_support
+        esp_driver_usb_serial_jtag
+)
+
