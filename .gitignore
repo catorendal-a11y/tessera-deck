@@ -1,0 +1,14 @@
+build/
+managed_components/
+sdkconfig.old
+outputs/
+__pycache__/
+*.pyc
+*.local.json
+*.local.lock
+*.local.log*
+host/.venv/
+host/.webview-data/
+host/profiles.json
+host/assets/
+build_first.log
