@@ -1,0 +1,6 @@
+pyserial==3.5
+psutil==7.0.0
+textual==8.2.8
+esptool==5.4.0
+Pillow>=12.3,<13
+pywebview>=6.1,<7

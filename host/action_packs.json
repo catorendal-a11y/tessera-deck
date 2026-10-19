@@ -1,0 +1,4189 @@
+{
+  "version": 1,
+  "packs": [
+    {
+      "group": "Windows",
+      "name": "Lås PC",
+      "icon": "stop",
+      "color": "#FF7070",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+l"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Vis skrivebord",
+      "icon": "home",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+d"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Oppgavebehandling",
+      "icon": "list",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+esc"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Filutforsker",
+      "icon": "folder",
+      "actions": [
+        {
+          "type": "open",
+          "target": "explorer.exe"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Innstillinger",
+      "icon": "settings",
+      "actions": [
+        {
+          "type": "open",
+          "target": "ms-settings:"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Kalkulator",
+      "icon": "plus",
+      "actions": [
+        {
+          "type": "open",
+          "target": "calc.exe"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Skjermbilde",
+      "icon": "bolt",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+shift+s"
+        }
+      ]
+    },
+    {
+      "group": "Nettleser",
+      "name": "Ny fane",
+      "icon": "plus",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+t"
+        }
+      ]
+    },
+    {
+      "group": "Nettleser",
+      "name": "Lukk fane",
+      "icon": "close",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+w"
+        }
+      ]
+    },
+    {
+      "group": "Nettleser",
+      "name": "Gjenåpne fane",
+      "icon": "refresh",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+t"
+        }
+      ]
+    },
+    {
+      "group": "Nettleser",
+      "name": "Neste fane",
+      "icon": "download",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+tab"
+        }
+      ]
+    },
+    {
+      "group": "Nettleser",
+      "name": "Forrige fane",
+      "icon": "upload",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+tab"
+        }
+      ]
+    },
+    {
+      "group": "Nettleser",
+      "name": "Adresselinje",
+      "icon": "edit",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+l"
+        }
+      ]
+    },
+    {
+      "group": "Nettleser",
+      "name": "Oppdater side",
+      "icon": "refresh",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+r"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Teams · mikrofon",
+      "icon": "wifi",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+m"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Teams · kamera",
+      "icon": "bolt",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+o"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Zoom · mikrofon",
+      "icon": "wifi",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "alt+a"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Zoom · kamera",
+      "icon": "bolt",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "alt+v"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Discord · mikrofon",
+      "icon": "wifi",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+m"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Discord · demp lyd",
+      "icon": "minus",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+d"
+        }
+      ]
+    },
+    {
+      "group": "Medier",
+      "name": "Lyd av / på",
+      "icon": "minus",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "volumemute"
+        }
+      ]
+    },
+    {
+      "group": "Medier",
+      "name": "Volum ned",
+      "icon": "minus",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "volumedown"
+        }
+      ]
+    },
+    {
+      "group": "Medier",
+      "name": "Volum opp",
+      "icon": "plus",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "volumeup"
+        }
+      ]
+    },
+    {
+      "group": "Medier",
+      "name": "Spill / pause",
+      "icon": "play",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "playpause"
+        }
+      ]
+    },
+    {
+      "group": "Medier",
+      "name": "Neste spor",
+      "icon": "refresh",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "medianext"
+        }
+      ]
+    },
+    {
+      "group": "Medier",
+      "name": "Forrige spor",
+      "icon": "loop",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "mediaprev"
+        }
+      ]
+    },
+    {
+      "group": "Redigering",
+      "name": "Lagre",
+      "icon": "download",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+s"
+        }
+      ]
+    },
+    {
+      "group": "Redigering",
+      "name": "Angre",
+      "icon": "loop",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+z"
+        }
+      ]
+    },
+    {
+      "group": "Redigering",
+      "name": "Gjør om",
+      "icon": "refresh",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+y"
+        }
+      ]
+    },
+    {
+      "group": "Redigering",
+      "name": "Klipp ut",
+      "icon": "close",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+x"
+        }
+      ]
+    },
+    {
+      "group": "Redigering",
+      "name": "Kopier",
+      "icon": "list",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+c"
+        }
+      ]
+    },
+    {
+      "group": "Redigering",
+      "name": "Lim inn",
+      "icon": "download",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+v"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Start Codex",
+      "icon": "play",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Fortsett siste Codex-chat",
+      "icon": "refresh",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex resume --last"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Ny chat",
+      "icon": "plus",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/new"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Gjenoppta chat",
+      "icon": "refresh",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/resume"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Kodegjennomgang",
+      "icon": "ok",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/review"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Vis diff",
+      "icon": "list",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/diff"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Velg modell",
+      "icon": "settings",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/model"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Velg resonnering",
+      "icon": "bolt",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/reasoning"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Planmodus",
+      "icon": "list",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/plan"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Status og bruk",
+      "icon": "wifi",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/status"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Sett mål",
+      "icon": "target",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/goal "
+        }
+      ]
+    },
+    {
+      "group": "Codex",
+      "name": "Avbryt kjøring",
+      "icon": "stop",
+      "color": "#FF7070",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+c"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Start Claude Code",
+      "icon": "play",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Fortsett siste Claude-chat",
+      "icon": "refresh",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -c"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Gjenoppta Claude-chat",
+      "icon": "folder",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -r"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Tøm kontekst",
+      "icon": "close",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/clear"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Komprimer kontekst",
+      "icon": "download",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/compact"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Vis kontekst",
+      "icon": "list",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/context"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Velg modell",
+      "icon": "settings",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/model"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Tillatelser",
+      "icon": "lock",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/permissions"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Planmodus",
+      "icon": "list",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/plan"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Status",
+      "icon": "wifi",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/status"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Sett mål",
+      "icon": "target",
+      "color": "#E69A62",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/goal "
+        }
+      ]
+    },
+    {
+      "group": "Claude Code",
+      "name": "Avbryt kjøring",
+      "icon": "stop",
+      "color": "#FF7070",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+c"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Åpne ZCode",
+      "icon": "play",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" \"%LOCALAPPDATA%\\Programs\\ZCode\\ZCode.exe\""
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Ny oppgave",
+      "icon": "plus",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+n"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Kommandosenter",
+      "icon": "settings",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+k"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Velg modell",
+      "icon": "settings",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+m"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Velg tankenivå",
+      "icon": "bolt",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+t"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Bytt kjøremodus",
+      "icon": "loop",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "shift+tab"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Terminalpanel",
+      "icon": "list",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+j"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Sidepanel",
+      "icon": "folder",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+b"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Høyre panel",
+      "icon": "folder",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+alt+b"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Finn i samtale",
+      "icon": "search",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+f"
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Sett mål",
+      "icon": "target",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/goal "
+        }
+      ]
+    },
+    {
+      "group": "ZCode",
+      "name": "Komprimer kontekst",
+      "icon": "download",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "text",
+          "text": "/compact"
+        },
+        {
+          "type": "hotkey",
+          "keys": "enter"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Utklippshistorikk",
+      "icon": "list",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+v"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Oppgavevisning",
+      "icon": "list",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+tab"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Nytt virtuelt skrivebord",
+      "icon": "plus",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+ctrl+d"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Forrige skrivebord",
+      "icon": "upload",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+ctrl+left"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Neste skrivebord",
+      "icon": "download",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+ctrl+right"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Lukk virtuelt skrivebord",
+      "icon": "close",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+ctrl+f4"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Fest vindu venstre",
+      "icon": "upload",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+left"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Fest vindu høyre",
+      "icon": "download",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+right"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Hurtiginnstillinger",
+      "icon": "settings",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+a"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Varslingssenter",
+      "icon": "list",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+n"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Emoji og symboler",
+      "icon": "edit",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+period"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Mikrofon av / på",
+      "icon": "wifi",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+alt+k"
+        }
+      ]
+    },
+    {
+      "group": "Produktivitet",
+      "name": "Start arbeidsøkt",
+      "icon": "play",
+      "color": "#35D07F",
+      "actions": [
+        {
+          "type": "open",
+          "target": "code"
+        },
+        {
+          "type": "delay",
+          "ms": 350
+        },
+        {
+          "type": "open",
+          "target": "wt.exe"
+        },
+        {
+          "type": "delay",
+          "ms": 350
+        },
+        {
+          "type": "open",
+          "target": "https://github.com"
+        }
+      ]
+    },
+    {
+      "group": "Vinduer",
+      "name": "Flytt vindu til venstre skjerm",
+      "icon": "upload",
+      "color": "#64B5F6",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+shift+left"
+        }
+      ]
+    },
+    {
+      "group": "Vinduer",
+      "name": "Flytt vindu til høyre skjerm",
+      "icon": "download",
+      "color": "#64B5F6",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+shift+right"
+        }
+      ]
+    },
+    {
+      "group": "Vinduer",
+      "name": "Vis festelayout",
+      "icon": "list",
+      "color": "#64B5F6",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+z"
+        }
+      ]
+    },
+    {
+      "group": "Vinduer",
+      "name": "Maksimer vindu",
+      "icon": "plus",
+      "color": "#64B5F6",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+up"
+        }
+      ]
+    },
+    {
+      "group": "Vinduer",
+      "name": "Minimer vindu",
+      "icon": "minus",
+      "color": "#64B5F6",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+down"
+        }
+      ]
+    },
+    {
+      "group": "PowerToys",
+      "name": "Alltid øverst",
+      "icon": "upload",
+      "color": "#A78BFA",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+ctrl+t"
+        }
+      ]
+    },
+    {
+      "group": "PowerToys",
+      "name": "Fargevelger",
+      "icon": "target",
+      "color": "#A78BFA",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+shift+c"
+        }
+      ]
+    },
+    {
+      "group": "PowerToys",
+      "name": "Trekk ut tekst (OCR)",
+      "icon": "search",
+      "color": "#A78BFA",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+shift+t"
+        }
+      ]
+    },
+    {
+      "group": "PowerToys",
+      "name": "Avansert lim inn",
+      "icon": "edit",
+      "color": "#A78BFA",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+shift+v"
+        }
+      ]
+    },
+    {
+      "group": "PowerToys",
+      "name": "Lim inn ren tekst",
+      "icon": "edit",
+      "color": "#A78BFA",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+win+alt+v"
+        }
+      ]
+    },
+    {
+      "group": "PowerToys",
+      "name": "Kommandopalett",
+      "icon": "search",
+      "color": "#A78BFA",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+alt+space"
+        }
+      ]
+    },
+    {
+      "group": "PowerToys",
+      "name": "Arbeidsområder",
+      "icon": "folder",
+      "color": "#A78BFA",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+ctrl+grave"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Teams · del innhold",
+      "icon": "upload",
+      "color": "#5B5FC7",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+e"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Teams · hånd opp",
+      "icon": "upload",
+      "color": "#5B5FC7",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+k"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Teams · avslutt samtale",
+      "icon": "close",
+      "color": "#F06A6A",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+h"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Zoom · del skjerm",
+      "icon": "upload",
+      "color": "#2D8CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "alt+s"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Zoom · hånd opp",
+      "icon": "upload",
+      "color": "#2D8CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "alt+y"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Zoom · chat",
+      "icon": "edit",
+      "color": "#2D8CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "alt+h"
+        }
+      ]
+    },
+    {
+      "group": "Møter",
+      "name": "Zoom · avslutt / forlat",
+      "icon": "close",
+      "color": "#F06A6A",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "alt+q"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Kommandopalett",
+      "icon": "search",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+p"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Åpne fil raskt",
+      "icon": "search",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+p"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Integrert terminal",
+      "icon": "list",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+grave"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Kildekontroll",
+      "icon": "refresh",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+g"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Kjør byggeoppgave",
+      "icon": "play",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+b"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Vis problemer",
+      "icon": "target",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+m"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Start feilsøking",
+      "icon": "play",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "f5"
+        }
+      ]
+    },
+    {
+      "group": "VS Code",
+      "name": "Formater dokument",
+      "icon": "ok",
+      "color": "#23A8F2",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "shift+alt+f"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Vis endringer",
+      "icon": "edit",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+1"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Vis historikk",
+      "icon": "list",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+2"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Bytt gren",
+      "icon": "refresh",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+b"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Hent (pull)",
+      "icon": "download",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+p"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Send (push)",
+      "icon": "upload",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+p"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Åpne terminal",
+      "icon": "list",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+grave"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Åpne i Explorer",
+      "icon": "folder",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+f"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Åpne i editor",
+      "icon": "edit",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+a"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Vis pull request",
+      "icon": "upload",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+r"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Oppdater fra hovedgren",
+      "icon": "refresh",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+u"
+        }
+      ]
+    },
+    {
+      "group": "GitHub Desktop",
+      "name": "Legg endringer til side",
+      "icon": "download",
+      "color": "#8B7CFF",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+s"
+        }
+      ]
+    }
+  ],
+  "templates": [
+    {
+      "name": "Daglig kontroll",
+      "description": "Lyd, apper, AI-verktøy, skjermbilder, vinduer og virtuelle skrivebord.",
+      "profile": {
+        "match": [],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Lyd av/på",
+              "icon": "minus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumemute"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Volum −",
+              "icon": "minus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumedown"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Volum +",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumeup"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Spill / pause",
+              "icon": "play",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "playpause"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "System",
+              "icon": "settings",
+              "color": "#64B5F6",
+              "actions": [
+                {
+                  "type": "page",
+                  "page": "system"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Apper",
+              "icon": "folder",
+              "color": "#64B5F6",
+              "actions": [
+                {
+                  "type": "page",
+                  "page": "apper"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Start Codex",
+              "icon": "target",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Start Claude",
+              "icon": "bolt",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Åpne ZCode",
+              "icon": "play",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" \"%LOCALAPPDATA%\\Programs\\ZCode\\ZCode.exe\""
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "VS Code",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "code"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Terminal",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "wt.exe"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Utforsker",
+              "icon": "folder",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "explorer.exe"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Skjermbilde",
+              "icon": "bolt",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+s"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Utklipp",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+v"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Oppgavevisning",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+tab"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Skrivebord ←",
+              "icon": "upload",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+left"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Skrivebord →",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+right"
+                }
+              ]
+            }
+          ],
+          "system": [
+            {
+              "id": 1,
+              "label": "Lås PC",
+              "icon": "stop",
+              "color": "#FF7070",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+l"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Oppgaver",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+esc"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Vis skrivebord",
+              "icon": "home",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+d"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Windows-søk",
+              "icon": "search",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Hurtigvalg",
+              "icon": "settings",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+a"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Varsler",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+n"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Nytt skrivebord",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+d"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Lukk skrivebord",
+              "icon": "close",
+              "color": "#FFB067",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+f4"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Fest venstre",
+              "icon": "upload",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+left"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Fest høyre",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+right"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Maksimer",
+              "icon": "upload",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+up"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Minimer",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+down"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Innstillinger",
+              "icon": "settings",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "ms-settings:"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Kalkulator",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "calc.exe"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Emoji",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+period"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Mikrofon",
+              "icon": "wifi",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+alt+k"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Skjermbilde",
+              "icon": "bolt",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+s"
+                }
+              ]
+            }
+          ],
+          "apper": [
+            {
+              "id": 1,
+              "label": "Nettleser",
+              "icon": "wifi",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "https://www.google.com"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "VS Code",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "code"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Terminal",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "wt.exe"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Utforsker",
+              "icon": "folder",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "explorer.exe"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Kalkulator",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "calc.exe"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Notisblokk",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "notepad.exe"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "GitHub",
+              "icon": "wifi",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "https://github.com"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "ChatGPT",
+              "icon": "target",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "https://chatgpt.com"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Codex-dokumentasjon",
+              "icon": "target",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "https://developers.openai.com/codex"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Claude-dokumentasjon",
+              "icon": "bolt",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "https://code.claude.com/docs"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "ZCode-dokumentasjon",
+              "icon": "play",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "https://zcode.z.ai/en/docs"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Ny fane",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+t"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Lukk fane",
+              "icon": "close",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+w"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Gjenåpne fane",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+t"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Forrige fane",
+              "icon": "upload",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+tab"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Neste fane",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+tab"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Finn",
+              "icon": "search",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+f"
+                }
+              ]
+            }
+          ]
+        },
+        "pinned": [
+          {
+            "id": 18,
+            "label": "Hjem",
+            "icon": "home",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "page",
+                "page": "hoved"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Windows-kontroll",
+      "description": "System, vinduer, medier og utklippstavle",
+      "profile": {
+        "match": [],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Lås PC",
+              "icon": "stop",
+              "color": "#FF7070",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+l"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Skrivebord",
+              "icon": "home",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+d"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Oppgaver",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+esc"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Utforsker",
+              "icon": "folder",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "explorer.exe"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Innstillinger",
+              "icon": "settings",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "ms-settings:"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Kalkulator",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "calc.exe"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Skjermbilde",
+              "icon": "bolt",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+s"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Dempe",
+              "icon": "minus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumemute"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Vol -",
+              "icon": "minus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumedown"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Vol +",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumeup"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Spill/pause",
+              "icon": "play",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "playpause"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Forrige",
+              "icon": "loop",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "mediaprev"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Neste",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "medianext"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Klipp ut",
+              "icon": "close",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+x"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Kopier",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+c"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Lim inn",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+v"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Nettleser",
+      "description": "Faner, navigasjon og mediekontroll",
+      "profile": {
+        "match": [
+          "chrome.exe",
+          "msedge.exe",
+          "firefox.exe"
+        ],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Ny fane",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+t"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Lukk fane",
+              "icon": "close",
+              "color": "#FF7070",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+w"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Gjenåpne",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+t"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Forrige fane",
+              "icon": "upload",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+tab"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Neste fane",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+tab"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Adresse",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+l"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Tilbake",
+              "icon": "loop",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+left"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Frem",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+right"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Oppdater",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+r"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Finn",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+f"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Spill/pause",
+              "icon": "play",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "playpause"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Skjermbilde",
+              "icon": "bolt",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+s"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Møter",
+      "description": "Komplett møteflate for Teams, Zoom og Discord",
+      "profile": {
+        "match": [
+          "teams.exe",
+          "zoom.exe",
+          "discord.exe"
+        ],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Teams mic",
+              "icon": "minus",
+              "color": "#5B5FC7",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+m"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Teams kamera",
+              "icon": "target",
+              "color": "#5B5FC7",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+o"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Teams del",
+              "icon": "upload",
+              "color": "#5B5FC7",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+e"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Teams hånd",
+              "icon": "upload",
+              "color": "#5B5FC7",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+k"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Teams avslutt",
+              "icon": "close",
+              "color": "#F06A6A",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+h"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Zoom mic",
+              "icon": "minus",
+              "color": "#2D8CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+a"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Zoom kamera",
+              "icon": "target",
+              "color": "#2D8CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+v"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Zoom del",
+              "icon": "upload",
+              "color": "#2D8CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+s"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Zoom hånd",
+              "icon": "upload",
+              "color": "#2D8CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+y"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Zoom chat",
+              "icon": "edit",
+              "color": "#2D8CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+h"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Zoom forlat",
+              "icon": "close",
+              "color": "#F06A6A",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+q"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Discord mic",
+              "icon": "minus",
+              "color": "#5865F2",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+m"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Discord lyd",
+              "icon": "minus",
+              "color": "#5865F2",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+d"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Skjermbilde",
+              "icon": "target",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+s"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Lyd av/på",
+              "icon": "minus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumemute"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Volum −",
+              "icon": "minus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumedown"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Volum +",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "volumeup"
+                }
+              ]
+            },
+            {
+              "id": 18,
+              "label": "Alltid øverst",
+              "icon": "upload",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+t"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "VS Code",
+      "description": "Koding, søk, terminal og Git",
+      "profile": {
+        "match": [
+          "code.exe",
+          "cursor.exe"
+        ],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Lagre",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+s"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Kommando",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+p"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Terminal",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+grave"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Finn fil",
+              "icon": "search",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+p"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Søk prosjekt",
+              "icon": "search",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+f"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Formater",
+              "icon": "ok",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "shift+alt+f"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Gi nytt navn",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "f2"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Gå til definisjon",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "f12"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Tilbake",
+              "icon": "upload",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+left"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Frem",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "alt+right"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Kommenter",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+slash"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Problemer",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+m"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Kildekontroll",
+              "icon": "folder",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+g"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Kjør / debug",
+              "icon": "play",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "f5"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Stopp debug",
+              "icon": "stop",
+              "color": "#FF7070",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "shift+f5"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Skjermbilde",
+              "icon": "bolt",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+s"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Oppgavevisning",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+tab"
+                }
+              ]
+            },
+            {
+              "id": 18,
+              "label": "Utforsker",
+              "icon": "folder",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "open",
+                  "target": "explorer.exe"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Codex",
+      "description": "Start, gjenoppta, gjennomgå og styr Codex CLI",
+      "profile": {
+        "match": [
+          "process:codex.exe",
+          "title:codex"
+        ],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Codex $(agent:codex)",
+              "icon": "play",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Fortsett",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex resume --last"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Ny chat",
+              "icon": "plus",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/new"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Komprimer",
+              "icon": "download",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/compact"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Gjenoppta",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/resume"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Review",
+              "icon": "ok",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/review"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Vis diff",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/diff"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Modell",
+              "icon": "settings",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/model"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Resonnering",
+              "icon": "bolt",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/reasoning"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Planmodus",
+              "icon": "list",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/plan"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Status",
+              "icon": "wifi",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/status"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Sett mål",
+              "icon": "target",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/goal "
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Prosjekt-init",
+              "icon": "folder",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/init"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Forgren chat",
+              "icon": "loop",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/fork"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Sidechat",
+              "icon": "edit",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/side"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Avbryt",
+              "icon": "stop",
+              "color": "#FF7070",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+c"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Send",
+              "icon": "upload",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 18,
+              "label": "Historikk",
+              "icon": "refresh",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+r"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Claude Code",
+      "description": "Start, fortsett og styr Claude Code fra terminalen",
+      "profile": {
+        "match": [
+          "process:claude.exe",
+          "title:claude"
+        ],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Claude $(agent:claude)",
+              "icon": "play",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Fortsett",
+              "icon": "refresh",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -c"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Gjenoppta",
+              "icon": "folder",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -r"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Tøm kontekst",
+              "icon": "close",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/clear"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Komprimer",
+              "icon": "download",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/compact"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Kontekst",
+              "icon": "list",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/context"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Hjelp",
+              "icon": "help",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/help"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Prosjekt-init",
+              "icon": "folder",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/init"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Modell",
+              "icon": "settings",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/model"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Tillatelser",
+              "icon": "lock",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/permissions"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Planmodus",
+              "icon": "list",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/plan"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Status",
+              "icon": "wifi",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/status"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Sett mål",
+              "icon": "target",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/goal "
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Sikkerhet",
+              "icon": "ok",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/security-review"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Oppgaver",
+              "icon": "list",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/tasks"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Avbryt",
+              "icon": "stop",
+              "color": "#FF7070",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+c"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Send",
+              "icon": "upload",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 18,
+              "label": "Historikk",
+              "icon": "refresh",
+              "color": "#E69A62",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+r"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "ZCode",
+      "description": "Offisielle ZCode-snarveier, mål og kontekststyring",
+      "profile": {
+        "match": [
+          "zcode.exe"
+        ],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "ZCode $(agent:zcode)",
+              "icon": "play",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "shell",
+                  "command": "start \"\" \"%LOCALAPPDATA%\\Programs\\ZCode\\ZCode.exe\""
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Ny oppgave",
+              "icon": "plus",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+n"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Kommandoer",
+              "icon": "settings",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+k"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Modell",
+              "icon": "settings",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+m"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Tankenivå",
+              "icon": "bolt",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+t"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Kjøremodus",
+              "icon": "loop",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "shift+tab"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Terminal",
+              "icon": "list",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+j"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Sidepanel",
+              "icon": "folder",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+b"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Høyre panel",
+              "icon": "folder",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+alt+b"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Finn",
+              "icon": "search",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+f"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Tilbake",
+              "icon": "loop",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+lbracket"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Frem",
+              "icon": "refresh",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+rbracket"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Forrige chat",
+              "icon": "upload",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+lbracket"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Neste chat",
+              "icon": "download",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+rbracket"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Sett mål",
+              "icon": "target",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/goal "
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Komprimer",
+              "icon": "download",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "text",
+                  "text": "/compact"
+                },
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Velg / send",
+              "icon": "ok",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "enter"
+                }
+              ]
+            },
+            {
+              "id": 18,
+              "label": "Lukk meny",
+              "icon": "close",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "esc"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "GitHub Desktop",
+      "description": "Pull, push, grener, historikk og repository-verktøy",
+      "profile": {
+        "match": [
+          "githubdesktop.exe"
+        ],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Endringer",
+              "icon": "edit",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+1"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Historikk",
+              "icon": "list",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+2"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Gren",
+              "icon": "refresh",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+b"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "Pull",
+              "icon": "download",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+p"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Push",
+              "icon": "upload",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+p"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Terminal",
+              "icon": "list",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+grave"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Explorer",
+              "icon": "folder",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+f"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Editor",
+              "icon": "edit",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+a"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Pull request",
+              "icon": "upload",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+r"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Oppdater gren",
+              "icon": "refresh",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+u"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Stash",
+              "icon": "download",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+s"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Ny gren",
+              "icon": "plus",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+n"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Sammenlign",
+              "icon": "search",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+b"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Slå sammen",
+              "icon": "ok",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+m"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Repo på GitHub",
+              "icon": "upload",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+g"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Nytt issue",
+              "icon": "plus",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+i"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Innstillinger",
+              "icon": "settings",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+comma"
+                }
+              ]
+            },
+            {
+              "id": 18,
+              "label": "Fullskjerm",
+              "icon": "target",
+              "color": "#8B7CFF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "f11"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "PowerToys",
+      "description": "Windows-verktøy, vindusflyt, OCR og avansert innliming",
+      "profile": {
+        "match": [],
+        "pages": {
+          "hoved": [
+            {
+              "id": 1,
+              "label": "Kommandopalett",
+              "icon": "search",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+alt+space"
+                }
+              ]
+            },
+            {
+              "id": 2,
+              "label": "Alltid øverst",
+              "icon": "upload",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+t"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Fargevelger",
+              "icon": "target",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+c"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "OCR tekst",
+              "icon": "search",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+t"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Avansert lim",
+              "icon": "edit",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+v"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Ren tekst",
+              "icon": "edit",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+win+alt+v"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Arbeidsområder",
+              "icon": "folder",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+grave"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Festelayout",
+              "icon": "list",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+z"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Vindu skjerm ←",
+              "icon": "upload",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+left"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Vindu skjerm →",
+              "icon": "download",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+right"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Maksimer",
+              "icon": "plus",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+up"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Minimer",
+              "icon": "minus",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+down"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Utklippshistorikk",
+              "icon": "list",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+v"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "Oppgavevisning",
+              "icon": "list",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+tab"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Skrivebord ←",
+              "icon": "upload",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+left"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Skrivebord →",
+              "icon": "download",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+ctrl+right"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Skjermbilde",
+              "icon": "target",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+shift+s"
+                }
+              ]
+            },
+            {
+              "id": 18,
+              "label": "Emoji",
+              "icon": "ok",
+              "color": "#A78BFA",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "win+period"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
