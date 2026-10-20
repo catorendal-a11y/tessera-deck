@@ -22,6 +22,31 @@ bool id_ok(const char* id) {
     for(int i=3;i<15;++i)if(hex(id[i])<0)return false;
     return true;
 }
+constexpr size_t CacheLimit=8*1024*1024;  // decoded RGBA bytes held for all images, replaced entries included
+std::map<std::string,uint32_t> last_used;
+uint32_t use_tick=0;
+size_t image_bytes(const DeckImage& image) {size_t bytes=0;for(auto& f:image.frames)bytes+=f.size();return bytes;}
+size_t cache_bytes() {size_t bytes=0;for(auto& pair:images)bytes+=image_bytes(*pair.second);return bytes;}
+// Caller holds `lock`. Makes room for `image` by evicting the least recently used assets that no tile shows
+// (LVGL keeps shared ownership of the ones in use); refuses the image when it still would not fit.
+bool admit(const std::string& id,const std::shared_ptr<const DeckImage>& image) {
+    const size_t incoming=image_bytes(*image);
+    if(incoming>CacheLimit)return false;
+    size_t bytes=cache_bytes();
+    auto same=images.find(id);
+    if(same!=images.end())bytes-=image_bytes(*same->second);  // a replacement frees its predecessor
+    while(bytes+incoming>CacheLimit) {
+        auto victim=images.end();
+        for(auto it=images.begin();it!=images.end();++it) {
+            if(it==same||it->second.use_count()!=1)continue;
+            if(victim==images.end()||last_used[it->first]<last_used[victim->first])victim=it;
+        }
+        if(victim==images.end())return false;
+        bytes-=image_bytes(*victim->second);last_used.erase(victim->first);images.erase(victim);
+    }
+    images[id]=image;last_used[id]=++use_tick;
+    return true;
+}
 std::shared_ptr<DeckImage> decode() {
     if(staging.size()!=expected||crc32(staging)!=crc||expected<7||memcmp(staging.data(),"ADI1",4))return {};
     const int w=staging[4],h=staging[5],count=staging[6];
@@ -49,7 +74,15 @@ std::shared_ptr<DeckImage> decode() {
 }
 std::shared_ptr<const DeckImage> deck_image_get(const char* id) {
     std::lock_guard<std::mutex> guard(lock);
-    auto it=images.find(id);return it==images.end()?nullptr:it->second;
+    auto it=images.find(id);
+    if(it==images.end())return nullptr;
+    last_used[id]=++use_tick;
+    return it->second;
+}
+void deck_image_cache_stats(size_t* bytes,size_t* count) {
+    std::lock_guard<std::mutex> guard(lock);
+    if(bytes)*bytes=cache_bytes();
+    if(count)*count=images.size();
 }
 bool deck_image_command(const char* line,std::string& response) {
     if(!strncmp(line,"AD_IMG_BEGIN ",13)) {
@@ -66,16 +99,13 @@ bool deck_image_command(const char* line,std::string& response) {
         for(size_t i=0;i<len;i+=2){int a=hex(raw[i]),b=hex(raw[i+1]);if(a<0||b<0){pending.clear();break;}staging.push_back((a<<4)|b);}
     } else if(!strcmp(line,"AD_IMG_END")) {
         auto image=pending.empty()?nullptr:decode();
+        bool full=false;
         if(image) {
             std::lock_guard<std::mutex> guard(lock);
-            // Only unreferenced assets can be evicted; LVGL retains shared ownership.
-            size_t bytes=0;for(auto& pair:images)for(auto& f:pair.second->frames)bytes+=f.size();
-            for(auto it=images.begin();bytes>7*1024*1024&&it!=images.end();) {
-                if(it->second.use_count()==1){for(auto& f:it->second->frames)bytes-=f.size();it=images.erase(it);}else ++it;
-            }
-            if(bytes<8*1024*1024){images[pending]=image;response="AD_IMG_END OK "+pending;}
+            full=!admit(pending,image);
+            if(!full)response="AD_IMG_END OK "+pending;
         }
-        if(response.empty())response="AD_IMG_END INVALID";
+        if(response.empty())response=full?"AD_IMG_END FULL":"AD_IMG_END INVALID";
         pending.clear();std::vector<uint8_t>().swap(staging);expected=0;
     } else return false;
     return true;

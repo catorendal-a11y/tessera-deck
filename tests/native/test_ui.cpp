@@ -9,6 +9,7 @@
 #include <iterator>
 #include <string>
 #include <vector>
+#include "deck_images.h"
 #include "deck_model.h"
 #include "ui/ui.h"
 #include "ui/icon_pack.h"
@@ -28,6 +29,24 @@ int main(int argc,char** argv){const std::filesystem::path output=argc>1?argv[1]
 auto* touch=lv_indev_create();lv_indev_set_type(touch,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(touch,touch_read);deck_model_note_host();
 deck_button_t parsed[18]{};int count=0;assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Build","icon":"lc:e064","color":"#35D07F","hold":true,"title":{"size":20,"position":"bottom","bold":true}},{"id":18,"label":"Folder","icon":"folder","color":"#FFA868"}]})",parsed,18,&count));assert(count==2);assert(parsed[0].has_hold&&!parsed[1].has_hold);assert(deck_model_replace_buttons(parsed,count));deck_model_set_context("CODING","PROJECT",true);ui_init();updates();assert(lv_obj_get_child_count(lv_obj_get_child(lv_screen_active(),0))>100);assert(find(lv_screen_active(),"CODING"));assert(find(lv_screen_active(),"<  PROJECT"));assert(find(lv_screen_active(),"Build"));char status[256];assert(ui_debug_visible_text(status,sizeof(status))==0);assert(strstr(status,"\"screen\":\"deck\""));
 assert(find(lv_screen_active(),"PC CONNECTED")&&strstr(status,"\"pc\":true"));
+{/* Image cache: animated frames are counted, the 8 MiB limit holds, least recently used images go first, referenced ones stay. */
+auto upload=[&](unsigned n,int frames)->std::string{
+std::vector<uint8_t> blob={'A','D','I','1',72,72,static_cast<uint8_t>(frames)};
+for(int f=0;f<frames;++f){std::vector<uint8_t> runs;int left=72*72;while(left>0){const int run=left>255?255:left;runs.push_back(static_cast<uint8_t>(run));runs.push_back(static_cast<uint8_t>(n));runs.push_back(static_cast<uint8_t>(f));runs.push_back(7);runs.push_back(255);left-=run;}
+blob.push_back(100);blob.push_back(0);const uint32_t len=runs.size();for(int i=0;i<4;++i)blob.push_back((len>>(8*i))&255);blob.insert(blob.end(),runs.begin(),runs.end());}
+uint32_t c=~0u;for(auto b:blob){c^=b;for(int k=0;k<8;++k)c=(c>>1)^(0xedb88320u&(0u-(c&1)));}c=~c;
+char id[32];snprintf(id,sizeof id,"im:%012x",n);std::string reply;
+deck_image_command((std::string("AD_IMG_BEGIN ")+id+" "+std::to_string(blob.size())+" "+std::to_string(c)).c_str(),reply);
+for(size_t at=0;at<blob.size();at+=300){std::string hexed;for(size_t i=at;i<blob.size()&&i<at+300;++i){char two[3];snprintf(two,3,"%02x",blob[i]);hexed+=two;}deck_image_command(("AD_IMG_DATA "+std::to_string(at)+" "+hexed).c_str(),reply);}
+reply.clear();deck_image_command("AD_IMG_END",reply);return reply;};
+auto id_of=[](unsigned n){static char buffer[4][32];static int slot=0;char* id=buffer[slot++&3];snprintf(id,32,"im:%012x",n);return static_cast<const char*>(id);};
+size_t bytes=0,count=0;
+for(unsigned n=1;n<=40;++n){assert(upload(n,12)==std::string("AD_IMG_END OK ")+id_of(n));deck_image_cache_stats(&bytes,&count);assert(bytes<=8u*1024*1024);}
+assert(count>=30&&count<=33&&deck_image_get(id_of(40))&&!deck_image_get(id_of(1)));
+{std::vector<std::shared_ptr<const DeckImage>> shown;for(unsigned n=40;n>=1&&shown.size()<count;--n)if(auto image=deck_image_get(id_of(n)))shown.push_back(image);
+const size_t before=bytes;assert(upload(99,12)=="AD_IMG_END FULL");deck_image_cache_stats(&bytes,&count);assert(bytes==before&&!deck_image_get(id_of(99)));}
+const size_t stable=bytes;for(int round=0;round<5;++round){assert(upload(40,12).rfind("AD_IMG_END OK",0)==0);deck_image_cache_stats(&bytes,&count);assert(bytes==stable);}
+assert(upload(41,1)==std::string("AD_IMG_END OK ")+id_of(41));}
 {const int before=deck_model_last_event_id();assert(deck_model_record_hold(1));deck_event_t held[1];assert(deck_model_events_since(before,held,1)==1&&held[0].hold&&held[0].button_id==1);}
 {/* A touch on a dimmed panel only wakes it, even on a key; the next touch presses. */
 const int before=deck_model_last_event_id();const uint32_t wake=deck_model_wake_sequence();deck_model_set_dimmed(true);
