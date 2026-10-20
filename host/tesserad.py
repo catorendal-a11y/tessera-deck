@@ -12,6 +12,7 @@ import struct
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
 import zlib
 import psutil
@@ -229,6 +230,8 @@ STALE_PRESS_SECONDS = 5  # a queued press older than this is dropped, never repl
 PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke')
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
 CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
+SHELL_UNSAFE = re.compile(r'[&|<>^"%;`$\r\n\\]')  # metacharacters of cmd.exe and POSIX shells
+ENV_REFERENCE = re.compile(r'[$][(]env:([A-Za-z_][A-Za-z0-9_]{0,63})[)]')
 UNSET_VARIABLE = re.compile(r'[$][(]var:[A-Za-z0-9_.-]+[)]')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
@@ -670,10 +673,21 @@ class Daemon:
                     **self.pc.variables(),
                     **{f'var:{k}': str(v) for k, v in self.custom_vars.items()})
 
-    def substitute(self, text):
+    def substitute(self, text, mode=None):
+        # mode 'shell' refuses values that could change the command; 'url' percent-encodes them.
         for key, value in self.variables().items():
-            text = text.replace(f'$({key})', value)
+            token = f'$({key})'
+            if token not in text:
+                continue
+            if mode == 'shell' and SHELL_UNSAFE.search(value):
+                raise ValueError(f'The value of {token} contains characters that are not allowed in a shell command')
+            text = text.replace(token, urllib.parse.quote(value, safe='') if mode == 'url' else value)
         return UNSET_VARIABLE.sub('', text)  # a variable nobody has set yet renders empty
+
+    @staticmethod
+    def expand_environment(text):
+        # Credentials live in the Windows environment, not in the profile: $(env:NAME).
+        return ENV_REFERENCE.sub(lambda match: os.environ.get(match.group(1), ''), text)
 
     def effective_buttons(self):
         item = self.config['profiles'][self.profile]
@@ -855,16 +869,18 @@ class Daemon:
             else:
                 subprocess.Popen(['xdg-open', target])
         elif kind == 'shell':
-            command, timeout = self.substitute(action['command']), action.get('timeout', 30)
+            command, timeout = self.substitute(action['command'], 'shell'), action.get('timeout', 30)
             with self.state_lock.suspended():  # the panel and API stay responsive while it runs
                 try:
                     run_command(command, timeout, self.stop)
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
         elif kind == 'http':
-            request = urllib.request.Request(self.substitute(action['url']),
-                method=action.get('method', 'GET'), headers=action.get('headers', {}),
-                data=self.substitute(action.get('body', '')).encode() or None)
+            headers = {name: self.expand_environment(self.substitute(value))
+                       for name, value in action.get('headers', {}).items()}
+            request = urllib.request.Request(self.substitute(action['url'], 'url'),
+                method=action.get('method', 'GET'), headers=headers,
+                data=self.expand_environment(self.substitute(action.get('body', ''))).encode() or None)
             with self.state_lock.suspended():
                 with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
                     response.read(65536)

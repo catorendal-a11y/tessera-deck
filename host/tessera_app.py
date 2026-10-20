@@ -20,6 +20,7 @@ from deck_control import (ROOT, Controller, autostart_enabled, configure_upstrea
                           save_profiles, set_autostart)
 from tesserad import Daemon, validate_config
 from deck_assets import Assets
+from import_review import redact_secrets, review, strip_executable
 
 WEB = Path(__file__).with_name('editor')
 
@@ -302,6 +303,11 @@ class Editor:
         return result
 
     def command(self, command, data):
+        if command == 'review':
+            config = validate_config(data.get('config') or {})
+            return {'findings': review(config)}
+        if command == 'sanitize':
+            return {'config': strip_executable(validate_config(data.get('config') or {}))}
         if command == 'activate':
             config = self.read()['config']
             profile, page = data.get('profile'), data.get('page')
@@ -414,7 +420,8 @@ def make_server(editor, port=0, token=None):
                 try:
                     if self.path == '/api/export':
                         config = editor.read()['config']
-                        return self.json(dict(config, assets=editor.assets.export(config)))
+                        shared, secrets_used = redact_secrets(config)
+                        return self.json(dict(shared, assets=editor.assets.export(config), redacted=secrets_used))
                     if self.path == '/api/processes':
                         import psutil
                         names = set()

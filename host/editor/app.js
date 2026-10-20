@@ -603,6 +603,16 @@ async function importConfig(file) {
   if(!file)return;if(file.size>16*1024*1024)throw new Error('The configuration is too large.');const data=JSON.parse(await file.text());
   if(!data.profiles||!Object.keys(data.profiles).length)throw new Error('The file contains no profiles.');
   const names=Object.keys(data.profiles);if(!confirm(`Replace the configuration with ${names.length} profiles from “${file.name}”? ${(data.triggers||[]).length} automatic rules are included. You can undo.`))return;
+  const {assets:bundledAssets,redacted,...bundle}=data;
+  const {findings}=await api('command/review',{config:bundle});
+  if(findings.length){
+    const listed=findings.slice(0,8).map(f=>`• ${f.risk.toUpperCase()}${f.automatic?' (automatic)':''}: ${f.where} ${f.detail}`).join('\n');
+    const more=findings.length>8?`\n… and ${findings.length-8} more`:'';
+    if(!confirm(`This file contains ${findings.length} action(s) that run programs, run commands or use the network:\n\n${listed}${more}\n\nOnly keep them if you trust the source.\nOK = import with these actions. Cancel = choose again.`)){
+      if(!confirm('Import without those actions? Commands, web requests, program launches and automatic rules are removed.'))return;
+      const safe=await api('command/sanitize',{config:bundle});data.profiles=safe.config.profiles;data.triggers=safe.config.triggers;
+    }
+  }
   if(data.assets){const replacements={};for(const [id,image] of Object.entries(data.assets)){const result=await api('image',{data:image});replacements[id]=result.id;}const visit=value=>{if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')for(const [key,item] of Object.entries(value)){if(key==='icon'&&replacements[item])value[key]=replacements[item];else visit(item);}};delete data.assets;visit(data);}
   const previous=clone(config);remember();config=data;
   try {ensureSelection();const error=draftError();if(error)throw new Error(error);version++;dirty=true;await save();renderAll();toast('The configuration was imported.');}
