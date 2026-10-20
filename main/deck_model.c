@@ -302,6 +302,65 @@ bool deck_model_dimmed(void)
     model_lock(); bool dimmed = s_dimmed; model_unlock(); return dimmed;
 }
 
+static int s_screen_request = -1;
+static deck_screen_t s_screen = DECK_SCREEN_DECK;
+static bool s_touch_return;
+static char s_ambient[DECK_AMBIENT_MAX + 1];
+static uint32_t s_ambient_version = 1;
+
+void deck_model_request_screen(deck_screen_t screen)
+{
+    model_lock(); s_screen_request = screen; model_unlock();
+}
+
+int deck_model_take_screen_request(void)
+{
+    model_lock(); int request = s_screen_request; s_screen_request = -1; model_unlock();
+    return request;
+}
+
+void deck_model_set_screen(deck_screen_t screen)
+{
+    model_lock(); s_screen = screen; model_unlock();
+}
+
+deck_screen_t deck_model_screen(void)
+{
+    model_lock(); deck_screen_t screen = s_screen; model_unlock(); return screen;
+}
+
+void deck_model_note_touch_return(void)
+{
+    model_lock(); s_touch_return = true; model_unlock();
+}
+
+bool deck_model_take_touch_return(void)
+{
+    model_lock(); bool value = s_touch_return; s_touch_return = false; model_unlock();
+    return value;
+}
+
+void deck_model_set_ambient(const char *line)
+{
+    model_lock();
+    if (strncmp(s_ambient, line ? line : "", sizeof(s_ambient)) != 0) {
+        copy_text(s_ambient, sizeof(s_ambient), line ? line : "");
+        ++s_ambient_version;
+    }
+    model_unlock();
+}
+
+void deck_model_ambient(char *out, size_t size)
+{
+    model_lock(); copy_text(out, size, s_ambient); model_unlock();
+}
+
+uint32_t deck_model_ambient_version(void)
+{
+    model_lock(); uint32_t version = s_ambient_version; model_unlock();
+    return version;
+}
+
 void deck_model_request_wake(void)
 {
     model_lock(); s_dimmed = false; ++s_wake_seq; model_unlock();
@@ -397,6 +456,18 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
         }
         out[parsed].title_bold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(title,"bold"));
         out[parsed].has_hold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"hold"));
+        {
+            const struct {const char *key; uint8_t bit; uint32_t *target;} styles[] = {
+                {"bg", DECK_STYLE_BG, &out[parsed].bg}, {"text_color", DECK_STYLE_TEXT, &out[parsed].text},
+                {"border", DECK_STYLE_BORDER, &out[parsed].border}};
+            for (size_t s = 0; s < sizeof(styles) / sizeof(styles[0]); ++s) {
+                const cJSON *value = cJSON_GetObjectItemCaseSensitive(item, styles[s].key);
+                if (!value) continue;
+                if (!cJSON_IsString(value) || !parse_color_hex(value->valuestring, styles[s].target)) {valid = false; break;}
+                out[parsed].style |= styles[s].bit;
+            }
+            if (!valid) break;
+        }
         if (cJSON_IsString(position)) {
             if (!strcmp(position->valuestring,"top")) out[parsed].title_position=1;
             else if (!strcmp(position->valuestring,"middle")) out[parsed].title_position=2;

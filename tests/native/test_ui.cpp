@@ -18,6 +18,7 @@ static uint32_t tick=10000;static std::vector<uint8_t> pixels;static unsigned fl
 uint32_t millis(){return tick;}
 extern "C" int64_t esp_timer_get_time(){return static_cast<int64_t>(tick)*1000;}
 extern "C" const char* time_service_time_text(){return "14:32";}
+extern "C" const char* time_service_date_text(){return "Tue 20 Oct 2026";}
 static void flush(lv_display_t* display,const lv_area_t* area,uint8_t* data){++flushes;const auto* source=reinterpret_cast<const uint32_t*>(data);int offset=0;for(int y=area->y1;y<=area->y2;++y)for(int x=area->x1;x<=area->x2;++x){const uint32_t v=source[offset++];const int at=(y*1024+x)*3;pixels[at]=v&255;pixels[at+1]=(v>>8)&255;pixels[at+2]=(v>>16)&255;}lv_display_flush_ready(display);}
 static void updates(){for(int i=0;i<6;++i){lv_timer_handler();tick+=40;lv_tick_inc(40);}lv_refr_now(nullptr);}
 static void capture(const std::filesystem::path& path){updates();std::ofstream out(path,std::ios::binary);out<<"P6\n1024 600\n255\n";assert(flushes);assert(*std::max_element(pixels.begin(),pixels.end())>128);for(size_t i=0;i<pixels.size();i+=3){out.put(pixels[i+2]);out.put(pixels[i+1]);out.put(pixels[i]);}}
@@ -47,6 +48,17 @@ assert(count>=30&&count<=33&&deck_image_get(id_of(40))&&!deck_image_get(id_of(1)
 const size_t before=bytes;assert(upload(99,12)=="AD_IMG_END FULL");deck_image_cache_stats(&bytes,&count);assert(bytes==before&&!deck_image_get(id_of(99)));}
 const size_t stable=bytes;for(int round=0;round<5;++round){assert(upload(40,12).rfind("AD_IMG_END OK",0)==0);deck_image_cache_stats(&bytes,&count);assert(bytes==stable);}
 assert(upload(41,1)==std::string("AD_IMG_END OK ")+id_of(41));}
+{/* Styling: own colors replace the defaults; a bad color rejects the whole page. */
+deck_button_t styled[2]{};int styled_count=0;
+assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Hot","bg":"#102030","text_color":"#FFAA00","border":"#00FF00"},{"id":2,"label":"Plain"}]})",styled,2,&styled_count));
+assert(styled_count==2&&styled[0].style==(DECK_STYLE_BG|DECK_STYLE_TEXT|DECK_STYLE_BORDER)&&styled[0].bg==0x102030&&styled[0].text==0xFFAA00&&styled[0].border==0x00FF00&&styled[1].style==0);
+assert(!deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Bad","bg":"red"}]})",styled,2,&styled_count));}
+{/* Ambient clock: shown on request, rendered, and a touch returns to the deck and tells the host once. */
+deck_model_set_ambient("12 C, clear sky - Oslo");deck_model_request_screen(DECK_SCREEN_AMBIENT);updates();
+assert(deck_model_screen()==DECK_SCREEN_AMBIENT);capture(output/"ambient.ppm");
+char shown[256];assert(ui_debug_visible_text(shown,sizeof(shown))==0&&strstr(shown,"\"screen\":\"ambient\""));
+tap(512,300);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return()&&!deck_model_take_touch_return());
+assert(ui_debug_visible_text(shown,sizeof(shown))==0&&strstr(shown,"\"screen\":\"deck\""));}
 {const int before=deck_model_last_event_id();assert(deck_model_record_hold(1));deck_event_t held[1];assert(deck_model_events_since(before,held,1)==1&&held[0].hold&&held[0].button_id==1);}
 {/* A touch on a dimmed panel only wakes it, even on a key; the next touch presses. */
 const int before=deck_model_last_event_id();const uint32_t wake=deck_model_wake_sequence();deck_model_set_dimmed(true);

@@ -23,6 +23,11 @@ extern "C" {
 #define DECK_EVENT_RING 32
 #define DECK_CONTEXT_TEXT_MAX 31
 #define DECK_GAUGE_TEXT_MAX 7
+#define DECK_AMBIENT_MAX 80
+
+#define DECK_STYLE_BG 1
+#define DECK_STYLE_TEXT 2
+#define DECK_STYLE_BORDER 4
 
 typedef struct {
     int id;
@@ -33,6 +38,10 @@ typedef struct {
     uint8_t title_position;            /* 0 bottom, 1 top, 2 middle, 3 hidden */
     bool title_bold;
     bool has_hold;                     /* the host has a long-press action: report holds, not clicks, past the hold time */
+    uint8_t style;                     /* DECK_STYLE_* bits: which of the colors below replace the defaults */
+    uint32_t bg;                       /* key background */
+    uint32_t text;                     /* label color */
+    uint32_t border;                   /* key outline */
     /* Live gauge tile: a ring filled to gauge_percent with gauge_text in the middle.
      * label, color, gauge_percent and gauge_text change in place without a rebuild,
      * so dynamic labels and status colors never tear down a key under a finger. */
@@ -94,6 +103,19 @@ void deck_model_set_dimmed(bool dimmed);
 bool deck_model_dimmed(void);
 void deck_model_request_wake(void); /* clears dimmed and bumps the sequence */
 uint32_t deck_model_wake_sequence(void);
+
+/* Screens: the host asks for the ambient clock when the panel is idle; the UI applies the request on its own
+ * timer. A touch on the ambient screen returns to the deck and is reported once to the host. */
+typedef enum { DECK_SCREEN_DECK = 0, DECK_SCREEN_AMBIENT = 1 } deck_screen_t;
+void deck_model_request_screen(deck_screen_t screen);
+int deck_model_take_screen_request(void); /* -1 when nothing is pending */
+void deck_model_set_screen(deck_screen_t screen);
+deck_screen_t deck_model_screen(void);
+void deck_model_note_touch_return(void);
+bool deck_model_take_touch_return(void);
+void deck_model_set_ambient(const char *line); /* weather or status line under the clock */
+void deck_model_ambient(char *out, size_t size);
+uint32_t deck_model_ambient_version(void);
 
 /* Host link: every line from the host stamps it; the header shows whether a
  * host has spoken within the timeout. */

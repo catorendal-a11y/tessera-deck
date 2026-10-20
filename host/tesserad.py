@@ -221,7 +221,7 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 BOARD_ID = 'tessera-p4'
-SUPPORTED_PROTOCOLS = (1, 2)  # 1: original firmware (no hold events), 2: adds hold and the protocol field
+SUPPORTED_PROTOCOLS = (1, 2, 3)  # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen
 HANDSHAKE_SECONDS = 2.5
 JOB_QUEUE_SIZE = 128
 BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive

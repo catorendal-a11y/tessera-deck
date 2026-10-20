@@ -57,6 +57,57 @@ static void save_brightness(int level)
     nvs_close(handle);
 }
 
+/* Offline resilience: the last layout the host pushed is kept in NVS, so a panel that boots without the PC
+ * shows its keys instead of the factory sample. Flash is written rarely: only when the key structure changed
+ * (not for every live label) and at most once per LAYOUT_SAVE_INTERVAL_US. */
+static const char *LAYOUT_KEY = "layout";
+static constexpr size_t LAYOUT_MAX = 3800;  /* one NVS page; bigger layouts are simply not kept offline */
+static constexpr int64_t LAYOUT_SAVE_INTERVAL_US = 10LL * 60 * 1000000;
+static std::string s_layout_pending;
+static uint32_t s_layout_version_seen = 0, s_layout_version_saved = 0;
+static int64_t s_layout_saved_at = -LAYOUT_SAVE_INTERVAL_US;
+
+static void layout_remember(const char *json)
+{
+    const uint32_t version = deck_model_buttons_version();
+    if (version == s_layout_version_saved) return;  /* only live values changed */
+    s_layout_pending = json;
+    s_layout_version_seen = version;
+}
+
+static void layout_flush_if_due(void)
+{
+    if (s_layout_pending.empty() || s_layout_version_seen == s_layout_version_saved) return;
+    const int64_t now = esp_timer_get_time();
+    if (now - s_layout_saved_at < LAYOUT_SAVE_INTERVAL_US) return;
+    s_layout_saved_at = now;
+    s_layout_version_saved = s_layout_version_seen;
+    if (s_layout_pending.size() > LAYOUT_MAX) return;
+    nvs_handle_t handle;
+    if (nvs_open(SETTINGS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) return;
+    if (nvs_set_blob(handle, LAYOUT_KEY, s_layout_pending.c_str(), s_layout_pending.size() + 1) == ESP_OK) nvs_commit(handle);
+    nvs_close(handle);
+}
+
+static void layout_restore(void)
+{
+    nvs_handle_t handle;
+    if (nvs_open(SETTINGS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) return;
+    size_t size = 0;
+    if (nvs_get_blob(handle, LAYOUT_KEY, nullptr, &size) == ESP_OK && size > 1 && size <= LAYOUT_MAX + 1) {
+        std::string json(size, '\0');
+        deck_button_t buttons[DECK_MAX_BUTTONS];
+        int count = 0;
+        if (nvs_get_blob(handle, LAYOUT_KEY, json.data(), &size) == ESP_OK &&
+            deck_model_buttons_from_json(json.c_str(), buttons, DECK_MAX_BUTTONS, &count) &&
+            deck_model_replace_buttons(buttons, count)) {
+            ESP_LOGI(TAG, "restored the last layout: %d buttons", count);
+            s_layout_version_saved = deck_model_buttons_version();
+        }
+    }
+    nvs_close(handle);
+}
+
 /* Parse "<digits>" within [low, high]; returns false for anything else. */
 static bool parse_percent(const char *text, long low, long high, int *out)
 {
@@ -90,6 +141,11 @@ static void usb_console_task(void *)
             wake_seen = wake;
             bsp_display_brightness_set(s_brightness);
             printf("{\"type\":\"wake\"}\n");
+            fflush(stdout);
+        }
+        layout_flush_if_due();
+        if (deck_model_take_touch_return()) {
+            printf("{\"type\":\"screen\",\"name\":\"deck\",\"by\":\"touch\"}\n");
             fflush(stdout);
         }
         /* Stream Deck behaviour: every physical key press is pushed to the
@@ -194,6 +250,7 @@ static void usb_console_task(void *)
                 if (deck_model_buttons_from_json(cfg_buf, buttons, DECK_MAX_BUTTONS, &count) &&
                     deck_model_replace_buttons(buttons, count)) {
                     ESP_LOGI(TAG, "deck reprogrammed over USB: %d buttons", count);
+                    layout_remember(cfg_buf);
                     printf("AD_CFG_END OK %d\n", count);
                 } else {
                     printf("AD_CFG_END INVALID\n");
@@ -240,15 +297,14 @@ static void usb_console_task(void *)
             printf("AD_PRESS %s\n", event ? "OK" : "UNKNOWN");
             fflush(stdout);
         }
-        if (!overflow && !strcmp(line,"AD_SCREEN deck")) {
-            bool queued = false;
-            if (bsp_display_lock(200)) {
-                queued = lv_async_call([](void* destination) {
-                    ui_show_destination(static_cast<int>(reinterpret_cast<intptr_t>(destination)));
-                },nullptr) == LV_RESULT_OK;
-                bsp_display_unlock();
-            }
-            printf("{\"type\":\"screen\",\"queued\":%s}\n",queued?"true":"false");
+        if (!overflow && (!strcmp(line,"AD_SCREEN deck") || !strcmp(line,"AD_SCREEN ambient"))) {
+            deck_model_request_screen(line[10] == 'd' ? DECK_SCREEN_DECK : DECK_SCREEN_AMBIENT);
+            printf("{\"type\":\"screen\",\"queued\":true}\n");
+            fflush(stdout);
+        }
+        if (!overflow && strncmp(line, "AD_AMBIENT", 10) == 0 && (line[10] == '\0' || line[10] == ' ')) {
+            deck_model_set_ambient(line[10] == ' ' ? line + 11 : "");
+            printf("AD_AMBIENT OK\n");
             fflush(stdout);
         }
         if (!overflow && strncmp(line, "AD_BRIGHTNESS ", 14) == 0) {
@@ -314,7 +370,10 @@ extern "C" void app_main(void)
     usb_serial_jtag_vfs_use_driver();
     deck_model_init();
     /* Idempotent; the stored brightness must be readable before the display starts. */
-    if (nvs_flash_init() == ESP_OK) load_brightness();
+    if (nvs_flash_init() == ESP_OK) {
+        load_brightness();
+        layout_restore();
+    }
     (void)time_service_init();
 
     bsp_display_cfg_t cfg = {};
