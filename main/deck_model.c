@@ -122,14 +122,16 @@ bool deck_model_get_button(int index, deck_button_t *out)
     return ok;
 }
 
-/* Same tile layout; gauge value, gauge text and gauge color may differ. */
+/* Same tile layout; label text, color and gauge values may differ. */
 static bool same_structure(const deck_button_t *a, const deck_button_t *b)
 {
     deck_button_t x = *a, y = *b;
     x.gauge_percent = y.gauge_percent = 0;
     memset(x.gauge_text, 0, sizeof(x.gauge_text));
     memset(y.gauge_text, 0, sizeof(y.gauge_text));
-    if (x.has_gauge && y.has_gauge) x.color = y.color = 0;
+    memset(x.label, 0, sizeof(x.label));
+    memset(y.label, 0, sizeof(y.label));
+    x.color = y.color = 0;
     return memcmp(&x, &y, sizeof(x)) == 0;
 }
 

@@ -36,6 +36,7 @@ lv_obj_t *keys[DECK_MAX_BUTTONS]{};
 int ids[DECK_MAX_BUTTONS]{};
 uint32_t button_version=0,live_version=0,context_version=0;
 lv_obj_t *gauge_arc[DECK_MAX_BUTTONS]{},*gauge_value[DECK_MAX_BUTTONS]{};
+lv_obj_t *name_label[DECK_MAX_BUTTONS]{},*glyph_label[DECK_MAX_BUTTONS]{};
 uint32_t flash_until[DECK_MAX_BUTTONS]{};
 
 struct ImageTile {
@@ -140,11 +141,15 @@ void make_gauge(int slot,lv_obj_t *tile,const deck_button_t& value) {
 }
 void update_live() {
     for(int n=0;n<deck_model_button_count();++n){deck_button_t item{};
-        if(deck_model_get_button(n,&item)&&item.has_gauge&&item.id>=1&&item.id<=DECK_MAX_BUTTONS)style_gauge(item.id-1,item);}
+        if(!deck_model_get_button(n,&item)||item.id<1||item.id>DECK_MAX_BUTTONS)continue;
+        const int slot=item.id-1;
+        if(item.has_gauge)style_gauge(slot,item);
+        if(glyph_label[slot])lv_obj_set_style_text_color(glyph_label[slot],lv_color_hex(item.color),0);
+        if(name_label[slot]&&strcmp(lv_label_get_text(name_label[slot]),item.label))lv_label_set_text(name_label[slot],item.label);}
     live_version=deck_model_live_version();
 }
 void rebuild() {
-    memset(gauge_arc,0,sizeof(gauge_arc));memset(gauge_value,0,sizeof(gauge_value));
+    memset(gauge_arc,0,sizeof(gauge_arc));memset(gauge_value,0,sizeof(gauge_value));memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));
     lv_obj_clean(grid);for(auto& image:images){lv_image_cache_drop(&image.descriptor);image=ImageTile{};}
     memset(keys,0,sizeof(keys));memset(ids,0,sizeof(ids));memset(flash_until,0,sizeof(flash_until));
     for(int slot=0;slot<DECK_MAX_BUTTONS;++slot) {
@@ -159,9 +164,11 @@ void rebuild() {
         ids[slot]=value.id;char packed[5]{};const bool lucide=deck_lucide_glyph(value.icon,packed);auto image=deck_image_get(value.icon);
         if(value.has_gauge){make_gauge(slot,tile,value);}
         else if(image){auto& target=images[slot];target.image=image;target.widget=lv_image_create(tile);lv_obj_set_pos(target.widget,(Cell-image->width)/2,value.title_position==1?57:18);image_frame(target);}
-        else {auto *glyph=label(tile,lucide?packed:fallback_icon(value.icon),0,value.title_position==1?61:(lucide?17:25),Cell,lucide?&deck_lucide_60:&lv_font_montserrat_48,value.color);lv_obj_set_style_text_align(glyph,LV_TEXT_ALIGN_CENTER,0);}
-        const int size=value.title_size?value.title_size:16;const int y=value.title_position==1?10:value.title_position==2?(Cell-size)/2:Cell-size-17;
-        auto *name=label(tile,value.label,9,y,Cell-18,title_font(value),Text);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(name,value.title_position==3);
+        else {auto *glyph=glyph_label[slot]=label(tile,lucide?packed:fallback_icon(value.icon),0,value.title_position==1?61:(lucide?17:25),Cell,lucide?&deck_lucide_60:&lv_font_montserrat_48,value.color);lv_obj_set_style_text_align(glyph,LV_TEXT_ALIGN_CENTER,0);}
+        // Bold 16 uses the 20 px bold font; place it by that height, as the editor does.
+        const int size=value.title_size?value.title_size:16,px=value.title_bold&&size==16?20:size;
+        const int y=value.title_position==1?10:value.title_position==2?(Cell-px)/2:Cell-px-17;
+        auto *name=name_label[slot]=label(tile,value.label,9,y,Cell-18,title_font(value),Text);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(name,value.title_position==3);
         lv_obj_add_event_cb(tile,press,LV_EVENT_CLICKED,reinterpret_cast<void*>(static_cast<intptr_t>(slot)));
     }
     button_version=deck_model_buttons_version();live_version=deck_model_live_version();

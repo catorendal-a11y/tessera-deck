@@ -171,6 +171,7 @@ function setSaveState(message,note='Changes are saved automatically.') {$('#save
 function draftError() {
   for(const item of Object.values(config.profiles)) for(const b of profileButtons(item)) {
     if(!b.label?.trim()) return 'Give the button a name';
+    if((b.states||[]).some(state=>state.label!==undefined&&!String(state.label).trim()))return 'Give every state of the toggle button a name';
     for(const holder of [b,...(b.states||[])]) for(const a of holder.actions||[]) {
       const kind=kinds[a.type];
       if(!kind) return 'Unknown action';
@@ -436,7 +437,7 @@ function renderInspector() {
   const upload=element('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',hidden:'hidden'});upload.onchange=()=>uploadImage(upload.files[0]).catch(showError);panel.append(upload,button('Image from file …',()=>upload.click(),'outline'));
   panel.append(element('div',{class:'title-controls'},field('Text size',String(base.title?.size||16),v=>mutate(()=>{base.title??={};base.title.size=Number(v);}),{values:['16','20','24','28']}),field('Position',base.title?.position||'bottom',v=>mutate(()=>{base.title??={};base.title.position=v;}),{values:[['bottom','Bottom'],['top','Top'],['middle','Middle'],['hidden','Hide text']]})));
   panel.append(element('div',{class:'option-buttons'},button(base.title?.bold?'Bold text ✓':'Bold text',()=>mutate(()=>{base.title??={};base.title.bold=!base.title.bold;}),'outline'),button(config.profiles[profile].pinned?.includes(base)?'◆ Unpin':'◇ Pin to all pages',togglePin,'outline')));
-  panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else{base.actions=clone(base.states?.[0].actions||base.actions);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
+  panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
   renderGauge(panel,base);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});

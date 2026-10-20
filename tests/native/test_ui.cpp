@@ -34,6 +34,15 @@ tap(94,168);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1&&dec
 tap(94,168);assert(deck_model_last_event_id()==before+1&&deck_model_wake_sequence()==wake+1);
 deck_model_set_dimmed(true);tap(600,40);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+2&&deck_model_last_event_id()==before+1);
 tap(600,40);assert(deck_model_wake_sequence()==wake+2);}
+{/* A new label or status color updates the key in place: a rebuild would drop a touch in progress. */
+deck_button_t live[18]{};int live_count=0;for(int n=0;n<deck_model_button_count();++n)deck_model_get_button(n,&live[live_count++]);
+lv_obj_t* tile=find(lv_screen_active(),"Build");assert(tile);tile=lv_obj_get_parent(tile);
+const uint32_t structure=deck_model_buttons_version();strcpy(live[0].label,"Build 14:33");live[0].color=0xFFB74D;
+assert(deck_model_replace_buttons(live,live_count)&&deck_model_buttons_version()==structure);updates();
+lv_obj_t* renamed=find(lv_screen_active(),"Build 14:33");assert(renamed&&lv_obj_get_parent(renamed)==tile&&!find(lv_screen_active(),"Build"));
+const int before=deck_model_last_event_id();tap(94,168);deck_event_t event{};
+assert(deck_model_events_since(before,&event,1)==1&&!strcmp(event.label,"Build 14:33"));
+strcpy(live[0].label,"Build");live[0].color=0x35D07F;assert(deck_model_replace_buttons(live,live_count));updates();assert(find(lv_screen_active(),"Build"));}
 {/* Confirmations queue in order instead of overwriting each other. */
 int id=0;deck_feedback_t kind;deck_model_request_feedback(1,DECK_FEEDBACK_OK);deck_model_request_feedback(18,DECK_FEEDBACK_ALERT);
 const uint32_t first=deck_model_take_feedback(&id,&kind);assert(first&&id==1&&kind==DECK_FEEDBACK_OK);

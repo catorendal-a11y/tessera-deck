@@ -33,7 +33,8 @@ typedef struct {
     uint8_t title_position;            /* 0 bottom, 1 top, 2 middle, 3 hidden */
     bool title_bold;
     /* Live gauge tile: a ring filled to gauge_percent with gauge_text in the middle.
-     * Only gauge_percent, gauge_text and color change at runtime without a rebuild. */
+     * label, color, gauge_percent and gauge_text change in place without a rebuild,
+     * so dynamic labels and status colors never tear down a key under a finger. */
     bool has_gauge;
     uint8_t gauge_percent;             /* 0..100 */
     char gauge_text[DECK_GAUGE_TEXT_MAX + 1];

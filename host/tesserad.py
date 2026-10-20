@@ -523,6 +523,10 @@ class Daemon:
         # foreground app remains active. Focus automation resumes on app change.
         self.manual_focus_exe = ''
         self.last_push = None
+        # Labels of the last two acknowledged pushes of the shown page: a press
+        # carries the label the panel showed, which a dynamic label may have
+        # changed since. Another page's labels never match.
+        self.pushed_labels = []
         self.last_action = None
         self.custom_vars = {}
         self.trigger_state = {}
@@ -639,6 +643,9 @@ class Daemon:
         for button in map(self.resolved_button, self.effective_buttons()):
             label = ''.join(c if ord(c) >= 32 else ' '
                             for c in self.substitute(button['label']))
+            # The panel rejects a layout with an empty label, so a label that is
+            # only an unset $(var:…) must not block the whole page.
+            label = label or ' '
             color = button.get('color', '#35D07F')
             spec = button.get('stat')
             if isinstance(spec, dict):
@@ -713,6 +720,9 @@ class Daemon:
             self.panel.send_line('AD_CONTEXT ' + json.dumps({'profile': self.profile, 'page': self.page,
                                                              'canBack': bool(self.folder_stack)}))
             self.last_push = payload
+            path = (self.profile, self.page)
+            labels = {b['id']: b['label'] for b in buttons}
+            self.pushed_labels = [entry for entry in self.pushed_labels if entry[0] == path][-1:] + [(path, labels)]
             self.log(f'{self.profile} / {self.page}: {len(buttons)} buttons acknowledged')
 
     def switch_page(self, page, folder=False):
@@ -907,7 +917,10 @@ class Daemon:
                 return
             self.last_activity = time.monotonic()
             current = next((b for b in self.current_buttons() if b['id'] == job[1]), None)
-            if current and (job[2] is None or job[2] == current['label']):
+            path = (self.profile, self.page)
+            shown = job[2] is None or job[2] == (current or {}).get('label') or any(
+                entry_path == path and labels.get(job[1]) == job[2] for entry_path, labels in self.pushed_labels)
+            if current and shown:
                 self.dispatch_press(job[1])
         elif kind == 'profile':
             self.switch_profile(job[1], auto=True)

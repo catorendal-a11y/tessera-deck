@@ -365,6 +365,39 @@ class HostTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     deck.validate_config(config)
 
+    def dynamic_label_daemon(self):
+        config = {'default_profile': 'Main', 'profiles': {'Main': {'match': [], 'pages': {
+            'First': [{'id': 1, 'label': 'CPU $(var:cpu)', 'actions': []},
+                      {'id': 2, 'label': '$(var:claude)', 'actions': []}],
+            'Second': [{'id': 1, 'label': 'Other', 'actions': []}]}}}}
+        daemon = self.daemon(deck.validate_config(config))
+        daemon.profile, daemon.page = 'Main', 'First'
+        daemon.dispatch_press = Mock()
+        return daemon
+
+    def test_press_on_a_label_that_changed_since_the_panel_showed_it_still_runs(self):
+        daemon = self.dynamic_label_daemon()
+        daemon.custom_vars['cpu'] = '41'
+        daemon.push_page(force=True)
+        daemon.custom_vars['cpu'] = '42'
+        daemon.push_page()
+        daemon.custom_vars['cpu'] = '43'  # computed after the press, not yet pushed
+        daemon.handle_job(('press', 1, 'CPU 41'))
+        daemon.dispatch_press.assert_called_once_with(1)
+
+    def test_press_from_a_page_that_is_no_longer_shown_is_ignored(self):
+        daemon = self.dynamic_label_daemon()
+        daemon.custom_vars['cpu'] = '41'
+        daemon.push_page(force=True)
+        daemon.switch_page('Second')
+        daemon.handle_job(('press', 1, 'CPU 41'))
+        daemon.dispatch_press.assert_not_called()
+
+    def test_a_label_that_is_only_an_unset_variable_does_not_block_the_page(self):
+        daemon = self.dynamic_label_daemon()
+        labels = {b['id']: b['label'] for b in daemon.current_buttons()}
+        self.assertEqual(labels[2], ' ')  # the panel rejects layouts with empty labels
+
     def test_idle_panel_dims_once_and_press_wakes_without_firing(self):
         daemon = self.daemon()
         daemon.config['display'] = {'brightness': 80, 'dim_after': 60, 'dim_level': 7}
