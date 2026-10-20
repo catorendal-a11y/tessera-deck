@@ -67,7 +67,7 @@ body{background:linear-gradient(140deg,#0b0f11 0%,#101719 60%,#0b0f11 100%)}
 [data-logo] i,[data-wordmark] i{position:absolute;display:block}
 .brandmark{width:48px;height:48px;flex:none;transform:scale(.72);transform-origin:left center;margin-right:-13px;background:none}
 .screen-logo{position:absolute;left:20px;top:15px;width:48px;height:48px}
-.screen-wordmark{position:absolute;left:78px;top:17px;width:226px;height:41px}
+.screen-wordmark{position:absolute;left:78px;top:22px;width:187px;height:34px}
 .screen-context{position:absolute;left:340px;top:10px;width:380px;text-align:center}
 .screen-context small{display:block;font-size:16px;line-height:20px;color:#78909a;letter-spacing:2px}
 .screen-context b{display:block;font-size:28px;line-height:36px;color:#e8f4ef;font-weight:700}
