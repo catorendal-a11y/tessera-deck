@@ -757,7 +757,7 @@ function mountBrand() {
   });
   document.querySelectorAll('[data-wordmark]').forEach(el => {
     [...'TESSERA'].forEach((letter, n) => glyphs[letter].forEach((line, row) => [...line].forEach((bit, col) => {
-      if (bit === '1') brandTile(el, n * 27 + col * 5, row * 5, 4, 2, brandColor((n * 5 + col) / 34));
+      if (bit === '1') brandTile(el, n * 22 + col * 4, row * 4, 3, 1, brandColor((n * 5 + col) / 34));
     })));
   });
 }

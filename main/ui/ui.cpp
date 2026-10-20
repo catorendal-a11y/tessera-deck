@@ -221,10 +221,10 @@ void make_wordmark(lv_obj_t *parent,int x,int y) {
         {"11110","10001","10001","11110","10100","10010","10001"},
         {"01110","10001","10001","11111","10001","10001","10001"}};
     static const int word[]={0,1,2,2,1,3,4};
-    constexpr int Cell=4,Pitch=5,Advance=5*Pitch+2,Count=7;
+    constexpr int Cell=3,Pitch=4,Advance=5*Pitch+2,Count=7;
     for(int letter=0;letter<Count;++letter)for(int row=0;row<7;++row)for(int col=0;col<5;++col) {
         if(glyphs[word[letter]][row][col]!='1')continue;
-        tile(parent,x+letter*Advance+col*Pitch,y+row*Pitch,Cell,2,sweep((letter*5+col)/(Count*5.f-1)));
+        tile(parent,x+letter*Advance+col*Pitch,y+row*Pitch,Cell,1,sweep((letter*5+col)/(Count*5.f-1)));
     }
 }
 void update_context() {
@@ -252,7 +252,7 @@ extern "C" void ui_show_destination(int) {if(screen)lv_screen_load(screen);}
 extern "C" void ui_init(void) {
     screen=lv_obj_create(nullptr);flat(screen,Bg);auto *header=lv_obj_create(screen);flat(header,HeaderBg);lv_obj_set_size(header,W,Header);lv_obj_set_style_radius(header,0,0);
     make_logo(header,20,15);
-    make_wordmark(header,78,22);
+    make_wordmark(header,78,24);
     profile_label=label(header,"LOCAL",340,10,380,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(profile_label,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_letter_space(profile_label,2,0);
     page_label=label(header,"Main",340,29,380,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_align(page_label,LV_TEXT_ALIGN_CENTER,0);
     link_pill=lv_obj_create(header);flat(link_pill,0x16372A);lv_obj_set_pos(link_pill,730,21);lv_obj_set_size(link_pill,148,34);lv_obj_set_style_radius(link_pill,17,0);
