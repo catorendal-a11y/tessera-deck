@@ -12,7 +12,6 @@ import subprocess
 import struct
 import threading
 import time
-import urllib.parse
 import urllib.request
 import zlib
 import psutil
@@ -22,6 +21,7 @@ from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 from deck_assets import Assets
 from program_locator import locate
+from substitution import expand_environment, substitute
 from pc_state import FLAG_SOURCES, PcState, set_mute
 from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
@@ -234,9 +234,6 @@ PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightnes
               'screen-deck')
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
 CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
-SHELL_UNSAFE = re.compile(r'[&|<>^"%;`$\r\n\\]')  # metacharacters of cmd.exe and POSIX shells
-ENV_REFERENCE = re.compile(r'[$][(]env:([A-Za-z_][A-Za-z0-9_]{0,63})[)]')
-UNSET_VARIABLE = re.compile(r'[$][(]var:[A-Za-z0-9_.-]+[)]')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
 TIME_PATTERN = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d')
@@ -681,7 +678,7 @@ class Daemon:
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
                  'agents': self.agents, 'stats': self.stats.display, 'vars': self.custom_vars,
-                 'notices': list(self.notices),
+                 'notices': list(self.notices), 'variables': self.variables(),
                  'last_action': self.last_action}
         temporary = self.runtime_path.with_suffix('.tmp')
         try:
@@ -702,20 +699,11 @@ class Daemon:
                     **{f'var:{k}': str(v) for k, v in self.custom_vars.items()})
 
     def substitute(self, text, mode=None):
-        # mode 'shell' refuses values that could change the command; 'url' percent-encodes them.
-        for key, value in self.variables().items():
-            token = f'$({key})'
-            if token not in text:
-                continue
-            if mode == 'shell' and SHELL_UNSAFE.search(value):
-                raise ValueError(f'The value of {token} contains characters that are not allowed in a shell command')
-            text = text.replace(token, urllib.parse.quote(value, safe='') if mode == 'url' else value)
-        return UNSET_VARIABLE.sub('', text)  # a variable nobody has set yet renders empty
+        return substitute(text, self.variables(), mode)
 
     @staticmethod
     def expand_environment(text):
-        # Credentials live in the Windows environment, not in the profile: $(env:NAME).
-        return ENV_REFERENCE.sub(lambda match: os.environ.get(match.group(1), ''), text)
+        return expand_environment(text)
 
     def effective_buttons(self):
         item = self.config['profiles'][self.profile]

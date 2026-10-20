@@ -20,7 +20,9 @@ from deck_control import (ROOT, Controller, autostart_enabled, configure_upstrea
                           save_profiles, set_autostart)
 from tesserad import SUPPORTED_PROTOCOLS, DeviceRejected, PanelSerial, validate_config
 from deck_assets import Assets
+import ambient
 import firmware_update
+from action_preview import preview
 from import_review import redact_secrets, review, strip_executable
 
 WEB = Path(__file__).with_name('editor')
@@ -375,7 +377,23 @@ class Editor:
                 self.firmware_job = dict(self.firmware_job, restart_error=str(exc))
             self.firmware_lock.release()
 
+    def dry_run(self, data):
+        # What pressing a button would do, explained without doing any of it.
+        groups = {key: data.get(key) for key in ('actions', 'hold_actions') if data.get(key) is not None}
+        if not groups or any(not isinstance(value, list) or len(value) > 50
+                             or any(not isinstance(item, dict) for item in value) for value in groups.values()):
+            raise ValueError('Send the button actions as lists of at most 50 steps')
+        variables = self.status().get('variables') or {}
+        return {key: preview(value, variables) for key, value in groups.items()}
+
     def command(self, command, data):
+        if command == 'dryrun':
+            return self.dry_run(data)
+        if command == 'weather-search':
+            try:
+                return {'places': ambient.search_places(str(data.get('query', '')))}
+            except OSError as exc:
+                raise ValueError('The city search could not be reached. Check your internet connection.') from exc
         if command == 'firmware-list':
             return self.firmware_list()
         if command == 'firmware-install':
