@@ -1,5 +1,4 @@
 """Lifecycle for the local Tessera USB host."""
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -100,7 +99,7 @@ class Controller:
                 return result
             result['device'].update({key: runtime.get(key) for key in
                                      ('connected', 'port', 'profile', 'page', 'buttons', 'error',
-                                      'foreground', 'auto_profile', 'last_action')})
+                                      'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol')})
             result['agents'] = runtime.get('agents', {})
             # Label previews in the editor resolve $(var:…) and $(stat:…) like the panel does.
             result['vars'] = runtime.get('vars', {})
@@ -150,16 +149,3 @@ class Controller:
 
     def install_adapters(self):
         return None
-
-
-def firmware_files(kind):
-    build = ROOT / 'build/idf6'
-    files = [(0x10000, build / 'tessera.bin')]
-    if kind == 'install':
-        files = [(0x2000, build / 'bootloader/bootloader.bin'),
-                 (0x8000, build / 'partition_table/partition-table.bin')] + files
-    if any(not path.is_file() for _, path in files):
-        raise ValueError('Build the Tessera firmware first')
-    return [(offset, path, hashlib.sha256(path.read_bytes()).hexdigest()) for offset, path in files]
-
-

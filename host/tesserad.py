@@ -9,7 +9,6 @@ import queue
 import re
 import subprocess
 import struct
-import sys
 import threading
 import time
 import urllib.parse
@@ -449,6 +448,12 @@ def validate_config(config):
 
 
 class DeviceRejected(ValueError):
+    kind = 'other'  # 'silent' (no answer), 'board' (another device) or 'protocol' (incompatible firmware)
+
+    def __init__(self, message, kind='other'):
+        super().__init__(message)
+        self.kind = kind
+
     """The port answers, but it is not a compatible Tessera panel."""
 
 
@@ -494,15 +499,15 @@ class PanelSerial:
                 if isinstance(message, dict) and message.get('type') == 'info':
                     self.accept(message)
                     return
-        raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel')
+        raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel', 'silent')
 
     def accept(self, info):
         if info.get('boardId') != BOARD_ID:
-            raise DeviceRejected(f'{self.ser.port} is a different device (board {info.get("boardId")!r})')
+            raise DeviceRejected(f'{self.ser.port} is a different device (board {info.get("boardId")!r})', 'board')
         protocol = info.get('protocol', 1)
         if type(protocol) is not int or protocol not in SUPPORTED_PROTOCOLS:
             raise DeviceRejected(f'Firmware protocol {protocol!r} is not supported (this host speaks '
-                                 f'{SUPPORTED_PROTOCOLS[0]}-{SUPPORTED_PROTOCOLS[-1]}); update the firmware or the host')
+                                 f'{SUPPORTED_PROTOCOLS[0]}-{SUPPORTED_PROTOCOLS[-1]}); update the firmware or the host', 'protocol')
         self.info = dict(info, protocol=protocol)
 
     def close(self):

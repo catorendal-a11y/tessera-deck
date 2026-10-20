@@ -18,8 +18,9 @@ import webbrowser
 
 from deck_control import (ROOT, Controller, autostart_enabled, configure_upstream,
                           save_profiles, set_autostart)
-from tesserad import Daemon, validate_config
+from tesserad import SUPPORTED_PROTOCOLS, DeviceRejected, PanelSerial, validate_config
 from deck_assets import Assets
+import firmware_update
 from import_review import redact_secrets, review, strip_executable
 
 WEB = Path(__file__).with_name('editor')
@@ -124,7 +125,7 @@ def open_window(url):
         brand_taskbar_identity()
         try:
             import webview
-            window = webview.create_window('Tessera', url, width=1500, height=980,
+            webview.create_window('Tessera', url, width=1500, height=980,
                                            min_size=(1050, 720), maximized=True,
                                            background_color='#101719', text_select=True)
             webview.start(private_mode=True, storage_path=str(ROOT / 'host/.webview-data'),
@@ -209,6 +210,8 @@ class Editor:
         self.dashboard = dashboard
         self.lock = threading.RLock()
         self.assets = Assets(self.path)
+        self.firmware_job = {'state': 'idle'}
+        self.firmware_lock = threading.Lock()
 
     def read(self):
         raw = self.path.read_bytes()
@@ -302,7 +305,83 @@ class Editor:
             temporary.replace(path)
         return result
 
+    # --- firmware installation -----------------------------------------------------------
+    def firmware_folders(self):
+        return [ROOT / 'dist', ROOT / 'firmware', ROOT / 'host/firmware']
+
+    def firmware_list(self):
+        status = self.status().get('device', {})
+        version_file = ROOT / 'VERSION'
+        return {'packages': firmware_update.find_packages(self.firmware_folders(), SUPPORTED_PROTOCOLS),
+                'device': {'firmware': status.get('firmware'), 'protocol': status.get('protocol'),
+                           'connected': bool(status.get('connected'))},
+                'host': version_file.read_text(encoding='utf-8').strip() if version_file.is_file() else None,
+                'job': dict(self.firmware_job)}
+
+    @staticmethod
+    def identify_panel(port):
+        # get_info of the panel on `port`; None when it stays silent; PackageError for another device.
+        try:
+            panel = PanelSerial(port, lambda *_: None)
+        except DeviceRejected as exc:
+            if exc.kind == 'silent':
+                return None
+            if exc.kind == 'protocol':
+                return {'boardId': firmware_update.BOARD_ID, 'firmwareVersion': None}
+            raise firmware_update.PackageError(str(exc)) from exc
+        except OSError as exc:
+            raise firmware_update.InstallError(f'{port} could not be opened: {exc}') from exc
+        info = dict(panel.info)
+        panel.close()
+        return info
+
+    def install_firmware(self, data):
+        path, mode, force = data.get('package'), data.get('mode', 'app'), data.get('force', False)
+        if not isinstance(path, str) or mode not in ('app', 'full') or type(force) is not bool:
+            raise ValueError('Choose a firmware package and an install mode')
+        package = firmware_update.load_package(Path(path), SUPPORTED_PROTOCOLS)
+        if not self.firmware_lock.acquire(blocking=False):
+            raise ValueError('A firmware installation is already running')
+        self.firmware_job = {'state': 'running', 'stage': 'checking', 'percent': 0, 'version': package.version}
+        threading.Thread(target=self.run_firmware_install, args=(package, mode, force),
+                         name='firmware-install', daemon=True).start()
+        return {'message': f'Installing firmware {package.version} ...'}
+
+    def firmware_port(self):
+        from host_runtime import candidate_ports
+        ports = candidate_ports(os.environ.get('TESSERA_PORT', 'COM4'), ROOT / 'host/deck-device.local.json')
+        if not ports:
+            raise firmware_update.InstallError('No USB port was found. Connect the panel with the USB cable.')
+        return ports[0]
+
+    def run_firmware_install(self, package, mode, force):
+        was_running = bool(self.controller.processes())
+        try:
+            if was_running:
+                self.controller.stop()  # the host is the only owner of the USB port
+
+            def progress(stage, percent):
+                self.firmware_job = dict(self.firmware_job, stage=stage, percent=round(percent))
+
+            result = firmware_update.install(package, self.firmware_port(), self.identify_panel, mode, force, progress)
+            self.firmware_job = dict(self.firmware_job, state='done', stage='done', percent=100, result=result)
+        except (firmware_update.InstallError, firmware_update.PackageError, OSError, RuntimeError, ValueError) as exc:
+            self.firmware_job = dict(self.firmware_job, state='failed', error=str(exc))
+        finally:
+            try:
+                if was_running:
+                    self.controller.start()
+            except (OSError, RuntimeError) as exc:
+                self.firmware_job = dict(self.firmware_job, restart_error=str(exc))
+            self.firmware_lock.release()
+
     def command(self, command, data):
+        if command == 'firmware-list':
+            return self.firmware_list()
+        if command == 'firmware-install':
+            return self.install_firmware(data)
+        if command == 'firmware-progress':
+            return {'job': dict(self.firmware_job)}
         if command == 'review':
             config = validate_config(data.get('config') or {})
             return {'findings': review(config)}

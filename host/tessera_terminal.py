@@ -10,7 +10,7 @@ import sys
 from deck_control import ROOT, Controller, configure_upstream, save_profiles
 from tesserad import Daemon, validate_config
 from deck_forms import ActionForm
-from textual.app import App, ComposeResult
+from textual.app import App
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll, Grid
 from textual.screen import ModalScreen

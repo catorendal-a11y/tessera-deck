@@ -772,3 +772,53 @@ function mountBrand() {
   });
 }
 mountBrand();
+
+/* Panel firmware: list verified packages, install with progress. */
+let firmwareTimer = null;
+async function openFirmware() {
+  $('#more-menu').hidden = true;
+  $('#firmware-dialog').showModal();
+  try { await refreshFirmware(); } catch (error) { showError(error); }
+}
+async function refreshFirmware() {
+  const info = await api('command/firmware-list', {});
+  const select = $('#firmware-package'), good = info.packages.filter(p => !p.error);
+  select.replaceChildren();
+  for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} · ${Math.round(p.bytes / 1024)} KiB`}));
+  for (const p of info.packages.filter(item => item.error)) select.append(element('option', {value: '', disabled: 'true', text: `${p.path.split(/[\\/]/).pop()} · ${p.error}`}));
+  if (!info.packages.length) select.append(element('option', {value: '', text: 'No package found in dist/ or firmware/'}));
+  const device = info.device;
+  $('#firmware-device').textContent = device.connected
+    ? `Panel connected · firmware ${device.firmware || 'unknown'} · protocol ${device.protocol ?? '?'} · Tessera ${info.host || '?'}`
+    : `The panel is not connected · Tessera ${info.host || '?'}`;
+  $('#firmware-install').disabled = !good.length;
+  if (info.job.state === 'running') pollFirmware();
+}
+async function installFirmware() {
+  const path = $('#firmware-package').value;
+  if (!path || !confirm('Write the firmware now? Do not unplug the panel until it has finished.')) return;
+  try { await api('command/firmware-install', {package: path, mode: $('#firmware-mode').value, force: $('#firmware-force').checked}); }
+  catch (error) { showError(error); return; }
+  pollFirmware();
+}
+async function pollFirmware() {
+  clearTimeout(firmwareTimer);
+  $('.firmware-progress').hidden = false;
+  let job;
+  try { job = (await api('command/firmware-progress', {})).job; } catch (error) { showError(error); return; }
+  $('#firmware-bar').value = job.percent || 0;
+  const label = $('#firmware-state');
+  if (job.state === 'running') {
+    label.textContent = `${job.stage === 'checking' ? 'Checking the panel' : 'Writing'} … ${job.percent || 0}%`;
+    firmwareTimer = setTimeout(pollFirmware, 700);
+  } else if (job.state === 'done') {
+    label.textContent = `Installed ${job.result.installed}${job.result.previous ? ` (was ${job.result.previous})` : ''}. The host has started again.`;
+  } else if (job.state === 'failed') {
+    label.textContent = job.error || 'The installation failed.';
+    $('.firmware-force').hidden = !(job.error || '').includes('did not answer');
+  }
+  $('#firmware-install').disabled = job.state === 'running';
+}
+$('#firmware-open').onclick = openFirmware;
+$('#firmware-close').onclick = () => $('#firmware-dialog').close();
+$('#firmware-install').onclick = installFirmware;

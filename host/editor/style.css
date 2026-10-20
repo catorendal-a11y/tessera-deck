@@ -109,3 +109,12 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .screen-brand b,.screen-context b{font-weight:700}
 .syncbar{width:100%;max-width:1100px;margin:0 auto}
 .label-meter{display:block;margin-top:5px;font-size:10px;color:#7f9199}.label-meter.over{color:#ffb74d}.gauge-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.gauge-controls label{min-width:0}.shortcuts{margin-top:8px;font-size:10px}
+
+/* Panel firmware installer */
+#firmware-dialog{width:min(560px,92vw)}
+.firmware-field{display:grid;gap:6px;margin:14px 0}
+.firmware-field span,.firmware-force span{color:var(--muted);font-size:13px}
+.firmware-force{display:flex;gap:8px;align-items:flex-start;margin:10px 0}
+.firmware-progress{display:grid;gap:6px;margin:14px 0}
+.firmware-progress progress{width:100%;height:10px;accent-color:var(--accent)}
+.firmware-progress span{font-size:13px}

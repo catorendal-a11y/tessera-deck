@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  host:
+    name: Windows host (tests, lint, dependency audit)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: host/requirements.txt
+      - name: Install host dependencies
+        run: python -m pip install -r host/requirements.txt ruff pip-audit
+      - name: Lint (syntax errors, undefined names, unused imports)
+        run: python -m ruff check host tests tools --select E9,F
+      - name: Unit, editor, protocol and reliability tests
+        run: python -m unittest discover -s tests -v
+      - name: Terminal self-check
+        run: python host/tessera_terminal.py --check
+      - name: Dependency audit
+        run: python -m pip_audit -r host/requirements.txt
+
+  firmware:
+    name: Firmware build and native LVGL tests
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py -B build/idf6 build
+          ls -l build/idf6/tessera.bin
+      - name: Package firmware
+        shell: bash
+        run: python3 tools/package_firmware.py build/idf6 dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tessera-firmware
+          path: dist/
+      - name: Native LVGL render and model tests
+        shell: bash
+        run: |
+          cmake -S tests/native -B build/native -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/native --parallel
+          build/native/test_ui build/native/out

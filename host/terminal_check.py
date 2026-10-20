@@ -1,11 +1,10 @@
 """Headless end-to-end terminal editor regression with isolated profile files."""
-import copy
 import json
 from pathlib import Path
 import tempfile
 from unittest.mock import Mock
 from textual.widgets import Input, Select, TabbedContent
-from tessera_terminal import TesseraApp, DeckPane, ButtonEditor, ActionEditor
+from tessera_terminal import TesseraApp, ButtonEditor, ActionEditor
 from deck_control import ROOT
 
 

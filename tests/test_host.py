@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
-from system_stats import SystemStats, select_hwinfo_metrics
+from system_stats import select_hwinfo_metrics
 from deck_assets import Assets
 from deck_control import Controller, autostart_enabled, set_autostart
 
