@@ -1,18 +1,2 @@
-* text=auto
-
-# Windows scripts must keep CRLF to stay runnable
-*.cmd text eol=crlf
-*.bat text eol=crlf
-*.ps1 text eol=crlf
-
-# Binaries
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.webp binary
-*.ico binary
-*.bin binary
-*.elf binary
-*.tgz binary
-*.pem binary
+VERSION text eol=lf
+*.sh text eol=lf

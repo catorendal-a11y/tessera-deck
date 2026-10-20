@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag matches VERSION
+        shell: bash
+        run: |
+          test "v$(tr -d '\r\n' < VERSION)" = "${GITHUB_REF_NAME}" || { echo "Tag ${GITHUB_REF_NAME} does not match VERSION"; exit 1; }
+      - name: Build firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py -B build/idf6 build
+      - name: Package firmware and host
+        shell: bash
+        run: |
+          python3 tools/package_firmware.py build/idf6 dist
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git archive --format=zip --prefix="tessera-${GITHUB_REF_NAME}/" -o "dist/tessera-host-${GITHUB_REF_NAME}.zip" HEAD
+          (cd dist && sha256sum *.zip > SHA256SUMS)
+      - name: Publish the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          apt-get update -qq && apt-get install -y -qq gh >/dev/null 2>&1 || true
+          gh release create "${GITHUB_REF_NAME}" dist/* --title "Tessera ${GITHUB_REF_NAME}" --generate-notes
