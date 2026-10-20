@@ -1,151 +1,151 @@
-# Elgato Stream Deck: research for Agent Deck
+# Elgato Stream Deck: research for Tessera
 
-Undersøkt 18.–19. oktober 2026. Offisielle produkt-, hjelpe- og SDK-sider er brukt
-for Elgato-funksjoner. Status for Agent Deck er kontrollert mot lokal kildekode.
-Dette er et sammenligningsgrunnlag, ikke en påstand om full kompatibilitet.
+Researched 18-19 October 2026. Official product, help and SDK pages were used for
+Elgato features. The status of Tessera was checked against the local source
+code. This is a basis for comparison, not a claim of full compatibility.
 
-## Hva folk faktisk bruker
+## What people actually use
 
-Elgatos standardprofil inkluderer skjermbilde, volum og appstart. Marketplace
-fremhever i tillegg lydmiks, vindusplassering, møter, virtuelle skrivebord,
-systemstatus og appspesifikke profiler. Elgatos offisielle ChatGPT & Codex-plugin
-prioriterer aktivitet, ny chat, prompt/steering, stopp, modell, resonnering, bruk
-og panelbytte.
+Elgato's default profile includes screenshot, volume and app launching. The
+Marketplace also highlights audio mixing, window placement, meetings, virtual
+desktops, system status and app-specific profiles. Elgato's official ChatGPT &
+Codex plugin prioritizes activity, new chat, prompt/steering, stop, model,
+reasoning, usage and panel switching.
 
-Brukeroppsett gjentar det samme mønsteret: mediekontroll, åpning av apper og
-mapper, skjermbilder, utklippshistorikk, virtuelle skrivebord, vindusplassering,
-møteknapper, faste hjemknapper og multihandlinger som starter en arbeidsøkt.
-Utviklere bruker særlig appspesifikke profiler, prosjektkommandoer, ferdige
-tekstblokker og AI-status.
+User setups repeat the same pattern: media control, opening apps and folders,
+screenshots, clipboard history, virtual desktops, window placement, meeting
+buttons, fixed home buttons and multi-actions that start a work session.
+Developers especially use app-specific profiles, project commands, ready-made
+text blocks and AI status.
 
-Kilder:
+Sources:
 
-* [Elgato Stream Deck 6.6 – standardprofiler og festede handlinger](https://help.elgato.com/hc/en-us/articles/26005306818701-Elgato-Stream-Deck-6-6-Release-Notes)
-* [Elgato Marketplace – produktivitet og utviklerverktøy](https://marketplace.elgato.com/stream-deck)
-* [Elgatos ChatGPT & Codex-plugin](https://marketplace.elgato.com/product/chatgpt-codex-fb6a7052-2b1a-4500-ba2a-13996edf0b47)
+* [Elgato Stream Deck 6.6 – default profiles and pinned actions](https://help.elgato.com/hc/en-us/articles/26005306818701-Elgato-Stream-Deck-6-6-Release-Notes)
+* [Elgato Marketplace – productivity and developer tools](https://marketplace.elgato.com/stream-deck)
+* [Elgato's ChatGPT & Codex plugin](https://marketplace.elgato.com/product/chatgpt-codex-fb6a7052-2b1a-4500-ba2a-13996edf0b47)
 * [Elgato Multi Actions](https://help.elgato.com/hc/en-us/articles/360027960912-Elgato-Stream-Deck-Multi-Actions)
-* [Utviklerprofiler for Stream Deck](https://github.com/mikeckennedy/streamdeck-developer-profiles)
-* [Brukernes produktivitetsoppsett](https://www.reddit.com/r/elgato/comments/1hhu8oj/are_stream_decks_good_for_work_productivity/)
-* [Brukernes mest nyttige enkeltknapper](https://www.reddit.com/r/elgato/comments/1wh69jh/what_is_the_most_useful_stream_deck_button_you/)
+* [Developer profiles for Stream Deck](https://github.com/mikeckennedy/streamdeck-developer-profiles)
+* [Users' productivity setups](https://www.reddit.com/r/elgato/comments/1hhu8oj/are_stream_decks_good_for_work_productivity/)
+* [Users' most useful single buttons](https://www.reddit.com/r/elgato/comments/1wh69jh/what_is_the_most_useful_stream_deck_button_you/)
 
-Dette er omsatt til en ny **Daglig kontroll**-mal, 119 ferdige handlinger og et
-fullt 18-knappers hovedoppsett. Hjem ligger fast i nederste høyre hjørne på alle
-sider. Hovedsiden er en programstarter basert på installerte og festede apper:
-Chrome, ChatGPT, ZCode, Claude, VS Code, GitHub Desktop, Terminal, Utforsker,
-Discord, Obsidian, LM Studio, Steam og Xbox. Skjermbilde, system, flere apper og
-lyd ligger i de fire siste plassene.
+This was turned into a new **Daily control** template, 119 ready-made actions and a
+full 18-button main layout. Home is fixed in the bottom-right corner on all pages.
+The main page is a program launcher based on installed and pinned apps: Chrome,
+ChatGPT, ZCode, Claude, VS Code, GitHub Desktop, Terminal, Explorer, Discord,
+Obsidian, LM Studio, Steam and Xbox. Screenshot, system, more apps and audio sit in
+the last four slots.
 
-## Fordypning: nyttige knapper i reelle arbeidsoppsett
+## Deep dive: useful buttons in real work setups
 
-En ny gjennomgang 19. oktober tok med IT-, QA- og utvikleroppsett. Det tydeligste
-mønsteret er at brukerne får mest verdi av handlinger som fjerner flere manuelle
-steg: flytte et vindu til en annen skjerm, starte terminalkommandoer, åpne riktig
-prosjektverktøy, styre møter og kjøre multihandlinger. Appspesifikke profiler
-holder disse funksjonene tilgjengelige uten å fylle den globale forsiden.
+A new review on 19 October included IT, QA and developer setups. The clearest
+pattern is that users get the most value from actions that remove several manual
+steps: moving a window to another monitor, starting terminal commands, opening the
+right project tool, controlling meetings and running multi-actions. App-specific
+profiles keep these features available without filling the global front page.
 
-* IT- og QA-brukere beskriver terminalkommandoer, VNC, ping, vindusflytting og
-  profiler som følger aktiv app. [IT-tråd med konkrete arbeidsflyter](https://www.reddit.com/r/elgato/comments/1vgbu8v/stream_deck_usage_tips_for_someone_working_in_it/)
-* Utvikleroppsett går igjen på formattering, lint, Git pull, GitHub Desktop,
-  terminaler og egne globale/kontekstuelle sider. [Utvikler- og QA-profiler](https://www.reddit.com/r/streamdeckprofiles/comments/y1xger)
-* Microsoft dokumenterer direkte Windows-snarveier for å flytte aktive vinduer
-  mellom skjermer, virtuelle skrivebord, utklippshistorikk og festelayout.
-  [Windows-snarveier](https://support.microsoft.com/en-au/windows/keyboard-shortcuts-in-windows-dcc61a57-8ff0-cffe-9796-cb9706c75eec)
-* PowerToys tilfører OCR, fargevelger, alltid øverst, arbeidsområder og avansert
-  innliming. [PowerToys](https://learn.microsoft.com/en-us/windows/powertoys/),
+* IT and QA users describe terminal commands, VNC, ping, window moving and profiles
+  that follow the active app. [IT thread with concrete workflows](https://www.reddit.com/r/elgato/comments/1vgbu8v/stream_deck_usage_tips_for_someone_working_in_it/)
+* Developer setups keep returning to formatting, lint, Git pull, GitHub Desktop,
+  terminals and their own global/contextual pages. [Developer and QA profiles](https://www.reddit.com/r/streamdeckprofiles/comments/y1xger)
+* Microsoft documents direct Windows shortcuts for moving active windows between
+  monitors, virtual desktops, clipboard history and snap layouts.
+  [Windows shortcuts](https://support.microsoft.com/en-au/windows/keyboard-shortcuts-in-windows-dcc61a57-8ff0-cffe-9796-cb9706c75eec)
+* PowerToys adds OCR, color picker, always on top, workspaces and advanced paste.
+  [PowerToys](https://learn.microsoft.com/en-us/windows/powertoys/),
   [Advanced Paste](https://learn.microsoft.com/windows/powertoys/advanced-paste)
-* Teams og Zoom har dokumenterte snarveier for mikrofon, kamera, deling, hånd,
-  chat og avslutting. [Teams-snarveier](https://support.microsoft.com/en-us/accessibility/teams/keyboard-shortcuts-for-microsoft-teams),
-  [Zoom-snarveier](https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0067050)
-* GitHub Desktop har dokumenterte Windows-snarveier for endringer, historikk,
-  grener, pull, push, terminal, editor og pull requests.
-  [GitHub Desktop-snarveier](https://docs.github.com/en/desktop/overview/github-desktop-keyboard-shortcuts?platform=windows)
+* Teams and Zoom have documented shortcuts for microphone, camera, sharing, hand,
+  chat and leaving. [Teams shortcuts](https://support.microsoft.com/en-us/accessibility/teams/keyboard-shortcuts-for-microsoft-teams),
+  [Zoom shortcuts](https://support.zoom.com/hc/en/article?id=zm_kb&sysparm_article=KB0067050)
+* GitHub Desktop has documented Windows shortcuts for changes, history, branches,
+  pull, push, terminal, editor and pull requests.
+  [GitHub Desktop shortcuts](https://docs.github.com/en/desktop/overview/github-desktop-keyboard-shortcuts?platform=windows)
 
-Dette er nå lagt inn som egne handlingsgrupper og komplette maler for PowerToys
-og GitHub Desktop. Møtemalen er utvidet til alle 18 knapper. Standardforsiden er
-fortsatt enkel; de nye handlingene velges fra biblioteket eller aktiveres som
-egne profiler.
+These are now included as their own action groups and complete templates for
+PowerToys and GitHub Desktop. The meeting template is extended to all 18 buttons.
+The default front page is still simple; the new actions are chosen from the
+library or enabled as their own profiles.
 
-## Arbeidsflyten som bør være referansen
+## The workflow that should be the reference
 
-Elgatos oppstartsguide beskriver handlinger i høyrepanelet, knapperutenett
-til venstre og konfigurasjon av den valgte knappen. Mapper opprettes ved å
-dra Create Folder til en knapp; egne handlinger legges deretter i mappen.
-Høyreklikk gir blant annet kopiering, sletting og flytting.
-[Offisiell oppstartsguide](https://www.elgato.com/us/en/explorer/products/stream-deck/elgato-stream-deck-quick-start-guide/).
+Elgato's quick-start guide describes actions in the right panel, the button grid on
+the left and configuration of the selected button. Folders are created by dragging
+Create Folder to a button; custom actions are then placed in the folder.
+Right-click gives, among other things, copy, delete and move.
+[Official quick-start guide](https://www.elgato.com/us/en/explorer/products/stream-deck/elgato-stream-deck-quick-start-guide/).
 
-Agent Deck har handlingslisten til venstre og egenskaper til høyre. Dra/slipp
-finnes, men dette er en egen layout. Det er ikke en nøyaktig gjengivelse av
-Elgatos editor. Å legge en ny handling på en opptatt knapp legger automatisk
-til et trinn i dagens implementasjon.
+Tessera has the action list on the left and properties on the right. Drag and
+drop exists, but this is its own layout. It is not an exact reproduction of
+Elgato's editor. Putting a new action on an occupied button automatically adds a
+step in the current implementation.
 
-## Funksjoner og faktiske forskjeller
+## Features and actual differences
 
-| Område | Elgato | Agent Deck nå |
+| Area | Elgato | Tessera now |
 |---|---|---|
-| Visuell knappekonfigurasjon | Dra handlinger til knapper; rediger valgt handling | Finnes; mus/berøring, flytting/bytting, valg av ikon/farge/navn |
-| Egendefinerte ikoner | Bilder fra fil, ikonbibliotek og animerte formater | 1 895 Lucide-ikoner og egne PNG-, JPEG-, GIF- og WebP-filer |
-| Tekst på knapper | Skriftinnstillinger og plassering øverst/midt/nederst | Størrelse, plassering og fet skrift; vertsprotokollen begrenser etiketten til 24 UTF-8-byte |
-| Profiler | Separate oppsett med Smart Profiles etter aktivt program | Finnes; regler basert på prosessnavn, manuell registrering i editoren |
-| Mapper/sider | Egen mappehandling og sider; faste handlinger kan følge navigasjonen | Mapper med mappestakk, tilbakeknapp og festede knapper |
-| Multihandlinger | Egen Multi Action-konfigurasjon med trinn og forsinkelser | Sekvensielle trinn og delay finnes; forenklet editor |
-| Veksleknapper | Hotkey Switch og Multi Action Switch | Knapper med 2–8 tilstander |
-| Dynamiske knapper | SDK kan oppdatere ikon, tittel og tilstand fra appen | Etikettvariabler og kortvarig suksess/feilfarge; ingen generell appstatusbinding |
-| Trykk/slipp | SDK har separate tastened-/tasteopp-hendelser | Deck-handlingen utløses av klikk; generell hold/slipp-strøm mangler |
-| Appintegrasjoner | Marketplace-plugins for blant annet OBS og Discord | Hurtigtaster, åpning, tekst, shell og HTTP; ingen tilsvarende pluginvert |
-| Deling | Stream Deck-profiler og deling av handlinger | Eget JSON-format; ingen .streamDeckProfile-import |
-| Programlivssyklus | Etablert skrivebordsapp | Lokalt Windows-program med WebView2, Python-vert og terminalprogram |
+| Visual button configuration | Drag actions to buttons; edit the selected action | Exists; mouse/touch, move/swap, choice of icon/color/name |
+| Custom icons | Images from file, icon library and animated formats | 1,895 Lucide icons, real app icons and your own PNG, JPEG, GIF and WebP files |
+| Text on buttons | Font settings and top/middle/bottom placement | Size, placement and bold; the host protocol limits the label to 24 UTF-8 bytes |
+| Profiles | Separate setups with Smart Profiles by active program | Exists; rules based on process name, manual entry in the editor |
+| Folders/pages | Its own folder action and pages; pinned actions can follow navigation | Folders with a folder stack, back button and pinned buttons |
+| Multi-actions | Own Multi Action configuration with steps and delays | Sequential steps and delay exist; simplified editor |
+| Toggle buttons | Hotkey Switch and Multi Action Switch | Buttons with 2-8 states |
+| Dynamic buttons | The SDK can update icon, title and state from the app | Label variables and short success/failure color; no general app-status binding |
+| Press/release | The SDK has separate key-down/key-up events | The Deck action triggers on click; a general hold/release stream is missing |
+| App integrations | Marketplace plugins for OBS, Discord and more | Hotkeys, open, text, shell and HTTP; no equivalent plugin host |
+| Sharing | Stream Deck profiles and sharing of actions | Its own JSON format; no .streamDeckProfile import |
+| Program lifecycle | Established desktop app | Local Windows program with WebView2, Python host and terminal program |
 
-Kilder til funksjonene over:
+Sources for the features above:
 
-* [Ikoner og støttede bildeformater](https://www.elgato.com/us/en/explorer/products/stream-deck/customize-stream-deck-with-icons-and-icon-packs/):
-  egen fil, ikonbibliotek og Key Creator. Den generelle ikonguiden oppgir
-  144×144; modellens oppstartsguide oppgir 72×72. Dette skal ikke behandles som
-  én universell fysisk pikselstørrelse for alle modeller.
-* [Titler og skriftinnstillinger](https://help.elgato.com/hc/en-us/articles/360027958532-Elgato-Stream-Deck-Custom-Titles-for-Actions).
+* [Icons and supported image formats](https://www.elgato.com/us/en/explorer/products/stream-deck/customize-stream-deck-with-icons-and-icon-packs/):
+  own file, icon library and Key Creator. The general icon guide states
+  144×144; the model's quick-start guide states 72×72. This should not be treated
+  as one universal physical pixel size for all models.
+* [Titles and font settings](https://help.elgato.com/hc/en-us/articles/360027958532-Elgato-Stream-Deck-Custom-Titles-for-Actions).
 * [Smart Profiles](https://www.elgato.com/uk/en/explorer/products/stream-deck/smart-profiles-stream-deck/):
-  profil byttes etter programmet i forgrunnen.
+  the profile switches by the program in the foreground.
 * [Multi Actions](https://help.elgato.com/hc/en-us/articles/360027960912-Elgato-Stream-Deck-Multi-Actions):
-  egen opprettelse fra handlingsliste/høyreklikk, ordnede trinn og forsinkelser.
-* [Veksling mellom hurtigtaster](https://www.elgato.com/eu/hu/explorer/products/stream-deck/how-to-set-up-stream-deck-hotkeys/)
-  og [Multi Action Switch i offisielle utgivelsesnotater](https://help.elgato.com/hc/de/articles/360028242631-Elgato-Stream-Deck-Software-Release-Notes).
+  created from the action list/right-click, ordered steps and delays.
+* [Switching between hotkeys](https://www.elgato.com/eu/hu/explorer/products/stream-deck/how-to-set-up-stream-deck-hotkeys/)
+  and [Multi Action Switch in the official release notes](https://help.elgato.com/hc/de/articles/360028242631-Elgato-Stream-Deck-Software-Release-Notes).
 * [Pinned Actions](https://www.elgato.com/us/en/explorer/products/stream-deck/pinned-actions-stream-deck/):
-  samme plass gjennom sider og mapper innen én profil.
+  the same slot across pages and folders within one profile.
 * [SDK: Keys](https://docs.elgato.com/streamdeck/sdk/guides/keys/):
-  hendelser, dynamiske bilder/titler og tilstander.
-* [Marketplace](https://marketplace.elgato.com/): plugin-, profil- og ikonøkosystemet.
+  events, dynamic images/titles and states.
+* [Marketplace](https://marketplace.elgato.com/): the plugin, profile and icon ecosystem.
 
-## Kan vi bruke originalprogrammet direkte?
+## Can we use the original program directly?
 
-Det offisielle plugin-SDK-et er for utvidelser som kjører under Stream Deck-appen.
-Elgato beskriver at appen eier kommunikasjonen med maskinvaren. Det er derfor
-ikke dokumentasjon på at en ESP32-P4 med vår eksisterende serielle protokoll
-kan registreres som en original Stream Deck ved å installere en vanlig plugin.
-[Pluginmiljøet](https://docs.elgato.com/streamdeck/sdk/introduction/plugin-environment/).
+The official plugin SDK is for extensions that run under the Stream Deck app.
+Elgato describes that the app owns the communication with the hardware. There is
+therefore no documentation that an ESP32-P4 with our existing serial protocol can
+be registered as an original Stream Deck by installing an ordinary plugin.
+[Plugin environment](https://docs.elgato.com/streamdeck/sdk/introduction/plugin-environment/).
 
-Elgatos publiserte [HID-dokumentasjon](https://docs.elgato.com/streamdeck/hid/intro/)
-beskriver kontroll av Stream Deck-maskinvare. [Stream Deck Module](https://www.elgato.com/us/en/p/stream-deck-module-6-keys)
-er en fysisk Elgato-modul for innebygging i egne produkter. Ingen av disse
-kildene bekrefter direkte støtte for den eksisterende ESP32-P4-løsningen.
-Å emulere en enhet ville være et separat utviklings- og kompatibilitetsprosjekt,
-ikke en verifisert snarvei. Ingen USB-identiteter eller fastvare ble endret
-under denne researchen.
+Elgato's published [HID documentation](https://docs.elgato.com/streamdeck/hid/intro/)
+describes control of Stream Deck hardware. [Stream Deck Module](https://www.elgato.com/us/en/p/stream-deck-module-6-keys)
+is a physical Elgato module for embedding in your own products. None of these
+sources directly confirms support for the existing ESP32-P4 solution.
+Emulating a device would be a separate development and compatibility project, not
+a verified shortcut. No USB identities or firmware were changed during this
+research.
 
-## Et eksisterende alternativ som bør prøves før egen pluginvert
+## An existing alternative worth trying before a custom plugin host
 
-[OpenDeck](https://github.com/nekename/OpenDeck/blob/main/README.md) er en
-skrivebordsapp for Windows, macOS og Linux. Prosjektet oppgir støtte for mange
-plugins laget for Stream Deck-SDK-et. Offisiell maskinvarestøtte er Elgato,
-mens andre leverandører kan støttes av enhetsplugins.
+[OpenDeck](https://github.com/nekename/OpenDeck/blob/main/README.md) is a desktop
+app for Windows, macOS and Linux. The project states support for many plugins made
+for the Stream Deck SDK. Official hardware support is Elgato, while other vendors
+may be supported by device plugins.
 
-Min vurdering: OpenDeck er en konkret kandidat for en avgrenset kompatibilitetstest
-med en egen P4-bro. Det er ikke bekreftet at vår enhet virker. En slik bro må
-overføre knappbilder og hendelser gjennom den eksisterende USB-eieren.
-Pluginstøtte må testes per faktisk plugin; «mange» betyr ikke «alle».
+My assessment: OpenDeck is a concrete candidate for a limited compatibility test
+with a dedicated P4 bridge. It is not confirmed that our device works. Such a
+bridge must transfer button images and events through the existing USB owner.
+Plugin support must be tested per actual plugin; "many" does not mean "all".
 
-## Valgt retning
+## Chosen direction
 
-Prosjektet er nå et rent Agent Deck. Den Elgato-lignende arbeidsflyten er bygd
-inn i det lokale PC-programmet med dra og slipp, egne bilder, 1 895 ikoner,
-multihandlinger, mapper, veksleknapper, profiler og bekreftet USB-status. En
-eventuell kompatibilitetsbro for tredjepartsplugins er fortsatt et separat,
-framtidig arbeid og er ikke nødvendig for vanlig bruk.
+The project is now a pure Tessera. The Elgato-like workflow is built into the
+local PC program with drag and drop, own images, 1,895 icons, real app icons,
+multi-actions, folders, toggle buttons, profiles and confirmed USB status. A
+possible compatibility bridge for third-party plugins is still separate, future
+work and is not needed for ordinary use.

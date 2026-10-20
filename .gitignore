@@ -12,3 +12,4 @@ host/.webview-data/
 host/profiles.json
 host/assets/
 build_first.log
+host/sensors/

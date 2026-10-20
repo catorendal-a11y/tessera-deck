@@ -1,22 +1,23 @@
-# Lokal verifikasjon
+# Local verification
 
-Agent Deck er nå et rent Deck-produkt. Fastvaren inneholder én fullskjerms
-6 × 3-flate, og Windows-terminalen er hovedprogrammet. Den lokale grafiske
-editoren åpnes fra terminalen med F8.
+Tessera is now a pure Deck product. The firmware contains one full-screen
+6 × 3 surface, and the Windows terminal is the main program. The local graphical
+editor opens from the terminal with F8.
 
-Verifikasjonen dekker:
+The verification covers:
 
-- validering, lagring og redigering av profiler og tomme sider
-- mapper og tilbake-navigasjon
-- festede knapper og tilstandsknapper
-- flere handlinger, hurtigtaster og beskyttelse mot rekursjon
-- 1 895 innebygde Lucide-ikoner
-- import og normalisering av egne bilder
-- native LVGL-rendering i 1024 × 600
-- ESP-IDF 6.1-bygg
-- COM4-protokoll, 21 syntetiske knappetrykk og stabil boot-ID
-- eksplisitt LCD-baklys ved oppstart og gjenoppretting over USB
+- validation, saving and editing of profiles and empty pages
+- folders and back navigation
+- pinned buttons and toggle buttons
+- multiple actions, hotkeys and protection against recursion
+- 1,895 built-in Lucide icons
+- import and normalization of custom images
+- real program icons rendered at 256 px by the Windows shell
+- native LVGL rendering at 1024 × 600
+- ESP-IDF 6.1 build
+- COM4 protocol, 21 synthetic button presses and a stable boot ID
+- explicit LCD backlight on boot and on recovery over USB
 
-Maskinvaretesten sender ingen hurtigtaster, shell-kommandoer eller andre
-handlinger til Windows. COM6 berøres ikke. Detaljerte logger og skjermbilder
-lagres lokalt under `build/`.
+The hardware test sends no hotkeys, shell commands or other actions to Windows.
+COM6 is not touched. Detailed logs and screenshots are stored locally under
+`build/`.

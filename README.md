@@ -1,145 +1,270 @@
-# Agent Deck
+<h1 align="center">Tessera</h1>
 
-Et komplett Stream Deck-system for ESP32-P4 Function EV Board med 1024 × 600
-berøringsskjerm. Enheten viser ett stabilt 6 × 3-knapperutenett i fullskjerm.
-Windows-programmet håndterer profiler, handlinger, bilder og USB-forbindelsen.
+<p align="center">
+  <strong>A touchscreen macro deck for the ESP32-P4 — live gauges, real app icons and a Stream&nbsp;Deck-style Windows host.</strong>
+</p>
 
-Standardforsiden åpner de mest brukte installerte programmene direkte: Chrome,
-ChatGPT, ZCode, Claude, VS Code, GitHub Desktop, Terminal, Utforsker, Discord,
-Obsidian, LM Studio, Steam og Xbox. De resterende plassene gir skjermbilde,
-flere apper, systemkontroll og lyd av/på. Hjemknappen ligger fast som knapp 18.
+<p align="center">
+  <img alt="Windows" src="https://img.shields.io/badge/host-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
+  <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
+  <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-96%20passing-35D07F">
+</p>
 
-## Start
+<p align="center">
+  <img src="docs/images/editor-main.png" alt="The Tessera editor mirrors the panel pixel for pixel" width="900">
+</p>
 
-Dobbeltklikk `Agent-Deck.cmd`. Dette åpner terminalprogrammet, som er
-hovedprogrammet. Første start oppretter et lokalt Python-miljø og installerer
-avhengighetene. Python 3.11 eller nyere kreves.
+Tessera turns the 1024 × 600 touchscreen of the **ESP32-P4 Function EV Board** into an 18-key control surface:
+launch apps, fire hotkeys, drive Codex and Claude Code, watch live system gauges and run multi-step macros.
+A small Windows host owns the USB connection, runs the actions and serves a drag-and-drop editor that always
+shows exactly what the panel shows.
 
-I terminalen kan du redigere alle 18 knapper, bytte profil og side, starte eller
-stoppe USB-verten og åpne den grafiske editoren med **F8**. Den grafiske
-editoren kjører lokalt på maskinen og brukes til Elgato-lignende dra og slipp.
-Den er et redigeringsvindu for terminalprogrammet, ikke en nettjeneste.
+## Highlights
 
-Editoren åpnes som et eget Windows-program med WebView2 og Agent Deck-ikon.
-Localhost-serveren er kun den interne motoren og vises ikke som en vanlig
-nettleserfane. Hvis WebView2 mangler, brukes standardnettleseren som reserve.
+- **Fast, flicker-free panel UI** — a fixed 6 × 3 grid rendered by LVGL. Live values update in place; the grid is never rebuilt while you touch it.
+- **Real app icons** — rendered by the Windows shell at 256 px (Store apps, shortcuts and aliases included) and scaled to the panel, plus 1,895 bundled [Lucide](https://lucide.dev) icons and your own PNG, JPEG, GIF and WebP images.
+- **Live ring gauges** — CPU, GPU, VRAM, RAM, disk, network, uptime, temperatures, power and fan speed, with amber and red thresholds.
+- **A WYSIWYG editor** — drag and drop, undo/redo, copy/paste, folders, pinned buttons, toggle buttons with 2–8 states and multi-step actions. The editor mirrors the panel and follows it when the profile changes.
+- **119 ready-made actions and 10 profile templates** for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
+- **Smart profiles** — the panel switches profile by the foreground program, process or window title.
+- **Scriptable** — a local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages (for example a Claude Code status light).
+- **Tray app, auto-dim and brightness** — start with Windows, dim after inactivity or when the PC locks, and wake with a touch that does not trigger a button.
+- **Free sensors** — Windows performance counters out of the box; optional [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) for temperatures, power and fan speed.
 
-Du kan også åpne den direkte:
+## Screenshots
 
-```powershell
-Agent-Deck.cmd --editor
+| Editor — status page | Panel — system page |
+|---|---|
+| <img src="docs/images/editor-status.png" alt="Status page with live gauges in the editor"> | <img src="docs/images/device-system.png" alt="System page rendered by the panel firmware"> |
+
+<p align="center"><img src="docs/images/device-gauges.png" alt="Live ring gauges rendered by the panel firmware" width="640"></p>
+
+*Panel images are rendered by the real firmware UI (LVGL) in a native test build.*
+
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph PC["Windows PC"]
+        Editor["Editor (WebView2)"] -->|profiles.json| Host
+        Tray["Tray app"] --> Host
+        CLI["deckctl / hooks"] -->|loopback API| Host
+        Sensors["Windows counters<br/>Libre Hardware Monitor"] --> Host
+        Host["tesserad — USB host<br/>actions, profiles, sensors"]
+    end
+    Host <-->|"USB Serial/JTAG<br/>JSON + line protocol"| Panel["ESP32-P4 panel<br/>LVGL UI, touch"]
 ```
 
-## Knapper og dra og slipp
+The host is the **only owner of the USB port**. It pushes the active page (button layout, live values and
+images) to the panel, receives key presses, runs the configured actions on the PC and confirms the result with a
+green or red flash on the key. Everything is local: the editor and the control API listen on `127.0.0.1` only.
 
-Den grafiske editoren har disse funksjonene:
+## Hardware
 
-- Dra en handling til ett av 18 spor.
-- Dra knapper mellom spor for å flytte eller bytte dem.
-- Høyreklikk en knapp for å duplisere, kopiere, feste eller tømme den.
-- Dupliser hele sider og profiler med ett trykk.
-- Legg flere handlinger på samme knapp og sorter rekkefølgen.
-- Ta opp hurtigtaster direkte.
-- Velg program, fil, mappe eller URL.
-- Bruk egne PNG-, JPEG-, GIF- eller WebP-bilder. Bilder skaleres og sendes til
-  enheten; animerte GIF/WebP støttes med opptil 12 optimaliserte bilder.
-- Velg blant 1 895 medfølgende Lucide-ikoner med søk, favoritter og historikk.
-- Fest en knapp slik at den vises på alle sider.
-- Lag mapper med tilbake-navigasjon og opptil 16 nivåer.
-- Lag knapper med 2–8 tilstander, for eksempel Av/På.
-- Juster tittelstørrelse, plassering og fet skrift.
-- Angre/gjør om med `Ctrl+Z` / `Ctrl+Shift+Z`, og kopier/lim inn knapper.
-- Legg til 119 ferdige handlinger for Windows, vinduer, PowerToys, GitHub Desktop,
-  VS Code, nettlesere, møter, medier, redigering, Codex, Claude Code og ZCode uten
-  å skrive hurtigtastene selv.
-- Opprett komplette profiler fra ti maler: Daglig kontroll, Windows-kontroll,
-  Nettleser, Møter, VS Code, GitHub Desktop, PowerToys, Codex, Claude Code og
-  ZCode. Maler finnes både i terminalen og
-  dra-og-slipp-editoren.
-- Åpne **Program** for å la USB-verten starte automatisk ved Windows-innlogging,
-  uten å åpne editorvinduet.
+| Part | Notes |
+|---|---|
+| Board | ESP32-P4 Function EV Board |
+| Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
+| Connection | USB cable to the board's USB Serial/JTAG port — no Wi-Fi is needed |
+| PC | Windows 10/11, Python 3.11 or newer |
 
-## AI-kodeverktøy
+## Quick start
 
-De tre AI-profilene styrer verktøyene direkte og inneholder ingen monitor:
+### 1. Run the Windows host
 
-- **Codex** starter eller fortsetter Codex CLI og har knapper for ny chat,
-  gjenoppta, review, diff, modell, resonnering, plan, status og mål.
-- **Claude Code** starter, fortsetter eller gjenopptar Claude Code og har
-  knapper for kontekst, modell, tillatelser, plan, sikkerhet og oppgaver.
-- **ZCode** åpner den installerte skrivebordsappen og bruker ZCodes offisielle
-  Windows-snarveier for oppgaver, paneler, modell, tankenivå og kjøremodus.
+```powershell
+Tessera.cmd            # terminal UI; the first run creates a Python environment
+Tessera.cmd --editor   # drag-and-drop editor
+Tessera.cmd --tray     # tray app that also starts the USB host
+```
 
-Codex- og Claude-malene kjenner igjen både terminalens underprosess og
-vindustittel. I profilinnstillingene kan du velge et kjørende program direkte.
-Avanserte regler kan skrives som `program.exe`, `process:claude.exe` eller
-`title:codex`. Statuslinjen viser når en profil er valgt automatisk.
+The default port is `COM4`; set `TESSERA_PORT` to change it. After the first successful connection Tessera
+remembers the board's USB serial number and follows it if Windows renumbers the port.
 
-Startknappene for Codex og Claude Code åpner en ny fane i Windows Terminal i
-mappen der Agent Deck kjører. Kommando- og hurtigtastknappene sendes til vinduet
-som er aktivt. ZCode-profilen byttes automatisk inn når `ZCode.exe` er aktiv.
+### 2. Flash the firmware
 
-Oppsettene følger den offisielle dokumentasjonen for
-[Codex-kommandoer](https://developers.openai.com/codex/cli/slash-commands),
-[Claude Code-kommandoer](https://code.claude.com/docs/en/commands),
-[Claude Code interaktiv modus](https://code.claude.com/docs/en/interactive-mode),
-[ZCode-snarveier](https://zcode.z.ai/en/docs/keyboard-shortcuts) og
-[ZCode-kommandoer](https://zcode.z.ai/en/docs/commands).
-
-Endringer lagres automatisk etter validering. Oppsettet ligger i
-`host/profiles.json`, som opprettes fra `host/profiles.default.json` ved første
-start; importer og eksporter profiler fra editoren. Stier i `open`-handlinger
-kan bruke miljøvariabler som `%LOCALAPPDATA%`.
-
-## Handlinger
-
-En knapp kan kjøre én eller flere handlinger:
-
-- `hotkey`: hurtigtast eller medietast
-- `text`: skriv tekst
-- `open`: åpne program, fil, mappe eller URL
-- `shell`: kjør kommando
-- `http`: kall et HTTP-endepunkt
-- `delay`: vent mellom trinn
-- `folder` og `back`: naviger i mapper
-- `page` og `profile`: bytt side eller profil
-- `press`: kjør en annen knapp
-- `set`: sett en variabel
-
-Etiketter kan bruke `$(time)`, `$(date)`, `$(profile)`, `$(page)` og
-`$(var:navn)`. Profilregler kan automatisk bytte profil ut fra aktivt program.
-
-## USB og fastvare
-
-`host/agent_deckd.py` er eneste eier av USB-porten. Standardporten på denne
-maskinen er COM4. COM6 brukes ikke. Ved ny tilkobling sender verten aktiv side,
-bilder og kontekst på nytt.
-
-Verten vekker LCD-baklyset ved tilkobling, sideoppdatering og fysisk trykk. Hvis
-panelet er svart mens touch fortsatt virker, kan det derfor gjenopprettes uten
-å trekke kabelen eller starte Windows på nytt.
-
-Bygg med ESP-IDF 6.1:
+Install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html), then:
 
 ```powershell
 idf.py -B build/idf6 build
+idf.py -B build/idf6 -p COM4 flash          # first time: bootloader, partition table and app
 ```
 
-Ved manuell oppdatering skal bare applikasjonen skrives til `0x10000`. Det
-bevarer bootloader, partisjonstabell og NVS.
+To update only the application — which keeps the bootloader, partition table and stored settings — stop the
+host first (it owns the port) and write the app image:
 
-## Kontroller
+```powershell
+python -m esptool --chip esp32p4 -p COM4 -b 460800 write-flash 0x10000 build\idf6\tessera.bin
+```
+
+### 3. Make it yours
+
+Open the editor, pick a program from **Installed programs** and drop it on a key. Changes are saved
+automatically after validation to `host/profiles.json`, which is created from `host/profiles.default.json` on the
+first start.
+
+## Using Tessera
+
+### Profiles, pages and actions
+
+A **profile** holds pages; a **page** holds up to 18 keys; slot 18 is the pinned **Home** key. Folders push a page
+with a *Back* key in slot 17. A key runs one or more actions in order:
+
+| Action | What it does |
+|---|---|
+| `hotkey` | Press a key combination or media key |
+| `text` | Type text |
+| `open` | Open a program, file, folder or URL (optionally focus an already running program) |
+| `shell` / `http` | Run a command or call an HTTP endpoint |
+| `delay` | Wait between steps |
+| `folder`, `back`, `home`, `page`, `profile` | Navigate |
+| `press` | Run another key |
+| `set` | Set a variable |
+| `state` | Set the state of a toggle key (`next` or a state number) |
+
+Labels can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(agent:claude)` and `$(var:name)`. Profiles switch
+automatically with rules such as `chrome.exe`, `process:claude.exe` or `title:codex`.
+
+### Live gauges and sensors
+
+A key becomes a gauge with a `gauge` block; the host fills in the value, the ring and the color:
+
+```json
+{
+  "label": "CPU TEMP",
+  "gauge": { "key": "cpu_temp", "max": 100, "unit": "C", "warn": 80, "critical": 90 }
+}
+```
+
+Formats are `int`, `ghz`, `gb`, `rate`, `uptime` and `live`; `scale: "log"` suits network rates.
+
+| Source | Needs | Provides |
+|---|---|---|
+| Windows | nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
+| Libre Hardware Monitor | free download, administrator rights | temperatures, CPU and GPU power, fan speed, clocks |
+
+Install the optional sensor source with `tools\setup_sensors.ps1`. It downloads the official release, verifies
+its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation
+once). Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
+
+### Brightness and auto-dim
+
+Open **Settings** in the editor, or the tray menu. By default the panel dims to 10 % after five minutes without
+a press and when Windows locks; the first touch wakes it without pressing a key. Set the values in
+`profiles.json` with `"display": { "brightness": 80, "dim_after": 300, "dim_level": 10 }` (`dim_after: 0` disables it).
+
+### Control from scripts and AI tools
+
+The host publishes a per-run token in `host/deck-api.local.json`; `host/deckctl.py` uses it:
+
+```powershell
+python host\deckctl.py var claude working     # labels can use $(var:claude)
+python host\deckctl.py state 3 next           # set a toggle key's state
+python host\deckctl.py page main status       # show a page
+python host\deckctl.py press 5 | ok 5 | alert 5 | wake | dim | status
+```
+
+A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`.
+The Claude Code profile uses this on its first key. To drive it from Claude Code hooks (verify the event names
+against the Claude Code hooks documentation):
+
+```json
+{ "hooks": {
+  "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"<tessera>/host/.venv/Scripts/pythonw.exe\" \"<tessera>/host/deckctl.py\" var claude working" }] }],
+  "Notification":     [{ "hooks": [{ "type": "command", "command": "\"<tessera>/host/.venv/Scripts/pythonw.exe\" \"<tessera>/host/deckctl.py\" var claude waiting" }] }],
+  "Stop":             [{ "hooks": [{ "type": "command", "command": "\"<tessera>/host/.venv/Scripts/pythonw.exe\" \"<tessera>/host/deckctl.py\" var claude idle" }] }]
+} }
+```
+
+### Real icons for existing keys
+
+`python tools\refresh_program_icons.py` gives every program key the icon `"app"`, which the host resolves from
+the key's `open` action. It is a dry run by default; add `--apply` to write the changes (the old file is kept as
+`profiles.backup.local.json`) or `--freeze` to store the images instead.
+
+## Serial protocol
+
+115200 baud over USB Serial/JTAG. Lines are UTF-8; the panel answers every command.
+
+| Direction | Message | Purpose |
+|---|---|---|
+| host → panel | `{"cmd":"get_info"}` | Board id (`tessera-p4`), firmware, boot id, memory |
+| host → panel | `AD_CFG_BEGIN` / `AD_CFG_DATA …` / `AD_CFG_END` | Push the button layout (JSON, chunked) |
+| host → panel | `AD_IMG_BEGIN` / `AD_IMG_DATA` / `AD_IMG_END` | Upload a button image (CRC-checked) |
+| host → panel | `AD_CONTEXT {…}` | Profile, page and back-arrow state for the header |
+| host → panel | `AD_FEEDBACK <ok or alert> <id>` | Flash a key green or red |
+| host → panel | `AD_BRIGHTNESS <1-100>`, `AD_DISPLAY_DIM <0-100>`, `AD_DISPLAY_WAKE` | Backlight control |
+| panel → host | `{"type":"deck_event","button":N,"label":"…"}` | A key was pressed |
+
+The `AD_` prefix is the protocol's historical namespace and is kept for compatibility.
+
+## Project layout
+
+```text
+main/            ESP32-P4 firmware: USB console, button model, LVGL UI, fonts, image decoder
+components/      Board support package for the ESP32-P4 Function EV Board
+host/            Windows host
+  tesserad.py          USB daemon: actions, profiles, sensors, dimming, control API
+  tessera_app.py       Local editor server and WebView2 window
+  tessera_terminal.py  Terminal UI
+  tessera_tray.py      Tray app
+  deckctl.py           Command line for the control API
+  editor/              Editor front end (HTML, JS, CSS)
+tests/           Unit, editor, native render and hardware smoke tests
+tools/           Icon refresh, sensor setup and icon font tooling
+vendor/          Lucide icon pack (ISC) and ArduinoJson (MIT)
+```
+
+## Development
 
 ```powershell
 host\.venv\Scripts\python.exe -m unittest discover -s tests -p test_*.py -v
-host\.venv\Scripts\python.exe host\agent_deck_terminal.py --check
+host\.venv\Scripts\python.exe host\tessera_terminal.py --check
+
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/native
-build\native\test_ui.exe build\previews\deck-only
+build\native\test_ui.exe build\previews          # renders the real LVGL UI to images
+
+host\.venv\Scripts\python.exe tests\hardware_smoke.py   # talks to the panel; presses no keys on the PC
 ```
 
-Native-testen rendrer den faktiske LVGL-flaten. Maskinvaretesten
-`tests/hardware_smoke.py` kontrollerer COM4 uten å kjøre hurtigtaster eller
-andre handlinger på PC-en.
+The hardware smoke test never sends hotkeys or runs actions on the PC. See [`VERIFICATION.md`](VERIFICATION.md)
+for what the checks cover and [`ELGATO_RESEARCH.md`](ELGATO_RESEARCH.md) for the design research.
 
-Lucide- og Feather-lisensene ligger i `vendor/lucide/LICENSE`.
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| The panel stays black but touch works | The host wakes the backlight on connect and on every touch; restart the host if it does not |
+| `Another Tessera host is already running` | Only one host may own the port; stop it from the tray, then start again |
+| Gauges show `--` | Temperature, power and fan need Libre Hardware Monitor (`tools\setup_sensors.ps1`) |
+| The editor looks out of date | Close the editor window and open it again from the tray |
+| Flashing fails with *port busy* | Stop the host first; it holds the COM port |
+
+## Security notes
+
+Profiles can run commands, open files and call URLs. **Treat imported profiles like code** and read them before
+you press a key. The editor and the control API accept connections from `127.0.0.1` only, require a per-run token
+and reject browser requests.
+
+## Roadmap
+
+- Long-press and press-and-release actions
+- Wake the panel from any touch, not only from keys
+- Import of Stream Deck and OpenDeck profiles
+- A plugin bridge for the OpenAction API
+
+## Acknowledgements
+
+Built with [ESP-IDF](https://github.com/espressif/esp-idf), [LVGL](https://lvgl.io), the Espressif board support
+package, [Lucide](https://lucide.dev) icons (ISC), [ArduinoJson](https://arduinojson.org) (MIT) and DejaVu fonts.
+Optional sensors come from [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
+(MPL-2.0). Tessera is inspired by Stream Deck and [OpenDeck](https://github.com/nekename/OpenDeck) and is not
+affiliated with Elgato or Corsair; Stream Deck is a trademark of its owner.
+
+## License
+
+No license has been chosen yet, so all rights are reserved by the author until one is added. Third-party
+components keep their own licenses (see `vendor/lucide/LICENSE` and the component directories).
