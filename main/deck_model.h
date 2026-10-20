@@ -78,8 +78,23 @@ typedef enum {
     DECK_FEEDBACK_ALERT,
 } deck_feedback_t;
 void deck_model_request_feedback(int button_id, deck_feedback_t kind);
-/* Returns a sequence number when pending and fills the details, else 0. */
+/* Pops the oldest pending confirmation: returns its sequence number and fills
+ * the details, or 0 when none is queued. Confirmations that arrive between two
+ * UI ticks are kept in order instead of overwriting each other. */
 uint32_t deck_model_take_feedback(int *button_id, deck_feedback_t *kind);
+
+/* Display state. The host dims the backlight; a touch on a dimmed panel asks
+ * for a local wake instead of pressing a key. The USB console applies the
+ * wake and tells the host, so the wake works even on empty slots. */
+void deck_model_set_dimmed(bool dimmed);
+bool deck_model_dimmed(void);
+void deck_model_request_wake(void); /* clears dimmed and bumps the sequence */
+uint32_t deck_model_wake_sequence(void);
+
+/* Host link: every line from the host stamps it; the header shows whether a
+ * host has spoken within the timeout. */
+void deck_model_note_host(void);
+bool deck_model_host_linked(int64_t timeout_ms);
 
 /* Shared parser for both the HTTP API and the USB console config push.
  * Accepts {"buttons":[...]} text; returns false (count untouched) on any

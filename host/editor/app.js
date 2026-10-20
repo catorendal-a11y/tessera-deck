@@ -19,6 +19,17 @@ const kinds = {
   state:{name:'Set button state',icon:'loop',field:'button',label:'Button number (1–18)',group:'Advanced'},
   home:{name:'Go home',icon:'home',field:null,label:'Go to the first page of the default profile',group:'Navigation'},
 };
+// Sensors the host provides, with the ranges and thresholds of the bundled status page.
+const gaugeSensors={
+  cpu_load:['CPU load',{max:100,unit:'%',warn:85,critical:97}],cpu_temp:['CPU temperature',{max:100,unit:'C',warn:80,critical:90}],
+  cpu_power:['CPU power',{max:170,unit:'W',warn:130,critical:160}],cpu_clock:['CPU clock',{max:5500,fmt:'ghz'}],
+  ram:['RAM',{max:100,unit:'%',warn:85,critical:95}],disk:['Disk',{max:100,unit:'%',warn:90,critical:97}],
+  gpu_load:['GPU load',{max:100,unit:'%'}],vram_used_gb:['VRAM',{percent_key:'vram',max:100,fmt:'gb',warn:85,critical:95}],
+  gpu_temp:['GPU temperature',{max:110,unit:'C',warn:85,critical:100}],gpu_power:['GPU power',{max:350,unit:'W',warn:320,critical:360}],
+  gpu_clock:['GPU clock',{max:2600,fmt:'ghz'}],gpu_fan:['GPU fan',{max:3000}],
+  net_down:['Download',{max:125000000,fmt:'rate',scale:'log'}],net_up:['Upload',{max:125000000,fmt:'rate',scale:'log'}],
+  uptime:['Uptime',{max:604800,fmt:'uptime'}],sensors:['Sensor source',{max:1,fmt:'live'}]
+};
 const presets = [
   {name:'Mute / unmute',icon:'minus',keys:'volumemute'}, {name:'Volume down',icon:'minus',keys:'volumedown'},
   {name:'Volume up',icon:'plus',keys:'volumeup'}, {name:'Play / pause',icon:'play',keys:'playpause'},
@@ -101,7 +112,7 @@ function renderIconResults() {
     return element('div',{class:'catalog-item'},choose,star);
   }));
   if(!shown.length)$('#icon-results').append(text('p',group==='Favorites'?'Press ☆ on an icon to add it to favorites.':'No matches. Try another word or category.','hint icon-empty'));
-  $('#icon-count').textContent=list.length?`${iconPage*iconPageSize+1}–${Math.min(list.length,(iconPage+1)*iconPageSize)} of ${list.length.toLocaleString('en-US')} icons`:'0 treff';
+  $('#icon-count').textContent=list.length?`${iconPage*iconPageSize+1}–${Math.min(list.length,(iconPage+1)*iconPageSize)} of ${list.length.toLocaleString('en-US')} icons`:'0 icons';
   $('#icons-prev').disabled=iconPage===0;$('#icons-next').disabled=iconPage>=pages-1;
   $('#icon-results').scrollTop=0;
 }
@@ -168,13 +179,20 @@ function draftError() {
   }
   return '';
 }
-function remember() {history.push(clone(config));if(history.length>60)history.shift();future=[];}
+// Typing in one field becomes a single undo step; a pause or another edit starts a new one.
+let lastEdit={key:null,at:0};
+function remember(key=null) {
+  const now=Date.now();
+  if(key&&key===lastEdit.key&&now-lastEdit.at<1500){lastEdit.at=now;future=[];return;}
+  lastEdit={key,at:now};history.push(clone(config));if(history.length>60)history.shift();future=[];
+}
+const editKey=(...parts)=>[profile,page,selected,editState,...parts].join('\u0000');
 function changed() {
   dirty=true;version++;clearTimeout(saveTimer);renderGrid();updateHistory();
   const error=draftError();setSaveState(error?'Draft · '+error:'Saving …',error?'Fill in the field, or undo the change.':'The change is sent automatically to the active page.');
   if(!error&&!conflicted)saveTimer=setTimeout(()=>save().catch(showError),650);
 }
-function mutate(fn,refresh=true) {remember();fn();changed();if(refresh)renderInspector();}
+function mutate(fn,refresh=true,key=null) {remember(key);fn();changed();if(refresh)renderInspector();}
 function showError(error) {setSaveState('Not saved',error.message);toast(error.message);if(error.status===409){conflicted=true;$('#reload').hidden=false;}}
 async function save() {
   clearTimeout(saveTimer);
@@ -192,7 +210,7 @@ async function save() {
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);
 }
 function updateHistory() {$('#undo').disabled=!history.length;$('#redo').disabled=!future.length;}
-function undo(redo=false) {const source=redo?future:history,target=redo?history:future;if(!source.length)return;target.push(clone(config));config=source.pop();ensureSelection();changed();renderAll();}
+function undo(redo=false) {const source=redo?future:history,target=redo?history:future;if(!source.length)return;lastEdit={key:null,at:0};target.push(clone(config));config=source.pop();ensureSelection();changed();renderAll();}
 function ensureSelection() {
   if(!config.profiles[profile])profile=config.default_profile||Object.keys(config.profiles)[0];
   if(!config.profiles[profile].pages[page])page=Object.keys(config.profiles[profile].pages)[0];
@@ -217,12 +235,26 @@ function tileGeometry(b) {
   const labelTop=position==='top'?10:position==='middle'?Math.round((DEVICE.cell-px)/2):DEVICE.cell-px-17;
   return {px,labelTop,hidden:position==='hidden',symbolTop:position==='top'};
 }
-function resolveLabel(value) {
-  return String(value||'').replace(/[$][(]([a-z_]+)(?::([a-z_]+))?[)]/g,(match,kind,name)=>{
+// The host cuts labels to 24 UTF-8 bytes without splitting a character; mirror it.
+const LABEL_BYTES=24;
+function panelLabel(value) {
+  const bytes=new TextEncoder().encode(value);if(bytes.length<=LABEL_BYTES)return value;
+  let end=LABEL_BYTES;while(end>0&&(bytes[end]&0xC0)===0x80)end--;
+  return new TextDecoder().decode(bytes.subarray(0,end));
+}
+// Same variables as the host's substitute(): unset $(var:…) renders empty, unknown tokens stay as typed.
+function resolveLabel(value) {return panelLabel(expandLabel(value));}
+function expandLabel(value) {
+  const now=new Date(),two=n=>String(n).padStart(2,'0');
+  const text=String(value||'').replace(/[$][(]([a-z_]+)(?::([A-Za-z0-9_.-]+))?[)]/g,(match,kind,name)=>{
     if(kind==='agent')return dashboard.agents?.[name]?'ON':'OFF';
-    if(kind==='profile')return profile;if(kind==='page')return page;
-    if(kind==='time')return new Date().toTimeString().slice(0,5);
-    return '--';});
+    if(kind==='profile'&&!name)return profile;if(kind==='page'&&!name)return page;
+    if(kind==='time'&&!name)return `${two(now.getHours())}:${two(now.getMinutes())}`;
+    if(kind==='date'&&!name)return `${two(now.getDate())}.${two(now.getMonth()+1)}`;
+    if(kind==='var'&&name)return String(dashboard.vars?.[name]??'');
+    if(kind==='stat'&&name)return String(dashboard.stats?.[name]??'--');
+    return match;});
+  return text.replace(/[\u0000-\u001f]/g,' ');
 }
 function gaugeVisual(b,live) {
   const NS='http://www.w3.org/2000/svg',D=108,width=11,r=(D-width)/2,C=2*Math.PI*r,arc=C*.75;
@@ -385,15 +417,20 @@ function field(label,value,handler,{type='text',placeholder='',values=null,multi
   input.addEventListener(values?'change':'input',()=>handler(type==='number'?Number(input.value):input.value));
   return element('label',{},text('span',label),input);
 }
-function editAction(index,key,value) {mutate(()=>activeActions()[index][key]=value,false);}
+function editAction(index,key,value) {mutate(()=>activeActions()[index][key]=value,false,editKey('action',index,key));}
 function renderInspector() {
   recording=null;const panel=$('#inspector'),base=current(),b=appearance();panel.replaceChildren();
   panel.append(element('div',{class:'inspector-title'},element('div',{},text('div',`BUTTON ${String(selected).padStart(2,'0')}`,'section-label'),text('h2',b?'Customize the button':'An empty slot'))));
   if(!b){panel.append(element('div',{class:'empty-inspector'},text('strong','What do you want here?'),text('p','Drag an action here from the list on the left. Or pick one of the shortcuts below.')));
     panel.append(button('▦ Choose installed program',openProgramPicker,'add-action'),button('＋ Add hotkey',()=>addAction('hotkey'),'add-action'),button('▱ Open file or program',()=>addAction('open'),'add-action'),button('▶ Play / pause',()=>addAction('preset:3'),'add-action'));if(clipboard)panel.append(button('Paste copied button',pasteButton,'add-action'));return;}
-  panel.append(field('Button name',b.label,value=>mutate(()=>appearance().label=value,false),{placeholder:'A short, clear name'}));
+  const meter=text('small','','label-meter');
+  const updateMeter=()=>{const full=expandLabel(appearance()?.label),bytes=new TextEncoder().encode(full).length,variable=/[$][(]/.test(appearance()?.label||'');
+    meter.classList.toggle('over',bytes>LABEL_BYTES);
+    meter.textContent=bytes>LABEL_BYTES?`Too long for the panel: it shows “${panelLabel(full)}”`:`${bytes} / ${LABEL_BYTES} bytes on the panel${variable?' with the current values':''}`;};
+  const nameField=field('Button name',b.label,value=>{mutate(()=>appearance().label=value,false,editKey('label'));updateMeter();},{placeholder:'A short, clear name'});
+  nameField.append(meter);updateMeter();panel.append(nameField);
   const appearanceRow=element('div',{class:'appearance-row'},text('span','Icon color','hint'));
-  const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color'});color.addEventListener('input',()=>{mutate(()=>appearance().color=color.value,false);panel.querySelector('.selected-icon-image')?.replaceWith(iconVisual(current().icon,color.value,'selected-icon-image'));});appearanceRow.append(color,text('span','Shown on the panel','hint'));panel.append(appearanceRow);
+  const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color'});color.addEventListener('input',()=>{mutate(()=>appearance().color=color.value,false,editKey('color'));panel.querySelector('.selected-icon-image')?.replaceWith(iconVisual(current().icon,color.value,'selected-icon-image'));});appearanceRow.append(color,text('span','Shown on the panel','hint'));panel.append(appearanceRow);
   const selectedIcon=packIcons.get(b.icon);
   panel.append(element('div',{class:'selected-pack-icon'},iconVisual(b.icon,b.color,'selected-icon-image'),element('div',{},text('strong',selectedIcon?.name||iconNames[b.icon]||'Default icon'),button(iconPack?`Choose from ${iconPack.count.toLocaleString('en-US')} icons …`:'Open the large icon library …',openIcons,'text-button'))));
   const upload=element('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',hidden:'hidden'});upload.onchange=()=>uploadImage(upload.files[0]).catch(showError);panel.append(upload,button('Image from file …',()=>upload.click(),'outline'));
@@ -401,6 +438,7 @@ function renderInspector() {
   panel.append(element('div',{class:'option-buttons'},button(base.title?.bold?'Bold text ✓':'Bold text',()=>mutate(()=>{base.title??={};base.title.bold=!base.title.bold;}),'outline'),button(config.profiles[profile].pinned?.includes(base)?'◆ Unpin':'◇ Pin to all pages',togglePin,'outline')));
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else{base.actions=clone(base.states?.[0].actions||base.actions);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
+  renderGauge(panel,base);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
   panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
@@ -410,6 +448,29 @@ function renderInspector() {
   panel.append(element('div',{class:'inspector-tools'},button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear button',clearButton,'quiet danger')));
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
+  panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
+}
+function renderGauge(panel,base) {
+  const gauge=base.gauge,choices=[['','Off · show the icon'],...Object.entries(gaugeSensors).map(([key,[name]])=>[key,name])];
+  if(gauge&&!gaugeSensors[gauge.key])choices.push([gauge.key,gauge.key]);
+  panel.append(field('Live gauge',gauge?.key||'',key=>mutate(()=>{if(key)base.gauge={key,...clone(gaugeSensors[key]?.[1]||{max:100})};else delete base.gauge;}),{values:choices}));
+  if(!gauge)return;
+  const number=(label,name,optional)=>{
+    const input=element('input',{type:'number',step:'any',value:gauge[name]??'',placeholder:optional?'Off':'','aria-label':label});
+    input.addEventListener('change',()=>{
+      const raw=input.value.trim(),value=Number(raw);
+      if(raw===''&&optional)return mutate(()=>delete base.gauge[name],false);
+      if(raw===''||!Number.isFinite(value)||name==='max'&&value<=0){input.value=gauge[name]??'';return toast(name==='max'?'The full ring needs a value above 0.':'Enter a number, or leave it empty to turn it off.');}
+      mutate(()=>base.gauge[name]=value,false);
+    });
+    return element('label',{},text('span',label),input);
+  };
+  panel.append(element('div',{class:'gauge-controls'},number('Full ring at','max'),number('Amber from','warn',true),number('Red from','critical',true)));
+  if((gauge.fmt||'int')==='int'){
+    const unit=field('Unit after the value',gauge.unit||'',value=>mutate(()=>{if(value)base.gauge.unit=value;else delete base.gauge.unit;},false,editKey('gauge-unit')),{placeholder:'%, C or W'});
+    unit.querySelector('input').maxLength=3;panel.append(unit);
+  }
+  panel.append(text('p','The host fills in the value and the ring. The key turns amber and red at the thresholds; without a sensor it shows --.','hint'));
 }
 function renderStep(action,index,count) {
   const k=kinds[action.type]||kinds.hotkey;
@@ -540,15 +601,16 @@ function renderStatus() {
   $('#connection').title=dashboard.device?.error||'';
   $('#host-toggle').hidden=!!dashboard.running;
   $('#screen-profile').textContent=`PROFILE  ${profile}`;$('#screen-page').textContent=page;
-  $('#screen-usb').textContent=connected?'USB READY':'NO PANEL';$('.screen-pill')?.classList.toggle('offline',!connected);
+  $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);
   const last=dashboard.device?.last_action;
   if(last?.at>lastActionAt){if(lastActionAt)toast(`${last.ok?'✓':'✕'} ${last.label}${last.error?' · '+last.error:''}`);lastActionAt=last.at;}
   document.title=connected&&context?`Tessera · ${context}`:'Tessera';
   followDevice();
-  const gauges=JSON.stringify(deviceShowsSelection()?dashboard.device?.gauges||{}:{});
-  if(gauges!==lastGauges){lastGauges=gauges;renderGrid();}
+  const usesStats=visibleButtons().some(b=>[b,...(b.states||[])].some(v=>v.label?.includes('$(stat:')));
+  const live=JSON.stringify([deviceShowsSelection()?dashboard.device?.gauges||{}:{},dashboard.vars||{},dashboard.agents||{},usesStats?dashboard.stats||{}:{}]);
+  if(live!==lastLive){lastLive=live;renderGrid();}
 }
-let lastGauges='';
+let lastLive='';
 async function pollStatus() {try{dashboard=await api('status');renderStatus();}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}}
 document.addEventListener('keydown',event=>{
   if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}
@@ -561,7 +623,10 @@ document.addEventListener('keydown',event=>{
   if(!menu.hidden){const items=[...menu.querySelectorAll('[role="menuitem"]')],at=items.indexOf(document.activeElement);
     if(event.key==='Escape'){event.preventDefault();hideKeyMenu(true);return;}
     if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?items.length-1:(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;items[next].focus();return;}}
+  if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().then(()=>toast('All changes are saved.')).catch(showError);return;}
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||$('#form-dialog').open||$('#icon-dialog').open)return;
+  const onDeck=!document.activeElement||document.activeElement===document.body||document.activeElement.closest('#deck-grid');
+  if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Button ${selected} was cleared. Press Ctrl+Z to undo.`);return;}
   if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&current()){event.preventDefault();openKeyMenu(selected);return;}
   if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y','c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}
 });

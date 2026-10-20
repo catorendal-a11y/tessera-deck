@@ -218,6 +218,7 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
+CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
 UNSET_VARIABLE = re.compile(r'[$][(]var:[A-Za-z0-9_.-]+[)]')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
@@ -548,6 +549,7 @@ class Daemon:
         self.dimmed = False
         self.locked = False
         self.last_activity = time.monotonic()
+        self.clock_sent_at = float('-inf')
         self.device_state_path = Path(args.profiles).with_name('deck-device.local.json')
 
     @staticmethod
@@ -574,7 +576,7 @@ class Daemon:
                  'dimmed': self.dimmed,
                  'buttons': len(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
-                 'agents': self.agents, 'stats': self.stats.display,
+                 'agents': self.agents, 'stats': self.stats.display, 'vars': self.custom_vars,
                  'last_action': self.last_action}
         temporary = self.runtime_path.with_suffix('.tmp')
         try:
@@ -842,6 +844,23 @@ class Daemon:
                 self.publish_runtime(True, force=True)
         return ok
 
+    def heartbeat(self, panel, now):
+        """One beat: keeps the panel's PC indicator lit and its clock right without Wi-Fi."""
+        panel.send_line('AD_PING')
+        if now - self.clock_sent_at >= CLOCK_INTERVAL:
+            panel.send_line('AD_TIME ' + time.strftime('%Y-%m-%dT%H:%M:%S'))
+            self.clock_sent_at = now
+
+    def heartbeat_loop(self, panel):
+        # A thread of its own: slow sensor or focus ticks must not make the
+        # panel report a lost PC.
+        try:
+            while not self.stop.is_set() and panel is self.panel and not self.connection_failed.is_set():
+                self.heartbeat(panel, time.monotonic())
+                self.stop.wait(1)
+        except (OSError, ValueError, AttributeError):
+            pass  # the reader loop reports the disconnect
+
     def enqueue(self, job):
         try:
             self.jobs.put_nowait(job)
@@ -868,6 +887,8 @@ class Daemon:
                         if message.get('type') == 'deck_event':
                             if type(message.get('button')) is int:
                                 self.enqueue(('press', message['button'], message.get('label')))
+                        elif message.get('type') == 'wake':
+                            self.enqueue(('panel-woke',))
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
         except (OSError, ValueError, TypeError, AttributeError) as exc:
@@ -915,6 +936,12 @@ class Daemon:
             self.dim_display('by request')
         elif kind == 'wake':
             self.wake_display()
+        elif kind == 'panel-woke':
+            # The panel already restored its backlight after a touch.
+            self.last_activity = time.monotonic()
+            if self.dimmed:
+                self.log('Panel woke by touch')
+            self.dimmed = False
 
     def worker_loop(self):
         while not self.stop.is_set():
@@ -1063,6 +1090,8 @@ class Daemon:
                         remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
+                        self.clock_sent_at = float('-inf')
+                        threading.Thread(target=self.heartbeat_loop, args=(self.panel,), daemon=True).start()
                         with self.state_lock:
                             self.last_activity = time.monotonic()
                             self.apply_brightness()

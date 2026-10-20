@@ -73,7 +73,7 @@ body{background:linear-gradient(140deg,#0b0f11 0%,#101719 60%,#0b0f11 100%)}
 .screen-pill{position:absolute;left:718px;top:19px;width:150px;height:38px;border-radius:19px;background:#16372a;color:#a8f2ca;font-size:12px}
 .screen-pill i{position:absolute;left:15px;top:15px;width:8px;height:8px;border-radius:4px;background:#58e09b}
 .screen-pill span{position:absolute;left:32px;top:11px}
-.screen-pill.offline{background:#2a2f31;color:#9aa8ad}.screen-pill.offline i{background:#ff7070}
+.screen-pill.offline{background:#3a2e1a;color:#ffd699}.screen-pill.offline i{background:#ffb74d}
 .screen-clock{position:absolute;left:885px;top:20px;width:115px;text-align:right;font-size:22px;color:#e8f4ef}
 .deck-grid{position:absolute;left:0;top:76px;width:1024px;height:524px;display:block;padding:0;gap:0;background:none;border:0;border-radius:0}
 .deck-key{position:absolute;width:150px;height:150px;aspect-ratio:auto;display:block;padding:0;margin:0;gap:0;border-radius:20px;background:#172329;border:1px solid #31444d;box-shadow:none;transform:none;transition:border-color .12s,background .12s;overflow:hidden;font-family:inherit}
@@ -106,3 +106,4 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .key-label,.screen-brand b,.screen-context b{font-weight:400}
 .screen-brand b,.screen-context b{font-weight:700}
 .syncbar{width:100%;max-width:1100px;margin:0 auto}
+.label-meter{display:block;margin-top:5px;font-size:10px;color:#7f9199}.label-meter.over{color:#ffb74d}.gauge-controls{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.gauge-controls label{min-width:0}.shortcuts{margin-top:8px;font-size:10px}

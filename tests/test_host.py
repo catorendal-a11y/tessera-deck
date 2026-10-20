@@ -383,6 +383,31 @@ class HostTests(unittest.TestCase):
         daemon.handle_job(('press', 1, None))
         daemon.dispatch_press.assert_called_once()
 
+    def test_touch_wake_from_the_panel_resets_idle_without_a_press(self):
+        daemon = self.daemon()
+        daemon.dimmed = True
+        daemon.last_activity = 0.0
+        panel = Mock()
+        panel.read_lines.side_effect = [['{"type":"wake"}'], OSError('unplugged')]
+        daemon.panel = panel
+        daemon.reader_loop(panel)
+        self.assertEqual(daemon.jobs.get_nowait(), ('panel-woke',))
+        daemon.handle_job(('panel-woke',))
+        self.assertFalse(daemon.dimmed)
+        self.assertGreater(daemon.last_activity, 0.0)
+        panel.send_line.assert_not_called()  # the panel already restored its backlight
+        daemon.log.assert_any_call('Panel woke by touch')
+
+    def test_heartbeat_pings_every_beat_and_sends_the_clock_every_ten_minutes(self):
+        daemon = self.daemon()
+        with patch.object(deck.time, 'strftime', return_value='2026-10-20T14:05:33'):
+            daemon.heartbeat(daemon.panel, 1000.0)
+            daemon.heartbeat(daemon.panel, 1001.0)
+            daemon.heartbeat(daemon.panel, 1000.0 + deck.CLOCK_INTERVAL)
+        sent = [call.args[0] for call in daemon.panel.send_line.call_args_list]
+        self.assertEqual(sent, ['AD_PING', 'AD_TIME 2026-10-20T14:05:33', 'AD_PING',
+                                'AD_PING', 'AD_TIME 2026-10-20T14:05:33'])
+
     def test_dimming_can_be_turned_off_and_page_pushes_do_not_undo_it(self):
         daemon = self.daemon()
         daemon.config['display'] = {'dim_after': 0}
@@ -952,11 +977,14 @@ class HostTests(unittest.TestCase):
             controller.runtime_path.write_text(json.dumps({
                 'pid': 77, 'updated': __import__('time').time(), 'connected': True,
                 'port': 'COM4', 'profile': 'main', 'page': 'apps', 'buttons': 8,
-                'last_action': {'id': 2, 'label': 'ChatGPT', 'ok': True, 'at': 10}}))
+                'last_action': {'id': 2, 'label': 'ChatGPT', 'ok': True, 'at': 10},
+                'vars': {'claude': 'working'}, 'stats': {'cpu_temp': '58'}}))
             status = controller.status()
             self.assertTrue(status['device']['connected'])
             self.assertEqual((status['device']['profile'], status['device']['page']), ('main', 'apps'))
             self.assertEqual(status['device']['last_action']['label'], 'ChatGPT')
+            # The editor previews $(var:…) and $(stat:…) labels with these values.
+            self.assertEqual((status['vars'], status['stats']), ({'claude': 'working'}, {'cpu_temp': '58'}))
 
     def test_controller_rejects_stale_runtime_status(self):
         with tempfile.TemporaryDirectory() as directory:

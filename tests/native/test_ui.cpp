@@ -20,9 +20,28 @@ extern "C" const char* time_service_time_text(){return "14:32";}
 static void flush(lv_display_t* display,const lv_area_t* area,uint8_t* data){++flushes;const auto* source=reinterpret_cast<const uint32_t*>(data);int offset=0;for(int y=area->y1;y<=area->y2;++y)for(int x=area->x1;x<=area->x2;++x){const uint32_t v=source[offset++];const int at=(y*1024+x)*3;pixels[at]=v&255;pixels[at+1]=(v>>8)&255;pixels[at+2]=(v>>16)&255;}lv_display_flush_ready(display);}
 static void updates(){for(int i=0;i<6;++i){lv_timer_handler();tick+=40;lv_tick_inc(40);}lv_refr_now(nullptr);}
 static void capture(const std::filesystem::path& path){updates();std::ofstream out(path,std::ios::binary);out<<"P6\n1024 600\n255\n";assert(flushes);assert(*std::max_element(pixels.begin(),pixels.end())>128);for(size_t i=0;i<pixels.size();i+=3){out.put(pixels[i+2]);out.put(pixels[i+1]);out.put(pixels[i]);}}
+static bool touching=false;static lv_point_t touch_at{};
+static void touch_read(lv_indev_t*,lv_indev_data_t* data){data->point=touch_at;data->state=touching?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
+static void tap(int x,int y){touch_at={x,y};touching=true;updates();touching=false;updates();}
 static lv_obj_t* find(lv_obj_t* root,const char* text){if(lv_obj_check_type(root,&lv_label_class)&&!strcmp(lv_label_get_text(root),text))return root;for(uint32_t i=0;i<lv_obj_get_child_count(root);++i)if(auto* result=find(lv_obj_get_child(root,i),text))return result;return nullptr;}
 int main(int argc,char** argv){const std::filesystem::path output=argc>1?argv[1]:".";std::filesystem::create_directories(output);lv_init();lv_tick_set_cb(millis);pixels.resize(1024*600*3);auto* display=lv_display_create(1024,600);lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);alignas(64)static uint32_t buffer[1024*600];lv_display_set_buffers(display,buffer,nullptr,sizeof(buffer),LV_DISPLAY_RENDER_MODE_FULL);lv_display_set_flush_cb(display,flush);lv_tick_inc(tick);deck_model_init();
+auto* touch=lv_indev_create();lv_indev_set_type(touch,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(touch,touch_read);deck_model_note_host();
 deck_button_t parsed[18]{};int count=0;assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Build","icon":"lc:e064","color":"#35D07F","title":{"size":20,"position":"bottom","bold":true}},{"id":18,"label":"Folder","icon":"folder","color":"#FFA868"}]})",parsed,18,&count));assert(count==2);assert(deck_model_replace_buttons(parsed,count));deck_model_set_context("CODING","PROJECT",true);ui_init();updates();assert(find(lv_screen_active(),"TESSERA"));assert(find(lv_screen_active(),"PROFILE  CODING"));assert(find(lv_screen_active(),"<  PROJECT"));assert(find(lv_screen_active(),"Build"));char status[256];assert(ui_debug_visible_text(status,sizeof(status))==0);assert(strstr(status,"\"screen\":\"deck\""));
+assert(find(lv_screen_active(),"PC CONNECTED")&&strstr(status,"\"pc\":true"));
+{/* A touch on a dimmed panel only wakes it, even on a key; the next touch presses. */
+const int before=deck_model_last_event_id();const uint32_t wake=deck_model_wake_sequence();deck_model_set_dimmed(true);
+tap(94,168);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1&&deck_model_last_event_id()==before);
+tap(94,168);assert(deck_model_last_event_id()==before+1&&deck_model_wake_sequence()==wake+1);
+deck_model_set_dimmed(true);tap(600,40);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+2&&deck_model_last_event_id()==before+1);
+tap(600,40);assert(deck_model_wake_sequence()==wake+2);}
+{/* Confirmations queue in order instead of overwriting each other. */
+int id=0;deck_feedback_t kind;deck_model_request_feedback(1,DECK_FEEDBACK_OK);deck_model_request_feedback(18,DECK_FEEDBACK_ALERT);
+const uint32_t first=deck_model_take_feedback(&id,&kind);assert(first&&id==1&&kind==DECK_FEEDBACK_OK);
+assert(deck_model_take_feedback(&id,&kind)==first+1&&id==18&&kind==DECK_FEEDBACK_ALERT);assert(!deck_model_take_feedback(&id,&kind));}
+{/* Without host pings the header says so, and a press flashes red at once. */
+tick+=4000;lv_tick_inc(4000);updates();assert(find(lv_screen_active(),"NO PC")&&!find(lv_screen_active(),"PC CONNECTED"));
+const int before=deck_model_last_event_id();tap(94,168);assert(deck_model_last_event_id()==before+1);
+deck_model_note_host();updates();assert(find(lv_screen_active(),"PC CONNECTED"));}
 {deck_button_t g[3]{};int gc=0;
 assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"CPU","icon":"ok","color":"#35D07F","gauge":{"p":45,"t":"45%"}},{"id":2,"label":"RAM","icon":"ok","color":"#35D07F","gauge":{"p":150,"t":"69%"}}]})",g,3,&gc));
 assert(gc==2&&g[0].has_gauge&&g[0].gauge_percent==45&&g[1].gauge_percent==100);

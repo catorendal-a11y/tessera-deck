@@ -90,12 +90,12 @@ static bool local_time(struct tm *out_time)
     return localtime_r(&now, out_time) != NULL;
 }
 
-void time_service_set_manual(int year, int month, int day, int hour, int minute)
+static bool set_local_time(int year, int month, int day, int hour, int minute, int second)
 {
-    if (!manual_time_is_valid(year, month, day, hour, minute)) {
+    if (!manual_time_is_valid(year, month, day, hour, minute) || second < 0 || second > 59) {
         ESP_LOGW(TAG, "Rejected invalid manual time: %04d-%02d-%02d %02d:%02d",
                  year, month, day, hour, minute);
-        return;
+        return false;
     }
     struct tm tm_set = {0};
     tm_set.tm_year = year - 1900;
@@ -103,7 +103,7 @@ void time_service_set_manual(int year, int month, int day, int hour, int minute)
     tm_set.tm_mday = day;
     tm_set.tm_hour = hour;
     tm_set.tm_min = minute;
-    tm_set.tm_sec = 0;
+    tm_set.tm_sec = second;
     tm_set.tm_isdst = -1;
     time_t t = mktime(&tm_set);
     struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
@@ -114,6 +114,19 @@ void time_service_set_manual(int year, int month, int day, int hour, int minute)
     s_time_synced = false;
     s_date_text[0] = '\0';
     ESP_LOGI(TAG, "Manual time set: %04d-%02d-%02d %02d:%02d", year, month, day, hour, minute);
+    return true;
+}
+
+void time_service_set_manual(int year, int month, int day, int hour, int minute)
+{
+    (void)set_local_time(year, month, day, hour, minute, 0);
+}
+
+bool time_service_set_from_host(int year, int month, int day, int hour, int minute, int second)
+{
+    /* SNTP is authoritative; the PC clock only fills in when it is missing. */
+    if (s_time_synced) return false;
+    return set_local_time(year, month, day, hour, minute, second);
 }
 
 bool time_service_has_valid_time(void)

@@ -22,6 +22,8 @@
 #include "driver/usb_serial_jtag.h"
 #include "driver/usb_serial_jtag_vfs.h"
 #include "esp_system.h"
+#include "nvs.h"
+#include "nvs_flash.h"
 
 extern "C" {
 #include "deck_model.h"
@@ -31,8 +33,31 @@ extern "C" {
 }
 
 static const char *TAG = "tessera";
-/* Backlight level restored by AD_DISPLAY_WAKE; set by the host with AD_BRIGHTNESS. */
+/* Backlight level restored by AD_DISPLAY_WAKE; set by the host with AD_BRIGHTNESS
+ * and kept in NVS so the panel boots at the chosen level, not at full power. */
 static int s_brightness = 100;
+static const char *SETTINGS_NAMESPACE = "tessera";
+
+static void load_brightness(void)
+{
+    nvs_handle_t handle;
+    uint8_t value = 0;
+    if (nvs_open(SETTINGS_NAMESPACE, NVS_READONLY, &handle) != ESP_OK) return;
+    if (nvs_get_u8(handle, "brightness", &value) == ESP_OK && value >= 1 && value <= 100) s_brightness = value;
+    nvs_close(handle);
+}
+
+static void save_brightness(int level)
+{
+    nvs_handle_t handle;
+    uint8_t stored = 0;
+    if (nvs_open(SETTINGS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) return;
+    /* The host repeats the level on every connect; only write real changes. */
+    if (nvs_get_u8(handle, "brightness", &stored) != ESP_OK || stored != level) {
+        if (nvs_set_u8(handle, "brightness", static_cast<uint8_t>(level)) == ESP_OK) nvs_commit(handle);
+    }
+    nvs_close(handle);
+}
 
 /* Parse "<digits>" within [low, high]; returns false for anything else. */
 static bool parse_percent(const char *text, long low, long high, int *out)
@@ -61,7 +86,17 @@ static void usb_console_task(void *)
     size_t cfg_len = 0;
     bool cfg_active = false;
     const uint32_t boot_id = esp_random();
+    uint32_t wake_seen = deck_model_wake_sequence();
     for (;;) {
+        /* A touch on the dimmed panel: restore the backlight here and tell the
+         * host, which resets its idle timer instead of seeing a key press. */
+        const uint32_t wake = deck_model_wake_sequence();
+        if (wake != wake_seen) {
+            wake_seen = wake;
+            bsp_display_brightness_set(s_brightness);
+            printf("{\"type\":\"wake\"}\n");
+            fflush(stdout);
+        }
         /* Stream Deck behaviour: every physical key press is pushed to the
          * connected host immediately as a JSON line on this console, so no
          * network path is needed for the deck to act. */
@@ -95,6 +130,7 @@ static void usb_console_task(void *)
             continue;
         }
         line[used] = '\0';
+        if (!overflow && used) deck_model_note_host();
         std::string image_reply;
         if (!overflow && deck_image_command(line, image_reply)) {
             if (!image_reply.empty()) {printf("%s\n", image_reply.c_str());fflush(stdout);}
@@ -322,6 +358,8 @@ static void usb_console_task(void *)
             int level = 0;
             if (parse_percent(line + 14, 1, 100, &level)) {
                 s_brightness = level;
+                save_brightness(level);
+                deck_model_set_dimmed(false);
                 esp_err_t result = bsp_display_brightness_set(s_brightness);
                 printf("AD_BRIGHTNESS %s %d\n", result == ESP_OK ? "OK" : "FAILED", s_brightness);
             } else {
@@ -333,6 +371,7 @@ static void usb_console_task(void *)
             int level = 0;
             if (parse_percent(line + 15, 0, 100, &level)) {
                 esp_err_t result = bsp_display_brightness_set(level);
+                if (result == ESP_OK) deck_model_set_dimmed(true);
                 printf("AD_DISPLAY_DIM %s %d\n", result == ESP_OK ? "OK" : "FAILED", level);
             } else {
                 printf("AD_DISPLAY_DIM INVALID\n");
@@ -341,6 +380,7 @@ static void usb_console_task(void *)
         }
         if (!overflow && strcmp(line, "AD_DISPLAY_WAKE") == 0) {
             esp_err_t result = bsp_display_brightness_set(s_brightness);
+            deck_model_set_dimmed(false);
             bool queued = false;
             if (result == ESP_OK && bsp_display_lock(200)) {
                 queued = lv_async_call([](void *) {
@@ -349,6 +389,15 @@ static void usb_console_task(void *)
                 bsp_display_unlock();
             }
             printf("AD_DISPLAY_WAKE %s %s\n", esp_err_to_name(result), queued ? "QUEUED" : "NO_REDRAW");
+            fflush(stdout);
+        }
+        if (!overflow && strncmp(line, "AD_TIME ", 8) == 0) {
+            /* Local PC time "YYYY-MM-DDTHH:MM:SS": the clock works without Wi-Fi. */
+            int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
+            const bool parsed = sscanf(line + 8, "%4d-%2d-%2dT%2d:%2d:%2d", &year, &month, &day,
+                                       &hour, &minute, &second) == 6;
+            const bool set = parsed && time_service_set_from_host(year, month, day, hour, minute, second);
+            printf("AD_TIME %s\n", !parsed ? "INVALID" : set ? "OK" : "KEPT");
             fflush(stdout);
         }
         if (!overflow && strcmp(line, "AD_SETUP") == 0) {
@@ -372,6 +421,9 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
     usb_serial_jtag_vfs_use_driver();
     deck_model_init();
+    /* Idempotent; done here so the stored brightness is readable before the
+     * network task gets to its own initialization. */
+    if (nvs_flash_init() == ESP_OK) load_brightness();
     (void)time_service_init();
     time_service_start_sntp();
     network_service_init();

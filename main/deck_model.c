@@ -23,14 +23,20 @@ static int s_event_next; /* next write slot */
 static int s_event_last_id;
 static uint32_t s_events_total;
 
-/* Pending key feedback: one slot, sequence-numbered so the UI can tell a
- * new request from one it already consumed. */
+/* Pending key feedback: a small FIFO so two confirmations inside one UI
+ * tick (a key that presses another key) both flash. */
+#define DECK_FEEDBACK_QUEUE 8
 static struct {
     int button_id;
     deck_feedback_t kind;
     uint32_t seq;
-} s_feedback;
+} s_feedback[DECK_FEEDBACK_QUEUE];
+static int s_feedback_head, s_feedback_count;
+static uint32_t s_feedback_seq;
 
+static bool s_dimmed;
+static uint32_t s_wake_seq;
+static int64_t s_host_seen_ms = -1;
 
 /* Copy at most dst_size-1 bytes and always NUL-terminate; returns false
  * when the source was truncated so callers can log it. */
@@ -246,22 +252,64 @@ uint32_t deck_model_events_total(void)
 void deck_model_request_feedback(int button_id, deck_feedback_t kind)
 {
     model_lock();
-    s_feedback.button_id = button_id;
-    s_feedback.kind = kind;
-    s_feedback.seq++;
+    if (s_feedback_count == DECK_FEEDBACK_QUEUE) { /* drop the oldest */
+        s_feedback_head = (s_feedback_head + 1) % DECK_FEEDBACK_QUEUE;
+        --s_feedback_count;
+    }
+    int at = (s_feedback_head + s_feedback_count) % DECK_FEEDBACK_QUEUE;
+    s_feedback[at].button_id = button_id;
+    s_feedback[at].kind = kind;
+    s_feedback[at].seq = ++s_feedback_seq;
+    ++s_feedback_count;
     model_unlock();
 }
 
 uint32_t deck_model_take_feedback(int *button_id, deck_feedback_t *kind)
 {
     model_lock();
-    uint32_t seq = s_feedback.seq;
-    if (seq) {
-        if (button_id) *button_id = s_feedback.button_id;
-        if (kind) *kind = s_feedback.kind;
+    uint32_t seq = 0;
+    if (s_feedback_count) {
+        seq = s_feedback[s_feedback_head].seq;
+        if (button_id) *button_id = s_feedback[s_feedback_head].button_id;
+        if (kind) *kind = s_feedback[s_feedback_head].kind;
+        s_feedback_head = (s_feedback_head + 1) % DECK_FEEDBACK_QUEUE;
+        --s_feedback_count;
     }
     model_unlock();
     return seq;
+}
+
+void deck_model_set_dimmed(bool dimmed)
+{
+    model_lock(); s_dimmed = dimmed; model_unlock();
+}
+
+bool deck_model_dimmed(void)
+{
+    model_lock(); bool dimmed = s_dimmed; model_unlock(); return dimmed;
+}
+
+void deck_model_request_wake(void)
+{
+    model_lock(); s_dimmed = false; ++s_wake_seq; model_unlock();
+}
+
+uint32_t deck_model_wake_sequence(void)
+{
+    model_lock(); uint32_t seq = s_wake_seq; model_unlock(); return seq;
+}
+
+void deck_model_note_host(void)
+{
+    int64_t now = esp_timer_get_time() / 1000;
+    model_lock(); s_host_seen_ms = now; model_unlock();
+}
+
+bool deck_model_host_linked(int64_t timeout_ms)
+{
+    int64_t now = esp_timer_get_time() / 1000;
+    model_lock(); int64_t seen = s_host_seen_ms; model_unlock();
+    return seen >= 0 && now - seen <= timeout_ms;
 }
 
 static bool parse_color_hex(const char *text, uint32_t *out)

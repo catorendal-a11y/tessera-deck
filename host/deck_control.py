@@ -102,6 +102,9 @@ class Controller:
                                      ('connected', 'port', 'profile', 'page', 'buttons', 'error',
                                       'foreground', 'auto_profile', 'last_action')})
             result['agents'] = runtime.get('agents', {})
+            # Label previews in the editor resolve $(var:…) and $(stat:…) like the panel does.
+            result['vars'] = runtime.get('vars', {})
+            result['stats'] = runtime.get('stats', {})
             result['device']['gauges'] = runtime.get('gauges', {})
             result['connection'] = ('Panel connected' if runtime.get('connected')
                                     else runtime.get('error') or 'Waiting for the device')

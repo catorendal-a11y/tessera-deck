@@ -21,6 +21,9 @@ typedef enum {
 esp_err_t time_service_init(void);
 void time_service_start_sntp(void);
 void time_service_set_manual(int year, int month, int day, int hour, int minute);
+/* Local time from the USB host, used while SNTP has not synchronized the clock
+ * (no Wi-Fi). Returns false when SNTP time is kept or the value is invalid. */
+bool time_service_set_from_host(int year, int month, int day, int hour, int minute, int second);
 bool time_service_has_valid_time(void);
 time_quality_t time_service_time_quality(void);
 int time_service_today_key(void);

@@ -9,7 +9,7 @@
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-96%20passing-35D07F">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-98%20passing-35D07F">
 </p>
 
 <p align="center">
@@ -152,7 +152,8 @@ once). Until it runs, the sensor tile shows `BASIC` and the affected gauges show
 ### Brightness and auto-dim
 
 Open **Settings** in the editor, or the tray menu. By default the panel dims to 10 % after five minutes without
-a press and when Windows locks; the first touch wakes it without pressing a key. Set the values in
+a press and when Windows locks; the first touch anywhere on the screen wakes it without pressing a key. The panel
+remembers the brightness across restarts. Set the values in
 `profiles.json` with `"display": { "brightness": 80, "dim_after": 300, "dim_level": 10 }` (`dim_after: 0` disables it).
 
 ### Control from scripts and AI tools
@@ -195,8 +196,13 @@ the key's `open` action. It is a dry run by default; add `--apply` to write the 
 | host → panel | `AD_IMG_BEGIN` / `AD_IMG_DATA` / `AD_IMG_END` | Upload a button image (CRC-checked) |
 | host → panel | `AD_CONTEXT {…}` | Profile, page and back-arrow state for the header |
 | host → panel | `AD_FEEDBACK <ok or alert> <id>` | Flash a key green or red |
-| host → panel | `AD_BRIGHTNESS <1-100>`, `AD_DISPLAY_DIM <0-100>`, `AD_DISPLAY_WAKE` | Backlight control |
+| host → panel | `AD_BRIGHTNESS <1-100>`, `AD_DISPLAY_DIM <0-100>`, `AD_DISPLAY_WAKE` | Backlight control; the brightness is stored on the panel |
+| host → panel | `AD_PING` | Heartbeat every second; the header shows *NO PC* after 3.5 s without one |
+| host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | PC clock for the header when SNTP has not synchronized it (no Wi-Fi) |
 | panel → host | `{"type":"deck_event","button":N,"label":"…"}` | A key was pressed |
+| panel → host | `{"type":"wake"}` | A touch woke the dimmed panel; it presses no key |
+
+A pressed key stays highlighted until the host confirms it with `AD_FEEDBACK`. Without a host it flashes red at once.
 
 The `AD_` prefix is the protocol's historical namespace and is kept for compatibility.
 
@@ -237,7 +243,8 @@ for what the checks cover and [`ELGATO_RESEARCH.md`](ELGATO_RESEARCH.md) for the
 
 | Symptom | Fix |
 |---|---|
-| The panel stays black but touch works | The host wakes the backlight on connect and on every touch; restart the host if it does not |
+| The panel stays black but touch works | A touch wakes a dimmed panel; if it stays black, restart the host, which also wakes the backlight on connect |
+| The header says *NO PC* | The host is not running or does not own the port; start it from the tray |
 | `Another Tessera host is already running` | Only one host may own the port; stop it from the tray, then start again |
 | Gauges show `--` | Temperature, power and fan need Libre Hardware Monitor (`tools\setup_sensors.ps1`) |
 | The editor looks out of date | Close the editor window and open it again from the tray |
@@ -252,7 +259,6 @@ and reject browser requests.
 ## Roadmap
 
 - Long-press and press-and-release actions
-- Wake the panel from any touch, not only from keys
 - Import of Stream Deck and OpenDeck profiles
 - A plugin bridge for the OpenAction API
 
