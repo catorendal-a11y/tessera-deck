@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
-from agent_deck_app import Editor, make_server
+from tessera_app import Editor, make_server
 
 
 class EditorTests(unittest.TestCase):
@@ -76,14 +76,28 @@ class EditorTests(unittest.TestCase):
         state = self.editor.read()
         updated = copy.deepcopy(self.config)
         b = updated['profiles']['Main']['pages']['First'][0]
-        b.update(id=18, label='Flyttet ø', color='#35D07F')
+        b.update(id=18, label='Moved é', color='#35D07F')
         b['actions'].append({'type': 'delay', 'ms': 500})
-        b['actions'].append({'type': 'text', 'text': 'æøå'})
+        b['actions'].append({'type': 'text', 'text': 'Café ñ'})
         with self.request('/api/config', dict(config=updated, revision=state['revision'])) as reply:
             result = json.load(reply)
         self.assertEqual(result['config'], updated)
         self.assertNotEqual(state['revision'], result['revision'])
         self.assertEqual(json.loads(self.path.with_name('profiles-previous.local.json').read_text()), self.config)
+
+    def test_display_settings_round_trip_and_bad_values_are_rejected(self):
+        self.login()
+        state = self.editor.read()
+        updated = dict(copy.deepcopy(self.config), display={'brightness': 60, 'dim_after': 300, 'dim_level': 5})
+        with self.request('/api/config', dict(config=updated, revision=state['revision'])) as reply:
+            result = json.load(reply)
+        self.assertEqual(result['config']['display'], {'brightness': 60, 'dim_after': 300, 'dim_level': 5})
+        broken = dict(updated, display={'brightness': 0})
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            self.request('/api/config', dict(config=broken, revision=result['revision']))
+        self.assertEqual(error.exception.code, 400)
+        error.exception.close()
+        self.assertEqual(self.editor.read()['config']['display']['brightness'], 60)
 
     def test_stale_editor_cannot_overwrite_terminal_changes(self):
         self.login()
@@ -147,20 +161,20 @@ class EditorTests(unittest.TestCase):
         self.assertGreaterEqual(len(catalog['templates']), 10)
         self.assertTrue(all(pack['actions'] for pack in catalog['packs']))
         template_names = {template['name'] for template in catalog['templates']}
-        self.assertTrue({'Windows-kontroll', 'GitHub Desktop', 'PowerToys',
+        self.assertTrue({'Windows control', 'GitHub Desktop', 'PowerToys',
                          'Codex', 'Claude Code', 'ZCode'} <= template_names)
         groups = {pack['group'] for pack in catalog['packs']}
-        self.assertTrue({'Vinduer', 'PowerToys', 'GitHub Desktop', 'VS Code',
+        self.assertTrue({'Window management', 'PowerToys', 'GitHub Desktop', 'VS Code',
                          'Codex', 'Claude Code', 'ZCode'} <= groups)
-        meetings = next(template for template in catalog['templates'] if template['name'] == 'Møter')
-        self.assertEqual(len(meetings['profile']['pages']['hoved']), 18)
+        meetings = next(template for template in catalog['templates'] if template['name'] == 'Meetings')
+        self.assertEqual(len(meetings['profile']['pages']['main']), 18)
         zcode = next(template for template in catalog['templates'] if template['name'] == 'ZCode')
         self.assertEqual(zcode['profile']['match'], ['zcode.exe'])
 
     def test_installed_program_inventory_is_available_after_login(self):
         self.login()
         programs = [{'name': 'Example', 'target': r'C:\\Example.lnk'}]
-        with patch('agent_deck_app.installed_programs', return_value=programs):
+        with patch('tessera_app.installed_programs', return_value=programs):
             with self.request('/api/programs') as reply:
                 self.assertEqual(json.load(reply), {'programs': programs})
 

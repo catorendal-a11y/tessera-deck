@@ -30,7 +30,7 @@ class Panel:
                 text = line.decode('utf-8', 'replace').strip()
                 self.lines.append(text)
                 if any(word in text for word in ('Guru Meditation', 'abort() was called', 'stack overflow')):
-                    raise RuntimeError('Enheten startet på nytt under testen')
+                    raise RuntimeError('The device restarted during the test')
                 if message_type == 'config' and text.startswith('AD_CFG_END OK'):
                     return {'type': 'config'}
                 if message_type == 'context' and text.startswith('AD_CONTEXT OK'):
@@ -46,7 +46,22 @@ class Panel:
                 if (isinstance(message, dict) and message.get('type') == message_type and
                         (command is None or message.get('cmd') == command)):
                     return message
-        raise TimeoutError('Ingen respons av typen ' + message_type)
+        raise TimeoutError('No response of type ' + message_type)
+
+    def request(self, line, reply_prefix, seconds=3):
+        """Send one console line and return the first reply line with the given prefix."""
+        self.send_line(line)
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            self.buffer.extend(self.ser.read(max(1, min(self.ser.in_waiting, 4096))))
+            while b'\n' in self.buffer:
+                text, _, rest = self.buffer.partition(b'\n')
+                self.buffer = bytearray(rest)
+                text = text.decode('utf-8', 'replace').strip()
+                self.lines.append(text)
+                if text.startswith(reply_prefix):
+                    return text
+        raise TimeoutError('No reply starting with ' + reply_prefix)
 
     def config(self, buttons):
         payload = json.dumps({'buttons': buttons}, ensure_ascii=True)
@@ -71,15 +86,21 @@ def main():
     try:
         panel.send_line('{"cmd":"get_info","heartbeat":true}')
         first = panel.wait_for('info')
-        assert first['boardId'] == 'agent-deck-p4'
+        assert first['boardId'] == 'tessera-p4'
         panel.config([
             {'id': 1, 'label': 'USB "test"', 'icon': 'ok', 'color': '#35D07F'},
-            {'id': 18, 'label': 'Spor 18 / ø', 'icon': 'lc:e038', 'color': '#FFA868',
+            {'id': 18, 'label': 'Slot 18 / é', 'icon': 'lc:e038', 'color': '#FFA868',
              'title': {'size': 20, 'position': 'top', 'bold': True}},
         ])
         panel.send_line('AD_CONTEXT ' + json.dumps(
-            {'profile': 'maskinvaretest', 'page': 'hoved', 'canBack': True}))
+            {'profile': 'hardware test', 'page': 'main', 'canBack': True}))
         panel.wait_for('context')
+        assert panel.request('AD_BRIGHTNESS 50', 'AD_BRIGHTNESS ') == 'AD_BRIGHTNESS OK 50'
+        assert panel.request('AD_DISPLAY_DIM 5', 'AD_DISPLAY_DIM ') == 'AD_DISPLAY_DIM OK 5'
+        assert panel.request('AD_DISPLAY_WAKE', 'AD_DISPLAY_WAKE ').startswith('AD_DISPLAY_WAKE ESP_OK')
+        assert panel.request('AD_BRIGHTNESS 0', 'AD_BRIGHTNESS ') == 'AD_BRIGHTNESS INVALID'
+        assert panel.request('AD_BRIGHTNESS abc', 'AD_BRIGHTNESS ') == 'AD_BRIGHTNESS INVALID'
+        assert panel.request('AD_DISPLAY_DIM 101', 'AD_DISPLAY_DIM ') == 'AD_DISPLAY_DIM INVALID'
         for _ in range(20):
             panel.send_line('AD_PRESS 1')
         end = time.monotonic() + 5
@@ -89,16 +110,17 @@ def main():
         assert all(event['label'] == 'USB "test"' for event in panel.events)
         panel.send_line('AD_PRESS 18')
         event = panel.wait_for('deck_event')
-        assert event['button'] == 18 and event['label'] == 'Spor 18 / ø'
+        assert event['button'] == 18 and event['label'] == 'Slot 18 / é'
         panel.send_line('FQ_UI_STATUS')
         ui = json.loads(panel.wait_for('ui')['labels'])
-        assert ui['screen'] == 'deck' and ui['profile'] == 'maskinvaretest'
-        assert ui['page'] == 'hoved' and ui['canBack'] is True
+        assert ui['screen'] == 'deck' and ui['profile'] == 'hardware test'
+        assert ui['page'] == 'main' and ui['canBack'] is True
         until = time.monotonic() + args.soak_seconds
         while time.monotonic() < until:
             panel.send_line('{"cmd":"get_info","heartbeat":true}')
             assert panel.wait_for('info')['bootId'] == first['bootId']
             time.sleep(.5)
+        panel.request('AD_BRIGHTNESS ' + str(config.get('display', {}).get('brightness', 100)), 'AD_BRIGHTNESS ')
         panel.config(originals)
         panel.send_line('AD_CONTEXT ' + json.dumps(
             {'profile': config['default_profile'], 'page': next(iter(profile['pages'])), 'canBack': False}))
@@ -106,8 +128,8 @@ def main():
         panel.send_line('{"cmd":"get_info","heartbeat":true}')
         last = panel.wait_for('info')
         assert last['bootId'] == first['bootId'] and last['uptime'] >= first['uptime']
-        print('Maskinvare bestått: ren Deck-skjerm, kontekst, 21 knappetrykk, UTF-8 og stabil oppstart')
-        print('Minne:', last['heap'], 'byte internt,', last['psramFree'], 'byte PSRAM ledig')
+        print('Hardware passed: clean Deck screen, context, 21 button presses, brightness commands, UTF-8 and stable boot')
+        print('Memory:', last['heap'], 'bytes internal,', last['psramFree'], 'bytes PSRAM free')
     finally:
         (ROOT / 'build/hardware-serial.log').write_text('\n'.join(panel.lines), encoding='utf-8')
         panel.ser.close()
