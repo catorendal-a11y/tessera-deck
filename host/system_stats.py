@@ -228,6 +228,9 @@ CRITICAL_COLOR = '#FF7070'
 def _format_gauge_text(value: float, spec: dict) -> str:
     fmt = spec.get('fmt', 'int')
     unit = spec.get('unit', '')
+    if fmt == 'clock':
+        from live_state import clock_text
+        return clock_text(value)
     if fmt == 'ghz':
         return f'{value / 1000:.1f}G' if value >= 1000 else f'{value:.0f}M'
     if fmt == 'gb':

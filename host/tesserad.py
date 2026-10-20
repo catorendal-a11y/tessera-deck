@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tessera action engine and sole USB owner."""
 import argparse
+import collections
 import ctypes
 import json
 import os
@@ -15,6 +16,8 @@ import urllib.parse
 import urllib.request
 import zlib
 import psutil
+from ambient import Weather, check_ambient
+from live_state import NAME as LIVE_NAME, LiveState, check_counter, check_timer
 from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 from deck_assets import Assets
@@ -217,7 +220,7 @@ def matches_foreground(pattern, context):
 
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
-                 'press': 'id', 'set': 'variable', 'audio': 'target',
+                 'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 BOARD_ID = 'tessera-p4'
@@ -227,7 +230,8 @@ JOB_QUEUE_SIZE = 128
 BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive
 SLOW_LANE_LIMIT = 4
 STALE_PRESS_SECONDS = 5  # a queued press older than this is dropped, never replayed
-PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke')
+PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke',
+              'screen-deck')
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
 CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
 SHELL_UNSAFE = re.compile(r'[&|<>^"%;`$\r\n\\]')  # metacharacters of cmd.exe and POSIX shells
@@ -262,6 +266,11 @@ def _check_action(action, pages, profiles):
         raise ValueError(f'Unknown page: {action["page"]}')
     if kind == 'profile' and action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
+    if kind == 'counter':
+        check_counter(action)
+    if kind == 'timer':
+        check_timer(action)
+        _check_actions(action.get('actions', []), pages, profiles)
     if kind == 'audio' and (action['target'] not in ('speaker', 'mic')
                             or action.get('op', 'toggle') not in ('toggle', 'mute', 'unmute')):
         raise ValueError('audio: target is speaker or mic, op is toggle, mute or unmute')
@@ -315,7 +324,7 @@ def _check_status(status):
         raise ValueError('status.colors must map values to #RRGGBB colors')
 
 
-GAUGE_FORMATS = ('int', 'ghz', 'gb', 'rate', 'uptime', 'live')
+GAUGE_FORMATS = ('int', 'ghz', 'gb', 'rate', 'uptime', 'live', 'clock')
 
 
 def _check_gauge(gauge):
@@ -339,6 +348,9 @@ def _check_button(button, pages, profiles):
     if not isinstance(button.get('icon', 'ok'), str) or len(button.get('icon', 'ok')) > 100:
         raise ValueError('Invalid button icon')
     _check_color(button.get('color', '#35D07F'), 'Invalid button color')
+    for key in ('bg', 'text_color', 'border'):
+        if key in button:
+            _check_color(button[key], f'Invalid button {key.replace("_", " ")}')
     if 'gauge' in button:
         _check_gauge(button['gauge'])
     if 'status' in button:
@@ -353,8 +365,10 @@ def _check_button(button, pages, profiles):
             raise ValueError('Invalid button state')
         _check_actions(state.get('actions', []), pages, profiles)
         _check_color(state.get('color', '#35D07F'), 'Invalid state color')
-    if 'bind' in button and (button['bind'] not in FLAG_SOURCES or len(states) < 2):
-        raise ValueError(f'bind must be one of {", ".join(FLAG_SOURCES)} and needs two states')
+    bind = button.get('bind')
+    timer_bind = isinstance(bind, str) and bind.startswith('timer-running:') and LIVE_NAME.fullmatch(bind[14:])
+    if 'bind' in button and ((bind not in FLAG_SOURCES and not timer_bind) or len(states) < 2):
+        raise ValueError(f'bind must be one of {", ".join(FLAG_SOURCES)} or timer-running:NAME, and needs two states')
     title = button.get('title', {})
     if (not isinstance(title, dict) or title.get('size', 16) not in (16, 20, 24, 28)
             or title.get('position', 'bottom') not in ('top', 'middle', 'bottom', 'hidden')):
@@ -430,6 +444,8 @@ def _validate_config(config):
     if type(config.get('auto_profiles', True)) is not bool:
         raise ValueError('auto_profiles must be on or off')
     _check_display(config.get('display', {}))
+    if 'ambient' in config:
+        check_ambient(config['ambient'])
     triggers = config.get('triggers', [])
     if not isinstance(triggers, list):
         raise ValueError('triggers must be a list')
@@ -449,13 +465,12 @@ def validate_config(config):
 
 
 class DeviceRejected(ValueError):
+    """The port answers, but it is not a compatible Tessera panel."""
     kind = 'other'  # 'silent' (no answer), 'board' (another device) or 'protocol' (incompatible firmware)
 
     def __init__(self, message, kind='other'):
         super().__init__(message)
         self.kind = kind
-
-    """The port answers, but it is not a compatible Tessera panel."""
 
 
 class PanelSerial:
@@ -605,6 +620,9 @@ class Daemon:
         self.local = threading.local()
         self.dropped_jobs = 0
         self.device_info = {}
+        self.weather = Weather()
+        self.ambient_active = False
+        self.ambient_sent = ''
         self.panel_factory = panel_factory
         self.panel = None
         self.connection_failed = threading.Event()
@@ -619,6 +637,8 @@ class Daemon:
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
         self.pc = PcState()
+        self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
+        self.notices = collections.deque(maxlen=5)
         self.stats_scan_at = 0.0
         self.assets = Assets(args.profiles)
         self.port = args.port
@@ -661,6 +681,7 @@ class Daemon:
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
                  'agents': self.agents, 'stats': self.stats.display, 'vars': self.custom_vars,
+                 'notices': list(self.notices),
                  'last_action': self.last_action}
         temporary = self.runtime_path.with_suffix('.tmp')
         try:
@@ -677,6 +698,7 @@ class Daemon:
                        for name, running in self.agents.items()},
                     **{f'stat:{name}': value for name, value in self.stats.display.items()},
                     **self.pc.variables(),
+                    **self.live.variables(),
                     **{f'var:{k}': str(v) for k, v in self.custom_vars.items()})
 
     def substitute(self, text, mode=None):
@@ -709,7 +731,8 @@ class Daemon:
         states = button.get('states', [])
         index = self.button_states.get(self.state_key(button), 0)
         if states and button.get('bind'):
-            index = int(self.pc.flag(button['bind']))  # follows the PC, not the presses
+            bound = button['bind']  # follows the PC or a timer, not the presses
+            index = int(self.live.is_running(bound[14:]) if bound.startswith('timer-running:') else self.pc.flag(bound))
         return dict(button, **states[index % len(states)]) if states else button
 
     def set_button_state(self, button_id, value):
@@ -756,8 +779,9 @@ class Daemon:
                 icon=self.resolve_icon(button), color=color, title=button.get('title', {}))
             if button.get('hold_actions'):
                 entry['hold'] = True  # the panel reports long presses for this key
+            entry.update({key: button[key] for key in ('bg', 'text_color', 'border') if key in button})
             if isinstance(button.get('gauge'), dict):
-                state = gauge_state(button['gauge'], self.stats.raw, color)
+                state = gauge_state(button['gauge'], dict(self.stats.raw, **self.live.raw()), color)
                 entry.update(color=state['color'], gauge={'p': state['p'], 't': state['t']})
             result.append(entry)
         return result
@@ -774,6 +798,7 @@ class Daemon:
 
     def wake_display(self):
         self.last_activity = time.monotonic()
+        self.leave_ambient()
         if self.dimmed:
             self.log('Panel woke')
         self.dimmed = False
@@ -795,6 +820,34 @@ class Daemon:
             self.dim_display('because Windows is locked')
         elif not locked and self.dimmed:
             self.wake_display()
+
+    def ambient_settings(self):
+        return dict({'enabled': False, 'after': 120}, **self.config.get('ambient', {}))
+
+    def leave_ambient(self):
+        if self.ambient_active and self.panel is not None:
+            self.panel.send_line('AD_SCREEN deck')
+        self.ambient_active = False
+        self.ambient_sent = ''
+
+    def ambient_tick(self, now):
+        """Show the ambient clock after `after` idle seconds and keep its weather line fresh."""
+        settings = self.ambient_settings()
+        supported = (self.device_info.get('protocol') or 1) >= 3
+        if self.panel is None or not supported or not settings['enabled']:
+            if self.ambient_active:
+                self.leave_ambient()
+            return
+        if not self.ambient_active:
+            if self.locked or now - self.last_activity < settings['after']:
+                return
+            self.ambient_active = True
+            self.panel.send_line('AD_SCREEN ambient')
+            self.log('Ambient screen shown')
+        line = self.weather.line(settings)
+        if line != self.ambient_sent:
+            self.panel.send_line('AD_AMBIENT ' + line)
+            self.ambient_sent = line
 
     def idle_tick(self, now):
         """Dim the panel once after dim_after seconds without a press."""
@@ -911,6 +964,12 @@ class Daemon:
                 raise ValueError('The child button failed')
         elif kind == 'state':
             self.set_button_state(action['button'], action.get('state', 'next'))
+        elif kind == 'counter':
+            self.live.apply_counter(action)
+            self.push_page()
+        elif kind == 'timer':
+            self.live.apply_timer(action)
+            self.push_page()
         elif kind == 'audio':
             set_mute(action['target'], action.get('op', 'toggle'))
             self.pc.poll()
@@ -1080,6 +1139,8 @@ class Daemon:
                                               message.get('hold') is True, time.monotonic()))
                         elif message.get('type') == 'wake':
                             self.enqueue(('panel-woke',))
+                        elif message.get('type') == 'screen' and message.get('by') == 'touch':
+                            self.enqueue(('screen-deck',))
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
         except (OSError, ValueError, TypeError, AttributeError) as exc:
@@ -1134,9 +1195,14 @@ class Daemon:
             self.dim_display('by request')
         elif kind == 'wake':
             self.wake_display()
+        elif kind == 'screen-deck':
+            # A touch on the ambient screen already returned the panel to the deck.
+            self.last_activity = time.monotonic()
+            self.ambient_active = False
         elif kind == 'panel-woke':
             # The panel already restored its backlight after a touch.
             self.last_activity = time.monotonic()
+            self.leave_ambient()
             if self.dimmed:
                 self.log('Panel woke by touch')
             self.dimmed = False
@@ -1235,6 +1301,19 @@ class Daemon:
                        'claude': 'claude.exe' in names,
                        'zcode': 'zcode.exe' in names}
 
+    def live_tick(self):
+        """Announce timers that ran out: a notice for the tray, an optional sound and the timer's own actions."""
+        for done in self.live.tick():
+            self.log(f'Timer {done["name"]} finished')
+            self.notices.append({'id': int(time.time() * 1000), 'title': 'Tessera timer', 'message': done['message']})
+            if done['sound'] and IS_WINDOWS:
+                import winsound
+                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            if done['actions']:
+                self.enqueue(('actions', done['actions']))
+            self.enqueue(('push',))
+        self.live.flush()
+
     def stats_tick(self, now):
         if now < self.stats_scan_at:
             return
@@ -1312,10 +1391,13 @@ class Daemon:
                         self.clock_sent_at = float('-inf')
                         threading.Thread(target=self.heartbeat_loop, args=(self.panel,), daemon=True).start()
                         self.drop_queued_presses()
+                        self.ambient_active, self.ambient_sent = False, ''
                         with self.state_lock:
                             self.last_activity = time.monotonic()
                             self.apply_brightness()
                             self.push_page(force=True)
+                            if (self.device_info.get('protocol') or 1) >= 3:
+                                self.panel.send_line('AD_SCREEN deck')  # a restarted host may find the ambient clock showing
                         self.publish_runtime(True, force=True)
                         self.log(f'USB ready on {self.port}')
                         if not startup_fired:
@@ -1329,7 +1411,7 @@ class Daemon:
                         continue
                 now = time.monotonic()
                 for tick in (lambda: self.agent_tick(now), lambda: self.stats_tick(now),
-                             self.focus_tick, self.reload_profiles):
+                             lambda: self.ambient_tick(now), self.live_tick, self.focus_tick, self.reload_profiles):
                     try:
                         tick()
                     except Exception as exc:
@@ -1359,6 +1441,7 @@ class Daemon:
             self.stop.set()
             self.api.stop()
             self.pc.stop()
+            self.live.flush()
             self.publish_runtime(False, 'The host has stopped', force=True)
             if self.panel:
                 self.panel.close()

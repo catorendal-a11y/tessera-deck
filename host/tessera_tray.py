@@ -96,6 +96,7 @@ class TrayApp:
         self.status: dict = {}
         self.state: str | None = None
         self.stop = threading.Event()
+        self.last_notice = None  # newest notice already shown; the first poll only catches up
         self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
                                  menu=pystray.Menu(self.menu_items))
 
@@ -190,6 +191,7 @@ class TrayApp:
         self.status = self.controller.status()
         state = tray_state(self.status)
         self.icon.title = f'Tessera — {status_text(self.status)}'
+        self.show_notices(self.status.get('notices', []))
         if state != self.state:
             previous, self.state = self.state, state
             self.icon.icon = make_icon(state)
@@ -197,6 +199,16 @@ class TrayApp:
                 self.icon.notify('The panel was disconnected.', 'Tessera')
             elif previous and state == 'connected':
                 self.icon.notify('The panel is connected.', 'Tessera')
+
+    def show_notices(self, notices):
+        ids = [item['id'] for item in notices if isinstance(item.get('id'), int)]
+        if self.last_notice is None:
+            self.last_notice = max(ids, default=0)
+            return
+        for item in notices:
+            if isinstance(item.get('id'), int) and item['id'] > self.last_notice:
+                self.icon.notify(str(item.get('message', '')), str(item.get('title', 'Tessera')))
+        self.last_notice = max([self.last_notice, *ids])
 
     def poll(self):
         while not self.stop.wait(POLL_SECONDS):

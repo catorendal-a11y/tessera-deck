@@ -101,6 +101,7 @@ class Controller:
                                      ('connected', 'port', 'profile', 'page', 'buttons', 'error',
                                       'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol')})
             result['agents'] = runtime.get('agents', {})
+            result['notices'] = runtime.get('notices', [])
             # Label previews in the editor resolve $(var:…) and $(stat:…) like the panel does.
             result['vars'] = runtime.get('vars', {})
             result['stats'] = runtime.get('stats', {})
