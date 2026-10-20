@@ -14,7 +14,7 @@
             "actions": [
               {
                 "type": "open",
-                "target": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                "target": "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe",
                 "process": "chrome.exe",
                 "reuse": true
               }
@@ -168,7 +168,7 @@
             "actions": [
               {
                 "type": "open",
-                "target": "C:\\Program Files (x86)\\Steam\\steam.exe",
+                "target": "%ProgramFiles(x86)%\\Steam\\steam.exe",
                 "process": "steam.exe",
                 "reuse": true
               }
@@ -1333,7 +1333,7 @@
             "actions": [
               {
                 "type": "open",
-                "target": "C:\\Program Files\\KiCad\\10.0\\bin\\kicad.exe"
+                "target": "%ProgramFiles%\\KiCad\\10.0\\bin\\kicad.exe"
               }
             ]
           },
@@ -1345,7 +1345,7 @@
             "actions": [
               {
                 "type": "open",
-                "target": "C:\\Program Files\\Unity Hub\\Unity Hub.exe"
+                "target": "%ProgramFiles%\\Unity Hub\\Unity Hub.exe"
               }
             ]
           },
@@ -1369,7 +1369,7 @@
             "actions": [
               {
                 "type": "open",
-                "target": "C:\\Program Files\\Microsoft Office\\root\\Office16\\WINWORD.EXE"
+                "target": "%ProgramFiles%\\Microsoft Office\\root\\Office16\\WINWORD.EXE"
               }
             ]
           },
@@ -1381,7 +1381,7 @@
             "actions": [
               {
                 "type": "open",
-                "target": "C:\\Program Files\\Microsoft Office\\root\\Office16\\EXCEL.EXE"
+                "target": "%ProgramFiles%\\Microsoft Office\\root\\Office16\\EXCEL.EXE"
               }
             ]
           },
@@ -1393,7 +1393,7 @@
             "actions": [
               {
                 "type": "open",
-                "target": "C:\\Program Files\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE"
+                "target": "%ProgramFiles%\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE"
               }
             ]
           },

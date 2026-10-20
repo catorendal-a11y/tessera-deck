@@ -93,6 +93,19 @@ class HWiNFOReader:
             kernel32.CloseHandle(handle)
 
 
+# Sensor names that identify a graphics card on any vendor; integrated ones are demoted below.
+GPU_SENSORS = ('gpu', 'radeon', 'geforce', 'nvidia', 'rtx', 'gtx', 'arc ')
+INTEGRATED_GPU = ('integrated', 'radeon graphics', 'radeon(tm) graphics', 'radeon 7', 'uhd graphics', 'iris', 'vega ', 'intel(r) graphics')
+DISCRETE_GPU = ('geforce', 'rtx', 'gtx', 'quadro', 'nvidia', 'radeon rx', 'rx ', 'arc a', 'arc b', 'radeon pro')
+
+
+def gpu_discrete_bonus(sensor: str) -> int:
+    """Prefer a discrete graphics card over the integrated one when both report sensors."""
+    if any(name in sensor for name in INTEGRATED_GPU):
+        return -4
+    return 4 if any(name in sensor for name in DISCRETE_GPU) else 0
+
+
 def _norm(value: str) -> str:
     return value.casefold().replace('°', '').strip()
 
@@ -107,16 +120,16 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
         'cpu_clock': (('cores (average)', 'core effective clocks', 'core clocks', 'cpu clock'),
                       ('cpu', 'ryzen'), ('mhz',)),
         'gpu_temp': (('gpu temperature', 'gpu core', 'gpu hotspot temperature', 'gpu hot spot'),
-                      ('gpu', 'radeon', '6950'), ('c',)),
+                      GPU_SENSORS, ('c',)),
         'gpu_load': (('gpu core load', 'gpu utilization', 'gpu d3d usage', 'gpu core'),
-                      ('gpu', 'radeon', '6950'), ('%',)),
+                      GPU_SENSORS, ('%',)),
         'gpu_power': (('gpu power', 'gpu asic power', 'total graphics power', 'gpu package', 'gpu core'),
-                       ('gpu', 'radeon', '6950'), ('w',)),
+                       GPU_SENSORS, ('w',)),
         'gpu_clock': (('gpu clock', 'gpu effective clock', 'gpu core'),
-                       ('gpu', 'radeon', '6950'), ('mhz',)),
-        'gpu_fan': (('gpu fan', 'fan speed'), ('gpu', 'radeon', '6950'), ('rpm',)),
+                       GPU_SENSORS, ('mhz',)),
+        'gpu_fan': (('gpu fan', 'fan speed'), GPU_SENSORS, ('rpm',)),
         'vram': (('gpu memory usage', 'gpu memory utilization', 'vram usage'),
-                  ('gpu', 'radeon', '6950'), ('%',)),
+                  GPU_SENSORS, ('%',)),
     }
     selected = {}
     for key, (labels, sensors, units) in specs.items():
@@ -132,8 +145,7 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
             sensor_rank = sum(term in sensor for term in sensors)
             if not sensor_rank:
                 continue  # a generic label such as 'Package' must come from the right chip
-            # Prefer the discrete RX 6950 XT over the integrated Radeon GPU.
-            discrete_bonus = 4 if ('6950' in sensor or 'rx 6' in sensor) else 0
+            discrete_bonus = gpu_discrete_bonus(sensor) if key.startswith(('gpu', 'vram')) else 0
             score = label_rank * 10 + sensor_rank + discrete_bonus
             if best is None or score > best[0]:
                 best = (score, float(item['value']))

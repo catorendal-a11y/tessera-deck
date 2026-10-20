@@ -30,6 +30,7 @@ def resolve_program_target(target):
     import shutil
     if not isinstance(target, str) or not target.strip():
         raise ValueError('Choose a valid program')
+    from program_locator import locate
     target = os.path.expandvars(target.strip())
     if target.lower().startswith('shell:'):
         return target
@@ -37,6 +38,8 @@ def resolve_program_target(target):
         return PROGRAM_ALIASES[target.lower()]
     if not os.path.isabs(target):
         target = shutil.which(target) or target
+    elif not os.path.exists(target):
+        target = locate(target) or target  # the program moved: another drive, version folder ...
     return target
 
 

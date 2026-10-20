@@ -18,6 +18,7 @@ import psutil
 from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 from deck_assets import Assets
+from program_locator import locate
 from pc_state import FLAG_SOURCES, PcState, set_mute
 from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
@@ -870,7 +871,8 @@ class Daemon:
             if IS_WINDOWS:
                 process = action.get('process', '')
                 if not (action.get('reuse', False) and focus_existing_process(process)):
-                    os.startfile(os.path.expandvars(target))
+                    expanded = os.path.expandvars(target)
+                    os.startfile(expanded if os.path.exists(expanded) else locate(expanded) or expanded)
             else:
                 subprocess.Popen(['xdg-open', target])
         elif kind == 'shell':
