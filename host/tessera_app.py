@@ -21,6 +21,7 @@ from deck_control import (ROOT, Controller, autostart_enabled, configure_upstrea
 from tesserad import SUPPORTED_PROTOCOLS, DeviceRejected, PanelSerial, validate_config
 from deck_assets import Assets
 import ambient
+import config_store
 import firmware_update
 import iconify
 from action_preview import preview
@@ -218,15 +219,15 @@ class Editor:
 
     def read(self):
         raw = self.path.read_bytes()
-        config = validate_config(json.loads(raw))
+        config = validate_config(config_store.migrate(json.loads(raw)))
         return {'config': self.assets.heal(config), 'revision': hashlib.sha256(raw).hexdigest()}
 
-    def save(self, data):
+    def save(self, data, force_backup=False):
         with self.lock:
             previous = self.read()
             if data.get('revision') != previous['revision']:
                 raise Conflict('The configuration was changed in another window. Reload before saving.')
-            config = data['config']
+            config = config_store.migrate(data['config'])
             validate_config(config)
             # Bound editor-only fields before they reach the shared action engine.
             for name, profile in config['profiles'].items():
@@ -246,6 +247,7 @@ class Editor:
                         for action in button.get('actions', []):
                             if action['type'] == 'delay' and type(action.get('ms', 100)) is not int:
                                 raise ValueError('The delay must be a whole number of milliseconds')
+            config_store.backup(self.path, force=force_backup)
             backup = self.path.with_name(self.path.stem + '-previous.local.json')
             save_profiles(previous['config'], backup)
             save_profiles(config, self.path)
@@ -387,7 +389,17 @@ class Editor:
         variables = self.status().get('variables') or {}
         return {key: preview(value, variables) for key, value in groups.items()}
 
+    def restore_backup(self, name):
+        # Put a backup back in place; the configuration it replaces is backed up first.
+        config = config_store.read_backup(self.path, name)
+        validate_config(config)
+        return self.save({'config': config, 'revision': self.read()['revision']}, force_backup=True)
+
     def command(self, command, data):
+        if command == 'backups':
+            return {'backups': config_store.list_backups(self.path)}
+        if command == 'restore-backup':
+            return self.restore_backup(data.get('name'))
         if command == 'dryrun':
             return self.dry_run(data)
         if command in ('iconify-search', 'iconify-svg'):

@@ -1021,6 +1021,31 @@ async function useOnlineIcon(id) {
   await uploadImage(new File([blob], `${id.replace(':', '-')}.png`, {type: 'image/png'}));
   $('#icon-dialog').close();
 }
+/* Backups: the host keeps rotating copies of profiles.json; any of them can be put back. */
+async function openBackups() {
+  $('#more-menu').hidden = true;
+  const {backups} = await api('command/backups', {}), list = $('#backup-list');
+  list.replaceChildren();
+  if (!backups.length) list.append(text('p', 'No backups yet. The first one is made when you change something.', 'hint'));
+  for (const item of backups) {
+    list.append(element('div', {class: 'backup-row'},
+      element('div', {}, text('strong', item.saved), text('small', `${item.profiles} profiles · ${item.buttons} keys · ${Math.max(1, Math.round(item.bytes / 1024))} KiB`)),
+      button('Restore', () => restoreBackup(item).catch(showError), 'outline')));
+  }
+  $('#backup-dialog').showModal();
+}
+async function restoreBackup(item) {
+  if (!confirm(`Replace the current configuration with the backup from ${item.saved}? The current one is kept as a backup.`)) return;
+  const state = await api('command/restore-backup', {name: item.name});
+  config = state.config; revision = state.revision;
+  dirty = false; conflicted = false; history = []; future = [];
+  $('#reload').hidden = true;
+  $('#backup-dialog').close();
+  renderAll();
+  setSaveState('✓ Backup restored');
+}
+$('#backups-open').onclick = () => openBackups().catch(showError);
+$('#backup-close').onclick = () => $('#backup-dialog').close();
 $('#ambient-open').onclick = ambientSettings;
 $('#test-close').onclick = () => $('#test-dialog').close();
 $('#iconify-search').onclick = () => iconifySearch().catch(showError);

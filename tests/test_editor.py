@@ -81,9 +81,10 @@ class EditorTests(unittest.TestCase):
         b['actions'].append({'type': 'text', 'text': 'Café ñ'})
         with self.request('/api/config', dict(config=updated, revision=state['revision'])) as reply:
             result = json.load(reply)
-        self.assertEqual(result['config'], updated)
+        self.assertEqual(result['config'], dict(updated, version=2))  # saving stamps the schema version
         self.assertNotEqual(state['revision'], result['revision'])
-        self.assertEqual(json.loads(self.path.with_name('profiles-previous.local.json').read_text()), self.config)
+        self.assertEqual(json.loads(self.path.with_name('profiles-previous.local.json').read_text()),
+                         dict(self.config, version=2))
 
     def test_display_settings_round_trip_and_bad_values_are_rejected(self):
         self.login()

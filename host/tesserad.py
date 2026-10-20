@@ -16,6 +16,7 @@ import urllib.request
 import zlib
 import psutil
 from ambient import Weather, check_ambient
+from config_store import CONFIG_VERSION, migrate, version_of
 from live_state import NAME as LIVE_NAME, LiveState, check_counter, check_timer
 from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
@@ -433,6 +434,8 @@ def _check_display(display):
 
 def _validate_config(config):
     profiles = config.get('profiles') if isinstance(config, dict) else None
+    if isinstance(config, dict) and version_of(config) > CONFIG_VERSION:
+        raise ValueError('This configuration was saved by a newer Tessera; update Tessera to use it')
     if not isinstance(profiles, dict) or not profiles:
         raise ValueError('The configuration needs at least one profile')
     if config.get('default_profile', next(iter(profiles))) not in profiles:
@@ -656,7 +659,7 @@ class Daemon:
             if seed.exists():
                 path.write_bytes(seed.read_bytes())
         with open(path, encoding='utf-8') as stream:
-            return validate_config(json.load(stream))
+            return validate_config(migrate(json.load(stream)))
 
     @property
     def active_press(self):
