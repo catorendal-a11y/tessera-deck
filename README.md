@@ -11,7 +11,7 @@
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-108%20passing-35D07F">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-118%20passing-35D07F">
 </p>
 
 <p align="center">
@@ -22,6 +22,12 @@ Tessera turns the 1024 × 600 touchscreen of the **ESP32-P4 Function EV Board** 
 launch apps, fire hotkeys, drive Codex and Claude Code, watch live system gauges and run multi-step macros.
 A small Windows host owns the USB connection, runs the actions and serves a drag-and-drop editor that always
 shows exactly what the panel shows.
+
+> [!IMPORTANT]
+> **Made for one board:** the [Espressif **ESP32-P4 Function EV Board**](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
+> with its 7" 1024 × 600 MIPI-DSI touch display (JD9165 panel, GT911 touch). The firmware, pin setup and
+> screen layout are written for this exact kit, so other ESP32 boards or displays will not work without porting.
+> You also need a Windows 10/11 PC and a USB cable to the board's USB Serial/JTAG port.
 
 ## Highlights
 
