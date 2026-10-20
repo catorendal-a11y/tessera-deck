@@ -37,7 +37,7 @@ class ControlServer:
         self.info_path = Path(info_path)
         self.token = secrets.token_urlsafe(32)
         self.server: ThreadingHTTPServer | None = None
-        self.routes = {'var': self.set_variable, 'press': self.press, 'page': self.show_page,
+        self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display}
 
     # --- request handlers: validate, then queue work for the daemon's worker thread ---
@@ -48,6 +48,20 @@ class ControlServer:
         if not isinstance(value, (str, int, float)) or isinstance(value, bool) or len(str(value)) > MAX_VALUE:
             raise ApiError(f'value must be text or a number of at most {MAX_VALUE} characters')
         self.daemon.submit(('var', name, str(value)))
+
+    def set_variables(self, data):
+        # Several variables in one request, queued all-or-nothing (used by the AI tool adapters).
+        values = data.get('set')
+        if not isinstance(values, dict) or not 1 <= len(values) <= 20:
+            raise ApiError('set must be an object with 1 to 20 variables')
+        jobs = []
+        for name, value in values.items():
+            if not isinstance(name, str) or not VARIABLE_NAME.fullmatch(name):
+                raise ApiError('name must be 1-64 letters, digits, dots, dashes or underscores')
+            if not isinstance(value, (str, int, float)) or isinstance(value, bool) or len(str(value)) > MAX_VALUE:
+                raise ApiError(f'value must be text or a number of at most {MAX_VALUE} characters')
+            jobs.append(('var', name, str(value)))
+        self.daemon.submit(*jobs)
 
     def press(self, data):
         self.daemon.submit(('api-press', _button(data)))

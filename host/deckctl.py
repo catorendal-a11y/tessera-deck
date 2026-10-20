@@ -9,6 +9,8 @@ Examples:
   deckctl ok 3 / deckctl alert 3 flash a button green or red
   deckctl wake / deckctl dim     wake or dim the panel
   deckctl status                 print the host state as JSON
+  deckctl adapter claude         feed a Claude Code hook event (stdin) to the panel
+  deckctl hooks claude           print the Claude Code hooks block that runs the adapter
 """
 from __future__ import annotations
 
@@ -18,6 +20,8 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+import adapters
 
 INFO_PATH = Path(__file__).with_name('deck-api.local.json')
 TIMEOUT = 3.0
@@ -79,6 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
     state.add_argument('state', nargs='?', type=state_value, default='next')
     for name in ('wake', 'dim', 'status'):
         commands.add_parser(name)
+    adapter = commands.add_parser('adapter', help='send what an AI tool reports to the panel')
+    adapter.add_argument('name', choices=[*adapters.ADAPTERS, 'generic'])
+    adapter.add_argument('rest', nargs='*', help='generic: NAME STATE [MESSAGE]; codex: the event JSON')
+    hooks = commands.add_parser('hooks', help='print the settings block that connects a tool')
+    hooks.add_argument('tool', choices=['claude'])
     return parser
 
 
@@ -99,16 +108,41 @@ def run(arguments: argparse.Namespace, info: dict):
         return call(info, 'POST', '/v1/state', {'button': arguments.button, 'state': arguments.state})
     if command in ('wake', 'dim'):
         return call(info, 'POST', '/v1/display', {'action': command})
+    if command == 'adapter':
+        updates = adapter_updates(arguments, sys.stdin)
+        return call(info, 'POST', '/v1/vars', {'set': updates}) if updates else {'ok': True}
     return call(info, 'GET', '/v1/state')
+
+
+def adapter_updates(arguments: argparse.Namespace, stdin) -> dict:
+    if arguments.name == 'generic':
+        if len(arguments.rest) < 2:
+            raise DeckctlError('generic needs a tool name and a state')
+        try:
+            return adapters.generic(*arguments.rest[:3])
+        except ValueError as exc:
+            raise DeckctlError(str(exc)) from exc
+    text = arguments.rest[-1] if arguments.name == 'codex' and arguments.rest else stdin.read(adapters.MAX_INPUT + 1)
+    return adapters.ADAPTERS[arguments.name](adapters.parse_event(text))
+
+
+def hooks_block(tool: str) -> dict:
+    python = Path(__file__).resolve().parents[1] / 'host/.venv/Scripts/python.exe'
+    return adapters.claude_hooks(adapters.deckctl_command(python if python.is_file() else Path(sys.executable),
+                                                          Path(__file__).resolve()))
 
 
 def main(argv=None, info_path: Path = INFO_PATH) -> int:
     arguments = build_parser().parse_args(argv)
+    if arguments.command == 'hooks':
+        print(json.dumps(hooks_block(arguments.tool), indent=2))
+        return 0
     try:
         result = run(arguments, load_info(info_path))
     except DeckctlError as exc:
         print(f'deckctl: {exc}', file=sys.stderr)
-        return 1
+        # A hook must never fail the tool that called it: a stopped host is not the tool's problem.
+        return 0 if arguments.command == 'adapter' and arguments.name != 'generic' else 1
     if arguments.command == 'status':
         print(json.dumps(result, indent=2))
     return 0
