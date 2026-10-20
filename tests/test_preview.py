@@ -9,6 +9,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import ambient
+import iconify
 from action_preview import preview
 from substitution import expand_environment, substitute
 from tessera_app import Editor
@@ -123,6 +124,78 @@ class EditorCommandTests(unittest.TestCase):
             with self.assertRaises(ValueError) as raised:
                 self.editor.command('weather-search', {'query': 'Oslo'})
         self.assertIn('internet connection', str(raised.exception))
+
+
+class FakeIconReply:
+    def __init__(self, body):
+        self.body = body if isinstance(body, bytes) else body.encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+    def read(self, limit):
+        return self.body[:limit]
+
+
+class IconifyTests(unittest.TestCase):
+    def answering(self, body, seen=None):
+        def opener(request, timeout):
+            if seen is not None:
+                seen.append(request.full_url)
+            return FakeIconReply(body)
+        return opener
+
+    def test_search_keeps_only_well_formed_icon_ids(self):
+        body = json.dumps({'icons': ['mdi:home', 'lucide:house', 'bad id', 'x:../etc', 5, 'mdi:Home']})
+        seen = []
+        self.assertEqual(iconify.search('home', self.answering(body, seen)), ['mdi:home', 'lucide:house'])
+        self.assertTrue(seen[0].startswith('https://api.iconify.design/search?'))
+        for query in ('', 'a', 'x' * 41):
+            with self.assertRaises(ValueError):
+                iconify.search(query, self.answering('{}'))
+        for broken in ('not json', '[]', '{"icons": "no"}'):
+            with self.assertRaises(ValueError):
+                iconify.search('home', self.answering(broken))
+
+    def test_svg_is_fetched_for_one_icon_in_the_chosen_color_and_must_be_plain(self):
+        plain = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="#FF0000"/></svg>'
+        seen = []
+        self.assertEqual(iconify.svg('mdi:home', '#FF0000', self.answering(plain, seen)), plain)
+        self.assertIn('/mdi/home.svg?', seen[0])
+        self.assertIn('color=%23FF0000', seen[0])
+        for hostile in ('<svg><script>alert(1)</script></svg>', '<svg onload="x()"></svg>',
+                        '<svg><image href="http://evil/x.png"/></svg>', '<svg><use xlink:href="#a"/></svg>',
+                        '<html></html>', '<svg>' + 'x' * (iconify.MAX_SVG_BYTES + 10) + '</svg>'):
+            with self.assertRaises(ValueError, msg=hostile[:30]):
+                iconify.svg('mdi:home', '#FFFFFF', self.answering(hostile))
+
+    def test_icon_names_and_colors_are_validated_before_any_request(self):
+        seen = []
+        for icon_id, color in (('mdi/home', '#FFFFFF'), ('../x:y', '#FFFFFF'), ('mdi:home', 'red'),
+                               ('mdi:home', '#FFF'), ('', '#FFFFFF')):
+            with self.assertRaises(ValueError):
+                iconify.svg(icon_id, color, self.answering('<svg></svg>', seen))
+        self.assertEqual(seen, [])
+
+    def test_the_editor_proxies_both_commands_and_explains_an_offline_service(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps({'default_profile': 'Main', 'profiles': {'Main': {'match': [], 'pages': {
+                'First': []}}}}))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            with patch.object(iconify, 'search', return_value=['mdi:home']):
+                self.assertEqual(editor.command('iconify-search', {'query': 'home'}), {'icons': ['mdi:home']})
+            with patch.object(iconify, 'svg', return_value='<svg></svg>') as svg:
+                self.assertEqual(editor.command('iconify-svg', {'id': 'mdi:home', 'color': '#00FF00'}),
+                                 {'svg': '<svg></svg>'})
+            svg.assert_called_once_with('mdi:home', '#00FF00')
+            with patch.object(iconify, 'search', side_effect=OSError('offline')):
+                with self.assertRaises(ValueError) as raised:
+                    editor.command('iconify-search', {'query': 'home'})
+            self.assertIn('internet connection', str(raised.exception))
 
 
 if __name__ == '__main__':

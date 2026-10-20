@@ -22,6 +22,7 @@ from tesserad import SUPPORTED_PROTOCOLS, DeviceRejected, PanelSerial, validate_
 from deck_assets import Assets
 import ambient
 import firmware_update
+import iconify
 from action_preview import preview
 from import_review import redact_secrets, review, strip_executable
 
@@ -389,6 +390,13 @@ class Editor:
     def command(self, command, data):
         if command == 'dryrun':
             return self.dry_run(data)
+        if command in ('iconify-search', 'iconify-svg'):
+            try:
+                if command == 'iconify-search':
+                    return {'icons': iconify.search(str(data.get('query', '')))}
+                return {'svg': iconify.svg(str(data.get('id', '')), str(data.get('color', '#FFFFFF')))}
+            except OSError as exc:
+                raise ValueError('The icon service could not be reached. Check your internet connection.') from exc
         if command == 'weather-search':
             try:
                 return {'places': ambient.search_places(str(data.get('query', '')))}

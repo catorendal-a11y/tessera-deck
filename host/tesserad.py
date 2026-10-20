@@ -362,6 +362,9 @@ def _check_button(button, pages, profiles):
             raise ValueError('Invalid button state')
         _check_actions(state.get('actions', []), pages, profiles)
         _check_color(state.get('color', '#35D07F'), 'Invalid state color')
+        for key in ('bg', 'text_color', 'border'):
+            if key in state:
+                _check_color(state[key], f'Invalid state {key.replace("_", " ")}')
     bind = button.get('bind')
     timer_bind = isinstance(bind, str) and bind.startswith('timer-running:') and LIVE_NAME.fullmatch(bind[14:])
     if 'bind' in button and ((bind not in FLAG_SOURCES and not timer_bind) or len(states) < 2):
