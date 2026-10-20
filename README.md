@@ -72,13 +72,18 @@ green or red flash on the key. Everything is local: the editor and the control A
 
 ## Quick start
 
-### 1. Run the Windows host
+### 1. Start Tessera
 
 ```powershell
-Tessera.cmd            # terminal UI; the first run creates a Python environment
-Tessera.cmd --editor   # drag-and-drop editor
-Tessera.cmd --tray     # tray app that also starts the USB host
+Tessera.cmd            # everything: tray icon, USB host and the editor window
 ```
+
+That is the whole program. The first run creates a Python environment. Closing the editor window leaves the tray
+icon and the USB host running; start `Tessera.cmd` again to bring the editor back, or quit from the tray menu.
+Enable **Start with Windows** in the tray menu to have it ready after every sign-in.
+
+Optional entry points: `Tessera.cmd --terminal` (terminal UI), `--tray` (tray and host only) and `--editor`
+(editor window only).
 
 The default port is `COM4`; set `TESSERA_PORT` to change it. After the first successful connection Tessera
 remembers the board's USB serial number and follows it if Windows renumbers the port.

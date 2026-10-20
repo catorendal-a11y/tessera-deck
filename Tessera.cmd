@@ -1,4 +1,6 @@
 @echo off
+rem Tessera launcher. With no arguments it starts everything: the tray icon, the USB host
+rem and the editor window. Starting it again only brings up the existing editor window.
 setlocal
 set PYTHONUTF8=1
 cd /d "%~dp0"
@@ -11,15 +13,20 @@ if errorlevel 1 (
   "host\.venv\Scripts\python.exe" -m pip install -r "host\requirements.txt"
   if errorlevel 1 goto failed
 )
-if "%~1"=="" goto terminal
+if "%~1"=="" goto app
+if "%~1"=="--app" goto app
 if "%~1"=="--terminal" goto terminal
 if "%~1"=="--tray" goto tray
 if "%~1"=="--check" goto console
 if "%~1"=="--no-browser" goto console
 start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_app.py" %*
 exit /b 0
+:app
+start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_tray.py"
+start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_app.py" --editor
+exit /b 0
 :tray
-start "" /b "host\.venv\Scripts\pythonw.exe" "hostgent_deck_tray.py"
+start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_tray.py"
 exit /b 0
 :terminal
 "host\.venv\Scripts\python.exe" "host\tessera_terminal.py"
