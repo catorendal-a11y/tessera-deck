@@ -9,4 +9,4 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 add_compile_options(-Wno-ignored-qualifiers)
 add_compile_options(-Wno-attributes)
 
-project(agent_deck)
+project(tessera)

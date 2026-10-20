@@ -146,15 +146,15 @@ int time_service_today_key(void)
 
 const char *time_service_date_text(void)
 {
-    static const char *weekdays[] = {"Søn", "Man", "Tir", "Ons", "Tor", "Fre", "Lør"};
+    static const char *weekdays[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
     static const char *months[] = {
-        "jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"
+        "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"
     };
     struct tm tm_now = {0};
     if (!local_time(&tm_now)) {
-        return "Klokke ikke stilt";
+        return "Clock not set";
     }
-    snprintf(s_date_text, sizeof(s_date_text), "%s %d. %s %d", weekdays[tm_now.tm_wday],
+    snprintf(s_date_text, sizeof(s_date_text), "%s %d %s %d", weekdays[tm_now.tm_wday],
              tm_now.tm_mday, months[tm_now.tm_mon], tm_now.tm_year + 1900);
     return s_date_text;
 }

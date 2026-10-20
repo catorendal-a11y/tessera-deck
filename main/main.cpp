@@ -6,6 +6,7 @@
 #include "bsp/display.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <cerrno>
@@ -29,7 +30,19 @@ extern "C" {
 #include "ui/ui.h"
 }
 
-static const char *TAG = "agent_deck";
+static const char *TAG = "tessera";
+/* Backlight level restored by AD_DISPLAY_WAKE; set by the host with AD_BRIGHTNESS. */
+static int s_brightness = 100;
+
+/* Parse "<digits>" within [low, high]; returns false for anything else. */
+static bool parse_percent(const char *text, long low, long high, int *out)
+{
+    char *end = nullptr;
+    long value = strtol(text, &end, 10);
+    if (end == text || *end != '\0' || value < low || value > high) return false;
+    *out = static_cast<int>(value);
+    return true;
+}
 /* USB console. The FQ_C6_x and FQ_WIFI commands keep the exact protocol of the
  * previous panel firmware so tools/update_network_coprocessor.py and the
  * scripted Wi-Fi provisioning keep working across both firmwares. */
@@ -93,7 +106,7 @@ static void usb_console_task(void *)
             const cJSON *cmd=cJSON_GetObjectItemCaseSensitive(request,"cmd");
             if(cJSON_IsString(cmd)&&!strcmp(cmd->valuestring,"get_info")) {
                 cJSON *reply=cJSON_CreateObject();const esp_app_desc_t *app=esp_app_get_description();
-                cJSON_AddStringToObject(reply,"type","info");cJSON_AddStringToObject(reply,"boardId","agent-deck-p4");
+                cJSON_AddStringToObject(reply,"type","info");cJSON_AddStringToObject(reply,"boardId","tessera-p4");
                 cJSON_AddStringToObject(reply,"firmwareVersion",app->version);cJSON_AddNumberToObject(reply,"bootId",boot_id);
                 cJSON_AddNumberToObject(reply,"uptime",esp_timer_get_time()/1000000);cJSON_AddNumberToObject(reply,"heap",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));char *text=cJSON_PrintUnformatted(reply);
@@ -305,8 +318,29 @@ static void usb_console_task(void *)
             printf("{\"type\":\"screen\",\"queued\":%s}\n",queued?"true":"false");
             fflush(stdout);
         }
+        if (!overflow && strncmp(line, "AD_BRIGHTNESS ", 14) == 0) {
+            int level = 0;
+            if (parse_percent(line + 14, 1, 100, &level)) {
+                s_brightness = level;
+                esp_err_t result = bsp_display_brightness_set(s_brightness);
+                printf("AD_BRIGHTNESS %s %d\n", result == ESP_OK ? "OK" : "FAILED", s_brightness);
+            } else {
+                printf("AD_BRIGHTNESS INVALID\n");
+            }
+            fflush(stdout);
+        }
+        if (!overflow && strncmp(line, "AD_DISPLAY_DIM ", 15) == 0) {
+            int level = 0;
+            if (parse_percent(line + 15, 0, 100, &level)) {
+                esp_err_t result = bsp_display_brightness_set(level);
+                printf("AD_DISPLAY_DIM %s %d\n", result == ESP_OK ? "OK" : "FAILED", level);
+            } else {
+                printf("AD_DISPLAY_DIM INVALID\n");
+            }
+            fflush(stdout);
+        }
         if (!overflow && strcmp(line, "AD_DISPLAY_WAKE") == 0) {
-            esp_err_t result = bsp_display_backlight_on();
+            esp_err_t result = bsp_display_brightness_set(s_brightness);
             bool queued = false;
             if (result == ESP_OK && bsp_display_lock(200)) {
                 queued = lv_async_call([](void *) {
@@ -389,9 +423,9 @@ extern "C" void app_main(void)
     /* The BSP intentionally initializes PWM at 0% and requires applications
      * to enable the backlight. Touch and USB can otherwise keep working while
      * the physical panel looks completely black. */
-    ESP_ERROR_CHECK(bsp_display_backlight_on());
+    ESP_ERROR_CHECK(bsp_display_brightness_set(s_brightness));
 
-    ESP_LOGI(TAG, "Agent Deck UI running");
+    ESP_LOGI(TAG, "Tessera UI running");
     if (xTaskCreatePinnedToCore(usb_console_task, "ad_usb_console", 24576, nullptr, 1, nullptr, 0) != pdPASS)
         ESP_LOGW(TAG, "USB console unavailable");
 

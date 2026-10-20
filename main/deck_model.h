@@ -1,6 +1,6 @@
 #pragma once
 
-/* Agent Deck shared model: the single source of truth for deck buttons,
+/* Tessera shared model: the single source of truth for deck buttons,
  * navigation context and press events.
  *
  * Thread contract: every accessor takes the internal mutex and copies
@@ -22,6 +22,7 @@ extern "C" {
 #define DECK_ICON_NAME_MAX 15
 #define DECK_EVENT_RING 32
 #define DECK_CONTEXT_TEXT_MAX 31
+#define DECK_GAUGE_TEXT_MAX 7
 
 typedef struct {
     int id;
@@ -31,6 +32,11 @@ typedef struct {
     uint8_t title_size;                /* 0 uses legacy 16px */
     uint8_t title_position;            /* 0 bottom, 1 top, 2 middle, 3 hidden */
     bool title_bold;
+    /* Live gauge tile: a ring filled to gauge_percent with gauge_text in the middle.
+     * Only gauge_percent, gauge_text and color change at runtime without a rebuild. */
+    bool has_gauge;
+    uint8_t gauge_percent;             /* 0..100 */
+    char gauge_text[DECK_GAUGE_TEXT_MAX + 1];
 } deck_button_t;
 
 typedef struct {
@@ -54,6 +60,8 @@ int deck_model_button_count(void);
 bool deck_model_get_button(int index, deck_button_t *out);
 bool deck_model_replace_buttons(const deck_button_t *buttons, int count);
 uint32_t deck_model_buttons_version(void);
+/* Bumped when only live gauge values changed; the UI updates them in place. */
+uint32_t deck_model_live_version(void);
 void deck_model_set_context(const char *profile, const char *page, bool can_go_back);
 deck_context_t deck_model_context(void);
 uint32_t deck_model_context_version(void);

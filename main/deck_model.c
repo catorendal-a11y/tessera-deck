@@ -14,7 +14,8 @@ static SemaphoreHandle_t s_lock;
 static deck_button_t s_buttons[DECK_MAX_BUTTONS];
 static int s_button_count;
 static uint32_t s_buttons_version = 1;
-static deck_context_t s_context = {"LOKAL", "HOVED", false};
+static uint32_t s_live_version = 1;
+static deck_context_t s_context = {"LOCAL", "MAIN", false};
 static uint32_t s_context_version = 1;
 
 static deck_event_t s_events[DECK_EVENT_RING];
@@ -77,18 +78,18 @@ void deck_model_defaults(void)
      * replace the whole set at runtime over POST /api/deck/config.
      * Colors use accent green, muted gray and error red. */
     static const deck_button_t defaults[] = {
-        {1, "Bygg", "bolt", 0x35D07F},
-        {2, "Kjør", "play", 0x35D07F},
+        {1, "Build", "bolt", 0x35D07F},
+        {2, "Run", "play", 0x35D07F},
         {3, "Test", "ok", 0x35D07F},
         {4, "Deploy", "upload", 0x35D07F},
         {5, "Git", "edit", 0x35D07F},
-        {6, "Synk", "loop", 0x35D07F},
+        {6, "Sync", "loop", 0x35D07F},
         {7, "Pause", "pause", 0xA3B2BC},
-        {8, "Stopp", "stop", 0xFF7070},
-        {9, "Logg", "list", 0x35D07F},
-        {10, "Varsel", "bell", 0xFF7070},
-        {11, "Rydd", "trash", 0xA3B2BC},
-        {12, "Hjem", "home", 0x35D07F},
+        {8, "Stop", "stop", 0xFF7070},
+        {9, "Log", "list", 0x35D07F},
+        {10, "Alert", "bell", 0xFF7070},
+        {11, "Clean", "trash", 0xA3B2BC},
+        {12, "Home", "home", 0x35D07F},
     };
     model_lock();
     s_button_count = (int)(sizeof(defaults) / sizeof(defaults[0]));
@@ -115,16 +116,35 @@ bool deck_model_get_button(int index, deck_button_t *out)
     return ok;
 }
 
+/* Same tile layout; gauge value, gauge text and gauge color may differ. */
+static bool same_structure(const deck_button_t *a, const deck_button_t *b)
+{
+    deck_button_t x = *a, y = *b;
+    x.gauge_percent = y.gauge_percent = 0;
+    memset(x.gauge_text, 0, sizeof(x.gauge_text));
+    memset(y.gauge_text, 0, sizeof(y.gauge_text));
+    if (x.has_gauge && y.has_gauge) x.color = y.color = 0;
+    return memcmp(&x, &y, sizeof(x)) == 0;
+}
+
 bool deck_model_replace_buttons(const deck_button_t *buttons, int count)
 {
     if (!buttons || count < 0 || count > DECK_MAX_BUTTONS) return false;
     model_lock();
     /* The host re-pushes the whole layout on every refresh (dynamic titles,
-     * page switches). Identical content must not re-render the grid. */
-    if (count == s_button_count &&
-        memcmp(s_buttons, buttons, sizeof(deck_button_t) * (size_t)count) == 0) {
-        model_unlock();
-        return true;
+     * page switches). Identical content must not re-render the grid, and
+     * changing gauge values must not tear down the tile under a finger. */
+    if (count == s_button_count) {
+        bool same = true;
+        for (int i = 0; same && i < count; ++i) same = same_structure(&s_buttons[i], &buttons[i]);
+        if (same) {
+            if (memcmp(s_buttons, buttons, sizeof(deck_button_t) * (size_t)count) != 0) {
+                memcpy(s_buttons, buttons, sizeof(deck_button_t) * (size_t)count);
+                s_live_version++;
+            }
+            model_unlock();
+            return true;
+        }
     }
     s_button_count = count;
     memcpy(s_buttons, buttons, sizeof(deck_button_t) * (size_t)count);
@@ -138,11 +158,16 @@ uint32_t deck_model_buttons_version(void)
     return s_buttons_version; /* atomic-enough read of a uint32 */
 }
 
+uint32_t deck_model_live_version(void)
+{
+    return s_live_version;
+}
+
 void deck_model_set_context(const char *profile, const char *page, bool can_go_back)
 {
     deck_context_t next = {};
-    copy_text(next.profile, sizeof(next.profile), profile ? profile : "LOKAL");
-    copy_text(next.page, sizeof(next.page), page ? page : "HOVED");
+    copy_text(next.profile, sizeof(next.profile), profile ? profile : "LOCAL");
+    copy_text(next.page, sizeof(next.page), page ? page : "MAIN");
     next.can_go_back = can_go_back;
     model_lock();
     if (memcmp(&next, &s_context, sizeof(next)) != 0) {
@@ -182,8 +207,11 @@ uint32_t deck_model_record_press(int button_id)
     slot->timestamp_ms = esp_timer_get_time() / 1000;
     s_events_total++;
     uint32_t id = (uint32_t)slot->id;
+    char label[sizeof(slot->label)];
+    memcpy(label, slot->label, sizeof(label));
     model_unlock();
-    ESP_LOGI(TAG, "deck event #%d: %s (%d)", slot->id, slot->label, button_id);
+    /* Log from the local copy: another task may recycle the ring slot once unlocked. */
+    ESP_LOGI(TAG, "deck event #%u: %s (%d)", (unsigned)id, label, button_id);
     return id;
 }
 
@@ -290,6 +318,15 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
             break;
         }
         out[parsed].color = color_value;
+        const cJSON *gauge = cJSON_GetObjectItemCaseSensitive(item, "gauge");
+        if (cJSON_IsObject(gauge)) {
+            const cJSON *percent = cJSON_GetObjectItemCaseSensitive(gauge, "p");
+            const cJSON *gauge_text = cJSON_GetObjectItemCaseSensitive(gauge, "t");
+            if (!cJSON_IsNumber(percent) || !cJSON_IsString(gauge_text)) {valid = false; break;}
+            out[parsed].has_gauge = true;
+            out[parsed].gauge_percent = (uint8_t)(percent->valuedouble < 0 ? 0 : percent->valuedouble > 100 ? 100 : percent->valuedouble);
+            copy_text(out[parsed].gauge_text, sizeof(out[parsed].gauge_text), gauge_text->valuestring);
+        }
         const cJSON *title = cJSON_GetObjectItemCaseSensitive(item, "title");
         const cJSON *size = cJSON_GetObjectItemCaseSensitive(title, "size");
         const cJSON *position = cJSON_GetObjectItemCaseSensitive(title, "position");

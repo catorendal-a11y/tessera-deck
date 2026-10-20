@@ -1,4 +1,4 @@
-// LVGL 9.6 configuration for Agent Deck native rendering
+// LVGL 9.6 configuration for Tessera native rendering
 // ESP32-P4 4.3" Touch Display (800x480, 16-bit color, PSRAM)
 
 #ifndef LV_CONF_H

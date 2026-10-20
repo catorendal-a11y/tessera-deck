@@ -80,7 +80,7 @@ static void network_worker(void *)
                 esp_err_t power_err = esp_wifi_set_max_tx_power(84);
                 int8_t power_after = 0;
                 esp_wifi_get_max_tx_power(&power_after);
-                ESP_LOGI(TAG, "Wi-Fi TX effekt: %d -> %d (0.25 dBm), %s",
+                ESP_LOGI(TAG, "Wi-Fi TX power: %d -> %d (0.25 dBm), %s",
                          power_before, power_after, esp_err_to_name(power_err));
             }
             break;
@@ -263,10 +263,10 @@ void network_service_start_setup(void)
 const char *network_service_state_text(network_state_t state)
 {
     switch (state) {
-    case NETWORK_STATE_CONNECTED: return "Tilkoblet";
-    case NETWORK_STATE_CONNECTING: return "Kobler til";
-    case NETWORK_STATE_PROVISIONING: return "Venter på oppsett";
-    case NETWORK_STATE_ERROR: return "Nettverksfeil";
+    case NETWORK_STATE_CONNECTED: return "Connected";
+    case NETWORK_STATE_CONNECTING: return "Connecting";
+    case NETWORK_STATE_PROVISIONING: return "Waiting for setup";
+    case NETWORK_STATE_ERROR: return "Network error";
     case NETWORK_STATE_OFF: break;
     }
     return "Av";
@@ -291,7 +291,7 @@ bool network_service_configure(const char *ssid, const char *password)
 #include <string.h>
 
 static network_state_t s_state = NETWORK_STATE_CONNECTED;
-static const char *s_ssid = "Hjemmenett";
+static const char *s_ssid = "HomeWiFi";
 static bool s_ip_ready = true;
 
 void network_service_sim_set_ip_ready(bool ready) { s_ip_ready = ready; }
@@ -349,10 +349,10 @@ bool network_service_configure(const char *, const char *) { return false; }
 const char *network_service_state_text(network_state_t state)
 {
     switch (state) {
-    case NETWORK_STATE_CONNECTED: return "Tilkoblet";
-    case NETWORK_STATE_CONNECTING: return "Kobler til";
-    case NETWORK_STATE_PROVISIONING: return "Venter på oppsett";
-    case NETWORK_STATE_ERROR: return "Nettverksfeil";
+    case NETWORK_STATE_CONNECTED: return "Connected";
+    case NETWORK_STATE_CONNECTING: return "Connecting";
+    case NETWORK_STATE_PROVISIONING: return "Waiting for setup";
+    case NETWORK_STATE_ERROR: return "Network error";
     case NETWORK_STATE_OFF: break;
     }
     return "Av";

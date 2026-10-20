@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(agent_deck_native LANGUAGES C CXX)
+project(tessera_native LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 11)
 get_filename_component(ROOT "../.." ABSOLUTE)
