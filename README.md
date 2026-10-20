@@ -31,7 +31,8 @@ shows exactly what the panel shows.
 - **A WYSIWYG editor** — drag and drop, undo/redo, copy/paste, folders, pinned buttons, toggle buttons with 2–8 states and multi-step actions. The editor mirrors the panel and follows it when the profile changes.
 - **119 ready-made actions and 10 profile templates** for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
 - **Keys that follow the PC** — the microphone, speaker and media buttons show the real Windows state (muted, live, playing) and flip on their own, and labels can show the current track and volume.
-- **Smart profiles** — the panel switches profile by the foreground program, process or window title.
+- **Smart profiles** — the panel switches profile by the foreground program, process or window title, and returns to the profile you had before when that program loses focus.
+- **Long press** — a key can have a second action (`hold_actions`, or the *Long-press hotkey* field in the editor) that runs when you hold it for about half a second.
 - **Scriptable** — a local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages (for example a Claude Code status light).
 - **Tray app, auto-dim and brightness** — start with Windows, dim after inactivity or when the PC locks, and wake with a touch that does not trigger a button.
 - **Free sensors** — Windows performance counters out of the box; optional [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) for temperatures, power and fan speed.

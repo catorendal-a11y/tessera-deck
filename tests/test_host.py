@@ -383,7 +383,7 @@ class HostTests(unittest.TestCase):
         daemon.push_page()
         daemon.custom_vars['cpu'] = '43'  # computed after the press, not yet pushed
         daemon.handle_job(('press', 1, 'CPU 41'))
-        daemon.dispatch_press.assert_called_once_with(1)
+        daemon.dispatch_press.assert_called_once_with(1, hold=False)
 
     def test_press_from_a_page_that_is_no_longer_shown_is_ignored(self):
         daemon = self.dynamic_label_daemon()
@@ -885,6 +885,38 @@ class HostTests(unittest.TestCase):
         with patch.object(deck, 'foreground_context', return_value=context):
             daemon.focus_tick()
         self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'main'))
+
+    def test_long_press_runs_the_hold_actions_and_is_flagged_in_the_layout(self):
+        daemon = self.daemon()
+        button = next(b for b in daemon.config['profiles']['main']['pages']['main'] if b['id'] == 1)
+        button['hold_actions'] = [{'type': 'set', 'variable': 'held', 'value': 'yes'}]
+        button['actions'] = [{'type': 'set', 'variable': 'held', 'value': 'no'}]
+        daemon.profile, daemon.page = 'main', 'main'
+        self.assertTrue(next(b for b in daemon.current_buttons() if b['id'] == 1)['hold'])
+        self.assertNotIn('hold', next(b for b in daemon.current_buttons() if b['id'] == 2))
+        daemon.handle_job(('press', 1, None, True))
+        self.assertEqual(daemon.custom_vars['held'], 'yes')
+        daemon.handle_job(('press', 1, None, False))
+        self.assertEqual(daemon.custom_vars['held'], 'no')
+        button['hold_actions'] = [{'type': 'hotkey', 'keys': 'not-a-key'}]
+        with self.assertRaises(ValueError):
+            deck.validate_config(daemon.config)
+
+    def test_focus_returns_to_the_profile_that_was_active_before_the_auto_switch(self):
+        daemon = self.daemon()
+        daemon.args.no_focus = False
+        daemon.profile = 'Codex'
+        daemon.config['profiles']['coding']['match'] = ['code.exe']
+        with patch.object(deck, 'foreground_context',
+                          return_value={'exe': 'code.exe', 'title': 'Editor', 'processes': ['code.exe']}):
+            daemon.focus_tick()
+        self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'coding'))
+        daemon.profile = 'coding'
+        with patch.object(deck, 'foreground_context',
+                          return_value={'exe': 'notepad.exe', 'title': 'Notepad', 'processes': ['notepad.exe']}):
+            daemon.focus_tick()
+        self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'Codex'))
+        self.assertIsNone(daemon.profile_before_auto)
 
     def test_manual_home_is_not_immediately_overridden_by_focus(self):
         daemon = self.daemon()

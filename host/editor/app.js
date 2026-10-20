@@ -442,6 +442,7 @@ function renderInspector() {
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
   renderGauge(panel,base);
   renderBind(panel,base);
+  renderHold(panel,base);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
   panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
@@ -452,6 +453,11 @@ function renderInspector() {
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
   panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
+}
+function renderHold(panel,base) {
+  const keys=base.hold_actions?.[0]?.type==='hotkey'?base.hold_actions[0].keys:'';
+  panel.append(field('Long-press hotkey (optional)',keys,value=>mutate(()=>{const keys=value.trim();if(keys)base.hold_actions=[{type:'hotkey',keys}];else delete base.hold_actions;}),{placeholder:'for example ctrl+shift+m'}));
+  panel.append(text('p','Hold the key for about half a second to send this instead of the normal actions.','hint'));
 }
 function renderBind(panel,base) {
   if(!base.states)return;

@@ -192,7 +192,7 @@ deck_context_t deck_model_context(void)
 
 uint32_t deck_model_context_version(void) { return s_context_version; }
 
-uint32_t deck_model_record_press(int button_id)
+static uint32_t record_event(int button_id, bool hold)
 {
     model_lock();
     deck_button_t *button = NULL;
@@ -211,6 +211,7 @@ uint32_t deck_model_record_press(int button_id)
     s_event_next = (s_event_next + 1) % DECK_EVENT_RING;
     slot->id = ++s_event_last_id;
     slot->button_id = button_id;
+    slot->hold = hold;
     copy_text(slot->label, sizeof(slot->label), button->label);
     slot->timestamp_ms = esp_timer_get_time() / 1000;
     s_events_total++;
@@ -221,6 +222,16 @@ uint32_t deck_model_record_press(int button_id)
     /* Log from the local copy: another task may recycle the ring slot once unlocked. */
     ESP_LOGI(TAG, "deck event #%u: %s (%d)", (unsigned)id, label, button_id);
     return id;
+}
+
+uint32_t deck_model_record_press(int button_id)
+{
+    return record_event(button_id, false);
+}
+
+uint32_t deck_model_record_hold(int button_id)
+{
+    return record_event(button_id, true);
 }
 
 int deck_model_events_since(int since_id, deck_event_t *out, int max_out)
@@ -385,6 +396,7 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
             out[parsed].title_size=size->valueint;
         }
         out[parsed].title_bold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(title,"bold"));
+        out[parsed].has_hold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"hold"));
         if (cJSON_IsString(position)) {
             if (!strcmp(position->valuestring,"top")) out[parsed].title_position=1;
             else if (!strcmp(position->valuestring,"middle")) out[parsed].title_position=2;

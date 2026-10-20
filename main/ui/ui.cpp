@@ -97,7 +97,8 @@ void flash(int slot,uint32_t color,uint32_t ms) {
 void press(lv_event_t *event) {
     const int slot=static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
     if(slot<0||slot>=DECK_MAX_BUTTONS||!ids[slot])return;
-    if(!deck_model_record_press(ids[slot]))return;
+    const bool long_press=lv_event_get_code(event)==LV_EVENT_LONG_PRESSED;
+    if(!(long_press?deck_model_record_hold(ids[slot]):deck_model_record_press(ids[slot])))return;
     /* Without a host nothing runs the action: say so at once instead of
      * flashing as if it worked. */
     if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
@@ -171,7 +172,9 @@ void rebuild() {
         const int size=value.title_size?value.title_size:16,px=value.title_bold&&size==16?20:size;
         const int y=value.title_position==1?10:value.title_position==2?(Cell-px)/2:Cell-px-17;
         auto *name=name_label[slot]=label(tile,value.label,9,y,Cell-18,title_font(value),Text);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(name,value.title_position==3);
-        lv_obj_add_event_cb(tile,press,LV_EVENT_CLICKED,reinterpret_cast<void*>(static_cast<intptr_t>(slot)));
+        /* With a hold action, a click is a short press only; a long press reports a hold instead. */
+        lv_obj_add_event_cb(tile,press,value.has_hold?LV_EVENT_SHORT_CLICKED:LV_EVENT_CLICKED,reinterpret_cast<void*>(static_cast<intptr_t>(slot)));
+        if(value.has_hold)lv_obj_add_event_cb(tile,press,LV_EVENT_LONG_PRESSED,reinterpret_cast<void*>(static_cast<intptr_t>(slot)));
     }
     button_version=deck_model_buttons_version();live_version=deck_model_live_version();
 }

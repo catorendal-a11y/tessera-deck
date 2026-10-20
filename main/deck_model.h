@@ -32,6 +32,7 @@ typedef struct {
     uint8_t title_size;                /* 0 uses legacy 16px */
     uint8_t title_position;            /* 0 bottom, 1 top, 2 middle, 3 hidden */
     bool title_bold;
+    bool has_hold;                     /* the host has a long-press action: report holds, not clicks, past the hold time */
     /* Live gauge tile: a ring filled to gauge_percent with gauge_text in the middle.
      * label, color, gauge_percent and gauge_text change in place without a rebuild,
      * so dynamic labels and status colors never tear down a key under a finger. */
@@ -43,6 +44,7 @@ typedef struct {
 typedef struct {
     int id;      /* monotonic event id, survives ring wrap */
     int button_id;
+    bool hold;   /* long press instead of a click */
     char label[DECK_BUTTON_LABEL_MAX + 1];
     int64_t timestamp_ms;
 } deck_event_t;
@@ -69,6 +71,7 @@ uint32_t deck_model_context_version(void);
 
 /* Press events */
 uint32_t deck_model_record_press(int button_id); /* returns new event id, 0 if unknown button */
+uint32_t deck_model_record_hold(int button_id);  /* same, flagged as a long press */
 int deck_model_events_since(int since_id, deck_event_t *out, int max_out);
 int deck_model_last_event_id(void);
 uint32_t deck_model_events_total(void);

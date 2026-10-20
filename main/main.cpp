@@ -110,6 +110,7 @@ static void usb_console_task(void *)
                 cJSON_AddNumberToObject(event, "id", events[i].id);
                 cJSON_AddNumberToObject(event, "button", events[i].button_id);
                 cJSON_AddStringToObject(event, "label", events[i].label);
+                if (events[i].hold) cJSON_AddTrueToObject(event, "hold");
                 char *text = cJSON_PrintUnformatted(event);
                 if (text) { printf("%s\n", text); cJSON_free(text); }
                 cJSON_Delete(event);

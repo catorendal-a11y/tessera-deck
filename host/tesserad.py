@@ -332,6 +332,7 @@ def _check_button(button, pages, profiles):
     if 'status' in button:
         _check_status(button['status'])
     _check_actions(button.get('actions', []), pages, profiles)
+    _check_actions(button.get('hold_actions', []), pages, profiles)
     states = button.get('states', [])
     if not isinstance(states, list) or len(states) > 8 or (states and len(states) < 2):
         raise ValueError('A toggle button needs 2-8 states')
@@ -525,6 +526,7 @@ class Daemon:
         self.profile = self.config.get('default_profile', next(iter(self.config['profiles'])))
         self.page = next(iter(self.config['profiles'][self.profile]['pages']))
         self.auto_profile = None
+        self.profile_before_auto = None  # restored when the program behind an auto switch loses focus
         # A profile chosen from a physical button stays selected while the same
         # foreground app remains active. Focus automation resumes on app change.
         self.manual_focus_exe = ''
@@ -670,6 +672,8 @@ class Daemon:
             entry = dict(
                 id=button['id'], label=label.encode('utf-8')[:24].decode('utf-8', 'ignore'),
                 icon=self.resolve_icon(button), color=color, title=button.get('title', {}))
+            if button.get('hold_actions'):
+                entry['hold'] = True  # the panel reports long presses for this key
             if isinstance(button.get('gauge'), dict):
                 state = gauge_state(button['gauge'], self.stats.raw, color)
                 entry.update(color=state['color'], gauge={'p': state['p'], 't': state['t']})
@@ -827,7 +831,7 @@ class Daemon:
             raise ValueError(f'Unknown action: {kind}')
         return True
 
-    def dispatch_press(self, button_id):
+    def dispatch_press(self, button_id, hold=False):
         identity = (self.profile, self.page, button_id)
         if identity in self.active_press or len(self.active_press) >= 16:
             raise ValueError('Circular button action')
@@ -846,12 +850,13 @@ class Daemon:
         resolved = self.resolved_button(button)
         ok, error = False, ''
         try:
-            self.log(f'Button {button_id}: {button["label"]}')
-            for action in resolved.get('actions', []):
+            self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ''))
+            for action in resolved.get('hold_actions' if hold else 'actions', []):
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
                 self.run_action(action)
-            if button.get('states') and not button.get('bind') and state_key not in self.state_set_by_action:
+            if (button.get('states') and not hold and not button.get('bind')
+                    and state_key not in self.state_set_by_action):
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
                 self.push_page()
             ok = True
@@ -910,7 +915,8 @@ class Daemon:
                             continue
                         if message.get('type') == 'deck_event':
                             if type(message.get('button')) is int:
-                                self.enqueue(('press', message['button'], message.get('label')))
+                                self.enqueue(('press', message['button'], message.get('label'),
+                                              message.get('hold') is True))
                         elif message.get('type') == 'wake':
                             self.enqueue(('panel-woke',))
                     elif self.args.verbose and line:
@@ -935,7 +941,7 @@ class Daemon:
             shown = job[2] is None or job[2] == (current or {}).get('label') or any(
                 entry_path == path and labels.get(job[1]) == job[2] for entry_path, labels in self.pushed_labels)
             if current and shown:
-                self.dispatch_press(job[1])
+                self.dispatch_press(job[1], hold=len(job) > 3 and job[3])
         elif kind == 'profile':
             self.switch_profile(job[1], auto=True)
         elif kind == 'page':
@@ -1034,11 +1040,15 @@ class Daemon:
                       if any(matches_foreground(pattern, context) for pattern in p.get('match', []))), None)
         if match:
             if match != self.profile:
+                if self.auto_profile is None:
+                    self.profile_before_auto = self.profile
                 self.auto_profile = match
                 self.enqueue(('profile', match))
         elif self.auto_profile is not None:
             self.auto_profile = None
-            self.enqueue(('profile', self.config.get('default_profile', next(iter(self.config['profiles'])))))
+            before, self.profile_before_auto = self.profile_before_auto, None
+            fallback = self.config.get('default_profile', next(iter(self.config['profiles'])))
+            self.enqueue(('profile', before if before in self.config['profiles'] else fallback))
 
     def agent_tick(self, now):
         if now < self.agent_scan_at:
