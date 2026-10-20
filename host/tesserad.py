@@ -19,7 +19,7 @@ from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 from deck_assets import Assets
 from pc_state import FLAG_SOURCES, PcState, set_mute
-from host_runtime import InstanceLock, SuspendableRLock, remember_port, resolve_port, session_locked
+from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
 
 try:
@@ -219,6 +219,9 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'press': 'id', 'set': 'variable', 'audio': 'target',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
+BOARD_ID = 'tessera-p4'
+SUPPORTED_PROTOCOLS = (1, 2)  # 1: original firmware (no hold events), 2: adds hold and the protocol field
+HANDSHAKE_SECONDS = 2.5
 JOB_QUEUE_SIZE = 128
 BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive
 SLOW_LANE_LIMIT = 4
@@ -442,6 +445,10 @@ def validate_config(config):
         raise ValueError(f'Invalid configuration: {exc}') from exc
 
 
+class DeviceRejected(ValueError):
+    """The port answers, but it is not a compatible Tessera panel."""
+
+
 class PanelSerial:
     """Serialized writes and byte-based framing retain split UTF-8 and newlines."""
     def __init__(self, port, log):
@@ -460,6 +467,40 @@ class PanelSerial:
         self.ser.timeout, self.ser.write_timeout = 0.1, 2
         self.ser.dtr = self.ser.rts = False
         self.ser.open()
+        self.info = {}
+        try:
+            self.verify()
+        except BaseException:
+            self.ser.close()
+            raise
+
+    def verify(self):
+        """Ask the device who it is and check board and protocol before anything is configured.
+
+        Key events that arrive before the answer belong to an earlier session and are discarded.
+        """
+        self.ser.reset_input_buffer()
+        self.send_line('{"cmd":"get_info"}')
+        deadline = time.monotonic() + HANDSHAKE_SECONDS
+        while time.monotonic() < deadline:
+            for line in self.read_lines():
+                try:
+                    message = json.loads(line) if line.startswith('{') else None
+                except ValueError:
+                    continue
+                if isinstance(message, dict) and message.get('type') == 'info':
+                    self.accept(message)
+                    return
+        raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel')
+
+    def accept(self, info):
+        if info.get('boardId') != BOARD_ID:
+            raise DeviceRejected(f'{self.ser.port} is a different device (board {info.get("boardId")!r})')
+        protocol = info.get('protocol', 1)
+        if type(protocol) is not int or protocol not in SUPPORTED_PROTOCOLS:
+            raise DeviceRejected(f'Firmware protocol {protocol!r} is not supported (this host speaks '
+                                 f'{SUPPORTED_PROTOCOLS[0]}-{SUPPORTED_PROTOCOLS[-1]}); update the firmware or the host')
+        self.info = dict(info, protocol=protocol)
 
     def close(self):
         self.ser.close()
@@ -468,13 +509,13 @@ class PanelSerial:
         raw = (text + '\n').encode('utf-8')
         with self.write_lock:
             if self.ser.write(raw) != len(raw):
-                raise OSError('Ufullstendig USB-skriving')
+                raise OSError('Incomplete USB write')
 
     def read_lines(self):
         self.rx.extend(self.ser.read(max(1, min(self.ser.in_waiting, 4096))))
         if len(self.rx) > 32768:
             self.rx.clear()
-            raise OSError('For lang USB-melding')
+            raise OSError('USB message too long')
         result = []
         while (end := self.rx.find(b'\n')) >= 0:
             result.append(bytes(self.rx[:end]).decode('utf-8', 'replace').strip())
@@ -554,6 +595,7 @@ class Daemon:
         self.slow_lock = threading.Lock()
         self.local = threading.local()
         self.dropped_jobs = 0
+        self.device_info = {}
         self.panel_factory = panel_factory
         self.panel = None
         self.connection_failed = threading.Event()
@@ -608,6 +650,7 @@ class Daemon:
                  'dimmed': self.dimmed,
                  'buttons': len(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
+                 'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
                  'agents': self.agents, 'stats': self.stats.display, 'vars': self.custom_vars,
                  'last_action': self.last_action}
         temporary = self.runtime_path.with_suffix('.tmp')
@@ -1204,6 +1247,18 @@ class Daemon:
             self.enqueue(('force-push',))
             self.enqueue(('brightness',))
 
+    def open_panel(self):
+        """Open the first candidate port that completes the identity and protocol handshake."""
+        failures = []
+        for port in candidate_ports(self.args.port, self.device_state_path):
+            try:
+                return self.panel_factory(port, self.log), port
+            except DeviceRejected as exc:
+                failures.append(str(exc))
+            except OSError as exc:
+                failures.append(f'{port}: {exc}')
+        raise OSError('; '.join(failures) or 'No USB port found')
+
     def run(self):
         threading.Thread(target=self.worker_loop, daemon=True).start()
         self.api = ControlServer(self, Path(self.args.profiles).with_name('deck-api.local.json'))
@@ -1226,8 +1281,8 @@ class Daemon:
                         self.panel.close()
                     self.panel = None
                     try:
-                        self.port = resolve_port(self.args.port, self.device_state_path)
-                        self.panel = self.panel_factory(self.port, self.log)
+                        self.panel, self.port = self.open_panel()
+                        self.device_info = getattr(self.panel, 'info', {}) or {}
                         remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()

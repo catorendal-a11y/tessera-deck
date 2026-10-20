@@ -122,6 +122,27 @@ def _installed_ports():
     return {port.device: port.serial_number for port in list_ports.comports()}
 
 
+ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4
+
+
+def _espressif_ports():
+    from serial.tools import list_ports
+    return [port.device for port in list_ports.comports() if port.vid == ESPRESSIF_VID]
+
+
+def candidate_ports(requested, state_path, installed=None, espressif=None):
+    """Ports to try, best first: the remembered/requested port, then other Espressif USB devices.
+
+    Every candidate is verified with a handshake before it is configured, so a second ESP32 is never touched.
+    """
+    first = resolve_port(requested, state_path, installed)
+    try:
+        others = espressif if espressif is not None else _espressif_ports()
+    except (ImportError, OSError):
+        others = []
+    return [first] + [device for device in sorted(others) if device != first]
+
+
 def remembered_serial(state_path):
     try:
         value = json.loads(Path(state_path).read_text(encoding='utf-8')).get('serial')

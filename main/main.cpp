@@ -138,7 +138,7 @@ static void usb_console_task(void *)
             if(cJSON_IsString(cmd)&&!strcmp(cmd->valuestring,"get_info")) {
                 cJSON *reply=cJSON_CreateObject();const esp_app_desc_t *app=esp_app_get_description();
                 cJSON_AddStringToObject(reply,"type","info");cJSON_AddStringToObject(reply,"boardId","tessera-p4");
-                cJSON_AddStringToObject(reply,"firmwareVersion",app->version);cJSON_AddNumberToObject(reply,"bootId",boot_id);
+                cJSON_AddStringToObject(reply,"firmwareVersion",app->version);cJSON_AddNumberToObject(reply,"protocol",2);cJSON_AddNumberToObject(reply,"bootId",boot_id);
                 cJSON_AddNumberToObject(reply,"uptime",esp_timer_get_time()/1000000);cJSON_AddNumberToObject(reply,"heap",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));char *text=cJSON_PrintUnformatted(reply);
                 if(text){printf("%s\n",text);cJSON_free(text);}cJSON_Delete(reply);fflush(stdout);
