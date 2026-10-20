@@ -57,31 +57,30 @@ def write_command(command: dict, path: Path = COMMAND_PATH) -> None:
     os.replace(temporary, path)
 
 
-TILE_COLORS = ((88, 224, 155), (77, 208, 225), (179, 136, 255))
-PLATE_COLOR = (23, 35, 41)
+_SWEEP = ((88, 224, 155), (83, 216, 190), (77, 208, 225), (128, 172, 240), (179, 136, 255))
+STATUS_TILE = 2  # the top-right tile of the 3x3 mosaic shows the host status
+TILE_COLORS = tuple(None if index == STATUS_TILE else _SWEEP[index // 3 + index % 3] for index in range(9))
 
 
 def icon_tiles(size: int) -> list[tuple[int, int, int]]:
-    """Top-left corner and edge length of the four mosaic tiles for an icon of this size."""
-    inset = max(2, round(size * 0.19))
-    gap = max(1, round(size * 0.09))
-    tile = (size - 2 * inset - gap) // 2
-    start = (size - (2 * tile + gap)) // 2
-    near, far = start, start + tile + gap
-    return [(near, near, tile), (far, near, tile), (near, far, tile), (far, far, tile)]
+    """Top-left corner and edge length of the nine mosaic tiles for an icon of this size."""
+    inset = 1
+    gap = max(1, round(size * 0.06))
+    tile = (size - 2 * inset - 2 * gap) // 3
+    start = (size - (3 * tile + 2 * gap)) // 2
+    return [(start + col * (tile + gap), start + row * (tile + gap), tile) for row in range(3) for col in range(3)]
 
 
 def make_icon(state: str, size: int = 64) -> Image.Image:
-    """The Tessera mark: a tiny mosaic of four tiles; the last tile shows the host status.
+    """The Tessera mark: a 3x3 mosaic on the brand gradient; the top-right tile shows the host status.
 
     Bold shapes only, so it stays readable when Windows scales it down to 16 px.
     """
     image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((0, 0, size - 1, size - 1), radius=max(2, size // 5), fill=PLATE_COLOR + (255,))
-    for index, (x, y, tile) in enumerate(icon_tiles(size)):
-        color = STATE_COLORS[state] if index == 3 else TILE_COLORS[index]
-        draw.rounded_rectangle((x, y, x + tile - 1, y + tile - 1), radius=max(1, tile // 4), fill=color + (255,))
+    for color, (x, y, tile) in zip(TILE_COLORS, icon_tiles(size)):
+        draw.rounded_rectangle((x, y, x + tile - 1, y + tile - 1), radius=max(1, tile // 4),
+                               fill=(color or STATE_COLORS[state]) + (255,))
     return image
 
 

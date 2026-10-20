@@ -1,8 +1,5 @@
 <h1 align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.png">
-    <img alt="Tessera" src="docs/images/logo-light.png" height="80">
-  </picture>
+  <img alt="Tessera" src="docs/images/logo.svg" height="72">
 </h1>
 
 <p align="center">

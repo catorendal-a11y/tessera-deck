@@ -713,3 +713,37 @@ async function start() {
   pollStatus();setInterval(pollStatus,1500);
 }
 start().catch(error=>{setSaveState('The editor could not start',error.message);toast(error.message);});
+
+/* Brand: the 3x3 mosaic mark and the tile wordmark, identical to the device header. */
+function brandColor(t) {
+  const stops = [[88, 224, 155], [77, 208, 225], [179, 136, 255]];
+  const scaled = Math.min(Math.max(t, 0), 1) * 2, i = Math.min(Math.floor(scaled), 1), f = scaled - i;
+  return `rgb(${stops[i].map((v, k) => Math.round(v + (stops[i + 1][k] - v) * f)).join(',')})`;
+}
+function brandTile(parent, x, y, size, radius, color) {
+  const tile = document.createElement('i');
+  tile.style.cssText = `left:${x}px;top:${y}px;width:${size}px;height:${size}px;border-radius:${radius}px;background:${color}`;
+  parent.append(tile);
+}
+function mountBrand() {
+  const glyphs = {
+    T: ['11111', '00100', '00100', '00100', '00100', '00100', '00100'],
+    E: ['11111', '10000', '10000', '11110', '10000', '10000', '11111'],
+    S: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+    R: ['11110', '10001', '10001', '11110', '10100', '10010', '10001'],
+    A: ['01110', '10001', '10001', '11111', '10001', '10001', '10001']
+  };
+  document.querySelectorAll('[data-logo]').forEach(el => {
+    for (let row = 0; row < 3; row++) for (let col = 0; col < 3; col++) {
+      if (row === 0 && col === 2) continue;
+      brandTile(el, col * 16, 4 + row * 16, 13, 4, brandColor((row + col) / 4));
+    }
+    brandTile(el, 34, 0, 12, 4, '#ffb74d');
+  });
+  document.querySelectorAll('[data-wordmark]').forEach(el => {
+    [...'TESSERA'].forEach((letter, n) => glyphs[letter].forEach((line, row) => [...line].forEach((bit, col) => {
+      if (bit === '1') brandTile(el, n * 32 + col * 6, row * 6, 5, 2, brandColor((n * 5 + col) / 34));
+    })));
+  });
+}
+mountBrand();

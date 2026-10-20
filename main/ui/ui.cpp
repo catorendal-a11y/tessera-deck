@@ -190,14 +190,38 @@ void upper_case(const char *in,char *out,size_t size) {
     for(;*in&&n+1<size;++in,++n)out[n]=*in>='a'&&*in<='z'?static_cast<char>(*in-32):*in;
     out[n]='\0';
 }
-/* The Tessera mark: a small mosaic of the four interface colors on a dark plate. */
+uint32_t mix(uint32_t from,uint32_t to,float t) {
+    auto channel=[&](int shift){return static_cast<uint32_t>(((from>>shift)&0xFF)+(static_cast<int>((to>>shift)&0xFF)-static_cast<int>((from>>shift)&0xFF))*t+.5f)&0xFF;};
+    return channel(16)<<16|channel(8)<<8|channel(0);
+}
+/* The brand gradient: mint -> cyan -> purple, t in 0..1. */
+uint32_t sweep(float t) {return t<.5f?mix(Accent,Cyan,t*2):mix(Cyan,Purple,(t-.5f)*2);}
+lv_obj_t *tile(lv_obj_t *parent,int x,int y,int size,int radius,uint32_t color) {
+    auto *item=lv_obj_create(parent);flat(item,color);lv_obj_set_pos(item,x,y);lv_obj_set_size(item,size,size);lv_obj_set_style_radius(item,radius,0);
+    return item;
+}
+/* The Tessera mark: a 3x3 mosaic on the brand gradient; the top-right tile has broken loose. */
 void make_logo(lv_obj_t *parent,int x,int y) {
-    constexpr int Plate=46,Tile=15,Space=4,Pad=6;
-    const uint32_t colors[4]={Accent,Cyan,Purple,Amber};
-    auto *plate=lv_obj_create(parent);flat(plate,Surface);lv_obj_set_pos(plate,x,y);lv_obj_set_size(plate,Plate,Plate);lv_obj_set_style_radius(plate,12,0);
-    for(int i=0;i<4;++i) {
-        auto *tile=lv_obj_create(plate);flat(tile,colors[i]);
-        lv_obj_set_pos(tile,Pad+(i%2)*(Tile+Space),Pad+(i/2)*(Tile+Space));lv_obj_set_size(tile,Tile,Tile);lv_obj_set_style_radius(tile,5,0);
+    constexpr int Tile=13,Space=3;
+    for(int row=0;row<3;++row)for(int col=0;col<3;++col) {
+        if(row==0&&col==2)continue;
+        tile(parent,x+col*(Tile+Space),y+4+row*(Tile+Space),Tile,4,sweep((row+col)/4.f));
+    }
+    tile(parent,x+34,y,12,4,Amber);
+}
+/* TESSERA drawn from rounded tiles (5x7 letters), swept across the brand gradient. */
+void make_wordmark(lv_obj_t *parent,int x,int y) {
+    static const char *const glyphs[][7]={
+        {"11111","00100","00100","00100","00100","00100","00100"},
+        {"11111","10000","10000","11110","10000","10000","11111"},
+        {"01111","10000","10000","01110","00001","00001","11110"},
+        {"11110","10001","10001","11110","10100","10010","10001"},
+        {"01110","10001","10001","11111","10001","10001","10001"}};
+    static const int word[]={0,1,2,2,1,3,4};
+    constexpr int Cell=5,Pitch=6,Advance=5*Pitch+2,Count=7;
+    for(int letter=0;letter<Count;++letter)for(int row=0;row<7;++row)for(int col=0;col<5;++col) {
+        if(glyphs[word[letter]][row][col]!='1')continue;
+        tile(parent,x+letter*Advance+col*Pitch,y+row*Pitch,Cell,2,sweep((letter*5+col)/(Count*5.f-1)));
     }
 }
 void update_context() {
@@ -225,9 +249,9 @@ extern "C" void ui_show_destination(int) {if(screen)lv_screen_load(screen);}
 extern "C" void ui_init(void) {
     screen=lv_obj_create(nullptr);flat(screen,Bg);auto *header=lv_obj_create(screen);flat(header,HeaderBg);lv_obj_set_size(header,W,Header);lv_obj_set_style_radius(header,0,0);
     make_logo(header,20,15);
-    auto *wordmark=label(header,"TESSERA",78,21,200,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_letter_space(wordmark,4,0);
-    profile_label=label(header,"LOCAL",270,10,440,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(profile_label,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_letter_space(profile_label,2,0);
-    page_label=label(header,"Main",270,29,440,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_align(page_label,LV_TEXT_ALIGN_CENTER,0);
+    make_wordmark(header,78,17);
+    profile_label=label(header,"LOCAL",340,10,380,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(profile_label,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_letter_space(profile_label,2,0);
+    page_label=label(header,"Main",340,29,380,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_align(page_label,LV_TEXT_ALIGN_CENTER,0);
     link_pill=lv_obj_create(header);flat(link_pill,0x16372A);lv_obj_set_pos(link_pill,730,21);lv_obj_set_size(link_pill,148,34);lv_obj_set_style_radius(link_pill,17,0);
     link_dot=lv_obj_create(link_pill);flat(link_dot,Accent);lv_obj_set_pos(link_dot,14,13);lv_obj_set_size(link_dot,8,8);lv_obj_set_style_radius(link_dot,4,0);
     link_label=label(link_pill,"",30,10,112,&lv_font_montserrat_12,0xA8F2CA);link_shown=-1;update_link();

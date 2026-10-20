@@ -63,13 +63,12 @@ body{background:linear-gradient(140deg,#0b0f11 0%,#101719 60%,#0b0f11 100%)}
 .device-frame{width:100%;max-width:1100px;margin:0 auto;position:relative}
 .device-screen{width:1024px;height:600px;position:absolute;left:0;top:0;transform-origin:0 0;background:#091014;border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px #2d393e,0 24px 60px #0008;font-family:'DejaVu Sans',Verdana,'Segoe UI',sans-serif}
 .screen-header{position:absolute;left:0;top:0;width:1024px;height:76px;background:#101a1f;border-radius:0}
-.logo{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px;box-sizing:border-box;border-radius:12px;background:#172329}
-.logo i{display:block;border-radius:5px}
-.logo i:nth-child(1){background:#58e09b}.logo i:nth-child(2){background:#4dd0e1}.logo i:nth-child(3){background:#b388ff}.logo i:nth-child(4){background:#ffb74d}
-.brandmark{width:34px;height:34px;padding:4px;gap:3px;border-radius:9px;background:#172329;color:inherit;font-size:inherit}.brandmark i{border-radius:3px}
-.screen-logo{position:absolute;left:20px;top:15px;width:46px;height:46px}
-.screen-wordmark{position:absolute;left:78px;top:21px;font-size:28px;line-height:34px;font-weight:700;letter-spacing:4px;color:#e8f4ef}
-.screen-context{position:absolute;left:270px;top:10px;width:440px;text-align:center}
+[data-logo],[data-wordmark]{position:relative;display:block}
+[data-logo] i,[data-wordmark] i{position:absolute;display:block}
+.brandmark{width:48px;height:48px;flex:none;transform:scale(.72);transform-origin:left center;margin-right:-13px;background:none}
+.screen-logo{position:absolute;left:20px;top:15px;width:48px;height:48px}
+.screen-wordmark{position:absolute;left:78px;top:17px;width:226px;height:41px}
+.screen-context{position:absolute;left:340px;top:10px;width:380px;text-align:center}
 .screen-context small{display:block;font-size:16px;line-height:20px;color:#78909a;letter-spacing:2px}
 .screen-context b{display:block;font-size:28px;line-height:36px;color:#e8f4ef;font-weight:700}
 .screen-pill{position:absolute;left:730px;top:21px;width:148px;height:34px;border-radius:17px;background:#16372a;color:#a8f2ca;font-size:12px}
