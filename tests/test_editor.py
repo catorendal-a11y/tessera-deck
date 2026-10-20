@@ -99,6 +99,13 @@ class EditorTests(unittest.TestCase):
         error.exception.close()
         self.assertEqual(self.editor.read()['config']['display']['brightness'], 60)
 
+    @unittest.skipUnless(sys.platform == 'win32', 'the taskbar identity is a Windows feature')
+    def test_editor_process_gets_its_own_taskbar_identity(self):
+        import tessera_app
+        with patch('ctypes.windll') as windll:
+            tessera_app.brand_taskbar_identity()
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID.assert_called_once_with('Tessera.Editor')
+
     def test_stale_editor_cannot_overwrite_terminal_changes(self):
         self.login()
         original = self.editor.read()

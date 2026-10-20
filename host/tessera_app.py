@@ -99,9 +99,28 @@ def action_pack_catalog():
     return catalog
 
 
+APP_USER_MODEL_ID = 'Tessera.Editor'
+
+
+def brand_taskbar_identity():
+    """Give this process its own Windows identity.
+
+    Without one, Windows groups the editor window under pythonw.exe and shows the Python
+    file icon on the taskbar instead of the window's own icon.
+    """
+    if os.name != 'nt':
+        return
+    import ctypes
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except (AttributeError, OSError):
+        pass
+
+
 def open_window(url):
     """Open the editor in a native WebView2 window; return False on fallback."""
     if os.name == 'nt':
+        brand_taskbar_identity()
         try:
             import webview
             window = webview.create_window('Tessera', url, width=1500, height=980,
