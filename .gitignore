@@ -15,3 +15,5 @@ build_first.log
 host/sensors/
 host/backups/
 dist/
+diagnostics/
+firmware/

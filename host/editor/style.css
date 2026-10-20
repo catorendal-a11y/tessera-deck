@@ -138,3 +138,6 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 #backup-dialog{width:min(560px,92vw)}
 .backup-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:9px 12px;margin:6px 0;border-radius:10px;background:#141c20;border:1px solid #26343b}
 .backup-row small{display:block;color:var(--muted);margin-top:2px}
+.firmware-update{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.firmware-update span{font-size:13px;color:var(--muted)}
+.firmware-update a{color:var(--accent)}

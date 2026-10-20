@@ -22,8 +22,10 @@ from tesserad import SUPPORTED_PROTOCOLS, DeviceRejected, PanelSerial, validate_
 from deck_assets import Assets
 import ambient
 import config_store
+import diagnostics
 import firmware_update
 import iconify
+import updates
 from action_preview import preview
 from import_review import redact_secrets, review, strip_executable
 
@@ -215,6 +217,7 @@ class Editor:
         self.lock = threading.RLock()
         self.assets = Assets(self.path)
         self.firmware_job = {'state': 'idle'}
+        self.last_release = None  # what the last update check found; downloads never trust client-sent URLs
         self.firmware_lock = threading.Lock()
 
     def read(self):
@@ -389,6 +392,33 @@ class Editor:
         variables = self.status().get('variables') or {}
         return {key: preview(value, variables) for key, value in groups.items()}
 
+    def version(self):
+        version_file = ROOT / 'VERSION'
+        return version_file.read_text(encoding='utf-8').strip() if version_file.is_file() else '0.0.0'
+
+    def check_updates(self):
+        try:
+            self.last_release = updates.check(self.version())
+        except OSError as exc:
+            raise ValueError('GitHub could not be reached. Check your internet connection.') from exc
+        return self.last_release
+
+    def download_firmware(self):
+        if not self.last_release:
+            raise ValueError('Check for updates first')
+        try:
+            path = updates.download_firmware(self.last_release, ROOT / 'firmware')
+        except OSError as exc:
+            raise ValueError('The download failed. Check your internet connection and try again.') from exc
+        return {'path': str(path), 'message': f'Downloaded and verified {path.name}. Choose it in the firmware list.'}
+
+    def export_diagnostics(self):
+        target = diagnostics.build(ROOT / 'diagnostics', self.read()['config'], self.status(), self.version(),
+                                   ROOT / 'host/deck.local.log')
+        if os.name == 'nt':
+            os.startfile(target.parent)
+        return {'path': str(target), 'message': f'Saved {target.name} in the diagnostics folder. It contains no button contents.'}
+
     def restore_backup(self, name):
         # Put a backup back in place; the configuration it replaces is backed up first.
         config = config_store.read_backup(self.path, name)
@@ -396,6 +426,12 @@ class Editor:
         return self.save({'config': config, 'revision': self.read()['revision']}, force_backup=True)
 
     def command(self, command, data):
+        if command == 'update-check':
+            return self.check_updates()
+        if command == 'update-download-firmware':
+            return self.download_firmware()
+        if command == 'diagnostics':
+            return self.export_diagnostics()
         if command == 'backups':
             return {'backups': config_store.list_backups(self.path)}
         if command == 'restore-backup':

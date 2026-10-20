@@ -1044,6 +1044,25 @@ async function restoreBackup(item) {
   renderAll();
   setSaveState('✓ Backup restored');
 }
+/* Updates and diagnostics: only when the user asks. */
+async function checkUpdates() {
+  const label = $('#firmware-latest');
+  label.textContent = 'Checking GitHub …';
+  const info = await api('command/update-check', {});
+  $('#firmware-download').hidden = !(info.newer && info.firmware && info.sums);
+  label.textContent = info.newer
+    ? `Version ${info.latest} is available (you have ${info.current}).${info.firmware ? '' : ' It has no firmware package.'}`
+    : `You have the latest version (${info.current}).`;
+  if (info.newer) label.append(' ', element('a', {href: info.page, target: '_blank', rel: 'noopener', text: 'Release notes and the Windows program'}));
+}
+async function downloadFirmware() {
+  const result = await api('command/update-download-firmware', {});
+  toast(result.message);
+  await refreshFirmware();
+}
+$('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmware-latest').textContent = error.message; });
+$('#firmware-download').onclick = () => downloadFirmware().catch(showError);
+$('#diagnostics-export').onclick = async () => { $('#more-menu').hidden = true; try { await command('diagnostics'); } catch (error) { showError(error); } };
 $('#backups-open').onclick = () => openBackups().catch(showError);
 $('#backup-close').onclick = () => $('#backup-dialog').close();
 $('#ambient-open').onclick = ambientSettings;
