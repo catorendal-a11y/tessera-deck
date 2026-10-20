@@ -669,12 +669,33 @@
             "label": "Mute",
             "icon": "lc:e1ac",
             "color": "#FFB74D",
-            "actions": [
+            "states": [
               {
-                "type": "hotkey",
-                "keys": "volumemute"
+                "label": "Mute",
+                "icon": "lc:e1ab",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
+              },
+              {
+                "label": "Muted",
+                "icon": "lc:e1ac",
+                "color": "#FF5252",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
               }
-            ]
+            ],
+            "bind": "speaker_muted"
           },
           {
             "id": 2,
@@ -717,12 +738,31 @@
             "label": "Play / pause",
             "icon": "lc:e13c",
             "color": "#35D07F",
-            "actions": [
+            "states": [
               {
-                "type": "hotkey",
-                "keys": "playpause"
+                "label": "Play",
+                "icon": "lc:e13c",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
+              },
+              {
+                "label": "Pause",
+                "icon": "lc:e12e",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
               }
-            ]
+            ],
+            "bind": "media_playing"
           },
           {
             "id": 6,
@@ -750,15 +790,36 @@
           },
           {
             "id": 8,
-            "label": "Mic on/off",
+            "label": "Mic",
             "icon": "lc:e119",
             "color": "#FFB74D",
-            "actions": [
+            "states": [
               {
-                "type": "hotkey",
-                "keys": "win+alt+k"
+                "label": "Mic live",
+                "icon": "lc:e118",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "mic",
+                    "op": "toggle"
+                  }
+                ]
+              },
+              {
+                "label": "Mic muted",
+                "icon": "lc:e119",
+                "color": "#FF5252",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "mic",
+                    "op": "toggle"
+                  }
+                ]
               }
-            ]
+            ],
+            "bind": "mic_muted"
           },
           {
             "id": 9,
@@ -831,6 +892,25 @@
                 "page": "meetings"
               }
             ]
+          },
+          {
+            "id": 15,
+            "label": "$(pc:track)",
+            "icon": "lc:e122",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "playpause"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Vol $(pc:volume)",
+            "icon": "lc:e1ab",
+            "color": "#4DD0E1",
+            "actions": []
           },
           {
             "id": 17,

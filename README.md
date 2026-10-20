@@ -30,6 +30,7 @@ shows exactly what the panel shows.
 - **Live ring gauges** — CPU, GPU, VRAM, RAM, disk, network, uptime, temperatures, power and fan speed, with amber and red thresholds.
 - **A WYSIWYG editor** — drag and drop, undo/redo, copy/paste, folders, pinned buttons, toggle buttons with 2–8 states and multi-step actions. The editor mirrors the panel and follows it when the profile changes.
 - **119 ready-made actions and 10 profile templates** for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
+- **Keys that follow the PC** — the microphone, speaker and media buttons show the real Windows state (muted, live, playing) and flip on their own, and labels can show the current track and volume.
 - **Smart profiles** — the panel switches profile by the foreground program, process or window title.
 - **Scriptable** — a local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages (for example a Claude Code status light).
 - **Tray app, auto-dim and brightness** — start with Windows, dim after inactivity or when the PC locks, and wake with a touch that does not trigger a button.
@@ -131,7 +132,8 @@ with a *Back* key in slot 17. A key runs one or more actions in order:
 | `set` | Set a variable |
 | `state` | Set the state of a toggle key (`next` or a state number) |
 
-Labels can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(agent:claude)` and `$(var:name)`. Profiles switch
+Labels can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(agent:claude)`, `$(var:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`.
+A toggle button can follow the PC instead of the presses with `"bind": "mic_muted" | "speaker_muted" | "media_playing"` (state 1 = off, state 2 = on), and the `audio` action (`target`: `mic` or `speaker`, `op`: `toggle`, `mute` or `unmute`) mutes the real device. Profiles switch
 automatically with rules such as `chrome.exe`, `process:claude.exe` or `title:codex`.
 
 ### Live gauges and sensors

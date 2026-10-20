@@ -17,6 +17,7 @@ import zlib
 import psutil
 from control_api import ControlServer
 from deck_assets import Assets
+from pc_state import FLAG_SOURCES, PcState, set_mute
 from host_runtime import InstanceLock, remember_port, resolve_port, session_locked
 from system_stats import SystemStats, gauge_state
 
@@ -214,7 +215,7 @@ def matches_foreground(pattern, context):
 
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
-                 'press': 'id', 'set': 'variable',
+                 'press': 'id', 'set': 'variable', 'audio': 'target',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
@@ -249,6 +250,9 @@ def _check_action(action, pages, profiles):
         raise ValueError(f'Unknown page: {action["page"]}')
     if kind == 'profile' and action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
+    if kind == 'audio' and (action['target'] not in ('speaker', 'mic')
+                            or action.get('op', 'toggle') not in ('toggle', 'mute', 'unmute')):
+        raise ValueError('audio: target is speaker or mic, op is toggle, mute or unmute')
     if kind == 'delay' and (type(action.get('ms', 100)) is not int
                             or not 0 <= action.get('ms', 100) <= 60000):
         raise ValueError('delay must be 0..60000 ms')
@@ -336,6 +340,8 @@ def _check_button(button, pages, profiles):
             raise ValueError('Invalid button state')
         _check_actions(state.get('actions', []), pages, profiles)
         _check_color(state.get('color', '#35D07F'), 'Invalid state color')
+    if 'bind' in button and (button['bind'] not in FLAG_SOURCES or len(states) < 2):
+        raise ValueError(f'bind must be one of {", ".join(FLAG_SOURCES)} and needs two states')
     title = button.get('title', {})
     if (not isinstance(title, dict) or title.get('size', 16) not in (16, 20, 24, 28)
             or title.get('position', 'bottom') not in ('top', 'middle', 'bottom', 'hidden')):
@@ -547,6 +553,7 @@ class Daemon:
         self.agents = {'codex': False, 'claude': False, 'zcode': False}
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
+        self.pc = PcState()
         self.stats_scan_at = 0.0
         self.assets = Assets(args.profiles)
         self.port = args.port
@@ -596,6 +603,7 @@ class Daemon:
                     **{f'agent:{name}': 'ON' if running else 'OFF'
                        for name, running in self.agents.items()},
                     **{f'stat:{name}': value for name, value in self.stats.display.items()},
+                    **self.pc.variables(),
                     **{f'var:{k}': str(v) for k, v in self.custom_vars.items()})
 
     def substitute(self, text):
@@ -616,6 +624,8 @@ class Daemon:
     def resolved_button(self, button):
         states = button.get('states', [])
         index = self.button_states.get(self.state_key(button), 0)
+        if states and button.get('bind'):
+            index = int(self.pc.flag(button['bind']))  # follows the PC, not the presses
         return dict(button, **states[index % len(states)]) if states else button
 
     def set_button_state(self, button_id, value):
@@ -806,6 +816,10 @@ class Daemon:
                 raise ValueError('The child button failed')
         elif kind == 'state':
             self.set_button_state(action['button'], action.get('state', 'next'))
+        elif kind == 'audio':
+            set_mute(action['target'], action.get('op', 'toggle'))
+            self.pc.poll()
+            self.push_page()
         elif kind == 'set':
             self.custom_vars[action['variable']] = self.substitute(str(action.get('value', '')))
             self.push_page()
@@ -837,7 +851,7 @@ class Daemon:
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
                 self.run_action(action)
-            if button.get('states') and state_key not in self.state_set_by_action:
+            if button.get('states') and not button.get('bind') and state_key not in self.state_set_by_action:
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
                 self.push_page()
             ok = True
@@ -1081,6 +1095,7 @@ class Daemon:
         threading.Thread(target=self.worker_loop, daemon=True).start()
         self.api = ControlServer(self, Path(self.args.profiles).with_name('deck-api.local.json'))
         self.api.start()
+        self.pc.start()
         # Standalone Deck host: the USB owner only handles buttons and assets.
         startup_fired = False
         try:
@@ -1151,6 +1166,7 @@ class Daemon:
         finally:
             self.stop.set()
             self.api.stop()
+            self.pc.stop()
             self.publish_runtime(False, 'The host has stopped', force=True)
             if self.panel:
                 self.panel.close()

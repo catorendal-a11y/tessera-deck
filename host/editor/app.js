@@ -15,6 +15,7 @@ const kinds = {
   shell:{name:'Run command',icon:'settings',field:'command',label:'Command',placeholder:'The command runs when the button is pressed',group:'Advanced'},
   http:{name:'HTTP request',icon:'wifi',field:'url',label:'Address',placeholder:'https://…',group:'Advanced'},
   press:{name:'Trigger another button',icon:'loop',field:'id',label:'Button number (1–18)',group:'Advanced'},
+  audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
   set:{name:'Set variable',icon:'edit',field:'variable',label:'Variable name',group:'Advanced'},
   state:{name:'Set button state',icon:'loop',field:'button',label:'Button number (1–18)',group:'Advanced'},
   home:{name:'Go home',icon:'home',field:null,label:'Go to the first page of the default profile',group:'Navigation'},
@@ -343,8 +344,8 @@ function actionTemplate(key) {
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1}[key];
-  const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{})};
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic'}[key];
+  const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{})};
   return {label:k.name,icon:k.icon,actions:[action]};
 }
 function addAction(key,id=selected) {
@@ -440,6 +441,7 @@ function renderInspector() {
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
   renderGauge(panel,base);
+  renderBind(panel,base);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
   panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
@@ -450,6 +452,12 @@ function renderInspector() {
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
   panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
+}
+function renderBind(panel,base) {
+  if(!base.states)return;
+  const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing']];
+  panel.append(field('Follow PC state',base.bind||'',value=>mutate(()=>{if(value)base.bind=value;else delete base.bind;}),{values:choices}));
+  if(base.bind)panel.append(text('p','State 1 shows while the condition is off, state 2 while it is on.','hint'));
 }
 function renderGauge(panel,base) {
   const gauge=base.gauge,choices=[['','Off · show the icon'],...Object.entries(gaugeSensors).map(([key,[name]])=>[key,name])];
@@ -482,7 +490,7 @@ function renderStep(action,index,count) {
   const move=delta=>{if(index+delta<0||index+delta>=count)return;mutate(()=>{const a=activeActions();[a[index],a[index+delta]]=[a[index+delta],a[index]];});};
   const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.disabled=index===0;down.disabled=index===count-1;
   step.append(element('div',{class:'step-header'},text('strong',`${index+1}. ${k.name}`),up,down,button('×',()=>mutate(()=>activeActions().splice(index,1)),'quiet danger','Remove step')));
-  let values=['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  let values=action.type==='audio'?['mic','speaker']:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
   const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
@@ -490,6 +498,7 @@ function renderStep(action,index,count) {
     const input=parameter.querySelector('input');input.setAttribute('data-path',index);parameter.append(button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target){applyProgramDetails(result,index);}}catch(error){showError(error);}},'text-button'));
   }
   step.append(parameter);
+  if(action.type==='audio')step.append(field('Operation',action.op||'toggle',value=>editAction(index,'op',value),{values:['toggle','mute','unmute']}));
   if(action.type==='open') {
     const focus=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Focus open window'),text('small','Starts the program only when it is not already running.')));
     const checkbox=focus.querySelector('input');checkbox.checked=!!action.reuse;checkbox.onchange=()=>mutate(()=>activeActions()[index].reuse=checkbox.checked);step.append(focus);
