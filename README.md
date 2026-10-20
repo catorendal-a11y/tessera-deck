@@ -18,7 +18,7 @@
   <img src="docs/images/editor-main.png" alt="The Tessera editor mirrors the panel pixel for pixel" width="900">
 </p>
 
-Tessera turns the 1024 × 600 touchscreen of the **ESP32-P4 Function EV Board** into an 18-key control surface:
+Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into an 18-key control surface:
 launch apps, fire hotkeys, drive Codex and Claude Code, watch live system gauges and run multi-step macros.
 A small Windows host owns the USB connection, runs the actions and serves a drag-and-drop editor that always
 shows exactly what the panel shows.
