@@ -564,7 +564,7 @@ class HostTests(unittest.TestCase):
                 icon = tray.make_icon(state, size)
                 self.assertEqual(icon.size, (size, size))
                 centers = [icon.getpixel((x + edge // 2, y + edge // 2))[:3] for x, y, edge in tiles]
-                self.assertEqual(centers, [tray.TILE_COLOR] * 3 + [color], f'{state} at {size}px')
+                self.assertEqual(centers, list(tray.TILE_COLORS) + [color], f'{state} at {size}px')
 
     def test_runtime_file_publishes_live_gauges_for_the_active_page(self):
         with tempfile.TemporaryDirectory() as directory:

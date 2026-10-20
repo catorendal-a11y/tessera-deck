@@ -57,7 +57,7 @@ def write_command(command: dict, path: Path = COMMAND_PATH) -> None:
     os.replace(temporary, path)
 
 
-TILE_COLOR = (88, 224, 155)
+TILE_COLORS = ((88, 224, 155), (77, 208, 225), (179, 136, 255))
 PLATE_COLOR = (23, 35, 41)
 
 
@@ -80,7 +80,7 @@ def make_icon(state: str, size: int = 64) -> Image.Image:
     draw = ImageDraw.Draw(image)
     draw.rounded_rectangle((0, 0, size - 1, size - 1), radius=max(2, size // 5), fill=PLATE_COLOR + (255,))
     for index, (x, y, tile) in enumerate(icon_tiles(size)):
-        color = STATE_COLORS[state] if index == 3 else TILE_COLOR
+        color = STATE_COLORS[state] if index == 3 else TILE_COLORS[index]
         draw.rounded_rectangle((x, y, x + tile - 1, y + tile - 1), radius=max(1, tile // 4), fill=color + (255,))
     return image
 

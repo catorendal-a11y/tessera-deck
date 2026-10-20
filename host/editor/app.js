@@ -594,6 +594,7 @@ async function importConfig(file) {
   catch(error){config=previous;history.pop();renderAll();throw error;}
 }
 async function command(name,data={}) {const result=await api('command/'+name,data);if(result.message)toast(result.message);await pollStatus();}
+function titleCase(value) { return String(value).replace(/(^|[ _\/-])([a-z])/g, (m, p, c) => p + c.toUpperCase()); }
 function renderStatus() {
   const connected=dashboard.device?.connected;
   $('#led').classList.toggle('connected',!!connected);$('#led').classList.toggle('waiting',dashboard.running&&!connected);
@@ -601,7 +602,7 @@ function renderStatus() {
   $('#connection').textContent=connected?[dashboard.device.port,context].filter(Boolean).join(' · '):dashboard.running?(dashboard.connection||'Waiting for the device'):'The host has stopped';
   $('#connection').title=dashboard.device?.error||'';
   $('#host-toggle').hidden=!!dashboard.running;
-  $('#screen-profile').textContent=`PROFILE  ${profile}`;$('#screen-page').textContent=page;
+  $('#screen-profile').textContent=profile.toUpperCase();$('#screen-page').textContent=titleCase(page);
   $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);
   const last=dashboard.device?.last_action;
   if(last?.at>lastActionAt){if(lastActionAt)toast(`${last.ok?'✓':'✕'} ${last.label}${last.error?' · '+last.error:''}`);lastActionAt=last.at;}

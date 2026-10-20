@@ -24,6 +24,8 @@ constexpr int W=1024,H=600,Header=76,Cell=150,Gap=17,X=19,Y=17;
 constexpr uint32_t Bg=0x091014,HeaderBg=0x101A1F,Surface=0x172329;
 constexpr uint32_t Border=0x31444D,Text=0xE8F4EF,Muted=0x78909A,Accent=0x58E09B;
 constexpr uint32_t PressedBg=0x254E3B,OkBg=0x1E6042,AlertBg=0x6E2633,Amber=0xFFB74D;
+/* The four logo tile colors; they are the interface roles: go, info, media, toggle. */
+constexpr uint32_t Cyan=0x4DD0E1,Purple=0xB388FF;
 /* The host pings every second; three missed pings mean nobody runs the keys. */
 constexpr int64_t HostTimeoutMs=3500;
 /* A pressed key stays highlighted until the host confirms it. Long multi-step
@@ -173,9 +175,37 @@ void rebuild() {
     }
     button_version=deck_model_buttons_version();live_version=deck_model_live_version();
 }
+/* ASCII only: UTF-8 multi-byte sequences are copied untouched. */
+void title_case(const char *in,char *out,size_t size) {
+    bool word_start=true;size_t n=0;
+    for(;*in&&n+1<size;++in,++n) {
+        const char c=*in;
+        out[n]=word_start&&c>='a'&&c<='z'?static_cast<char>(c-32):c;
+        word_start=c==' '||c=='-'||c=='_'||c=='/';
+    }
+    out[n]='\0';
+}
+void upper_case(const char *in,char *out,size_t size) {
+    size_t n=0;
+    for(;*in&&n+1<size;++in,++n)out[n]=*in>='a'&&*in<='z'?static_cast<char>(*in-32):*in;
+    out[n]='\0';
+}
+/* The Tessera mark: a small mosaic of the four interface colors on a dark plate. */
+void make_logo(lv_obj_t *parent,int x,int y) {
+    constexpr int Plate=46,Tile=15,Space=4,Pad=6;
+    const uint32_t colors[4]={Accent,Cyan,Purple,Amber};
+    auto *plate=lv_obj_create(parent);flat(plate,Surface);lv_obj_set_pos(plate,x,y);lv_obj_set_size(plate,Plate,Plate);lv_obj_set_style_radius(plate,12,0);
+    for(int i=0;i<4;++i) {
+        auto *tile=lv_obj_create(plate);flat(tile,colors[i]);
+        lv_obj_set_pos(tile,Pad+(i%2)*(Tile+Space),Pad+(i/2)*(Tile+Space));lv_obj_set_size(tile,Tile,Tile);lv_obj_set_style_radius(tile,5,0);
+    }
+}
 void update_context() {
-    const auto context=deck_model_context();char profile[64];snprintf(profile,sizeof(profile),"PROFILE  %s",context.profile);
-    char page[80];snprintf(page,sizeof(page),"%s%s",context.can_go_back?"<  ":"",context.page);
+    const auto context=deck_model_context();
+    char profile[64],name[64],page[80];
+    upper_case(context.profile,profile,sizeof(profile));
+    title_case(context.page,name,sizeof(name));
+    snprintf(page,sizeof(page),"%s%s",context.can_go_back?"<  ":"",name);
     lv_label_set_text(profile_label,profile);lv_label_set_text(page_label,page);context_version=deck_model_context_version();
 }
 void update(lv_timer_t*) {
@@ -193,14 +223,17 @@ void update(lv_timer_t*) {
 
 extern "C" void ui_show_destination(int) {if(screen)lv_screen_load(screen);}
 extern "C" void ui_init(void) {
-    screen=lv_obj_create(nullptr);flat(screen,Bg);auto *header=lv_obj_create(screen);flat(header,HeaderBg);lv_obj_set_size(header,W,Header);
-    auto *mark=lv_obj_create(header);flat(mark,Accent);lv_obj_set_pos(mark,20,18);lv_obj_set_size(mark,8,40);lv_obj_set_style_radius(mark,4,0);
-    label(header,"TESSERA",43,15,205,&fq_font_dejavu_bold_24,Text);label(header,"CONTROL SURFACE",44,45,190,&lv_font_montserrat_10,Muted);
-    profile_label=label(header,"PROFILE  LOCAL",266,16,250,&lv_font_montserrat_12,Muted);page_label=label(header,"MAIN",266,35,360,&fq_font_dejavu_bold_24,Text);
-    link_pill=lv_obj_create(header);flat(link_pill,0x16372A);lv_obj_set_pos(link_pill,718,19);lv_obj_set_size(link_pill,150,38);lv_obj_set_style_radius(link_pill,19,0);
-    link_dot=lv_obj_create(link_pill);flat(link_dot,Accent);lv_obj_set_pos(link_dot,15,15);lv_obj_set_size(link_dot,8,8);lv_obj_set_style_radius(link_dot,4,0);
-    link_label=label(link_pill,"",32,11,110,&lv_font_montserrat_12,0xA8F2CA);link_shown=-1;update_link();
-    clock_label=label(header,"--:--",885,22,115,&lv_font_montserrat_22,Text);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_RIGHT,0);
+    screen=lv_obj_create(nullptr);flat(screen,Bg);auto *header=lv_obj_create(screen);flat(header,HeaderBg);lv_obj_set_size(header,W,Header);lv_obj_set_style_radius(header,0,0);
+    make_logo(header,20,15);
+    auto *wordmark=label(header,"TESSERA",78,21,200,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_letter_space(wordmark,4,0);
+    profile_label=label(header,"LOCAL",270,10,440,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(profile_label,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_letter_space(profile_label,2,0);
+    page_label=label(header,"Main",270,29,440,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_align(page_label,LV_TEXT_ALIGN_CENTER,0);
+    link_pill=lv_obj_create(header);flat(link_pill,0x16372A);lv_obj_set_pos(link_pill,730,21);lv_obj_set_size(link_pill,148,34);lv_obj_set_style_radius(link_pill,17,0);
+    link_dot=lv_obj_create(link_pill);flat(link_dot,Accent);lv_obj_set_pos(link_dot,14,13);lv_obj_set_size(link_dot,8,8);lv_obj_set_style_radius(link_dot,4,0);
+    link_label=label(link_pill,"",30,10,112,&lv_font_montserrat_12,0xA8F2CA);link_shown=-1;update_link();
+    clock_label=label(header,"--:--",890,25,114,&lv_font_montserrat_22,Text);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_RIGHT,0);
+    auto *rule=lv_obj_create(header);flat(rule,Accent);lv_obj_set_pos(rule,0,Header-2);lv_obj_set_size(rule,W,2);
+    lv_obj_set_style_bg_grad_color(rule,lv_color_hex(HeaderBg),0);lv_obj_set_style_bg_grad_dir(rule,LV_GRAD_DIR_HOR,0);
     grid=lv_obj_create(screen);flat(grid,Bg);lv_obj_set_pos(grid,0,Header);lv_obj_set_size(grid,W,H-Header);
     for(lv_indev_t *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_add_event_cb(indev,wake_touch,LV_EVENT_PRESSED,nullptr);
     rebuild();update_context();lv_screen_load(screen);update(nullptr);lv_timer_create(update,40,nullptr);

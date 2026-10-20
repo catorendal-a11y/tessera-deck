@@ -62,19 +62,22 @@ body{background:linear-gradient(140deg,#0b0f11 0%,#101719 60%,#0b0f11 100%)}
 .more-menu hr{border:0;border-top:1px solid #2f3b41;margin:5px 2px;width:auto}
 .device-frame{width:100%;max-width:1100px;margin:0 auto;position:relative}
 .device-screen{width:1024px;height:600px;position:absolute;left:0;top:0;transform-origin:0 0;background:#091014;border-radius:16px;overflow:hidden;box-shadow:0 0 0 1px #2d393e,0 24px 60px #0008;font-family:'DejaVu Sans',Verdana,'Segoe UI',sans-serif}
-.screen-header{position:absolute;left:0;top:0;width:1024px;height:76px;background:#101a1f}
-.screen-mark{position:absolute;left:20px;top:18px;width:8px;height:40px;border-radius:4px;background:#58e09b}
-.screen-brand{position:absolute;left:43px;top:12px}
-.screen-brand b{display:block;font-size:24px;line-height:1.1;color:#e8f4ef;letter-spacing:.5px}
-.screen-brand small{display:block;font-size:10px;color:#78909a;margin-top:2px;letter-spacing:1px}
-.screen-context{position:absolute;left:266px;top:14px}
-.screen-context small{display:block;font-size:12px;color:#78909a}
-.screen-context b{display:block;font-size:24px;line-height:1.2;color:#e8f4ef}
-.screen-pill{position:absolute;left:718px;top:19px;width:150px;height:38px;border-radius:19px;background:#16372a;color:#a8f2ca;font-size:12px}
-.screen-pill i{position:absolute;left:15px;top:15px;width:8px;height:8px;border-radius:4px;background:#58e09b}
-.screen-pill span{position:absolute;left:32px;top:11px}
+.screen-header{position:absolute;left:0;top:0;width:1024px;height:76px;background:#101a1f;border-radius:0}
+.logo{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px;box-sizing:border-box;border-radius:12px;background:#172329}
+.logo i{display:block;border-radius:5px}
+.logo i:nth-child(1){background:#58e09b}.logo i:nth-child(2){background:#4dd0e1}.logo i:nth-child(3){background:#b388ff}.logo i:nth-child(4){background:#ffb74d}
+.brandmark{width:34px;height:34px;padding:4px;gap:3px;border-radius:9px;background:#172329;color:inherit;font-size:inherit}.brandmark i{border-radius:3px}
+.screen-logo{position:absolute;left:20px;top:15px;width:46px;height:46px}
+.screen-wordmark{position:absolute;left:78px;top:21px;font-size:28px;line-height:34px;font-weight:700;letter-spacing:4px;color:#e8f4ef}
+.screen-context{position:absolute;left:270px;top:10px;width:440px;text-align:center}
+.screen-context small{display:block;font-size:16px;line-height:20px;color:#78909a;letter-spacing:2px}
+.screen-context b{display:block;font-size:28px;line-height:36px;color:#e8f4ef;font-weight:700}
+.screen-pill{position:absolute;left:730px;top:21px;width:148px;height:34px;border-radius:17px;background:#16372a;color:#a8f2ca;font-size:12px}
+.screen-pill i{position:absolute;left:14px;top:13px;width:8px;height:8px;border-radius:4px;background:#58e09b}
+.screen-pill span{position:absolute;left:30px;top:10px}
 .screen-pill.offline{background:#3a2e1a;color:#ffd699}.screen-pill.offline i{background:#ffb74d}
-.screen-clock{position:absolute;left:885px;top:20px;width:115px;text-align:right;font-size:22px;color:#e8f4ef}
+.screen-clock{position:absolute;left:890px;top:25px;width:114px;text-align:right;font-size:22px;color:#e8f4ef}
+.screen-rule{position:absolute;left:0;bottom:0;width:100%;height:2px;background:linear-gradient(90deg,#58e09b,#101a1f)}
 .deck-grid{position:absolute;left:0;top:76px;width:1024px;height:524px;display:block;padding:0;gap:0;background:none;border:0;border-radius:0}
 .deck-key{position:absolute;width:150px;height:150px;aspect-ratio:auto;display:block;padding:0;margin:0;gap:0;border-radius:20px;background:#172329;border:1px solid #31444d;box-shadow:none;transform:none;transition:border-color .12s,background .12s;overflow:hidden;font-family:inherit}
 .deck-key:hover{transform:none;border-color:#58e09b88;background:#1b2a31}

@@ -1,4 +1,9 @@
-<h1 align="center">Tessera</h1>
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/logo-dark.png">
+    <img alt="Tessera" src="docs/images/logo-light.png" height="80">
+  </picture>
+</h1>
 
 <p align="center">
   <strong>A touchscreen macro deck for the ESP32-P4 — live gauges, real app icons and a Stream&nbsp;Deck-style Windows host.</strong>
