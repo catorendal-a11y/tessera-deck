@@ -1,16 +1,16 @@
 {
-  "default_profile": "hoved",
+  "default_profile": "main",
   "auto_profiles": true,
   "profiles": {
-    "hoved": {
+    "main": {
       "match": [],
       "pages": {
-        "hoved": [
+        "main": [
           {
             "id": 1,
             "label": "Chrome",
-            "icon": "im:abd88e0ff40f",
-            "color": "#64B5F6",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -22,8 +22,22 @@
           },
           {
             "id": 2,
+            "label": "Claude",
+            "icon": "app",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "open",
+                "target": "shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude",
+                "process": "claude.exe",
+                "reuse": true
+              }
+            ]
+          },
+          {
+            "id": 3,
             "label": "ChatGPT",
-            "icon": "target",
+            "icon": "app",
             "color": "#35D07F",
             "actions": [
               {
@@ -35,10 +49,10 @@
             ]
           },
           {
-            "id": 3,
+            "id": 4,
             "label": "ZCode",
-            "icon": "im:d2a8fb0d3ee2",
-            "color": "#8B7CFF",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -49,24 +63,38 @@
             ]
           },
           {
-            "id": 4,
-            "label": "Claude",
-            "icon": "bolt",
-            "color": "#E69A62",
+            "id": 5,
+            "label": "LM Studio",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
-                "target": "shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude",
-                "process": "claude.exe",
+                "target": "%LOCALAPPDATA%\\Programs\\LM Studio\\LM Studio.exe",
+                "process": "LM Studio.exe",
                 "reuse": true
               }
             ]
           },
           {
-            "id": 5,
+            "id": 6,
+            "label": "Obsidian",
+            "icon": "app",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "open",
+                "target": "%LOCALAPPDATA%\\Programs\\Obsidian\\Obsidian.exe",
+                "process": "Obsidian.exe",
+                "reuse": true
+              }
+            ]
+          },
+          {
+            "id": 7,
             "label": "VS Code",
-            "icon": "im:00c0a083165f",
-            "color": "#23A8F2",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -77,10 +105,10 @@
             ]
           },
           {
-            "id": 6,
+            "id": 8,
             "label": "GitHub Desktop",
-            "icon": "im:5c4e6c78ae17",
-            "color": "#8B7CFF",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -91,9 +119,9 @@
             ]
           },
           {
-            "id": 7,
+            "id": 9,
             "label": "Terminal",
-            "icon": "list",
+            "icon": "app",
             "color": "#35D07F",
             "actions": [
               {
@@ -105,9 +133,9 @@
             ]
           },
           {
-            "id": 8,
-            "label": "Utforsker",
-            "icon": "im:6765da241207",
+            "id": 10,
+            "label": "Explorer",
+            "icon": "app",
             "color": "#35D07F",
             "actions": [
               {
@@ -119,10 +147,10 @@
             ]
           },
           {
-            "id": 9,
+            "id": 11,
             "label": "Discord",
-            "icon": "im:f1236836c143",
-            "color": "#5865F2",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -133,38 +161,10 @@
             ]
           },
           {
-            "id": 10,
-            "label": "Obsidian",
-            "icon": "im:8aaaa5c9ad32",
-            "color": "#A78BFA",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\Programs\\Obsidian\\Obsidian.exe",
-                "process": "Obsidian.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 11,
-            "label": "LM Studio",
-            "icon": "im:a84cdffac287",
-            "color": "#FFA868",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\Programs\\LM Studio\\LM Studio.exe",
-                "process": "LM Studio.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
             "id": 12,
             "label": "Steam",
-            "icon": "im:91e91fb9a325",
-            "color": "#64B5F6",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -176,23 +176,9 @@
           },
           {
             "id": 13,
-            "label": "Xbox",
-            "icon": "play",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "shell:AppsFolder\\Microsoft.GamingApp_8wekyb3d8bbwe!Microsoft.Xbox.App",
-                "process": "XboxPcApp.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 14,
-            "label": "Systemstatus",
-            "icon": "wifi",
-            "color": "#35D07F",
+            "label": "Status",
+            "icon": "lc:e038",
+            "color": "#4DD0E1",
             "actions": [
               {
                 "type": "folder",
@@ -201,38 +187,50 @@
             ]
           },
           {
-            "id": 15,
-            "label": "Flere apper",
-            "icon": "folder",
+            "id": 14,
+            "label": "Desktop",
+            "icon": "lc:e1c1",
             "color": "#64B5F6",
             "actions": [
               {
-                "type": "page",
-                "page": "apper"
-              }
-            ]
-          },
-          {
-            "id": 16,
-            "label": "System",
-            "icon": "settings",
-            "color": "#64B5F6",
-            "actions": [
-              {
-                "type": "page",
+                "type": "folder",
                 "page": "system"
               }
             ]
           },
           {
-            "id": 17,
-            "label": "Lyd og media",
-            "icon": "play",
-            "color": "#35D07F",
+            "id": 15,
+            "label": "Audio",
+            "icon": "lc:e1ab",
+            "color": "#B388FF",
             "actions": [
               {
-                "type": "page",
-                "page": "lyd"
+                "type": "folder",
+                "page": "audio"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Tools",
+            "icon": "lc:e1b1",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "tools"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Apps",
+            "icon": "lc:e0ff",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "apps"
               }
             ]
           }
@@ -240,236 +238,219 @@
         "status": [
           {
             "id": 1,
-            "label": "CPU $(stat:cpu_temp)°",
-            "icon": "bolt",
-            "color": "#64B5F6",
-            "stat": {
-              "key": "cpu_temp",
-              "warn": 80,
-              "critical": 90
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "CPU LOAD",
+            "icon": "lc:e038",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_load",
+              "max": 100,
+              "unit": "%",
+              "warn": 85,
+              "critical": 97
+            }
           },
           {
             "id": 2,
-            "label": "CPU $(stat:cpu_load)%",
-            "icon": "target",
-            "color": "#64B5F6",
-            "stat": {
-              "key": "cpu_load",
-              "warn": 90,
-              "critical": 98
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "CPU CLOCK",
+            "icon": "lc:e038",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_clock",
+              "max": 5500,
+              "fmt": "ghz"
+            }
           },
           {
             "id": 3,
-            "label": "CPU $(stat:cpu_power)W",
-            "icon": "bolt",
-            "color": "#64B5F6",
-            "stat": {
-              "key": "cpu_power",
-              "warn": 110,
-              "critical": 125
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "CPU TEMP",
+            "icon": "lc:e038",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_temp",
+              "max": 100,
+              "unit": "C",
+              "warn": 80,
+              "critical": 90
+            }
           },
           {
             "id": 4,
-            "label": "GPU $(stat:gpu_temp)°",
-            "icon": "bolt",
-            "color": "#8B7CFF",
-            "stat": {
-              "key": "gpu_temp",
-              "warn": 80,
-              "critical": 90
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "CPU POWER",
+            "icon": "lc:e038",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_power",
+              "max": 170,
+              "unit": "W",
+              "warn": 130,
+              "critical": 160
+            }
           },
           {
             "id": 5,
-            "label": "GPU $(stat:gpu_load)%",
-            "icon": "target",
-            "color": "#8B7CFF",
-            "stat": {
-              "key": "gpu_load",
-              "warn": 95,
-              "critical": 99
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "RAM",
+            "icon": "lc:e038",
+            "color": "#64B5F6",
+            "actions": [],
+            "gauge": {
+              "key": "ram",
+              "max": 100,
+              "unit": "%",
+              "warn": 85,
+              "critical": 95
+            }
           },
           {
             "id": 6,
-            "label": "GPU $(stat:gpu_power)W",
-            "icon": "bolt",
-            "color": "#8B7CFF",
-            "stat": {
-              "key": "gpu_power",
-              "warn": 300,
-              "critical": 340
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "DISK",
+            "icon": "lc:e038",
+            "color": "#64B5F6",
+            "actions": [],
+            "gauge": {
+              "key": "disk",
+              "max": 100,
+              "unit": "%",
+              "warn": 90,
+              "critical": 97
+            }
           },
           {
             "id": 7,
-            "label": "RAM $(stat:ram)%",
-            "icon": "list",
-            "color": "#35D07F",
-            "stat": {
-              "key": "ram",
-              "warn": 85,
-              "critical": 95
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "GPU LOAD",
+            "icon": "lc:e038",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_load",
+              "max": 100,
+              "unit": "%"
+            }
           },
           {
             "id": 8,
-            "label": "VRAM $(stat:vram)%",
-            "icon": "list",
-            "color": "#35D07F",
-            "stat": {
-              "key": "vram",
+            "label": "VRAM",
+            "icon": "lc:e038",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "vram_used_gb",
+              "percent_key": "vram",
+              "max": 100,
+              "fmt": "gb",
               "warn": 85,
               "critical": 95
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            }
           },
           {
             "id": 9,
-            "label": "VIFTE $(stat:gpu_fan)",
-            "icon": "refresh",
-            "color": "#8B7CFF",
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "GPU TEMP",
+            "icon": "lc:e038",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_temp",
+              "max": 110,
+              "unit": "C",
+              "warn": 85,
+              "critical": 100
+            }
           },
           {
             "id": 10,
-            "label": "CPU $(stat:cpu_clock)M",
-            "icon": "upload",
-            "color": "#64B5F6",
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "GPU POWER",
+            "icon": "lc:e038",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_power",
+              "max": 350,
+              "unit": "W",
+              "warn": 320,
+              "critical": 360
+            }
           },
           {
             "id": 11,
-            "label": "GPU $(stat:gpu_clock)M",
-            "icon": "upload",
-            "color": "#8B7CFF",
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "GPU CLOCK",
+            "icon": "lc:e038",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_clock",
+              "max": 2600,
+              "fmt": "ghz"
+            }
           },
           {
             "id": 12,
-            "label": "DISK $(stat:disk)%",
-            "icon": "folder",
-            "color": "#35D07F",
-            "stat": {
-              "key": "disk",
-              "warn": 90,
-              "critical": 97
-            },
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "GPU FAN",
+            "icon": "lc:e038",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_fan",
+              "max": 3000
+            }
           },
           {
             "id": 13,
-            "label": "NED $(stat:net_down)",
-            "icon": "download",
-            "color": "#35D07F",
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "DOWN",
+            "icon": "lc:e038",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "net_down",
+              "max": 125000000,
+              "fmt": "rate",
+              "scale": "log"
+            }
           },
           {
             "id": 14,
-            "label": "OPP $(stat:net_up)",
-            "icon": "upload",
-            "color": "#35D07F",
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "UP",
+            "icon": "lc:e038",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "net_up",
+              "max": 125000000,
+              "fmt": "rate",
+              "scale": "log"
+            }
           },
           {
             "id": 15,
-            "label": "OPPE $(stat:uptime)",
-            "icon": "loop",
-            "color": "#FFA868",
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": []
+            "label": "UPTIME",
+            "icon": "lc:e038",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "uptime",
+              "max": 604800,
+              "fmt": "uptime"
+            }
           },
           {
             "id": 16,
-            "label": "HWiNFO $(stat:sensor_status)",
-            "icon": "settings",
-            "color": "#FFA868",
-            "title": {
-              "size": 20,
-              "bold": true
-            },
-            "actions": [
-              {
-                "type": "shell",
-                "timeout": 15,
-                "command": "powershell.exe -NoProfile -WindowStyle Hidden -Command \"Start-Process powershell.exe -Verb RunAs -ArgumentList '-NoProfile -ExecutionPolicy Bypass -File \\\"host\\\\Enable-HWiNFO.ps1\\\"'\""
-              }
-            ]
+            "label": "SENSORS",
+            "icon": "lc:e038",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "sensors",
+              "max": 1,
+              "fmt": "live"
+            }
           },
           {
             "id": 17,
-            "label": "Tilbake",
-            "icon": "loop",
-            "color": "#A3B2BC",
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "back"
@@ -480,9 +461,9 @@
         "system": [
           {
             "id": 1,
-            "label": "Lås PC",
-            "icon": "stop",
-            "color": "#FF7070",
+            "label": "Lock PC",
+            "icon": "lc:e10b",
+            "color": "#90A4AE",
             "actions": [
               {
                 "type": "hotkey",
@@ -492,21 +473,21 @@
           },
           {
             "id": 2,
-            "label": "Oppgaver",
-            "icon": "list",
-            "color": "#35D07F",
+            "label": "Task view",
+            "icon": "lc:e529",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
-                "keys": "ctrl+shift+esc"
+                "keys": "win+tab"
               }
             ]
           },
           {
             "id": 3,
-            "label": "Vis skrivebord",
-            "icon": "home",
-            "color": "#35D07F",
+            "label": "Show desktop",
+            "icon": "lc:e11d",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
@@ -516,33 +497,21 @@
           },
           {
             "id": 4,
-            "label": "Windows-søk",
-            "icon": "search",
-            "color": "#35D07F",
+            "label": "Search",
+            "icon": "lc:e151",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
-                "keys": "win"
+                "keys": "win+s"
               }
             ]
           },
           {
             "id": 5,
-            "label": "Hurtigvalg",
-            "icon": "settings",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "win+a"
-              }
-            ]
-          },
-          {
-            "id": 6,
-            "label": "Varsler",
-            "icon": "list",
-            "color": "#35D07F",
+            "label": "Notifications",
+            "icon": "lc:e059",
+            "color": "#90A4AE",
             "actions": [
               {
                 "type": "hotkey",
@@ -551,9 +520,93 @@
             ]
           },
           {
+            "id": 6,
+            "label": "Quick settings",
+            "icon": "lc:e29a",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+a"
+              }
+            ]
+          },
+          {
             "id": 7,
-            "label": "Nytt skrivebord",
-            "icon": "plus",
+            "label": "Snap left",
+            "icon": "lc:e12a",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+left"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Maximize",
+            "icon": "lc:e112",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+up"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Snap right",
+            "icon": "lc:e431",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+right"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Minimize",
+            "icon": "lc:e11a",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+down"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Prev desktop",
+            "icon": "lc:e048",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+ctrl+left"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Next desktop",
+            "icon": "lc:e049",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+ctrl+right"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "New desktop",
+            "icon": "lc:e13d",
             "color": "#35D07F",
             "actions": [
               {
@@ -563,10 +616,10 @@
             ]
           },
           {
-            "id": 8,
-            "label": "Lukk skrivebord",
-            "icon": "close",
-            "color": "#FFB067",
+            "id": 14,
+            "label": "Close desktop",
+            "icon": "lc:e1b2",
+            "color": "#FF7070",
             "actions": [
               {
                 "type": "hotkey",
@@ -575,120 +628,47 @@
             ]
           },
           {
-            "id": 9,
-            "label": "Fest venstre",
-            "icon": "upload",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "win+left"
-              }
-            ]
-          },
-          {
-            "id": 10,
-            "label": "Fest høyre",
-            "icon": "download",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "win+right"
-              }
-            ]
-          },
-          {
-            "id": 11,
-            "label": "Maksimer",
-            "icon": "upload",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "win+up"
-              }
-            ]
-          },
-          {
-            "id": 12,
-            "label": "Minimer",
-            "icon": "download",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "win+down"
-              }
-            ]
-          },
-          {
-            "id": 13,
-            "label": "Innstillinger",
-            "icon": "settings",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "ms-settings:"
-              }
-            ]
-          },
-          {
-            "id": 14,
-            "label": "Kalkulator",
-            "icon": "plus",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "calc.exe"
-              }
-            ]
-          },
-          {
             "id": 15,
-            "label": "Emoji",
-            "icon": "edit",
-            "color": "#35D07F",
+            "label": "To left screen",
+            "icon": "lc:e422",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
-                "keys": "win+period"
+                "keys": "win+shift+left"
               }
             ]
           },
           {
             "id": 16,
-            "label": "Mikrofon",
-            "icon": "wifi",
-            "color": "#35D07F",
+            "label": "To right screen",
+            "icon": "lc:e422",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
-                "keys": "win+alt+k"
+                "keys": "win+shift+right"
               }
             ]
           },
           {
             "id": 17,
-            "label": "Skjermbilde",
-            "icon": "bolt",
-            "color": "#35D07F",
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
             "actions": [
               {
-                "type": "hotkey",
-                "keys": "win+shift+s"
+                "type": "back"
               }
             ]
           }
         ],
-        "lyd": [
+        "audio": [
           {
             "id": 1,
-            "label": "Lyd av/på",
-            "icon": "minus",
-            "color": "#35D07F",
+            "label": "Mute",
+            "icon": "lc:e1ac",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -698,9 +678,9 @@
           },
           {
             "id": 2,
-            "label": "Volum ned",
-            "icon": "minus",
-            "color": "#35D07F",
+            "label": "Volume -",
+            "icon": "lc:e1aa",
+            "color": "#B388FF",
             "actions": [
               {
                 "type": "hotkey",
@@ -710,9 +690,9 @@
           },
           {
             "id": 3,
-            "label": "Volum opp",
-            "icon": "plus",
-            "color": "#35D07F",
+            "label": "Volume +",
+            "icon": "lc:e1ab",
+            "color": "#B388FF",
             "actions": [
               {
                 "type": "hotkey",
@@ -722,9 +702,9 @@
           },
           {
             "id": 4,
-            "label": "Forrige spor",
-            "icon": "loop",
-            "color": "#64B5F6",
+            "label": "Previous",
+            "icon": "lc:e15f",
+            "color": "#B388FF",
             "actions": [
               {
                 "type": "hotkey",
@@ -734,9 +714,9 @@
           },
           {
             "id": 5,
-            "label": "Spill / pause",
-            "icon": "play",
-            "color": "#64B5F6",
+            "label": "Play / pause",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "hotkey",
@@ -746,9 +726,9 @@
           },
           {
             "id": 6,
-            "label": "Neste spor",
-            "icon": "refresh",
-            "color": "#64B5F6",
+            "label": "Next",
+            "icon": "lc:e160",
+            "color": "#B388FF",
             "actions": [
               {
                 "type": "hotkey",
@@ -758,8 +738,8 @@
           },
           {
             "id": 7,
-            "label": "Stopp media",
-            "icon": "stop",
+            "label": "Stop media",
+            "icon": "lc:e167",
             "color": "#FF7070",
             "actions": [
               {
@@ -770,9 +750,9 @@
           },
           {
             "id": 8,
-            "label": "Mikrofon av/på",
-            "icon": "wifi",
-            "color": "#FFA868",
+            "label": "Mic on/off",
+            "icon": "lc:e119",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -782,9 +762,9 @@
           },
           {
             "id": 9,
-            "label": "Lydinnstillinger",
-            "icon": "settings",
-            "color": "#35D07F",
+            "label": "Sound settings",
+            "icon": "lc:e154",
+            "color": "#90A4AE",
             "actions": [
               {
                 "type": "open",
@@ -794,9 +774,9 @@
           },
           {
             "id": 10,
-            "label": "Volummikser",
-            "icon": "settings",
-            "color": "#35D07F",
+            "label": "Volume mixer",
+            "icon": "lc:e29a",
+            "color": "#90A4AE",
             "actions": [
               {
                 "type": "open",
@@ -806,9 +786,9 @@
           },
           {
             "id": 11,
-            "label": "Lydenheter",
-            "icon": "settings",
-            "color": "#35D07F",
+            "label": "Audio devices",
+            "icon": "lc:e166",
+            "color": "#90A4AE",
             "actions": [
               {
                 "type": "open",
@@ -819,7 +799,7 @@
           {
             "id": 12,
             "label": "Bluetooth",
-            "icon": "wifi",
+            "icon": "lc:e05c",
             "color": "#64B5F6",
             "actions": [
               {
@@ -830,9 +810,9 @@
           },
           {
             "id": 13,
-            "label": "Hurtiginnstillinger",
-            "icon": "list",
-            "color": "#64B5F6",
+            "label": "Quick settings",
+            "icon": "lc:e29a",
+            "color": "#90A4AE",
             "actions": [
               {
                 "type": "hotkey",
@@ -842,9 +822,34 @@
           },
           {
             "id": 14,
-            "label": "Teams mikrofon",
-            "icon": "minus",
-            "color": "#8B7CFF",
+            "label": "Meetings",
+            "icon": "lc:e1a4",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "meetings"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ],
+        "meetings": [
+          {
+            "id": 1,
+            "label": "Teams mic",
+            "icon": "lc:e118",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -853,10 +858,10 @@
             ]
           },
           {
-            "id": 15,
-            "label": "Teams kamera",
-            "icon": "wifi",
-            "color": "#8B7CFF",
+            "id": 2,
+            "label": "Teams camera",
+            "icon": "lc:e1a5",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -865,10 +870,46 @@
             ]
           },
           {
-            "id": 16,
-            "label": "Zoom mikrofon",
-            "icon": "minus",
-            "color": "#64B5F6",
+            "id": 3,
+            "label": "Teams share",
+            "icon": "lc:e14f",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+e"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Teams hand",
+            "icon": "lc:e1d7",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+k"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Teams leave",
+            "icon": "lc:e138",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+h"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Zoom mic",
+            "icon": "lc:e118",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -877,10 +918,94 @@
             ]
           },
           {
+            "id": 8,
+            "label": "Zoom camera",
+            "icon": "lc:e1a5",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+v"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Zoom share",
+            "icon": "lc:e14f",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+s"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Zoom hand",
+            "icon": "lc:e1d7",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+y"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Zoom leave",
+            "icon": "lc:e138",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+q"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Zoom chat",
+            "icon": "lc:e117",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+h"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Discord mic",
+            "icon": "lc:e118",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+m"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Discord deafen",
+            "icon": "lc:e0f1",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+d"
+              }
+            ]
+          },
+          {
             "id": 17,
-            "label": "Tilbake",
-            "icon": "loop",
-            "color": "#A3B2BC",
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "back"
@@ -888,11 +1013,192 @@
             ]
           }
         ],
-        "apper": [
+        "tools": [
           {
             "id": 1,
-            "label": "Codex-kontroll",
-            "icon": "target",
+            "label": "Screenshot",
+            "icon": "lc:e064",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+shift+s"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Clipboard",
+            "icon": "lc:e086",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+v"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Emoji",
+            "icon": "lc:e0f2",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+period"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Color picker",
+            "icon": "lc:e13b",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+shift+c"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "OCR text",
+            "icon": "lc:e538",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+shift+t"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Always on top",
+            "icon": "lc:e259",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+ctrl+t"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Calculator",
+            "icon": "lc:e1bc",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "open",
+                "target": "calc.exe"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Notepad",
+            "icon": "lc:e596",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "open",
+                "target": "notepad.exe"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Task Manager",
+            "icon": "lc:e038",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+esc"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Settings",
+            "icon": "lc:e154",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "open",
+                "target": "ms-settings:"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "PowerToys Run",
+            "icon": "lc:e09a",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Plain paste",
+            "icon": "lc:e3e8",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+win+alt+v"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Snap layouts",
+            "icon": "lc:e1c1",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+z"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Workspaces",
+            "icon": "lc:e529",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+ctrl+grave"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ],
+        "apps": [
+          {
+            "id": 1,
+            "label": "Codex",
+            "icon": "lc:e1bb",
             "color": "#35D07F",
             "actions": [
               {
@@ -904,8 +1210,8 @@
           {
             "id": 2,
             "label": "Claude Code",
-            "icon": "bolt",
-            "color": "#E69A62",
+            "icon": "lc:e412",
+            "color": "#E69A6E",
             "actions": [
               {
                 "type": "profile",
@@ -915,9 +1221,9 @@
           },
           {
             "id": 3,
-            "label": "ZCode-kontroll",
-            "icon": "play",
-            "color": "#8B7CFF",
+            "label": "ZCode",
+            "icon": "lc:e3c6",
+            "color": "#8B7CF6",
             "actions": [
               {
                 "type": "profile",
@@ -927,9 +1233,23 @@
           },
           {
             "id": 4,
+            "label": "Xbox",
+            "icon": "app",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "open",
+                "target": "shell:AppsFolder\\Microsoft.GamingApp_8wekyb3d8bbwe!Microsoft.Xbox.App",
+                "process": "XboxPcApp.exe",
+                "reuse": true
+              }
+            ]
+          },
+          {
+            "id": 5,
             "label": "KiCad",
-            "icon": "settings",
-            "color": "#64B5F6",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -938,10 +1258,10 @@
             ]
           },
           {
-            "id": 5,
+            "id": 6,
             "label": "Unity Hub",
-            "icon": "play",
-            "color": "#64B5F6",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -950,10 +1270,10 @@
             ]
           },
           {
-            "id": 6,
+            "id": 7,
             "label": "Fusion",
-            "icon": "settings",
-            "color": "#FFA868",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -962,10 +1282,10 @@
             ]
           },
           {
-            "id": 7,
+            "id": 8,
             "label": "Word",
-            "icon": "edit",
-            "color": "#64B5F6",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -974,9 +1294,9 @@
             ]
           },
           {
-            "id": 8,
+            "id": 9,
             "label": "Excel",
-            "icon": "list",
+            "icon": "app",
             "color": "#35D07F",
             "actions": [
               {
@@ -986,10 +1306,10 @@
             ]
           },
           {
-            "id": 9,
+            "id": 10,
             "label": "Outlook",
-            "icon": "edit",
-            "color": "#64B5F6",
+            "icon": "app",
+            "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
@@ -998,58 +1318,10 @@
             ]
           },
           {
-            "id": 10,
-            "label": "Notisblokk",
-            "icon": "edit",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "notepad.exe"
-              }
-            ]
-          },
-          {
             "id": 11,
-            "label": "Kalkulator",
-            "icon": "plus",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "calc.exe"
-              }
-            ]
-          },
-          {
-            "id": 12,
-            "label": "Innstillinger",
-            "icon": "settings",
-            "color": "#64B5F6",
-            "actions": [
-              {
-                "type": "open",
-                "target": "ms-settings:"
-              }
-            ]
-          },
-          {
-            "id": 13,
-            "label": "Oppgavebehandling",
-            "icon": "list",
-            "color": "#FFA868",
-            "actions": [
-              {
-                "type": "open",
-                "target": "taskmgr.exe"
-              }
-            ]
-          },
-          {
-            "id": 14,
             "label": "GitHub",
-            "icon": "upload",
-            "color": "#8B7CFF",
+            "icon": "lc:e0e8",
+            "color": "#FFA868",
             "actions": [
               {
                 "type": "open",
@@ -1058,38 +1330,13 @@
             ]
           },
           {
-            "id": 15,
-            "label": "Utklipp",
-            "icon": "list",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "win+v"
-              }
-            ]
-          },
-          {
-            "id": 16,
-            "label": "Kommandopalett",
-            "icon": "search",
-            "color": "#A78BFA",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "win+alt+space"
-              }
-            ]
-          },
-          {
             "id": 17,
-            "label": "Oppgavevisning",
-            "icon": "list",
-            "color": "#35D07F",
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
             "actions": [
               {
-                "type": "hotkey",
-                "keys": "win+tab"
+                "type": "back"
               }
             ]
           }
@@ -1098,8 +1345,8 @@
       "pinned": [
         {
           "id": 18,
-          "label": "Hjem",
-          "icon": "home",
+          "label": "Home",
+          "icon": "lc:e0f5",
           "color": "#64B5F6",
           "actions": [
             {
@@ -1109,17 +1356,17 @@
         }
       ]
     },
-    "koding": {
+    "coding": {
       "match": [
         "code.exe",
         "cursor.exe"
       ],
       "pages": {
-        "hoved": [
+        "main": [
           {
             "id": 1,
-            "label": "Lagre",
-            "icon": "download",
+            "label": "Save",
+            "icon": "lc:e14d",
             "color": "#35D07F",
             "actions": [
               {
@@ -1130,9 +1377,9 @@
           },
           {
             "id": 2,
-            "label": "Kommando",
-            "icon": "edit",
-            "color": "#35D07F",
+            "label": "Command",
+            "icon": "lc:e09a",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
@@ -1142,21 +1389,9 @@
           },
           {
             "id": 3,
-            "label": "Terminal",
-            "icon": "list",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "ctrl+grave"
-              }
-            ]
-          },
-          {
-            "id": 4,
-            "label": "Finn fil",
-            "icon": "search",
-            "color": "#35D07F",
+            "label": "Open file",
+            "icon": "lc:e0cb",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
@@ -1165,10 +1400,10 @@
             ]
           },
           {
-            "id": 5,
-            "label": "Søk prosjekt",
-            "icon": "search",
-            "color": "#35D07F",
+            "id": 4,
+            "label": "Search all",
+            "icon": "lc:e151",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
@@ -1177,10 +1412,22 @@
             ]
           },
           {
+            "id": 5,
+            "label": "Terminal",
+            "icon": "lc:e20a",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+grave"
+              }
+            ]
+          },
+          {
             "id": 6,
-            "label": "Formater",
-            "icon": "ok",
-            "color": "#35D07F",
+            "label": "Format",
+            "icon": "lc:e357",
+            "color": "#B388FF",
             "actions": [
               {
                 "type": "hotkey",
@@ -1190,9 +1437,9 @@
           },
           {
             "id": 7,
-            "label": "Gi nytt navn",
-            "icon": "edit",
-            "color": "#35D07F",
+            "label": "Rename",
+            "icon": "lc:e265",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -1202,9 +1449,9 @@
           },
           {
             "id": 8,
-            "label": "Gå til definisjon",
-            "icon": "download",
-            "color": "#35D07F",
+            "label": "Definition",
+            "icon": "lc:e04d",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
@@ -1214,9 +1461,9 @@
           },
           {
             "id": 9,
-            "label": "Tilbake",
-            "icon": "upload",
-            "color": "#35D07F",
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
@@ -1226,9 +1473,9 @@
           },
           {
             "id": 10,
-            "label": "Frem",
-            "icon": "download",
-            "color": "#35D07F",
+            "label": "Forward",
+            "icon": "lc:e049",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
@@ -1238,9 +1485,9 @@
           },
           {
             "id": 11,
-            "label": "Kommenter",
-            "icon": "edit",
-            "color": "#35D07F",
+            "label": "Comment",
+            "icon": "lc:e117",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -1250,9 +1497,9 @@
           },
           {
             "id": 12,
-            "label": "Problemer",
-            "icon": "list",
-            "color": "#35D07F",
+            "label": "Problems",
+            "icon": "lc:e193",
+            "color": "#FFB74D",
             "actions": [
               {
                 "type": "hotkey",
@@ -1262,20 +1509,8 @@
           },
           {
             "id": 13,
-            "label": "Kildekontroll",
-            "icon": "folder",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "ctrl+shift+g"
-              }
-            ]
-          },
-          {
-            "id": 14,
-            "label": "Kjør / debug",
-            "icon": "play",
+            "label": "Run / debug",
+            "icon": "lc:e13c",
             "color": "#35D07F",
             "actions": [
               {
@@ -1285,9 +1520,9 @@
             ]
           },
           {
-            "id": 15,
-            "label": "Stopp debug",
-            "icon": "stop",
+            "id": 14,
+            "label": "Stop",
+            "icon": "lc:e167",
             "color": "#FF7070",
             "actions": [
               {
@@ -1297,37 +1532,383 @@
             ]
           },
           {
-            "id": 16,
-            "label": "Codex",
-            "icon": "target",
+            "id": 15,
+            "label": "Build",
+            "icon": "lc:e0ec",
             "color": "#35D07F",
             "actions": [
               {
-                "type": "profile",
-                "profile": "Codex"
+                "type": "hotkey",
+                "keys": "ctrl+shift+b"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Git",
+            "icon": "lc:e0e2",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "git"
               }
             ]
           },
           {
             "id": 17,
-            "label": "Skjermbilde",
-            "icon": "bolt",
-            "color": "#35D07F",
+            "label": "Claude Code",
+            "icon": "lc:e412",
+            "color": "#E69A6E",
+            "actions": [
+              {
+                "type": "profile",
+                "profile": "Claude Code"
+              }
+            ]
+          }
+        ],
+        "git": [
+          {
+            "id": 1,
+            "label": "Source control",
+            "icon": "lc:e0e2",
+            "color": "#FFA868",
             "actions": [
               {
                 "type": "hotkey",
-                "keys": "win+shift+s"
+                "keys": "ctrl+shift+g"
               }
             ]
           },
           {
-            "id": 18,
-            "label": "Hjem",
-            "icon": "home",
+            "id": 2,
+            "label": "Pull",
+            "icon": "lc:e089",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Pull"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Push",
+            "icon": "lc:e091",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Push"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Commit",
+            "icon": "lc:e0e3",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Commit"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Stage all",
+            "icon": "lc:e13d",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Stage All Changes"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Sync",
+            "icon": "lc:e145",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Sync"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Branch",
+            "icon": "lc:e0e2",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Checkout to..."
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Stash",
+            "icon": "lc:e041",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Stash"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Fetch",
+            "icon": "lc:e089",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Fetch"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Merge",
+            "icon": "lc:e0e4",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Merge Branch..."
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Undo commit",
+            "icon": "lc:e148",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Undo Last Commit"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Publish",
+            "icon": "lc:e091",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Publish Branch..."
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Pull request",
+            "icon": "lc:e0e5",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+r"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
             "color": "#64B5F6",
             "actions": [
               {
-                "type": "home"
+                "type": "back"
               }
             ]
           }
@@ -1336,8 +1917,8 @@
       "pinned": [
         {
           "id": 18,
-          "label": "Hjem",
-          "icon": "home",
+          "label": "Home",
+          "icon": "lc:e0f5",
           "color": "#64B5F6",
           "actions": [
             {
@@ -1353,11 +1934,11 @@
         "title:codex"
       ],
       "pages": {
-        "hoved": [
+        "main": [
           {
             "id": 1,
             "label": "Codex $(agent:codex)",
-            "icon": "play",
+            "icon": "lc:e1bb",
             "color": "#35D07F",
             "actions": [
               {
@@ -1368,8 +1949,8 @@
           },
           {
             "id": 2,
-            "label": "Fortsett",
-            "icon": "refresh",
+            "label": "Continue",
+            "icon": "lc:e13c",
             "color": "#35D07F",
             "actions": [
               {
@@ -1380,8 +1961,8 @@
           },
           {
             "id": 3,
-            "label": "Ny chat",
-            "icon": "plus",
+            "label": "New chat",
+            "icon": "lc:e13d",
             "color": "#35D07F",
             "actions": [
               {
@@ -1396,8 +1977,8 @@
           },
           {
             "id": 4,
-            "label": "Komprimer",
-            "icon": "download",
+            "label": "Compact",
+            "icon": "lc:e11b",
             "color": "#35D07F",
             "actions": [
               {
@@ -1412,8 +1993,8 @@
           },
           {
             "id": 5,
-            "label": "Gjenoppta",
-            "icon": "refresh",
+            "label": "Resume",
+            "icon": "lc:e70d",
             "color": "#35D07F",
             "actions": [
               {
@@ -1429,7 +2010,7 @@
           {
             "id": 6,
             "label": "Review",
-            "icon": "ok",
+            "icon": "lc:e1ff",
             "color": "#35D07F",
             "actions": [
               {
@@ -1444,8 +2025,8 @@
           },
           {
             "id": 7,
-            "label": "Vis diff",
-            "icon": "list",
+            "label": "Diff",
+            "icon": "lc:e0e3",
             "color": "#35D07F",
             "actions": [
               {
@@ -1460,8 +2041,8 @@
           },
           {
             "id": 8,
-            "label": "Modell",
-            "icon": "settings",
+            "label": "Model",
+            "icon": "lc:e3c6",
             "color": "#35D07F",
             "actions": [
               {
@@ -1476,8 +2057,8 @@
           },
           {
             "id": 9,
-            "label": "Resonnering",
-            "icon": "bolt",
+            "label": "Reasoning",
+            "icon": "lc:e412",
             "color": "#35D07F",
             "actions": [
               {
@@ -1492,8 +2073,8 @@
           },
           {
             "id": 10,
-            "label": "Planmodus",
-            "icon": "list",
+            "label": "Plan mode",
+            "icon": "lc:e1d0",
             "color": "#35D07F",
             "actions": [
               {
@@ -1509,7 +2090,7 @@
           {
             "id": 11,
             "label": "Status",
-            "icon": "wifi",
+            "icon": "lc:e038",
             "color": "#35D07F",
             "actions": [
               {
@@ -1524,8 +2105,8 @@
           },
           {
             "id": 12,
-            "label": "Sett mål",
-            "icon": "target",
+            "label": "Set goal",
+            "icon": "lc:e180",
             "color": "#35D07F",
             "actions": [
               {
@@ -1536,8 +2117,8 @@
           },
           {
             "id": 13,
-            "label": "Prosjekt-init",
-            "icon": "folder",
+            "label": "Project init",
+            "icon": "lc:e247",
             "color": "#35D07F",
             "actions": [
               {
@@ -1552,8 +2133,8 @@
           },
           {
             "id": 14,
-            "label": "Forgren chat",
-            "icon": "loop",
+            "label": "Fork chat",
+            "icon": "lc:e0e2",
             "color": "#35D07F",
             "actions": [
               {
@@ -1568,8 +2149,8 @@
           },
           {
             "id": 15,
-            "label": "Sidechat",
-            "icon": "edit",
+            "label": "Side chat",
+            "icon": "lc:e117",
             "color": "#35D07F",
             "actions": [
               {
@@ -1584,8 +2165,8 @@
           },
           {
             "id": 16,
-            "label": "Avbryt",
-            "icon": "stop",
+            "label": "Cancel",
+            "icon": "lc:e167",
             "color": "#FF7070",
             "actions": [
               {
@@ -1597,24 +2178,12 @@
           {
             "id": 17,
             "label": "Send",
-            "icon": "upload",
+            "icon": "lc:e0a1",
             "color": "#35D07F",
             "actions": [
               {
                 "type": "hotkey",
                 "keys": "enter"
-              }
-            ]
-          },
-          {
-            "id": 18,
-            "label": "Historikk",
-            "icon": "refresh",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "ctrl+r"
               }
             ]
           }
@@ -1623,8 +2192,8 @@
       "pinned": [
         {
           "id": 18,
-          "label": "Hjem",
-          "icon": "home",
+          "label": "Home",
+          "icon": "lc:e0f5",
           "color": "#64B5F6",
           "actions": [
             {
@@ -1640,23 +2209,31 @@
         "title:claude"
       ],
       "pages": {
-        "hoved": [
+        "main": [
           {
             "id": 1,
             "label": "Claude $(agent:claude)",
-            "icon": "play",
+            "icon": "lc:e412",
             "color": "#E69A62",
             "actions": [
               {
                 "type": "shell",
                 "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude"
               }
-            ]
+            ],
+            "status": {
+              "var": "claude",
+              "colors": {
+                "working": "#FFB74D",
+                "waiting": "#FF7070",
+                "idle": "#35D07F"
+              }
+            }
           },
           {
             "id": 2,
-            "label": "Fortsett",
-            "icon": "refresh",
+            "label": "Continue",
+            "icon": "lc:e13c",
             "color": "#E69A62",
             "actions": [
               {
@@ -1667,8 +2244,8 @@
           },
           {
             "id": 3,
-            "label": "Gjenoppta",
-            "icon": "folder",
+            "label": "Resume",
+            "icon": "lc:e70d",
             "color": "#E69A62",
             "actions": [
               {
@@ -1679,8 +2256,8 @@
           },
           {
             "id": 4,
-            "label": "Tøm kontekst",
-            "icon": "close",
+            "label": "Clear",
+            "icon": "lc:e148",
             "color": "#E69A62",
             "actions": [
               {
@@ -1695,8 +2272,8 @@
           },
           {
             "id": 5,
-            "label": "Komprimer",
-            "icon": "download",
+            "label": "Compact",
+            "icon": "lc:e11b",
             "color": "#E69A62",
             "actions": [
               {
@@ -1711,8 +2288,8 @@
           },
           {
             "id": 6,
-            "label": "Kontekst",
-            "icon": "list",
+            "label": "Context",
+            "icon": "lc:e529",
             "color": "#E69A62",
             "actions": [
               {
@@ -1727,72 +2304,8 @@
           },
           {
             "id": 7,
-            "label": "Hjelp",
-            "icon": "help",
-            "color": "#E69A62",
-            "actions": [
-              {
-                "type": "text",
-                "text": "/help"
-              },
-              {
-                "type": "hotkey",
-                "keys": "enter"
-              }
-            ]
-          },
-          {
-            "id": 8,
-            "label": "Prosjekt-init",
-            "icon": "folder",
-            "color": "#E69A62",
-            "actions": [
-              {
-                "type": "text",
-                "text": "/init"
-              },
-              {
-                "type": "hotkey",
-                "keys": "enter"
-              }
-            ]
-          },
-          {
-            "id": 9,
-            "label": "Modell",
-            "icon": "settings",
-            "color": "#E69A62",
-            "actions": [
-              {
-                "type": "text",
-                "text": "/model"
-              },
-              {
-                "type": "hotkey",
-                "keys": "enter"
-              }
-            ]
-          },
-          {
-            "id": 10,
-            "label": "Tillatelser",
-            "icon": "lock",
-            "color": "#E69A62",
-            "actions": [
-              {
-                "type": "text",
-                "text": "/permissions"
-              },
-              {
-                "type": "hotkey",
-                "keys": "enter"
-              }
-            ]
-          },
-          {
-            "id": 11,
-            "label": "Planmodus",
-            "icon": "list",
+            "label": "Plan mode",
+            "icon": "lc:e1d0",
             "color": "#E69A62",
             "actions": [
               {
@@ -1806,9 +2319,41 @@
             ]
           },
           {
-            "id": 12,
+            "id": 8,
+            "label": "Model",
+            "icon": "lc:e3c6",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/model"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Permissions",
+            "icon": "lc:e10b",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/permissions"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 10,
             "label": "Status",
-            "icon": "wifi",
+            "icon": "lc:e038",
             "color": "#E69A62",
             "actions": [
               {
@@ -1822,9 +2367,69 @@
             ]
           },
           {
+            "id": 11,
+            "label": "Remote control",
+            "icon": "lc:e163",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/remote-control"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "More",
+            "icon": "lc:e0b6",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "more"
+              }
+            ]
+          },
+          {
             "id": 13,
-            "label": "Sett mål",
-            "icon": "target",
+            "label": "Help",
+            "icon": "lc:e082",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/help"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Project init",
+            "icon": "lc:e247",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/init"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Set goal",
+            "icon": "lc:e180",
             "color": "#E69A62",
             "actions": [
               {
@@ -1834,9 +2439,179 @@
             ]
           },
           {
-            "id": 14,
-            "label": "Sikkerhet",
-            "icon": "ok",
+            "id": 16,
+            "label": "Cancel",
+            "icon": "lc:e167",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+c"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Send",
+            "icon": "lc:e0a1",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          }
+        ],
+        "more": [
+          {
+            "id": 1,
+            "label": "MCP",
+            "icon": "lc:e37f",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/mcp"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Agents",
+            "icon": "lc:e1bb",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/agents"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Hooks",
+            "icon": "lc:e357",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/hooks"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Memory",
+            "icon": "lc:e3c6",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/memory"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Config",
+            "icon": "lc:e154",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/config"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Doctor",
+            "icon": "lc:e038",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/doctor"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Rewind",
+            "icon": "lc:e148",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/rewind"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Export",
+            "icon": "lc:e089",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/export"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Add dir",
+            "icon": "lc:e247",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/add-dir"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Security review",
+            "icon": "lc:e1ff",
             "color": "#E69A62",
             "actions": [
               {
@@ -1850,9 +2625,9 @@
             ]
           },
           {
-            "id": 15,
-            "label": "Oppgaver",
-            "icon": "list",
+            "id": 11,
+            "label": "Tasks",
+            "icon": "lc:e1d0",
             "color": "#E69A62",
             "actions": [
               {
@@ -1866,23 +2641,15 @@
             ]
           },
           {
-            "id": 16,
-            "label": "Avbryt",
-            "icon": "stop",
-            "color": "#FF7070",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "ctrl+c"
-              }
-            ]
-          },
-          {
-            "id": 17,
-            "label": "Send",
-            "icon": "upload",
+            "id": 12,
+            "label": "Mobile app",
+            "icon": "lc:e163",
             "color": "#E69A62",
             "actions": [
+              {
+                "type": "text",
+                "text": "/mobile"
+              },
               {
                 "type": "hotkey",
                 "keys": "enter"
@@ -1890,14 +2657,29 @@
             ]
           },
           {
-            "id": 18,
-            "label": "Historikk",
-            "icon": "refresh",
+            "id": 13,
+            "label": "Login",
+            "icon": "lc:e4a3",
             "color": "#E69A62",
             "actions": [
               {
+                "type": "text",
+                "text": "/login"
+              },
+              {
                 "type": "hotkey",
-                "keys": "ctrl+r"
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
               }
             ]
           }
@@ -1906,8 +2688,8 @@
       "pinned": [
         {
           "id": 18,
-          "label": "Hjem",
-          "icon": "home",
+          "label": "Home",
+          "icon": "lc:e0f5",
           "color": "#64B5F6",
           "actions": [
             {
@@ -1922,11 +2704,11 @@
         "zcode.exe"
       ],
       "pages": {
-        "hoved": [
+        "main": [
           {
             "id": 1,
             "label": "ZCode $(agent:zcode)",
-            "icon": "play",
+            "icon": "lc:e3c6",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -1937,8 +2719,8 @@
           },
           {
             "id": 2,
-            "label": "Ny oppgave",
-            "icon": "plus",
+            "label": "New task",
+            "icon": "lc:e13d",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -1949,8 +2731,8 @@
           },
           {
             "id": 3,
-            "label": "Kommandoer",
-            "icon": "settings",
+            "label": "Commands",
+            "icon": "lc:e09a",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -1961,8 +2743,8 @@
           },
           {
             "id": 4,
-            "label": "Modell",
-            "icon": "settings",
+            "label": "Model",
+            "icon": "lc:e3c6",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -1973,8 +2755,8 @@
           },
           {
             "id": 5,
-            "label": "Tankenivå",
-            "icon": "bolt",
+            "label": "Thinking",
+            "icon": "lc:e412",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -1985,8 +2767,8 @@
           },
           {
             "id": 6,
-            "label": "Kjøremodus",
-            "icon": "loop",
+            "label": "Run mode",
+            "icon": "lc:e145",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -1998,7 +2780,7 @@
           {
             "id": 7,
             "label": "Terminal",
-            "icon": "list",
+            "icon": "lc:e20a",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2009,8 +2791,8 @@
           },
           {
             "id": 8,
-            "label": "Sidepanel",
-            "icon": "folder",
+            "label": "Side panel",
+            "icon": "lc:e12a",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2021,8 +2803,8 @@
           },
           {
             "id": 9,
-            "label": "Høyre panel",
-            "icon": "folder",
+            "label": "Right panel",
+            "icon": "lc:e431",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2033,8 +2815,8 @@
           },
           {
             "id": 10,
-            "label": "Finn",
-            "icon": "search",
+            "label": "Find",
+            "icon": "lc:e151",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2045,32 +2827,8 @@
           },
           {
             "id": 11,
-            "label": "Tilbake",
-            "icon": "loop",
-            "color": "#8B7CFF",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "ctrl+lbracket"
-              }
-            ]
-          },
-          {
-            "id": 12,
-            "label": "Frem",
-            "icon": "refresh",
-            "color": "#8B7CFF",
-            "actions": [
-              {
-                "type": "hotkey",
-                "keys": "ctrl+rbracket"
-              }
-            ]
-          },
-          {
-            "id": 13,
-            "label": "Forrige chat",
-            "icon": "upload",
+            "label": "Prev chat",
+            "icon": "lc:e04a",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2080,9 +2838,9 @@
             ]
           },
           {
-            "id": 14,
-            "label": "Neste chat",
-            "icon": "download",
+            "id": 12,
+            "label": "Next chat",
+            "icon": "lc:e042",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2092,9 +2850,9 @@
             ]
           },
           {
-            "id": 15,
-            "label": "Sett mål",
-            "icon": "target",
+            "id": 13,
+            "label": "Set goal",
+            "icon": "lc:e180",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2104,9 +2862,9 @@
             ]
           },
           {
-            "id": 16,
-            "label": "Komprimer",
-            "icon": "download",
+            "id": 14,
+            "label": "Compact",
+            "icon": "lc:e11b",
             "color": "#8B7CFF",
             "actions": [
               {
@@ -2120,26 +2878,38 @@
             ]
           },
           {
-            "id": 17,
-            "label": "Velg / send",
-            "icon": "ok",
-            "color": "#8B7CFF",
+            "id": 15,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
-                "keys": "enter"
+                "keys": "ctrl+lbracket"
               }
             ]
           },
           {
-            "id": 18,
-            "label": "Lukk meny",
-            "icon": "close",
-            "color": "#8B7CFF",
+            "id": 16,
+            "label": "Forward",
+            "icon": "lc:e049",
+            "color": "#64B5F6",
             "actions": [
               {
                 "type": "hotkey",
-                "keys": "esc"
+                "keys": "ctrl+rbracket"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Send",
+            "icon": "lc:e0a1",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "enter"
               }
             ]
           }
@@ -2148,8 +2918,8 @@
       "pinned": [
         {
           "id": 18,
-          "label": "Hjem",
-          "icon": "home",
+          "label": "Home",
+          "icon": "lc:e0f5",
           "color": "#64B5F6",
           "actions": [
             {

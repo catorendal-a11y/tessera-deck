@@ -7,7 +7,7 @@ root = tk.Tk()
 root.withdraw()
 root.attributes('-topmost', True)
 program = len(sys.argv) > 1 and sys.argv[1] == 'program'
-path = filedialog.askopenfilename(parent=root, title='Velg program' if program else 'Velg fil',
-    filetypes=[('Programmer', '*.exe *.lnk *.cmd *.bat'), ('Alle filer', '*.*')] if program else [('Alle filer', '*.*')])
+path = filedialog.askopenfilename(parent=root, title='Choose program' if program else 'Choose file',
+    filetypes=[('Programs', '*.exe *.lnk *.cmd *.bat'), ('All files', '*.*')] if program else [('All files', '*.*')])
 root.destroy()
 print(path)

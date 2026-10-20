@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Standalone Agent Deck terminal and profile editor."""
+"""Standalone Tessera terminal and profile editor."""
 import argparse
 import os
 import asyncio
@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import sys
 from deck_control import ROOT, Controller, configure_upstream, save_profiles
-from agent_deckd import Daemon, validate_config
+from tesserad import Daemon, validate_config
 from deck_forms import ActionForm
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -17,11 +17,12 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Input, Select, Static, TabbedContent, TabPane
 
 
-ACTION_FIELDS = {'hotkey': ('keys', 'ctrl+shift+b'), 'text': ('text', 'Tekst som skal skrives'),
-    'open': ('target', 'Program, fil eller nettadresse'), 'shell': ('command', 'Kommando'),
-    'http': ('url', 'https://...'), 'delay': ('ms', '250'), 'page': ('page', 'Sidenavn'),
-    'profile': ('profile', 'Profilnavn'), 'press': ('id', 'Knappnummer'),
-    'set': ('variable', 'Variabelnavn'), 'folder': ('page', 'Mappe'), 'back': (None, 'Tilbake')}
+ACTION_FIELDS = {'hotkey': ('keys', 'ctrl+shift+b'), 'text': ('text', 'Text to type'),
+    'open': ('target', 'Program, file or web address'), 'shell': ('command', 'Command'),
+    'http': ('url', 'https://...'), 'delay': ('ms', '250'), 'page': ('page', 'Page name'),
+    'profile': ('profile', 'Profile name'), 'press': ('id', 'Button number'),
+    'set': ('variable', 'Variable name'), 'folder': ('page', 'Folder'), 'back': (None, 'Back'),
+    'state': ('button', 'Button number')}
 
 
 def profile_buttons(profile):
@@ -53,7 +54,7 @@ class ActionEditor(ModalScreen):
     ActionEditor Static {height: auto;}
     ActionEditor Horizontal {height: 3;}
     '''
-    BINDINGS = [('escape', 'cancel', 'Avbryt')]
+    BINDINGS = [('escape', 'cancel', 'Cancel')]
 
     def __init__(self, action=None):
         super().__init__()
@@ -61,19 +62,19 @@ class ActionEditor(ModalScreen):
 
     def compose(self):
         with Vertical():
-            yield Static('HANDLING / TRINN I MULTIHANDLING')
+            yield Static('ACTION / STEP IN A MULTI-ACTION')
             yield Select([(name, name) for name in ACTION_FIELDS], value=self.draft['type'],
                          allow_blank=False, id='action-type')
             yield Static('', id='parameter-caption')
             yield Input('', id='parameter')
-            yield Static('Ekstra: HTTP-innhold eller variabelverdi')
+            yield Static('Extra: HTTP body, variable value, or state (next or 1-8)')
             yield Input(str(self.draft.get('body', self.draft.get('task', self.draft.get('value', '')))), id='extra')
             yield Select([(method, method) for method in ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')],
                          value=self.draft.get('method', 'GET'), id='http-method', allow_blank=False)
             yield Static('', id='action-error')
             with Horizontal():
-                yield Button('Avbryt', id='cancel-action')
-                yield Button('Lagre trinn', id='save-action', variant='success')
+                yield Button('Cancel', id='cancel-action')
+                yield Button('Save step', id='save-action', variant='success')
 
     def on_mount(self):
         self.update_field(self.draft['type'])
@@ -84,7 +85,10 @@ class ActionEditor(ModalScreen):
         self.query_one('#parameter', Input).value = str(self.draft.get(field, '')) if field else ''
         self.query_one('#parameter').display = field is not None
         self.query_one('#http-method').display = kind == 'http'
-        self.query_one('#extra').display = kind in ('http', 'set')
+        self.query_one('#extra').display = kind in ('http', 'set', 'state')
+        if kind == 'state':
+            current = self.draft.get('state', 'next') if self.draft['type'] == 'state' else 'next'
+            self.query_one('#extra', Input).value = 'next' if current == 'next' else str(current + 1)
 
     def on_select_changed(self, event):
         event.stop()
@@ -104,15 +108,15 @@ class ActionEditor(ModalScreen):
         extra = self.query_one('#extra', Input).value
         try:
             if ACTION_FIELDS[kind][0] and not value and kind != 'text':
-                raise ValueError('Fyll inn en verdi')
-            if kind in ('delay', 'press'):
+                raise ValueError('Enter a value')
+            if kind in ('delay', 'press', 'state'):
                 value = int(value)
                 if kind == 'delay' and not 0 <= value <= 60000:
-                    raise ValueError('Forsinkelsen må være 0–60000 millisekunder')
-                if kind == 'press' and not 1 <= value <= 18:
-                    raise ValueError('Knappnummeret må være 1–18')
+                    raise ValueError('The delay must be 0-60000 milliseconds')
+                if kind in ('press', 'state') and not 1 <= value <= 18:
+                    raise ValueError('The button number must be 1-18')
             if kind == 'hotkey':
-                from agent_deckd import parse_hotkey
+                from tesserad import parse_hotkey
                 parse_hotkey(value)
             action = copy.deepcopy(self.draft) if kind == self.draft['type'] else {}
             action = {'type': kind} if ACTION_FIELDS[kind][0] is None else dict(action, type=kind, **{ACTION_FIELDS[kind][0]: value})
@@ -120,6 +124,11 @@ class ActionEditor(ModalScreen):
                 action.update(body=extra, method=self.query_one('#http-method', Select).value)
             elif kind == 'set':
                 action['value'] = extra
+            elif kind == 'state':
+                number = extra.strip().lower() or 'next'
+                if number != 'next' and not (number.isdigit() and 1 <= int(number) <= 8):
+                    raise ValueError("The state must be 'next' or a number from 1 to 8")
+                action['state'] = 'next' if number == 'next' else int(number) - 1
             self.dismiss(action)
         except (ValueError, TypeError) as exc:
             self.query_one('#action-error', Static).update(str(exc))
@@ -136,7 +145,7 @@ class ButtonEditor(ModalScreen):
     ButtonEditor DataTable {height: 1fr; min-height: 5;}
     ButtonEditor Button {margin-right: 1; min-width: 10;}
     '''
-    BINDINGS = [('escape', 'cancel', 'Avbryt')]
+    BINDINGS = [('escape', 'cancel', 'Cancel')]
 
     def __init__(self, button):
         super().__init__()
@@ -145,31 +154,31 @@ class ButtonEditor(ModalScreen):
     def compose(self):
         with Vertical():
             yield Static(f'KNAPP {self.draft["id"]} / NAVN / UTSEENDE / FLERHANDLING')
-            yield Input(self.draft.get('label', ''), placeholder='Navn på knappen', id='button-label')
+            yield Input(self.draft.get('label', ''), placeholder='Button name', id='button-label')
             yield Input(self.draft.get('color', '#35D07F'), placeholder='#35D07F', id='button-color')
             icons = 'ok close settings home download refresh play pause stop plus minus loop list folder upload bolt bell wifi trash edit'.split()
             choices = [(name, name) for name in icons]
             selected_icon = self.draft.get('icon', 'ok')
             if selected_icon not in icons:
-                choices.append(('Valgt ikon fra grafisk editor', selected_icon))
+                choices.append(('Icon chosen in the graphical editor', selected_icon))
             yield Select(choices, value=selected_icon,
                          allow_blank=False, id='button-icon')
-            yield Static('HANDLINGER / kjøres ovenfra og ned')
+            yield Static('ACTIONS / run from top to bottom')
             yield DataTable(id='action-steps', cursor_type='row')
             with Horizontal():
-                yield Button('Legg til trinn', id='step-add')
-                yield Button('Rediger trinn', id='step-edit')
-                yield Button('Fjern', id='step-remove')
-                yield Button('Flytt opp', id='step-up')
-                yield Button('Flytt ned', id='step-down')
+                yield Button('Add step', id='step-add')
+                yield Button('Edit step', id='step-edit')
+                yield Button('Remove', id='step-remove')
+                yield Button('Move up', id='step-up')
+                yield Button('Move down', id='step-down')
             yield Static('', id='button-error')
             with Horizontal():
-                yield Button('Avbryt', id='button-cancel')
-                yield Button('Tøm spor', id='button-clear', variant='error')
-                yield Button('Lagre knapp', id='button-save', variant='success')
+                yield Button('Cancel', id='button-cancel')
+                yield Button('Clear slot', id='button-clear', variant='error')
+                yield Button('Save button', id='button-save', variant='success')
 
     def on_mount(self):
-        self.query_one(DataTable).add_columns('#', 'Handling', 'Verdi')
+        self.query_one(DataTable).add_columns('#', 'Action', 'Value')
         self.refresh_steps()
 
     def refresh_steps(self):
@@ -199,7 +208,7 @@ class ButtonEditor(ModalScreen):
                 color=self.query_one('#button-color', Input).value,
                 icon=self.query_one('#button-icon', Select).value)
             if not self.draft['label'].strip():
-                self.query_one('#button-error', Static).update('Skriv inn et navn på knappen')
+                self.query_one('#button-error', Static).update('Enter a name for the button')
                 return
             self.dismiss(self.draft)
         elif identifier in ('step-add', 'step-edit'):
@@ -256,19 +265,19 @@ class DeckPane(TabPane):
                 yield Select([(name, name) for name in self.config['profiles'][self.profile]['pages']],
                              value=self.page, allow_blank=False, id='deck-page')
             with Horizontal(id='deck-toolbar'):
-                for caption, identifier in [('Ny profil', 'profile-add'), ('Profilregler', 'profile-edit'),
-                    ('Ferdig oppsett', 'template-add'),
-                    ('Ny side', 'page-add'), ('Gi siden nytt navn', 'page-edit'), ('Slett side', 'page-delete'), ('Eksporter', 'deck-export'),
-                    ('Importer', 'deck-import')]:
+                for caption, identifier in [('New profile', 'profile-add'), ('Profile rules', 'profile-edit'),
+                    ('Templates', 'template-add'),
+                    ('New page', 'page-add'), ('Rename page', 'page-edit'), ('Delete page', 'page-delete'), ('Export', 'deck-export'),
+                    ('Import', 'deck-import')]:
                     yield Button(caption, id=identifier)
             with Horizontal(id='deck-run'):
-                yield Button('Vis på enheten', id='deck-activate', variant='success')
-                yield Button('Start vert', id='deck-host-start')
-                yield Button('Stopp vert', id='deck-host-stop')
-                yield Button('Dra og slipp ↗', id='deck-graphic-editor')
-                yield Button('Slett profil', id='profile-delete')
-            yield Static('Velg et spor for å redigere navn, ikon, farge og handlinger.', id='deck-state')
-            yield Static('Kontrollerer USB-status …', id='deck-connection')
+                yield Button('Show on device', id='deck-activate', variant='success')
+                yield Button('Start host', id='deck-host-start')
+                yield Button('Stop host', id='deck-host-stop')
+                yield Button('Drag and drop ↗', id='deck-graphic-editor')
+                yield Button('Delete profile', id='profile-delete')
+            yield Static('Choose a slot to edit its name, icon, color and actions.', id='deck-state')
+            yield Static('Checking USB status …', id='deck-connection')
             with Grid(id='deck-grid'):
                 for index in range(1, 19):
                     yield Button('', id=f'deck-slot-{index}')
@@ -285,19 +294,19 @@ class DeckPane(TabPane):
         except (AttributeError, OSError, ValueError):
             status = None
         if not isinstance(status, dict):
-            status = {'connection': 'USB-status utilgjengelig', 'device': {}}
+            status = {'connection': 'USB status unavailable', 'device': {}}
         device = status.get('device') if isinstance(status.get('device'), dict) else {}
         if device.get('connected'):
-            message = f'● TILKOBLET  {device.get("port")}  ·  {device.get("profile", "")} / {device.get("page", "")}'
+            message = f'● CONNECTED  {device.get("port")}  ·  {device.get("profile", "")} / {device.get("page", "")}'
         else:
-            message = f'○ {str(status.get("connection", "Venter på panelet")).upper()}'
+            message = f'○ {str(status.get("connection", "Waiting for the panel")).upper()}'
         self.query_one('#deck-connection', Static).update(message)
         path = ROOT / 'host/deck.local.log'
         if path.exists():
             with path.open('rb') as stream:
                 stream.seek(max(0, path.stat().st_size - 8000))
                 lines = stream.read().decode('utf-8', 'replace').splitlines()[-8:]
-            self.query_one('#deck-log', Static).update('AGENT DECK / USB-VERT\n' + '\n'.join(lines))
+            self.query_one('#deck-log', Static).update('TESSERA / USB HOST\n' + '\n'.join(lines))
 
     def refresh_grid(self):
         profile = self.config['profiles'][self.profile]
@@ -308,7 +317,7 @@ class DeckPane(TabPane):
             item = self.query_one(f'#deck-slot-{i}', Button)
             button = buttons.get(i)
             marker = ' ◆' if i in pinned else ''
-            item.label = f'{i:02d}{marker}  {button["label"]}\n{len(button.get("actions", []))} handlinger' if button else f'{i:02d}\n+ Legg til'
+            item.label = f'{i:02d}{marker}  {button["label"]}\n{len(button.get("actions", []))} actions' if button else f'{i:02d}\n+ Add'
             item.styles.border = ('round', button.get('color', '#35D07F') if button else '#263239')
         self.refresh_log()
 
@@ -317,9 +326,9 @@ class DeckPane(TabPane):
             save_profiles(draft, self.path)
             self.config = copy.deepcopy(draft)
             self.refresh_grid()
-            self.query_one('#deck-state', Static).update('Lagret. Aktiv side oppdateres automatisk.')
+            self.query_one('#deck-state', Static).update('Saved. The active page updates automatically.')
         except (ValueError, OSError) as exc:
-            self.query_one('#deck-state', Static).update('Ikke lagret: ' + str(exc))
+            self.query_one('#deck-state', Static).update('Not saved: ' + str(exc))
 
     def on_select_changed(self, event):
         event.stop()
@@ -347,7 +356,7 @@ class DeckPane(TabPane):
             temporary = path.with_suffix('.tmp')
             temporary.write_text(json.dumps({'profile': self.profile, 'page': self.page}))
             temporary.replace(path)
-            self.query_one('#deck-state', Static).update('Sendt til enheten: ' + self.profile + ' / ' + self.page)
+            self.query_one('#deck-state', Static).update('Sent to the device: ' + self.profile + ' / ' + self.page)
         elif identifier.startswith('deck-slot-'):
             slot = int(identifier.rsplit('-', 1)[-1])
             profile_data = self.config['profiles'][self.profile]
@@ -377,12 +386,12 @@ class DeckPane(TabPane):
                 draft = copy.deepcopy(self.config)
                 if kind == 'profile':
                     if name in draft['profiles']:
-                        self.query_one('#deck-state', Static).update('Profilen finnes allerede')
+                        self.query_one('#deck-state', Static).update('The profile already exists')
                         return
-                    draft['profiles'][name] = {'match': [], 'pages': {'hoved': []}}
+                    draft['profiles'][name] = {'match': [], 'pages': {'main': []}}
                 else:
                     if name in draft['profiles'][self.profile]['pages']:
-                        self.query_one('#deck-state', Static).update('Siden finnes allerede')
+                        self.query_one('#deck-state', Static).update('The page already exists')
                         return
                     draft['profiles'][self.profile]['pages'][name] = []
                 self.commit(draft)
@@ -391,13 +400,13 @@ class DeckPane(TabPane):
                 if kind == 'page':
                     self.query_one('#deck-page', Select).set_options([(n, n) for n in self.config['profiles'][self.profile]['pages']])
                     self.query_one('#deck-page', Select).value = name
-            self.app.push_screen(ActionForm('NY PROFIL' if kind == 'profile' else 'NY SIDE', [('name', 'Navn', 'text', '', None)]), saved)
+            self.app.push_screen(ActionForm('NEW PROFILE' if kind == 'profile' else 'NEW PAGE', [('name', 'Name', 'text', '', None)]), saved)
         elif identifier == 'template-add':
             try:
                 catalog = json.loads((ROOT / 'host/action_packs.json').read_text(encoding='utf-8'))
                 templates = {item['name']: item for item in catalog['templates']}
             except (OSError, ValueError, KeyError, TypeError):
-                self.query_one('#deck-state', Static).update('Kunne ikke lese de ferdige oppsettene')
+                self.query_one('#deck-state', Static).update('Could not read the templates')
                 return
             def saved(values):
                 if values is None or values['template'] not in templates:
@@ -415,9 +424,9 @@ class DeckPane(TabPane):
                 self.query_one('#deck-profile', Select).set_options([(n, n) for n in self.config['profiles']])
                 self.query_one('#deck-profile', Select).value = name
             choices = [(name + ' · ' + item['description'], name) for name, item in templates.items()]
-            self.app.push_screen(ActionForm('FERDIG PROFILOPPSETT', [
-                ('template', 'Oppsett', 'select', next(iter(templates)), choices)],
-                note='Legges til som en ny profil. Eksisterende profiler beholdes.'), saved)
+            self.app.push_screen(ActionForm('PROFILE TEMPLATES', [
+                ('template', 'Template', 'select', next(iter(templates)), choices)],
+                note='Added as a new profile. Existing profiles are kept.'), saved)
         elif identifier == 'profile-edit':
             profile = self.config['profiles'][self.profile]
             def saved(values):
@@ -428,9 +437,9 @@ class DeckPane(TabPane):
                 if values['default']:
                     draft['default_profile'] = self.profile
                 self.commit(draft)
-            self.app.push_screen(ActionForm('SMARTPROFIL / AKTIVT PROGRAM', [
-                ('match', 'Programnavn, adskilt med komma', 'text', ', '.join(profile.get('match', [])), None),
-                ('default', 'Bruk som standardprofil', 'bool', self.config.get('default_profile') == self.profile, None)]), saved)
+            self.app.push_screen(ActionForm('SMART PROFILE / ACTIVE PROGRAM', [
+                ('match', 'Program names, separated by commas', 'text', ', '.join(profile.get('match', [])), None),
+                ('default', 'Use as the default profile', 'bool', self.config.get('default_profile') == self.profile, None)]), saved)
         elif identifier == 'page-edit':
             original = self.page
             def saved(values):
@@ -440,7 +449,7 @@ class DeckPane(TabPane):
                 draft = copy.deepcopy(self.config)
                 pages = draft['profiles'][self.profile]['pages']
                 if name in pages and name != original:
-                    self.query_one('#deck-state', Static).update('Siden finnes allerede')
+                    self.query_one('#deck-state', Static).update('The page already exists')
                     return
                 pages[name] = pages.pop(original)
                 def update_page(action):
@@ -454,10 +463,10 @@ class DeckPane(TabPane):
                 self.commit(draft)
                 self.query_one('#deck-page', Select).set_options([(n, n) for n in pages])
                 self.query_one('#deck-page', Select).value = name
-            self.app.push_screen(ActionForm('GI SIDEN NYTT NAVN', [('name', 'Sidenavn', 'text', original, None)]), saved)
+            self.app.push_screen(ActionForm('RENAME PAGE', [('name', 'Page name', 'text', original, None)]), saved)
         elif identifier == 'profile-delete':
             if len(self.config['profiles']) <= 1:
-                self.query_one('#deck-state', Static).update('Behold minst én profil')
+                self.query_one('#deck-state', Static).update('Keep at least one profile')
                 return
             draft = copy.deepcopy(self.config)
             del draft['profiles'][self.profile]
@@ -466,7 +475,7 @@ class DeckPane(TabPane):
             try:
                 validate_config(draft)
             except ValueError:
-                self.query_one('#deck-state', Static).update('Fjern handlinger som peker til profilen før den slettes')
+                self.query_one('#deck-state', Static).update('Remove actions that point to the profile before deleting it')
                 return
             self.profile = draft.get('default_profile', next(iter(draft['profiles'])))
             self.page = next(iter(draft['profiles'][self.profile]['pages']))
@@ -475,7 +484,7 @@ class DeckPane(TabPane):
             self.query_one('#deck-profile', Select).value = self.profile
         elif identifier == 'page-delete':
             if len(self.config['profiles'][self.profile]['pages']) <= 1:
-                self.query_one('#deck-state', Static).update('Behold minst én side i hver profil')
+                self.query_one('#deck-state', Static).update('Keep at least one page in every profile')
                 return
             draft = copy.deepcopy(self.config)
             del draft['profiles'][self.profile]['pages'][self.page]
@@ -504,18 +513,18 @@ class DeckPane(TabPane):
                         self.query_one('#deck-page', Select).value = self.page
                     else:
                         if path.exists():
-                            raise ValueError('Velg et nytt filnavn; eksisterende eksportfiler overskrives ikke')
+                            raise ValueError('Choose a new file name; existing export files are not overwritten')
                         save_profiles(self.config, path)
-                    self.query_one('#deck-state', Static).update('Importert' if importing else 'Eksportert')
+                    self.query_one('#deck-state', Static).update('Imported' if importing else 'Exported')
                 except (ValueError, OSError) as exc:
                     self.query_one('#deck-state', Static).update(str(exc))
-            self.app.push_screen(ActionForm('IMPORTER' if importing else 'EKSPORTER', [
-                ('path', 'Sti til profilfil', 'text', '', None)],
-                note='Importerte handlinger blir aktive når du trykker på knappene. Kontroller kilden først.'), saved)
+            self.app.push_screen(ActionForm('IMPORT' if importing else 'EXPORT', [
+                ('path', 'Path to profile file', 'text', '', None)],
+                note='Imported actions become active when you press the buttons. Check the source first.'), saved)
 
 
-class AgentDeckApp(App):
-    TITLE = 'Agent Deck'
+class TesseraApp(App):
+    TITLE = 'Tessera'
     CSS = '''
     Screen {background: #0b1114; color: #e9f4ef;}
     #brand {height: 3; padding: 1 2; background: #14211c; color: #92edba;
@@ -523,12 +532,12 @@ class AgentDeckApp(App):
     #pages {height: 1fr;}
     TabbedContent ContentSwitcher {background: #0b1114;}
     '''
-    BINDINGS = [('q','quit','Avslutt'), Binding('f8','graphic_editor','Dra og slipp')]
+    BINDINGS = [('q','quit','Quit'), Binding('f8','graphic_editor','Drag and drop')]
 
     def action_graphic_editor(self):
         import subprocess
         subprocess.Popen([str(ROOT / 'host/.venv/Scripts/pythonw.exe'),
-                          str(ROOT / 'host/agent_deck_app.py'), '--editor'],
+                          str(ROOT / 'host/tessera_app.py'), '--editor'],
                          creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
 
     def __init__(self, controller=None, profile_path=None, reader=None):
@@ -538,7 +547,7 @@ class AgentDeckApp(App):
 
     def compose(self):
         yield Header()
-        yield Static('AGENT DECK  /  18 KNAPPER  /  ÉN USB-TILKOBLING', id='brand')
+        yield Static('TESSERA  /  18 BUTTONS  /  ONE USB CONNECTION', id='brand')
         with TabbedContent(id='pages'):
             yield DeckPane(self.profile_path)
         yield Footer()
@@ -548,7 +557,7 @@ class AgentDeckApp(App):
             output=[]
             try:
                 await asyncio.to_thread(getattr(self.controller, action), emit=output.append)
-                self.notify(output[-1] if output else 'Ferdig')
+                self.notify(output[-1] if output else 'Done')
             except Exception as exc:
                 self.notify(str(exc), severity='error')
         self.run_worker(run(), exclusive=True)
@@ -556,7 +565,7 @@ class AgentDeckApp(App):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--check', action='store_true', help='Syntetisk terminaltest uten USB eller handlinger')
+    parser.add_argument('--check', action='store_true', help='Synthetic terminal test without USB or actions')
     args = parser.parse_args()
     if args.check:
         from terminal_check import check
@@ -565,9 +574,9 @@ def main():
     configure_upstream()
     controller = Controller()
     if not sys.stdin.isatty() or not sys.stdout.isatty():
-        print('Open Agent-Deck.cmd in a terminal, or use --check for tests.')
+        print('Open Tessera.cmd in a terminal, or use --check for tests.')
         return 2
-    AgentDeckApp(controller).run()
+    TesseraApp(controller).run()
     return 0
 
 

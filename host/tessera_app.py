@@ -1,4 +1,4 @@
-"""Local graphical editor for the standalone Agent Deck."""
+"""Local graphical editor for the standalone Tessera."""
 import argparse
 import hashlib
 from functools import lru_cache
@@ -18,7 +18,7 @@ import webbrowser
 
 from deck_control import (ROOT, Controller, autostart_enabled, configure_upstream,
                           save_profiles, set_autostart)
-from agent_deckd import Daemon, validate_config
+from tesserad import Daemon, validate_config
 from deck_assets import Assets
 
 WEB = Path(__file__).with_name('editor')
@@ -28,7 +28,7 @@ def editor_build_id():
     """Fingerprint every file cached or imported by the long-lived editor."""
     digest = hashlib.sha256()
     files = [Path(__file__), ROOT / 'host/deck_control.py', ROOT / 'host/deck_assets.py',
-             ROOT / 'host/agent_deckd.py', ROOT / 'host/action_packs.json',
+             ROOT / 'host/tesserad.py', ROOT / 'host/action_packs.json',
              WEB / 'index.html', WEB / 'style.css', WEB / 'app.js']
     for path in files:
         digest.update(path.name.encode('utf-8'))
@@ -55,7 +55,7 @@ def activate_window(pid):
                 length = user32.GetWindowTextLengthW(hwnd)
                 title = ctypes.create_unicode_buffer(length + 1)
                 user32.GetWindowTextW(hwnd, title, length + 1)
-                if title.value == 'Agent Deck':
+                if title.value == 'Tessera':
                     found.append(hwnd)
                     return False
             return True
@@ -84,16 +84,16 @@ def icon_ids():
 def action_pack_catalog():
     catalog = json.loads((ROOT / 'host/action_packs.json').read_text(encoding='utf-8'))
     if catalog.get('version') != 1 or not isinstance(catalog.get('packs'), list) or not isinstance(catalog.get('templates'), list):
-        raise ValueError('Ugyldig handlingspakke')
+        raise ValueError('Invalid action pack')
     for index, pack in enumerate(catalog['packs'], 1):
-        profile = {'match': [], 'pages': {'hoved': [{
+        profile = {'match': [], 'pages': {'main': [{
             'id': 1, 'label': pack.get('name', ''), 'icon': pack.get('icon', 'ok'),
             'color': pack.get('color', '#35D07F'), 'actions': pack.get('actions', [])}]}}
         validate_config({'default_profile': 'pakke', 'profiles': {'pakke': profile}})
         pack['id'] = f'pack-{index}'
     for template in catalog['templates']:
         if not isinstance(template.get('description'), str):
-            raise ValueError('Profilmalen mangler beskrivelse')
+            raise ValueError('The profile template needs a description')
         validate_config({'default_profile': template.get('name'),
                          'profiles': {template.get('name'): template.get('profile')}})
     return catalog
@@ -104,11 +104,11 @@ def open_window(url):
     if os.name == 'nt':
         try:
             import webview
-            window = webview.create_window('Agent Deck', url, width=1500, height=980,
+            window = webview.create_window('Tessera', url, width=1500, height=980,
                                            min_size=(1050, 720), maximized=True,
                                            background_color='#101719', text_select=True)
             webview.start(private_mode=True, storage_path=str(ROOT / 'host/.webview-data'),
-                          icon=str(ROOT / 'host/agent-deck.ico'))
+                          icon=str(ROOT / 'host/tessera.ico'))
             return True
         except Exception:
             pass
@@ -192,33 +192,34 @@ class Editor:
 
     def read(self):
         raw = self.path.read_bytes()
-        return {'config': validate_config(json.loads(raw)), 'revision': hashlib.sha256(raw).hexdigest()}
+        config = validate_config(json.loads(raw))
+        return {'config': self.assets.heal(config), 'revision': hashlib.sha256(raw).hexdigest()}
 
     def save(self, data):
         with self.lock:
             previous = self.read()
             if data.get('revision') != previous['revision']:
-                raise Conflict('Oppsettet er endret i et annet vindu. Last inn på nytt før du lagrer.')
+                raise Conflict('The configuration was changed in another window. Reload before saving.')
             config = data['config']
             validate_config(config)
             # Bound editor-only fields before they reach the shared action engine.
             for name, profile in config['profiles'].items():
                 if not name.strip() or len(name) > 100:
-                    raise ValueError('Bruk et profilnavn på 1–100 tegn')
+                    raise ValueError('Use a profile name of 1-100 characters')
                 if any(not isinstance(item, str) for item in profile.get('match', [])):
-                    raise ValueError('Programregler må være tekst')
+                    raise ValueError('Program rules must be text')
                 for page, buttons in profile['pages'].items():
                     if not page.strip() or len(page) > 100:
-                        raise ValueError('Bruk et sidenavn på 1–100 tegn')
+                        raise ValueError('Use a page name of 1-100 characters')
                     for button in buttons:
                         icon = button.get('icon', 'ok')
                         if not isinstance(icon, str):
-                            raise ValueError('Ikonet må være et navn')
+                            raise ValueError('The icon must be a name')
                         if icon.startswith('lc:') and icon not in icon_ids():
-                            raise ValueError('Ikonet finnes ikke i den installerte ikonpakken')
+                            raise ValueError('The icon is not in the installed icon pack')
                         for action in button.get('actions', []):
                             if action['type'] == 'delay' and type(action.get('ms', 100)) is not int:
-                                raise ValueError('Forsinkelse må være et helt antall millisekunder')
+                                raise ValueError('The delay must be a whole number of milliseconds')
             backup = self.path.with_name(self.path.stem + '-previous.local.json')
             save_profiles(previous['config'], backup)
             save_profiles(config, self.path)
@@ -233,15 +234,15 @@ class Editor:
 
     def program_details(self, target, allowed_only=True):
         if not isinstance(target, str) or not target.strip() or len(target) > 2048:
-            raise ValueError('Velg et gyldig program')
+            raise ValueError('Choose a valid program')
         path = Path(target)
         programs = installed_programs()
         allowed = {item['target'] for item in programs}
         if allowed_only and target not in allowed:
-            raise ValueError('Programmet finnes ikke i den lokale programlisten')
+            raise ValueError('The program is not in the local program list')
         store_app = target.startswith('shell:AppsFolder\\')
         if not store_app and (not path.is_file() or path.suffix.lower() not in ('.exe', '.lnk', '.cmd', '.bat')):
-            raise ValueError('Velg en lokal programfil eller snarvei')
+            raise ValueError('Choose a local program file or shortcut')
         resolved = target if store_app else shortcut_target(path)
         process = Path(resolved).name if Path(resolved).suffix.lower() == '.exe' else ''
         if store_app:
@@ -273,7 +274,7 @@ class Editor:
         for key, limit in (('favorites', 512), ('recent', 24)):
             values = data.get(key, [])
             if not isinstance(values, list) or len(values) > limit or any(not isinstance(v, str) or v not in icon_ids() for v in values):
-                raise ValueError('Ugyldig ikonliste')
+                raise ValueError('Invalid icon list')
             result[key] = list(dict.fromkeys(values))
         with self.lock:
             temporary = path.with_suffix('.tmp')
@@ -286,45 +287,45 @@ class Editor:
             config = self.read()['config']
             profile, page = data.get('profile'), data.get('page')
             if profile not in config['profiles'] or page not in config['profiles'][profile]['pages']:
-                raise ValueError('Velg en gyldig profil og side')
+                raise ValueError('Choose a valid profile and page')
             path = ROOT / 'host/deck-command.local.json'
             temporary = path.with_suffix('.tmp')
             with self.lock:
                 temporary.write_text(json.dumps({'profile': profile, 'page': page}), encoding='utf-8')
                 temporary.replace(path)
-            return {'message': 'Siden er sendt til verten. Panelet oppdateres når USB er tilkoblet.'}
+            return {'message': 'The page was sent to the host. The panel updates when USB is connected.'}
         if command in ('start', 'stop'):
             output = []
             with self.lock:
                 getattr(self.controller, command)(emit=output.append)
-            return {'message': 'Verten er startet.' if command == 'start' else 'Verten er stoppet.'}
+            return {'message': 'The host has started.' if command == 'start' else 'The host has stopped.'}
         if command == 'terminal':
-            subprocess.Popen([sys.executable, str(ROOT / 'host/agent_deck_terminal.py')], cwd=ROOT,
+            subprocess.Popen([sys.executable, str(ROOT / 'host/tessera_terminal.py')], cwd=ROOT,
                              creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
-            return {'message': 'Deck-terminalen er åpnet.'}
+            return {'message': 'The deck terminal has been opened.'}
         if command == 'autostart':
             enabled = data.get('enabled')
             if type(enabled) is not bool:
-                raise ValueError('Velg om automatisk oppstart skal være av eller på')
+                raise ValueError('Choose whether automatic startup is on or off')
             set_autostart(enabled)
-            return {'message': ('USB-verten starter automatisk ved innlogging.' if enabled
-                                else 'Automatisk oppstart er slått av.')}
+            return {'message': ('The USB host starts automatically at sign-in.' if enabled
+                                else 'Automatic startup is turned off.')}
         if command == 'pick':
             kind = data.get('kind', 'file')
             if kind not in ('file', 'program'):
-                raise ValueError('Ukjent filvelger')
+                raise ValueError('Unknown file picker')
             result = subprocess.run([sys.executable, str(ROOT / 'host/editor_file_picker.py'), kind],
                                     capture_output=True, text=True, encoding='utf-8', timeout=180,
                                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             if result.returncode:
-                raise ValueError('Filvelgeren kunne ikke åpnes. Du kan lime inn stien i feltet.')
+                raise ValueError('The file picker could not be opened. You can paste the path into the field.')
             path = result.stdout.strip()
             if kind == 'program' and path:
                 return self.program_details(path, allowed_only=False)
             return {'path': path}
         if command == 'program':
             return self.program_details(data.get('target', ''))
-        raise ValueError('Ukjent kommando')
+        raise ValueError('Unknown command')
 
 
 def make_server(editor, port=0, token=None):
@@ -354,11 +355,11 @@ def make_server(editor, port=0, token=None):
         def allowed(self):
             host = f'127.0.0.1:{self.server.server_port}'
             if self.headers.get('Host') != host:
-                self.json({'error': 'Ugyldig lokal adresse'}, 403)
+                self.json({'error': 'Invalid local address'}, 403)
                 return False
             origin = self.headers.get('Origin')
             if origin and origin != 'http://' + host:
-                self.json({'error': 'Ugyldig avsender'}, 403)
+                self.json({'error': 'Invalid origin'}, 403)
                 return False
             return True
 
@@ -377,11 +378,11 @@ def make_server(editor, port=0, token=None):
                 return
             if self.path.startswith('/api/image/'):
                 if not self.authenticated():
-                    return self.json({'error': 'Ugyldig økt'}, 401)
+                    return self.json({'error': 'Invalid session'}, 401)
                 try:
                     raw = editor.assets.preview(self.path.removeprefix('/api/image/'))
                 except (ValueError, OSError):
-                    return self.json({'error': 'Bildet finnes ikke'}, 404)
+                    return self.json({'error': 'The image does not exist'}, 404)
                 self.send_response(200)
                 self.headers_common()
                 self.send_header('Content-Type', 'image/png')
@@ -390,7 +391,7 @@ def make_server(editor, port=0, token=None):
                 return self.wfile.write(raw)
             if self.path in ('/api/config', '/api/status', '/api/icons', '/api/action-packs', '/api/export', '/api/processes', '/api/programs'):
                 if not self.authenticated():
-                    return self.json({'error': 'Åpne editoren fra Agent-Deck.cmd'}, 401)
+                    return self.json({'error': 'Open the editor from Tessera.cmd'}, 401)
                 try:
                     if self.path == '/api/export':
                         config = editor.read()['config']
@@ -409,10 +410,10 @@ def make_server(editor, port=0, token=None):
                         return self.json(action_pack_catalog())
                     return self.json(editor.read() if self.path == '/api/config' else dict(icon_catalog(), preferences=editor.icon_preferences()) if self.path == '/api/icons' else editor.status())
                 except (ValueError, OSError, TypeError):
-                    return self.json({'error': 'Kunne ikke lese lokalt oppsett'}, 400)
+                    return self.json({'error': 'Could not read the local configuration'}, 400)
             files = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css'}
             if self.path not in files:
-                return self.json({'error': 'Ikke funnet'}, 404)
+                return self.json({'error': 'Not found'}, 404)
             file = WEB / files[self.path]
             raw = file.read_bytes()
             self.send_response(200)
@@ -428,18 +429,18 @@ def make_server(editor, port=0, token=None):
             session = self.path == '/api/session'
             if session:
                 if not secrets.compare_digest(self.headers.get('X-Deck-Token', ''), token):
-                    return self.json({'error': 'Ugyldig økt'}, 403)
+                    return self.json({'error': 'Invalid session'}, 403)
             elif not self.authenticated() or self.headers.get('X-Deck-Request') != '1':
-                return self.json({'error': 'Ugyldig økt'}, 403)
+                return self.json({'error': 'Invalid session'}, 403)
             try:
                 length = int(self.headers.get('Content-Length', 0))
                 if not 0 <= length <= (12 * 1024 * 1024 if self.path == '/api/image' else 1024 * 1024):
-                    return self.json({'error': 'Oppsettet er for stort'}, 413)
+                    return self.json({'error': 'The configuration is too large'}, 413)
                 if self.headers.get_content_type() != 'application/json':
                     return self.json({'error': 'Forventet JSON'}, 415)
-                data = json.loads(self.rfile.read(length), parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Ugyldig tall')))
+                data = json.loads(self.rfile.read(length), parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid number')))
                 if not isinstance(data, dict):
-                    raise ValueError('Ugyldig oppsett')
+                    raise ValueError('Invalid configuration')
                 if session:
                     return self.json({'ok': True}, cookie=True)
                 if self.path == '/api/config':
@@ -450,13 +451,13 @@ def make_server(editor, port=0, token=None):
                     return self.json(editor.assets.import_image(data['data']))
                 if self.path.startswith('/api/command/'):
                     return self.json(editor.command(self.path.removeprefix('/api/command/'), data))
-                return self.json({'error': 'Ikke funnet'}, 404)
+                return self.json({'error': 'Not found'}, 404)
             except Conflict as exc:
                 self.json({'error': str(exc)}, 409)
             except (ValueError, KeyError, TypeError, AttributeError, RecursionError) as exc:
-                self.json({'error': str(exc) if isinstance(exc, ValueError) else 'Ugyldig oppsett'}, 400)
+                self.json({'error': str(exc) if isinstance(exc, ValueError) else 'Invalid configuration'}, 400)
             except (OSError, subprocess.SubprocessError):
-                self.json({'error': 'Operasjonen kunne ikke fullføres. Kontroller oppsettet i terminalen.'}, 400)
+                self.json({'error': 'The operation could not be completed. Check the configuration in the terminal.'}, 400)
 
     server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     server.daemon_threads = True
@@ -468,14 +469,14 @@ def make_server(editor, port=0, token=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--terminal', action='store_true')
-    parser.add_argument('--editor', action='store_true', help='Åpne grafisk dra-og-slipp-editor')
+    parser.add_argument('--editor', action='store_true', help='Open the graphical drag-and-drop editor')
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--no-browser', action='store_true')
     parser.add_argument('--port', type=int, default=0)
     parser.add_argument('--profiles', type=Path)
     args = parser.parse_args()
     if args.terminal or args.check:
-        return subprocess.call([sys.executable, str(ROOT / 'host/agent_deck_terminal.py')]
+        return subprocess.call([sys.executable, str(ROOT / 'host/tessera_terminal.py')]
                                + (['--check'] if args.check else []), cwd=ROOT)
     configure_upstream()
     controller = Controller()
@@ -512,7 +513,7 @@ def main():
         import psutil
         record.write_text(json.dumps({'pid': os.getpid(), 'created': psutil.Process().create_time(),
                                       'url': url, 'token': server.token, 'build': build}), encoding='utf-8')
-    print('Agent Deck-editoren er åpnet. Behold dette vinduet åpent.', flush=True)
+    print('The Tessera editor is open. Keep this window open.', flush=True)
     server_thread = None
     try:
         if not args.no_browser:

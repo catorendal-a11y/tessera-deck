@@ -1,4 +1,4 @@
-"""Start the Agent Deck USB host without opening the editor."""
+"""Start the Tessera USB host without opening the editor."""
 from deck_control import Controller
 
 

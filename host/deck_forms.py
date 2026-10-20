@@ -15,7 +15,7 @@ class ActionForm(ModalScreen):
     ActionForm Horizontal {height: 3; align: right middle;}
     ActionForm Button {margin-left: 1;}
     '''
-    BINDINGS = [('escape', 'cancel', 'Avbryt')]
+    BINDINGS = [('escape', 'cancel', 'Cancel')]
 
     def __init__(self, title, fields=(), note='', **_):
         super().__init__(); self.caption=title; self.fields=list(fields); self.note=note
@@ -28,7 +28,7 @@ class ActionForm(ModalScreen):
                 for key,label,kind,value,choices in self.fields:
                     yield Static(label, markup=False)
                     if kind == 'bool':
-                        yield Select([('Ja', True), ('Nei', False)], value=bool(value),
+                        yield Select([('Ja', True), ('No', False)], value=bool(value),
                                      allow_blank=False, id='field-'+key)
                     elif kind == 'select':
                         yield Select(choices, value=value if value not in (None,'') else Select.NULL, id='field-'+key)
@@ -36,8 +36,8 @@ class ActionForm(ModalScreen):
                         yield Input(str(value or ''), password=kind=='secret', id='field-'+key)
             yield Static('', id='form-error', markup=False)
             with Horizontal():
-                yield Button('Avbryt', id='cancel')
-                yield Button('Lagre', id='submit', variant='success')
+                yield Button('Cancel', id='cancel')
+                yield Button('Save', id='submit', variant='success')
 
     def action_cancel(self): self.dismiss(None)
     def on_button_pressed(self,event):

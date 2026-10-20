@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agent Deck action engine and sole USB owner."""
+"""Tessera action engine and sole USB owner."""
 import argparse
 import ctypes
 import json
@@ -15,8 +15,10 @@ import time
 import urllib.request
 import zlib
 import psutil
+from control_api import ControlServer
 from deck_assets import Assets
-from system_stats import SystemStats
+from host_runtime import InstanceLock, remember_port, resolve_port, session_locked
+from system_stats import SystemStats, gauge_state
 
 try:
     import serial
@@ -30,17 +32,23 @@ VK = {'ctrl': 0x11, 'control': 0x11, 'shift': 0x10, 'alt': 0x12,
       'home': 36, 'end': 35, 'pageup': 33, 'pagedown': 34,
       'left': 37, 'up': 38, 'right': 39, 'down': 40,
       'comma': 0xbc, 'period': 0xbe, 'slash': 0xbf, 'grave': 0xc0,
-      'lbracket': 0xdb, 'rbracket': 0xdd,
+      'lbracket': 0xdb, 'rbracket': 0xdd, 'minus': 0xbd, 'equals': 0xbb,
+      'semicolon': 0xba, 'quote': 0xde, 'backslash': 0xdc,
+      'insert': 45, 'printscreen': 44, 'apps': 0x5d, 'capslock': 20,
       'volumemute': 0xad, 'volumedown': 0xae, 'volumeup': 0xaf,
       'playpause': 0xb3, 'medianext': 0xb0, 'mediaprev': 0xb1, 'mediastop': 0xb2}
 VK.update({c: ord(c.upper()) for c in 'abcdefghijklmnopqrstuvwxyz0123456789'})
+VK.update({f'numpad{i}': 0x60 + i for i in range(10)})
 VK.update({f'f{i}': 0x6f + i for i in range(1, 25)})
+# Navigation keys must carry KEYEVENTF_EXTENDEDKEY or some apps read them as numpad keys.
+EXTENDED_VK = frozenset({33, 34, 35, 36, 37, 38, 39, 40, 44, 45, 46, 0x5b, 0x5d})
+KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP = 1, 2
 
 
 def parse_hotkey(combo):
     parts = [p.strip().lower() for p in combo.split('+')]
     if not parts or any(p not in VK for p in parts):
-        raise ValueError(f'Ukjent hurtigtast: {combo!r}')
+        raise ValueError(f'Unknown hotkey: {combo!r}')
     return [VK[p] for p in parts]
 
 
@@ -98,15 +106,19 @@ def _key(vk=0, scan=0, flags=0):
         raise OSError('Windows avviste tastetrykket (kontroller appens rettigheter)')
 
 
+def _extended_flag(vk):
+    return KEYEVENTF_EXTENDEDKEY if vk in EXTENDED_VK else 0
+
+
 def send_hotkey(combo):
     pressed = []
     try:
         for vk in parse_hotkey(combo):
-            _key(vk=vk)
+            _key(vk=vk, flags=_extended_flag(vk))
             pressed.append(vk)
     finally:
         for vk in reversed(pressed):
-            _key(vk=vk, flags=2)
+            _key(vk=vk, flags=KEYEVENTF_KEYUP | _extended_flag(vk))
 
 
 def send_text(text):
@@ -200,120 +212,227 @@ def matches_foreground(pattern, context):
     return pattern in {name.lower() for name in context.get('processes', [])}
 
 
-def validate_config(config):
+ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
+                 'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
+                 'press': 'id', 'set': 'variable',
+                 'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
+HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
+DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
+UNSET_VARIABLE = re.compile(r'[$][(]var:[A-Za-z0-9_.-]+[)]')
+VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
+COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
+TIME_PATTERN = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d')
+TRIGGER_KINDS = ('startup', 'interval', 'daily', 'file', 'variable')
+
+
+def _check_action(action, pages, profiles):
+    if not isinstance(action, dict) or action.get('type') not in ACTION_FIELDS:
+        raise ValueError('Unknown action')
+    kind = action['type']
+    field = ACTION_FIELDS[kind]
+    if field and field not in action:
+        raise ValueError(f'{kind} is missing {field}')
+    if field and kind not in ('press', 'state') and not isinstance(action[field], str):
+        raise ValueError(f'{kind}: {field} must be text')
+    if kind == 'press' and (type(action['id']) is not int or not 1 <= action['id'] <= 18):
+        raise ValueError('press: id must be 1..18')
+    if kind == 'state':
+        _check_state_action(action)
+    if kind == 'hotkey':
+        parse_hotkey(action['keys'])
+    if kind == 'open' and (type(action.get('reuse', False)) is not bool
+                           or not isinstance(action.get('process', ''), str)
+                           or len(action.get('process', '')) > 260):
+        raise ValueError('Invalid program setting')
+    if kind in ('page', 'folder') and action['page'] not in pages:
+        raise ValueError(f'Unknown page: {action["page"]}')
+    if kind == 'profile' and action['profile'] not in profiles:
+        raise ValueError(f'Unknown profile: {action["profile"]}')
+    if kind == 'delay' and (type(action.get('ms', 100)) is not int
+                            or not 0 <= action.get('ms', 100) <= 60000):
+        raise ValueError('delay must be 0..60000 ms')
+    if kind in ('shell', 'http'):
+        timeout = action.get('timeout', 5)
+        if type(timeout) not in (int, float) or not 0 < timeout <= 300:
+            raise ValueError('timeout must be between 0 and 300 seconds')
+    if kind == 'http':
+        _check_http(action)
+
+
+def _check_state_action(action):
+    if type(action['button']) is not int or not 1 <= action['button'] <= 18:
+        raise ValueError('state: button must be 1..18')
+    value = action.get('state', 'next')
+    if value != 'next' and (type(value) is not int or not 0 <= value <= 7):
+        raise ValueError("state: state must be 'next' or 0..7")
+
+
+def _check_http(action):
+    headers = action.get('headers', {})
+    if (action.get('method', 'GET') not in HTTP_METHODS
+            or not isinstance(headers, dict)
+            or any(not isinstance(key, str) or not isinstance(value, str)
+                   for key, value in headers.items())
+            or not isinstance(action.get('body', ''), str)):
+        raise ValueError('Invalid HTTP setup')
+
+
+def _check_actions(actions, pages, profiles):
+    if not isinstance(actions, list):
+        raise ValueError('actions must be a list')
+    for action in actions:
+        _check_action(action, pages, profiles)
+
+
+def _check_color(value, message):
+    if not isinstance(value, str) or not COLOR_PATTERN.fullmatch(value):
+        raise ValueError(message)
+
+
+def _check_status(status):
+    if not isinstance(status, dict) or not isinstance(status.get('var'), str) or not VARIABLE_NAME.fullmatch(status['var']):
+        raise ValueError('status needs a variable name')
+    colors = status.get('colors', {})
+    if not isinstance(colors, dict) or any(not isinstance(value, str) or not COLOR_PATTERN.fullmatch(value)
+                                           for value in colors.values()):
+        raise ValueError('status.colors must map values to #RRGGBB colors')
+
+
+GAUGE_FORMATS = ('int', 'ghz', 'gb', 'rate', 'uptime', 'live')
+
+
+def _check_gauge(gauge):
+    if not isinstance(gauge, dict) or not isinstance(gauge.get('key'), str) or not gauge['key']:
+        raise ValueError('gauge needs a sensor key')
+    for name in ('max', 'warn', 'critical'):
+        value = gauge.get(name)
+        if name in gauge and (type(value) not in (int, float) or (name == 'max' and value <= 0)):
+            raise ValueError(f'gauge.{name} must be a number' + (' above 0' if name == 'max' else ''))
+    if gauge.get('fmt', 'int') not in GAUGE_FORMATS or gauge.get('scale', 'linear') not in ('linear', 'log'):
+        raise ValueError('Invalid gauge format or scale')
+    if not isinstance(gauge.get('unit', ''), str) or len(gauge.get('unit', '')) > 3:
+        raise ValueError('gauge.unit must be at most 3 characters')
+    if 'percent_key' in gauge and not isinstance(gauge['percent_key'], str):
+        raise ValueError('gauge.percent_key must be text')
+
+
+def _check_button(button, pages, profiles):
+    if not isinstance(button.get('label'), str) or not button['label'].strip():
+        raise ValueError('The button needs a name')
+    if not isinstance(button.get('icon', 'ok'), str) or len(button.get('icon', 'ok')) > 100:
+        raise ValueError('Invalid button icon')
+    _check_color(button.get('color', '#35D07F'), 'Invalid button color')
+    if 'gauge' in button:
+        _check_gauge(button['gauge'])
+    if 'status' in button:
+        _check_status(button['status'])
+    _check_actions(button.get('actions', []), pages, profiles)
+    states = button.get('states', [])
+    if not isinstance(states, list) or len(states) > 8 or (states and len(states) < 2):
+        raise ValueError('A toggle button needs 2-8 states')
+    for state in states:
+        if not isinstance(state, dict):
+            raise ValueError('Invalid button state')
+        _check_actions(state.get('actions', []), pages, profiles)
+        _check_color(state.get('color', '#35D07F'), 'Invalid state color')
+    title = button.get('title', {})
+    if (not isinstance(title, dict) or title.get('size', 16) not in (16, 20, 24, 28)
+            or title.get('position', 'bottom') not in ('top', 'middle', 'bottom', 'hidden')):
+        raise ValueError('Invalid text setting')
+
+
+def _check_button_list(name, buttons, pages, profiles):
+    if not isinstance(buttons, list) or not 0 <= len(buttons) <= 18:
+        raise ValueError(f'{name}: use 0..18 buttons')
+    ids = set()
+    for button in buttons:
+        if not isinstance(button, dict):
+            raise ValueError('Each button must be an object')
+        bid = button.get('id')
+        if type(bid) is not int or not 1 <= bid <= 18 or bid in ids:
+            raise ValueError(f'{name}: invalid or duplicate id')
+        ids.add(bid)
+        _check_button(button, pages, profiles)
+
+
+def _check_profile(name, profile, profiles):
+    pages = profile.get('pages') if isinstance(profile, dict) else None
+    if not isinstance(pages, dict) or not pages:
+        raise ValueError(f'{name} has no pages')
+    patterns = profile.get('match', [])
+    if not isinstance(patterns, list) or any(not isinstance(p, str) or not p.strip() for p in patterns):
+        raise ValueError('match must be a list of program names')
+    if any(not isinstance(page, str) or not page.strip() or len(page) > 100 for page in pages):
+        raise ValueError('Page names must be 1-100 characters')
+    for page_name, buttons in list(pages.items()) + [('Pinned buttons', profile.get('pinned', []))]:
+        _check_button_list(page_name, buttons, pages, profiles)
+
+
+def _check_trigger(trigger, pages, profiles):
+    spec = trigger.get('when', {}) if isinstance(trigger, dict) else None
+    if not isinstance(spec, dict):
+        raise ValueError('Invalid trigger')
+    kind = spec.get('type')
+    if kind not in TRIGGER_KINDS:
+        raise ValueError('Unknown trigger')
+    if kind == 'interval' and (type(spec.get('seconds')) is not int or spec['seconds'] < 1):
+        raise ValueError('interval needs seconds > 0')
+    at = spec.get('at', '')
+    if kind == 'daily' and not (isinstance(at, str) and TIME_PATTERN.fullmatch(at)):
+        raise ValueError('daily needs at as HH:MM')
+    if kind in ('file', 'variable') and not spec.get('path' if kind == 'file' else 'name'):
+        raise ValueError('Trigger is missing a path or variable name')
+    _check_actions(trigger.get('actions', []), pages, profiles)
+
+
+def _check_display(display):
+    if not isinstance(display, dict):
+        raise ValueError('display must be an object')
+    limits = {'brightness': (1, 100), 'dim_after': (0, 86400), 'dim_level': (0, 100)}
+    for key, value in display.items():
+        if key not in limits:
+            raise ValueError(f'Unknown display setting: {key}')
+        low, high = limits[key]
+        if type(value) is not int or not low <= value <= high:
+            raise ValueError(f'display.{key} must be a whole number from {low} to {high}')
+
+
+def _validate_config(config):
     profiles = config.get('profiles') if isinstance(config, dict) else None
     if not isinstance(profiles, dict) or not profiles:
-        raise ValueError('Oppsettet må ha minst én profil')
-    default = config.get('default_profile', next(iter(profiles)))
-    if default not in profiles:
-        raise ValueError('Ukjent standardprofil')
+        raise ValueError('The configuration needs at least one profile')
+    if config.get('default_profile', next(iter(profiles))) not in profiles:
+        raise ValueError('Unknown default profile')
     if any(not isinstance(name, str) or not name.strip() or len(name) > 100 for name in profiles):
-        raise ValueError('Profilnavn må inneholde 1–100 tegn')
-    action_fields = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
-                     'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
-                     'press': 'id', 'set': 'variable',
-                     'folder': 'page', 'back': None, 'home': None}
-    def check_actions(actions, pages):
-        if not isinstance(actions, list):
-            raise ValueError('actions må være en liste')
-        for action in actions:
-            if not isinstance(action, dict) or action.get('type') not in action_fields:
-                raise ValueError('Ukjent handling')
-            kind = action['type']
-            field = action_fields[kind]
-            if field and field not in action:
-                raise ValueError(f'{kind} mangler {field}')
-            if field and kind != 'press' and not isinstance(action[field], str):
-                raise ValueError(f'{kind}: {field} må være tekst')
-            if kind == 'press' and (type(action['id']) is not int or not 1 <= action['id'] <= 18):
-                raise ValueError('press: id må være 1..18')
-            if kind == 'hotkey':
-                parse_hotkey(action['keys'])
-            if kind == 'open' and (type(action.get('reuse', False)) is not bool
-                                   or not isinstance(action.get('process', ''), str)
-                                   or len(action.get('process', '')) > 260):
-                raise ValueError('Ugyldig programinnstilling')
-            if kind in ('page', 'folder') and action['page'] not in pages:
-                raise ValueError(f'Ukjent side: {action["page"]}')
-            if kind == 'profile' and action['profile'] not in profiles:
-                raise ValueError(f'Ukjent profil: {action["profile"]}')
-            if kind == 'delay' and (type(action.get('ms', 100)) is not int
-                                    or not 0 <= action.get('ms', 100) <= 60000):
-                raise ValueError('delay må være 0..60000 ms')
-            if kind in ('shell', 'http') and (not isinstance(action.get('timeout', 5), (int, float))
-                                               or not 0 < action.get('timeout', 5) <= 300):
-                raise ValueError('timeout må være mellom 0 og 300 sekunder')
-            if kind == 'http' and (action.get('method', 'GET') not in ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
-                                   or not isinstance(action.get('headers', {}), dict)
-                                   or any(not isinstance(key, str) or not isinstance(value, str)
-                                          for key, value in action.get('headers', {}).items())):
-                raise ValueError('Ugyldig HTTP-oppsett')
+        raise ValueError('Profile names must be 1-100 characters')
     for name, profile in profiles.items():
-        pages = profile.get('pages') if isinstance(profile, dict) else None
-        if not isinstance(pages, dict) or not pages:
-            raise ValueError(f'{name} mangler sider')
-        if (not isinstance(profile.get('match', []), list)
-                or any(not isinstance(pattern, str) or not pattern.strip() for pattern in profile.get('match', []))):
-            raise ValueError('match må være en liste med programnavn')
-        if any(not isinstance(page_name, str) or not page_name.strip() or len(page_name) > 100 for page_name in pages):
-            raise ValueError('Sidenavn må inneholde 1–100 tegn')
-        for page_name, buttons in list(pages.items()) + [('Festede knapper', profile.get('pinned', []))]:
-            if not isinstance(buttons, list) or not 0 <= len(buttons) <= 18:
-                raise ValueError(f'{page_name}: bruk 0..18 knapper')
-            ids = set()
-            for button in buttons:
-                if not isinstance(button, dict):
-                    raise ValueError('Hver knapp må være et objekt')
-                bid = button.get('id')
-                if type(bid) is not int or not 1 <= bid <= 18 or bid in ids:
-                    raise ValueError(f'{page_name}: ugyldig eller duplisert id')
-                ids.add(bid)
-                if not isinstance(button.get('label'), str) or not button['label'].strip():
-                    raise ValueError('Knappen mangler navn')
-                if not isinstance(button.get('icon', 'ok'), str) or len(button.get('icon', 'ok')) > 100:
-                    raise ValueError('Ugyldig knappikon')
-                if not re.fullmatch(r'#[0-9a-fA-F]{6}', button.get('color', '#35D07F')):
-                    raise ValueError('Ugyldig knappfarge')
-                check_actions(button.get('actions', []), pages)
-                states = button.get('states', [])
-                if not isinstance(states, list) or len(states) > 8 or (states and len(states) < 2):
-                    raise ValueError('En veksleknapp trenger 2–8 tilstander')
-                for state in states:
-                    if not isinstance(state, dict):
-                        raise ValueError('Ugyldig knappetilstand')
-                    check_actions(state.get('actions', []), pages)
-                    if not re.fullmatch(r'#[0-9a-fA-F]{6}', state.get('color', '#35D07F')):
-                        raise ValueError('Ugyldig tilstandsfarge')
-                title = button.get('title', {})
-                if not isinstance(title, dict) or title.get('size', 16) not in (16, 20, 24, 28) or title.get('position', 'bottom') not in ('top', 'middle', 'bottom', 'hidden'):
-                    raise ValueError('Ugyldig tekstinnstilling')
+        _check_profile(name, profile, profiles)
     if type(config.get('auto_profiles', True)) is not bool:
-        raise ValueError('auto_profiles må være av eller på')
+        raise ValueError('auto_profiles must be on or off')
+    _check_display(config.get('display', {}))
     triggers = config.get('triggers', [])
     if not isinstance(triggers, list):
-        raise ValueError('triggers må være en liste')
+        raise ValueError('triggers must be a list')
+    # Triggers run in the active profile, so any profile's page is a valid target.
+    all_pages = {page for profile in profiles.values() for page in profile['pages']}
     for trigger in triggers:
-        if not isinstance(trigger, dict):
-            raise ValueError('Ugyldig trigger')
-        spec = trigger.get('when', {})
-        kind = spec.get('type')
-        if kind not in ('startup', 'interval', 'daily', 'file', 'variable'):
-            raise ValueError('Ukjent trigger')
-        if kind == 'interval' and (type(spec.get('seconds')) is not int or spec['seconds'] < 1):
-            raise ValueError('interval trenger seconds > 0')
-        if kind == 'daily' and not re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d', spec.get('at', '')):
-            raise ValueError('daily trenger at som HH:MM')
-        if kind in ('file', 'variable') and not spec.get('path' if kind == 'file' else 'name'):
-            raise ValueError('Trigger mangler sti eller variabelnavn')
-        check_actions(trigger.get('actions', []), profiles[default]['pages'])
+        _check_trigger(trigger, all_pages, profiles)
     return config
+
+
+def validate_config(config):
+    """Validate a config; every malformed input surfaces as ValueError."""
+    try:
+        return _validate_config(config)
+    except (TypeError, AttributeError, KeyError, RecursionError) as exc:
+        raise ValueError(f'Invalid configuration: {exc}') from exc
 
 
 class PanelSerial:
     """Serialized writes and byte-based framing retain split UTF-8 and newlines."""
     def __init__(self, port, log):
         if serial is None:
-            raise RuntimeError('Installer host/requirements.txt først')
+            raise RuntimeError('Install host/requirements.txt first')
         self.log = log
         self.write_lock = threading.RLock()
         self.rx = bytearray()
@@ -343,16 +462,15 @@ class PanelSerial:
             self.rx.clear()
             raise OSError('For lang USB-melding')
         result = []
-        while b'\n' in self.rx:
-            line, _, rest = self.rx.partition(b'\n')
-            self.rx = bytearray(rest)
-            result.append(line.decode('utf-8', 'replace').strip())
+        while (end := self.rx.find(b'\n')) >= 0:
+            result.append(bytes(self.rx[:end]).decode('utf-8', 'replace').strip())
+            del self.rx[:end + 1]
         return result
 
     def push_buttons(self, buttons):
         payload = json.dumps({'buttons': buttons}, ensure_ascii=True, separators=(',', ':'))
         if len(payload.encode()) > 8192:
-            raise ValueError('Knappeoppsettet er for stort')
+            raise ValueError('The button layout is too large')
         with self.write_lock:
             self.cfg_done.clear()
             self.send_line('AD_CFG_BEGIN')
@@ -360,7 +478,7 @@ class PanelSerial:
                 self.send_line('AD_CFG_DATA ' + payload[i:i+380])
             self.send_line('AD_CFG_END')
             if not self.cfg_done.wait(4):
-                raise TimeoutError('Panelet bekreftet ikke knappeoppsettet')
+                raise TimeoutError('The panel did not acknowledge the button layout')
             if not self.cfg_reply.startswith('AD_CFG_END OK'):
                 raise ValueError(self.cfg_reply)
 
@@ -388,7 +506,7 @@ class PanelSerial:
                     time.sleep(.01)
                 self.send_line('AD_IMG_END')
                 if not self.asset_done.wait(15):
-                    raise TimeoutError('Panelet bekreftet ikke bildet')
+                    raise TimeoutError('The panel did not acknowledge the image')
                 if self.asset_reply != 'AD_IMG_END OK ' + name:
                     raise ValueError(self.asset_reply)
                 self.assets_sent.add(name)
@@ -414,6 +532,7 @@ class Daemon:
         self.panel = None
         self.connection_failed = threading.Event()
         self.active_press = []
+        self.state_set_by_action = set()
         self.folder_stack = []
         self.button_states = {}
         self.profile_stamp = Path(args.profiles).stat().st_mtime_ns
@@ -424,6 +543,12 @@ class Daemon:
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
         self.stats_scan_at = 0.0
+        self.assets = Assets(args.profiles)
+        self.port = args.port
+        self.dimmed = False
+        self.locked = False
+        self.last_activity = time.monotonic()
+        self.device_state_path = Path(args.profiles).with_name('deck-device.local.json')
 
     @staticmethod
     def load_profiles(path):
@@ -442,9 +567,12 @@ class Daemon:
         now = time.time()
         if not force and now - self.runtime_written < 1.5:
             return
+        buttons = self.current_buttons()
+        gauges = {str(item['id']): dict(item['gauge'], color=item['color']) for item in buttons if 'gauge' in item}
         state = {'pid': os.getpid(), 'updated': now, 'connected': bool(connected),
-                 'port': self.args.port, 'profile': self.profile, 'page': self.page,
-                 'buttons': len(self.current_buttons()), 'error': str(error)[:180] if error else None,
+                 'port': self.port, 'profile': self.profile, 'page': self.page, 'gauges': gauges,
+                 'dimmed': self.dimmed,
+                 'buttons': len(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'agents': self.agents, 'stats': self.stats.display,
                  'last_action': self.last_action}
@@ -459,7 +587,7 @@ class Daemon:
     def variables(self):
         return dict(time=time.strftime('%H:%M'), date=time.strftime('%d.%m'),
                     profile=self.profile, page=self.page,
-                    **{f'agent:{name}': 'PÅ' if running else 'AV'
+                    **{f'agent:{name}': 'ON' if running else 'OFF'
                        for name, running in self.agents.items()},
                     **{f'stat:{name}': value for name, value in self.stats.display.items()},
                     **{f'var:{k}': str(v) for k, v in self.custom_vars.items()})
@@ -467,7 +595,7 @@ class Daemon:
     def substitute(self, text):
         for key, value in self.variables().items():
             text = text.replace(f'$({key})', value)
-        return text
+        return UNSET_VARIABLE.sub('', text)  # a variable nobody has set yet renders empty
 
     def effective_buttons(self):
         item = self.config['profiles'][self.profile]
@@ -475,10 +603,34 @@ class Daemon:
         values.update({b['id']: b for b in item.get('pinned', [])})
         return list(values.values())
 
+    def state_key(self, button):
+        pinned = button in self.config['profiles'][self.profile].get('pinned', [])
+        return (self.profile, '*' if pinned else self.page, button['id'])
+
     def resolved_button(self, button):
         states = button.get('states', [])
-        index = self.button_states.get((self.profile, '*' if button in self.config['profiles'][self.profile].get('pinned', []) else self.page, button['id']), 0)
+        index = self.button_states.get(self.state_key(button), 0)
         return dict(button, **states[index % len(states)]) if states else button
+
+    def set_button_state(self, button_id, value):
+        """Set a toggle button's state ('next' or a 0-based index) and refresh the panel."""
+        button = next((b for b in self.effective_buttons() if b['id'] == button_id), None)
+        if button is None:
+            raise ValueError(f'Button {button_id} does not exist on this page')
+        states = button.get('states', [])
+        if not states:
+            raise ValueError(f'Button {button_id} has no states')
+        key = self.state_key(button)
+        index = (self.button_states.get(key, 0) + 1) % len(states) if value == 'next' else value
+        if not 0 <= index < len(states):
+            raise ValueError(f'Button {button_id} has no state {index + 1}')
+        self.button_states[key] = index
+        self.state_set_by_action.add(key)
+        self.push_page()
+
+    def resolve_icon(self, button):
+        """Icon the panel can show; 'app' and missing images come from the open action."""
+        return self.assets.icon_for(button)
 
     def current_buttons(self):
         result = []
@@ -493,30 +645,80 @@ class Daemon:
                     color = '#FF5252'
                 elif value is not None and value >= spec.get('warn', float('inf')):
                     color = '#FFB74D'
-            result.append(dict(
+            status = button.get('status')
+            if isinstance(status, dict):
+                color = status.get('colors', {}).get(str(self.custom_vars.get(status['var'], '')), color)
+            entry = dict(
                 id=button['id'], label=label.encode('utf-8')[:24].decode('utf-8', 'ignore'),
-                icon=button.get('icon', 'ok'), color=color, title=button.get('title', {})))
+                icon=self.resolve_icon(button), color=color, title=button.get('title', {}))
+            if isinstance(button.get('gauge'), dict):
+                state = gauge_state(button['gauge'], self.stats.raw, color)
+                entry.update(color=state['color'], gauge={'p': state['p'], 't': state['t']})
+            result.append(entry)
         return result
+
+    def display_settings(self):
+        display = self.config.get('display', {})
+        return {'brightness': display.get('brightness', 100),
+                'dim_after': display.get('dim_after', DEFAULT_DIM_AFTER),
+                'dim_level': display.get('dim_level', 10)}
+
+    def apply_brightness(self):
+        self.panel.send_line(f'AD_BRIGHTNESS {self.display_settings()["brightness"]}')
+        self.dimmed = False
+
+    def wake_display(self):
+        self.last_activity = time.monotonic()
+        if self.dimmed:
+            self.log('Panel woke')
+        self.dimmed = False
+        self.panel.send_line('AD_DISPLAY_WAKE')
+
+    def dim_display(self, reason):
+        self.panel.send_line(f'AD_DISPLAY_DIM {self.display_settings()["dim_level"]}')
+        self.dimmed = True
+        self.log(f'Panel dimmed {reason}')
+
+    def lock_tick(self, locked):
+        """Dim when Windows locks and wake on unlock; only when auto-dim is enabled."""
+        if locked == self.locked:
+            return
+        self.locked = locked
+        if self.panel is None or not self.display_settings()['dim_after']:
+            return
+        if locked and not self.dimmed:
+            self.dim_display('because Windows is locked')
+        elif not locked and self.dimmed:
+            self.wake_display()
+
+    def idle_tick(self, now):
+        """Dim the panel once after dim_after seconds without a press."""
+        settings = self.display_settings()
+        if (not settings['dim_after'] or self.dimmed or self.panel is None
+                or now - self.last_activity < settings['dim_after']):
+            return
+        self.dim_display(f'after {settings["dim_after"]} s without a press')
 
     def push_page(self, force=False):
         buttons = self.current_buttons()
         payload = json.dumps(buttons, sort_keys=True)
         if force or payload != self.last_push:
             if hasattr(self.panel, 'push_assets'):
-                self.panel.push_assets(buttons, Assets(self.args.profiles))
-            self.panel.send_line('AD_DISPLAY_WAKE')
+                self.panel.push_assets(buttons, self.assets)
+            if not self.dimmed:
+                self.panel.send_line('AD_DISPLAY_WAKE')
             self.panel.push_buttons(buttons)
             self.panel.send_line('AD_CONTEXT ' + json.dumps({'profile': self.profile, 'page': self.page,
                                                              'canBack': bool(self.folder_stack)}))
             self.last_push = payload
-            self.log(f'{self.profile} / {self.page}: {len(buttons)} knapper bekreftet')
+            self.log(f'{self.profile} / {self.page}: {len(buttons)} buttons acknowledged')
 
     def switch_page(self, page, folder=False):
         if page not in self.config['profiles'][self.profile]['pages']:
-            raise ValueError(f'Ukjent side: {page}')
+            raise ValueError(f'Unknown page: {page}')
         if folder:
             if len(self.folder_stack) >= 16:
-                raise ValueError('Mappene er mer enn 16 nivåer dype')
+                raise ValueError('Folders are nested more than 16 levels deep')
             self.folder_stack.append(self.page)
         else:
             self.folder_stack.clear()
@@ -526,7 +728,7 @@ class Daemon:
 
     def switch_profile(self, profile, auto=False):
         if profile not in self.config['profiles']:
-            raise ValueError(f'Ukjent profil: {profile}')
+            raise ValueError(f'Unknown profile: {profile}')
         if profile != self.profile:
             self.folder_stack.clear()
             self.profile = profile
@@ -589,43 +791,47 @@ class Daemon:
             self.switch_profile(action['profile'])
         elif kind == 'press':
             if not self.dispatch_press(int(action['id'])):
-                raise ValueError('Underordnet knapp feilet')
+                raise ValueError('The child button failed')
+        elif kind == 'state':
+            self.set_button_state(action['button'], action.get('state', 'next'))
         elif kind == 'set':
             self.custom_vars[action['variable']] = self.substitute(str(action.get('value', '')))
             self.push_page()
         else:
-            raise ValueError(f'Ukjent handling: {kind}')
+            raise ValueError(f'Unknown action: {kind}')
         return True
 
     def dispatch_press(self, button_id):
         identity = (self.profile, self.page, button_id)
         if identity in self.active_press or len(self.active_press) >= 16:
-            raise ValueError('Sirkulær knappehandling')
+            raise ValueError('Circular button action')
         buttons = self.effective_buttons()
         button = next((b for b in buttons if b['id'] == button_id), None)
         if button is None:
-            self.last_action = {'id': button_id, 'label': 'Ukjent knapp', 'ok': False,
-                                'error': 'Knappen finnes ikke på aktiv side', 'at': time.time()}
+            self.last_action = {'id': button_id, 'label': 'Unknown button', 'ok': False,
+                                'error': 'The button does not exist on the active page', 'at': time.time()}
             self.panel.feedback(button_id, False)
             self.publish_runtime(True, force=True)
             return False
+        if not self.active_press:
+            self.state_set_by_action.clear()
         self.active_press.append(identity)
-        state_key = (self.profile, '*' if button in self.config['profiles'][self.profile].get('pinned', []) else self.page, button_id)
+        state_key = self.state_key(button)
         resolved = self.resolved_button(button)
         ok, error = False, ''
         try:
-            self.log(f'Knapp {button_id}: {button["label"]}')
+            self.log(f'Button {button_id}: {button["label"]}')
             for action in resolved.get('actions', []):
                 if self.stop.is_set():
-                    raise RuntimeError('Avslutter')
+                    raise RuntimeError('Stopping')
                 self.run_action(action)
-            if button.get('states'):
+            if button.get('states') and state_key not in self.state_set_by_action:
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
                 self.push_page()
             ok = True
         except Exception as exc:
             error = str(exc)[:180]
-            self.log(f'Handling feilet: {exc}')
+            self.log(f'Action failed: {exc}')
         finally:
             self.active_press.pop()
             self.last_action = {'id': button_id, 'label': button['label'], 'ok': ok,
@@ -640,7 +846,7 @@ class Daemon:
         try:
             self.jobs.put_nowait(job)
         except queue.Full:
-            self.log('Handlingskøen er full; trykket ble avvist')
+            self.log('The action queue is full; the press was rejected')
 
     def reader_loop(self, panel):
         try:
@@ -666,11 +872,49 @@ class Daemon:
                         self.log('Panel: ' + line[:200])
         except (OSError, ValueError, TypeError, AttributeError) as exc:
             if not self.stop.is_set():
-                self.log(f'USB frakoblet: {exc}')
+                self.log(f'USB disconnected: {exc}')
                 self.publish_runtime(False, exc, force=True)
         finally:
             if panel is self.panel:
                 self.connection_failed.set()
+
+    def handle_job(self, job):
+        kind = job[0]
+        if kind == 'press':
+            if self.dimmed:
+                self.wake_display()  # the press that wakes the panel is not an action
+                return
+            self.last_activity = time.monotonic()
+            current = next((b for b in self.current_buttons() if b['id'] == job[1]), None)
+            if current and (job[2] is None or job[2] == current['label']):
+                self.dispatch_press(job[1])
+        elif kind == 'profile':
+            self.switch_profile(job[1], auto=True)
+        elif kind == 'page':
+            self.switch_page(job[1])
+        elif kind == 'actions':
+            for action in job[1]:
+                self.run_action(action)
+        elif kind == 'push':
+            self.push_page()
+        elif kind == 'force-push':
+            self.push_page(force=True)
+        elif kind == 'brightness':
+            self.apply_brightness()
+        elif kind == 'var':
+            self.custom_vars[job[1]] = str(job[2])
+            self.push_page()
+        elif kind == 'state':
+            self.set_button_state(job[1], job[2])
+        elif kind == 'feedback':
+            self.panel.feedback(job[1], job[2])
+        elif kind == 'api-press':
+            self.wake_display()
+            self.dispatch_press(job[1])
+        elif kind == 'dim':
+            self.dim_display('by request')
+        elif kind == 'wake':
+            self.wake_display()
 
     def worker_loop(self):
         while not self.stop.is_set():
@@ -680,26 +924,10 @@ class Daemon:
                 continue
             try:
                 with self.state_lock:
-                    if self.connection_failed.is_set() or self.panel is None:
-                        continue
-                    if job[0] == 'press':
-                        buttons = self.current_buttons()
-                        current = next((b for b in buttons if b['id'] == job[1]), None)
-                        if current and (job[2] is None or job[2] == current['label']):
-                            self.dispatch_press(job[1])
-                    elif job[0] == 'profile':
-                        self.switch_profile(job[1], auto=True)
-                    elif job[0] == 'page':
-                        self.switch_page(job[1])
-                    elif job[0] == 'actions':
-                        for action in job[1]:
-                            self.run_action(action)
-                    elif job[0] == 'push':
-                        self.push_page()
-                    elif job[0] == 'force-push':
-                        self.push_page(force=True)
+                    if not (self.connection_failed.is_set() or self.panel is None):
+                        self.handle_job(job)
             except Exception as exc:
-                self.log(f'Handling feilet: {exc}')
+                self.log(f'Action failed: {exc}')
             finally:
                 self.jobs.task_done()
 
@@ -781,13 +1009,13 @@ class Daemon:
         try:
             self.stats.sample()
         except (OSError, ValueError, TypeError, struct.error) as exc:
-            self.log(f'Systemsensorer: {exc}')
+            self.log(f'System sensors: {exc}')
 
     def reload_profiles(self):
         try:
             stamp = Path(self.args.profiles).stat().st_mtime_ns
         except OSError as exc:
-            self.log(f'Oppsettet er midlertidig utilgjengelig; beholder forrige: {exc}')
+            self.log(f'The configuration is temporarily unavailable; keeping the previous one: {exc}')
             return
         if stamp == self.profile_stamp:
             return
@@ -795,7 +1023,7 @@ class Daemon:
         try:
             config = self.load_profiles(self.args.profiles)
         except (ValueError, OSError) as exc:
-            self.log(f'Oppsettet ble avvist; beholder forrige: {exc}')
+            self.log(f'The configuration was rejected; keeping the previous one: {exc}')
             return
         with self.state_lock:
             self.config = config
@@ -807,9 +1035,12 @@ class Daemon:
             self.folder_stack.clear()
             self.button_states.clear()
             self.enqueue(('force-push',))
+            self.enqueue(('brightness',))
 
     def run(self):
         threading.Thread(target=self.worker_loop, daemon=True).start()
+        self.api = ControlServer(self, Path(self.args.profiles).with_name('deck-api.local.json'))
+        self.api.start()
         # Standalone Deck host: the USB owner only handles buttons and assets.
         startup_fired = False
         try:
@@ -817,7 +1048,7 @@ class Daemon:
                 stop_path = Path(__file__).with_name('deck-stop.local.json')
                 if stop_path.exists():
                     try:
-                        if json.loads(stop_path.read_text()).get('pid') == os.getpid():
+                        if json.loads(stop_path.read_text(encoding='utf-8')).get('pid') == os.getpid():
                             self.stop.set()
                             continue
                     except (ValueError, OSError):
@@ -827,32 +1058,39 @@ class Daemon:
                         self.panel.close()
                     self.panel = None
                     try:
-                        self.panel = self.panel_factory(self.args.port, self.log)
+                        self.port = resolve_port(self.args.port, self.device_state_path)
+                        self.panel = self.panel_factory(self.port, self.log)
+                        remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
                         with self.state_lock:
+                            self.last_activity = time.monotonic()
+                            self.apply_brightness()
                             self.push_page(force=True)
                         self.publish_runtime(True, force=True)
-                        self.log(f'USB klar på {self.args.port}')
+                        self.log(f'USB ready on {self.port}')
                         if not startup_fired:
                             self.fire_trigger({'type': 'startup'})
                             startup_fired = True
                     except (OSError, ValueError, TimeoutError) as exc:
-                        self.log(f'USB: {exc}; prøver igjen om 2 sekunder')
+                        self.log(f'USB: {exc}; retrying in 2 seconds')
                         self.publish_runtime(False, exc, force=True)
                         self.connection_failed.set()
                         self.stop.wait(2)
                         continue
                 now = time.monotonic()
-                self.agent_tick(now)
-                self.stats_tick(now)
-                self.focus_tick()
-                self.reload_profiles()
+                for tick in (lambda: self.agent_tick(now), lambda: self.stats_tick(now),
+                             self.focus_tick, self.reload_profiles):
+                    try:
+                        tick()
+                    except Exception as exc:
+                        self.log(f'Background task failed: {exc!r}')
                 command_path = Path(__file__).with_name('deck-command.local.json')
                 if command_path.exists():
                     try:
-                        command = json.loads(command_path.read_text())
+                        command = json.loads(command_path.read_text(encoding='utf-8'))
                         if command.get('profile') in self.config['profiles']:
+                            self.enqueue(('wake',))
                             self.enqueue(('profile', command['profile']))
                             if command.get('page') in self.config['profiles'][command['profile']]['pages']:
                                 self.enqueue(('page', command['page']))
@@ -861,6 +1099,8 @@ class Daemon:
                         pass
                 with self.state_lock:
                     self.trigger_tick(time.monotonic())
+                    self.lock_tick(session_locked())
+                    self.idle_tick(time.monotonic())
                 self.publish_runtime(self.panel is not None and not self.connection_failed.is_set())
                 self.enqueue(('push',))
                 self.stop.wait(1)
@@ -868,7 +1108,8 @@ class Daemon:
             pass
         finally:
             self.stop.set()
-            self.publish_runtime(False, 'Verten er stoppet', force=True)
+            self.api.stop()
+            self.publish_runtime(False, 'The host has stopped', force=True)
             if self.panel:
                 self.panel.close()
 
@@ -879,14 +1120,21 @@ def main():
     parser.add_argument('--profiles', default=str(Path(__file__).with_name('profiles.json')))
     parser.add_argument('--no-focus', action='store_true')
     parser.add_argument('--selftest', '--validate', dest='validate', action='store_true',
-                        help='Valider oppsettet uten USB eller tastetrykk')
+                        help='Validate the configuration without USB or key presses')
     parser.add_argument('-v', '--verbose', action='store_true')
     args = parser.parse_args()
     Daemon.load_profiles(args.profiles)
     if args.validate:
-        print('Oppsett og hurtigtaster er gyldige. Ingen handlinger er kjørt.')
+        print('Configuration and hotkeys are valid. No actions were run.')
         return
-    Daemon(args).run()
+    lock = InstanceLock(Path(__file__).with_name('deck-host.local.lock'))
+    if not lock.acquire():
+        print('Another Tessera host is already running; exiting.')
+        return
+    try:
+        Daemon(args).run()
+    finally:
+        lock.release()
 
 
 if __name__ == '__main__':

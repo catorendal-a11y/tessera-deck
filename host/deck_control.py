@@ -1,4 +1,4 @@
-"""Lifecycle for the local Agent Deck USB host."""
+"""Lifecycle for the local Tessera USB host."""
 import hashlib
 import json
 import os
@@ -15,8 +15,8 @@ def startup_script_path(appdata=None):
     """Return the per-user Windows Startup shortcut script."""
     base = Path(appdata or os.environ.get('APPDATA', ''))
     if not str(base):
-        raise OSError('Windows sin oppstartsmappe er ikke tilgjengelig')
-    return base / 'Microsoft/Windows/Start Menu/Programs/Startup/Agent Deck Host.vbs'
+        raise OSError('The Windows startup folder is not available')
+    return base / 'Microsoft/Windows/Start Menu/Programs/Startup/Tessera.vbs'
 
 
 def autostart_enabled(appdata=None):
@@ -24,20 +24,20 @@ def autostart_enabled(appdata=None):
 
 
 def set_autostart(enabled, appdata=None):
-    """Start only the background USB host after the user signs in."""
+    """Start the tray app (which starts the USB host) after the user signs in."""
     if os.name != 'nt' and appdata is None:
-        raise OSError('Automatisk oppstart støttes bare på Windows')
+        raise OSError('Automatic startup is only supported on Windows')
     path = startup_script_path(appdata)
     if not enabled:
         path.unlink(missing_ok=True)
         return path
     pythonw = ROOT / 'host/.venv/Scripts/pythonw.exe'
     if not pythonw.is_file():
-        raise OSError('Kjør Agent-Deck.cmd én gang før automatisk oppstart aktiveres')
-    starter = ROOT / 'host/start_host.py'
+        raise OSError('Run Tessera.cmd once before enabling automatic startup')
+    starter = ROOT / 'host/tessera_tray.py'
     command = f'"{pythonw}" "{starter}"'.replace('"', '""')
-    contents = ('Set AgentDeckShell = CreateObject("WScript.Shell")\r\n'
-                f'AgentDeckShell.Run "{command}", 0, False\r\n')
+    contents = ('Set TesseraShell = CreateObject("WScript.Shell")\r\n'
+                f'TesseraShell.Run "{command}", 0, False\r\n')
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix('.tmp')
     temporary.write_text(contents, encoding='utf-8')
@@ -50,7 +50,7 @@ def configure_upstream():
 
 
 def save_profiles(config, path=None):
-    from agent_deckd import validate_config
+    from tesserad import validate_config
     validate_config(config)
     path = Path(path or ROOT / 'host/profiles.json')
     text = json.dumps(config, ensure_ascii=False, indent=2) + '\n'
@@ -71,13 +71,13 @@ class Controller:
             process = psutil.Process(saved['pid'])
             command = process.cmdline()
             if (abs(process.create_time() - saved['created']) < .01 and len(command) > 1
-                    and Path(command[1]).resolve() == ROOT / 'host/agent_deckd.py'):
+                    and Path(command[1]).resolve() == ROOT / 'host/tesserad.py'):
                 # Windows venv Python can keep a launcher process above the
                 # interpreter. Track the actual daemon PID used by status/stop.
                 matching = [process]
                 for child in process.children(recursive=True):
                     arguments = child.cmdline()
-                    if len(arguments) > 1 and Path(arguments[1]).resolve() == ROOT / 'host/agent_deckd.py':
+                    if len(arguments) > 1 and Path(arguments[1]).resolve() == ROOT / 'host/tesserad.py':
                         matching.append(child)
                 actual = matching[-1]
                 if actual.pid != saved['pid']:
@@ -89,11 +89,11 @@ class Controller:
 
     def status(self):
         processes = self.processes()
-        result = {'running': bool(processes), 'connection': 'Verten er stoppet',
-                  'device': {'connected': False, 'port': os.environ.get('AGENT_DECK_PORT', 'COM4')}}
+        result = {'running': bool(processes), 'connection': 'The host has stopped',
+                  'device': {'connected': False, 'port': os.environ.get('TESSERA_PORT', 'COM4')}}
         if not processes:
             return result
-        result['connection'] = 'Venter på enheten'
+        result['connection'] = 'Waiting for the device'
         try:
             runtime = json.loads(self.runtime_path.read_text(encoding='utf-8'))
             if runtime.get('pid') != processes[0].pid or time.time() - float(runtime.get('updated', 0)) > 5:
@@ -102,22 +102,23 @@ class Controller:
                                      ('connected', 'port', 'profile', 'page', 'buttons', 'error',
                                       'foreground', 'auto_profile', 'last_action')})
             result['agents'] = runtime.get('agents', {})
-            result['connection'] = ('Panel tilkoblet' if runtime.get('connected')
-                                    else runtime.get('error') or 'Venter på enheten')
+            result['device']['gauges'] = runtime.get('gauges', {})
+            result['connection'] = ('Panel connected' if runtime.get('connected')
+                                    else runtime.get('error') or 'Waiting for the device')
         except (OSError, ValueError, TypeError):
             pass
         return result
 
     def start(self, root=None, emit=lambda _: None):
         if self.processes():
-            emit('Deck-verten kjører allerede.')
+            emit('The deck host is already running.')
             return
-        port = os.environ.get('AGENT_DECK_PORT', 'COM4')
-        from agent_deckd import Daemon
+        port = os.environ.get('TESSERA_PORT', 'COM4')
+        from tesserad import Daemon
         Daemon.load_profiles(ROOT / 'host/profiles.json')
         log = (ROOT / 'host/deck.local.log').open('ab')
         try:
-            process = subprocess.Popen([sys.executable, str(ROOT / 'host/agent_deckd.py'), '--port', port],
+            process = subprocess.Popen([sys.executable, str(ROOT / 'host/tesserad.py'), '--port', port],
                 cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
                 env=dict(os.environ, PYTHONUTF8='1', PYTHONUNBUFFERED='1'),
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
@@ -129,7 +130,7 @@ class Controller:
         if process.poll() is not None:
             raise RuntimeError('Host failed to start; open the Deck log')
         self.processes()
-        emit(f'Deck-verten er startet på {port}.')
+        emit(f'The deck host has started on {port}.')
 
     def stop(self, root=None, emit=lambda _: None):
         processes = self.processes()
@@ -142,7 +143,7 @@ class Controller:
         if alive:
             raise RuntimeError('Host did not stop; no new owner was started')
         self.stop_path.unlink(missing_ok=True)
-        emit('Deck-verten er stoppet. USB er frigitt.')
+        emit('The deck host has stopped. USB is released.')
 
     def install_adapters(self):
         return None
@@ -150,12 +151,12 @@ class Controller:
 
 def firmware_files(kind):
     build = ROOT / 'build/idf6'
-    files = [(0x10000, build / 'agent_deck.bin')]
+    files = [(0x10000, build / 'tessera.bin')]
     if kind == 'install':
         files = [(0x2000, build / 'bootloader/bootloader.bin'),
                  (0x8000, build / 'partition_table/partition-table.bin')] + files
     if any(not path.is_file() for _, path in files):
-        raise ValueError('Build the Agent Deck firmware first')
+        raise ValueError('Build the Tessera firmware first')
     return [(offset, path, hashlib.sha256(path.read_bytes()).hexdigest()) for offset, path in files]
 
 

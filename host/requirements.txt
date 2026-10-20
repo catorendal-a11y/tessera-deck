@@ -4,3 +4,5 @@ textual==8.2.8
 esptool==5.4.0
 Pillow>=12.3,<13
 pywebview>=6.1,<7
+pywin32>=311; sys_platform == "win32"
+pystray>=0.19.5
