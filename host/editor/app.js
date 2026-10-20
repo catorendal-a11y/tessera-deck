@@ -526,7 +526,7 @@ function openTemplates() {
 function newPage(link=false,index=0) {dialog(link?'Create a subpage':'New page',[{name:'name',label:'Page name',required:true}],values=>{
   const name=values.name.trim();if(!name||config.profiles[profile].pages[name])throw new Error('Choose a new page name.');
   mutate(()=>{config.profiles[profile].pages[name]=[];if(link){activeActions()[index].page=name;activeActions()[index].type='folder';
-    config.profiles[profile].pages[name].push({id:1,label:'Back',icon:'home',color:'#A3B2BC',actions:[{type:'back'}]});}else page=name;});renderPages();
+    config.profiles[profile].pages[name].push({id:17,label:'Back',icon:'home',color:'#A3B2BC',actions:[{type:'back'}]});}else page=name;});renderPages();
 });}
 function renameProfile(old,name) {
   if(name===old)return;
