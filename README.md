@@ -24,11 +24,16 @@ A small Windows host owns the USB connection, runs the actions and serves a drag
 shows exactly what the panel shows.
 
 > [!IMPORTANT]
-> **Made for one board:** the [Espressif **ESP32-P4 Function EV Board**](https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4-function-ev-board/user_guide.html)
-> with its 7" 1024 × 600 MIPI-DSI touch display (JD9165 panel, GT911 touch). The firmware, pin setup and
-> screen layout are written for this exact kit, so other ESP32 boards or displays will not work without porting.
-> Tessera is developed and tested on the kit from [this AliExpress listing](https://www.aliexpress.com/item/1005010022828767.html).
+> **Made for one board:** the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
+> capacitive multi-touch screen), bought from [this AliExpress listing](https://www.aliexpress.com/item/1005010022828767.html).
+> The firmware runs on Espressif's ESP32-P4 Function EV Board support package, and the pin setup and screen layout
+> are written for this exact kit, so other ESP32 boards or displays will not work without porting.
 > You also need a Windows 10/11 PC and a USB cable to the board's USB Serial/JTAG port.
+
+<p align="center">
+  <img src="docs/images/board.jpg" alt="The GUITION 7-inch ESP32-P4 display dev board Tessera is made for" width="420"><br>
+  <sub>The board Tessera is made for (image from the seller's listing).</sub>
+</p>
 
 ## Highlights
 
@@ -76,7 +81,7 @@ green or red flash on the key. Everything is local: the editor and the control A
 
 | Part | Notes |
 |---|---|
-| Board | ESP32-P4 Function EV Board |
+| Board | GUITION 7-inch ESP32-P4 display dev board (ESP32-P4 + ESP32-C6) |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Connection | USB cable to the board's USB Serial/JTAG port — no Wi-Fi is needed |
 | PC | Windows 10/11, Python 3.11 or newer |
