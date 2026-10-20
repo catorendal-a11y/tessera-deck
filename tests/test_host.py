@@ -552,13 +552,19 @@ class HostTests(unittest.TestCase):
             tray.set_brightness(40, profiles)
             self.assertEqual(json.loads(profiles.read_text(encoding='utf-8'))['display']['brightness'], 40)
 
-    def test_tray_icon_renders_for_every_state(self):
+    def test_tray_icon_is_a_four_tile_mosaic_whose_last_tile_shows_the_status(self):
         import tessera_tray as tray
-        for state in tray.STATE_COLORS:
-            icon = tray.make_icon(state)
-            self.assertEqual(icon.size, (64, 64))
-            self.assertEqual(icon.getpixel((60, 60))[:3], (9, 16, 20), state) if False else None
-            self.assertIn(tray.STATE_COLORS[state] + (255,), [icon.getpixel((x, y)) for x in range(40, 62) for y in range(40, 62)])
+        for size in (16, 20, 24, 32, 48, 64):
+            tiles = tray.icon_tiles(size)
+            self.assertEqual(len(tiles), 4)
+            self.assertTrue(all(edge >= 3 for _x, _y, edge in tiles), f'tiles too small at {size}px')
+            self.assertTrue(all(x >= 1 and y >= 1 and x + edge <= size - 1 and y + edge <= size - 1
+                                for x, y, edge in tiles), f'tiles leave the icon at {size}px')
+            for state, color in tray.STATE_COLORS.items():
+                icon = tray.make_icon(state, size)
+                self.assertEqual(icon.size, (size, size))
+                centers = [icon.getpixel((x + edge // 2, y + edge // 2))[:3] for x, y, edge in tiles]
+                self.assertEqual(centers, [tray.TILE_COLOR] * 3 + [color], f'{state} at {size}px')
 
     def test_runtime_file_publishes_live_gauges_for_the_active_page(self):
         with tempfile.TemporaryDirectory() as directory:

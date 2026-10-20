@@ -57,21 +57,31 @@ def write_command(command: dict, path: Path = COMMAND_PATH) -> None:
     os.replace(temporary, path)
 
 
+TILE_COLOR = (88, 224, 155)
+PLATE_COLOR = (23, 35, 41)
+
+
+def icon_tiles(size: int) -> list[tuple[int, int, int]]:
+    """Top-left corner and edge length of the four mosaic tiles for an icon of this size."""
+    inset = max(2, round(size * 0.19))
+    gap = max(1, round(size * 0.09))
+    tile = (size - 2 * inset - gap) // 2
+    start = (size - (2 * tile + gap)) // 2
+    near, far = start, start + tile + gap
+    return [(near, near, tile), (far, near, tile), (near, far, tile), (far, far, tile)]
+
+
 def make_icon(state: str, size: int = 64) -> Image.Image:
-    """A small deck grid with a status dot in the corner."""
+    """The Tessera mark: a tiny mosaic of four tiles; the last tile shows the host status.
+
+    Bold shapes only, so it stays readable when Windows scales it down to 16 px.
+    """
     image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((2, 2, size - 3, size - 3), radius=size // 6, fill=(23, 35, 41, 255),
-                           outline=(88, 224, 155, 255), width=max(2, size // 22))
-    cell, gap, margin = size // 6, size // 14, size // 5
-    for row in range(3):
-        for column in range(3):
-            x = margin + column * (cell + gap)
-            y = margin + row * (cell + gap)
-            draw.rounded_rectangle((x, y, x + cell, y + cell), radius=max(1, cell // 4), fill=(232, 244, 239, 255))
-    radius = size // 5
-    draw.ellipse((size - 2 * radius - 1, size - 2 * radius - 1, size - 1, size - 1),
-                 fill=STATE_COLORS[state] + (255,), outline=(9, 16, 20, 255), width=max(2, size // 24))
+    draw.rounded_rectangle((0, 0, size - 1, size - 1), radius=max(2, size // 5), fill=PLATE_COLOR + (255,))
+    for index, (x, y, tile) in enumerate(icon_tiles(size)):
+        color = STATE_COLORS[state] if index == 3 else TILE_COLOR
+        draw.rounded_rectangle((x, y, x + tile - 1, y + tile - 1), radius=max(1, tile // 4), fill=color + (255,))
     return image
 
 
