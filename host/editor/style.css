@@ -118,3 +118,20 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .firmware-progress{display:grid;gap:6px;margin:14px 0}
 .firmware-progress progress{width:100%;height:10px;accent-color:var(--accent)}
 .firmware-progress span{font-size:13px}
+
+/* Key colors, test mode, cropper and online icons */
+.deck-key .key-label{color:var(--key-text,#e8f4ef)}
+#test-dialog{width:min(620px,92vw)}
+#test-steps h3{margin:16px 0 6px;font-size:13px;letter-spacing:.6px;color:var(--muted);text-transform:uppercase}
+.test-step{display:flex;gap:10px;align-items:flex-start;padding:7px 10px;margin:4px 0;border-radius:9px;background:#141c20;border:1px solid #26343b;font-size:13px}
+.test-step.ok .test-mark{color:var(--accent)}
+.test-step.bad{border-color:#6b3a3a;background:#241716}
+.test-step.bad .test-mark{color:#ff8a80}
+.test-mark{font-weight:700;width:14px;flex:none}
+#crop-dialog{width:min(420px,92vw)}
+#crop-canvas{display:block;width:100%;max-width:340px;aspect-ratio:1;margin:12px auto;border-radius:14px;border:1px solid #31444d;cursor:grab;touch-action:none;background:#091014}
+#crop-canvas:active{cursor:grabbing}
+.icon-online{display:flex;gap:10px;margin:10px 0 4px}
+.icon-online input{flex:1}
+#iconify-results{margin-bottom:12px;max-height:150px;overflow:auto}
+.icon-choice.online img{display:block;margin:auto}

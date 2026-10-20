@@ -16,6 +16,8 @@ const kinds = {
   http:{name:'HTTP request',icon:'wifi',field:'url',label:'Address',placeholder:'https://…',group:'Advanced'},
   press:{name:'Trigger another button',icon:'loop',field:'id',label:'Button number (1–18)',group:'Advanced'},
   audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
+  counter:{name:'Counter',icon:'plus',field:'name',label:'Counter name',placeholder:'for example laps',group:'On the computer'},
+  timer:{name:'Timer',icon:'pause',field:'name',label:'Timer name',placeholder:'for example tea',group:'On the computer'},
   set:{name:'Set variable',icon:'edit',field:'variable',label:'Variable name',group:'Advanced'},
   state:{name:'Set button state',icon:'loop',field:'button',label:'Button number (1–18)',group:'Advanced'},
   home:{name:'Go home',icon:'home',field:null,label:'Go to the first page of the default profile',group:'Navigation'},
@@ -248,7 +250,9 @@ function panelLabel(value) {
 function resolveLabel(value) {return panelLabel(expandLabel(value));}
 function expandLabel(value) {
   const now=new Date(),two=n=>String(n).padStart(2,'0');
-  const text=String(value||'').replace(/[$][(]([a-z_]+)(?::([A-Za-z0-9_.-]+))?[)]/g,(match,kind,name)=>{
+  const text=String(value||'').replace(/[$][(]([a-z_-]+)(?::([A-Za-z0-9_.-]+))?[)]/g,(match,kind,name)=>{
+    const live=dashboard.variables?.[name?`${kind}:${name}`:kind];
+    if(live!==undefined&&['pc','counter','timer','timer-state'].includes(kind))return String(live);
     if(kind==='agent')return dashboard.agents?.[name]?'ON':'OFF';
     if(kind==='profile'&&!name)return profile;if(kind==='page'&&!name)return page;
     if(kind==='time'&&!name)return `${two(now.getHours())}:${two(now.getMinutes())}`;
@@ -283,6 +287,9 @@ function renderGrid() {
     tile.style.left=`${DEVICE.x+(index%6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.top=`${DEVICE.y+Math.floor(index/6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.setProperty('--key-color',b?.color||'#92edba');
+    if(b?.bg)tile.style.background=b.bg;
+    if(b?.border){tile.style.borderColor=b.border;tile.style.borderWidth='3px';}
+    if(b?.text_color)tile.style.setProperty('--key-text',b.text_color);
     tile.append(text('span',String(id),'slot-number'));
     if(!b)tile.append(text('span','+','empty-plus'));
     else {
@@ -302,7 +309,7 @@ function renderGrid() {
     }
     if(base&&config.profiles[profile].pinned?.includes(base))tile.append(text('span','◆','pin-badge'));
     tile.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});
-    tile.addEventListener('drop',event=>{if(event.dataTransfer.files.length){event.preventDefault();uploadImage(event.dataTransfer.files[0],id).catch(showError);}});
+    tile.addEventListener('drop',event=>{if(event.dataTransfer.files.length){event.preventDefault();chooseImage(event.dataTransfer.files[0],id).catch(showError);}});
     tile.addEventListener('dragstart',event=>{if(!b)return event.preventDefault();event.dataTransfer.setData('application/x-deck-slot',String(id));event.dataTransfer.effectAllowed='move';});
     tile.addEventListener('dragover',event=>{if(Array.from(event.dataTransfer.types).some(t=>['application/x-deck-action','application/x-deck-slot'].includes(t))){event.preventDefault();tile.classList.add('drag-over');event.dataTransfer.dropEffect=Array.from(event.dataTransfer.types).includes('application/x-deck-action')?'copy':'move';}});
     tile.addEventListener('dragleave',()=>tile.classList.remove('drag-over'));
@@ -344,9 +351,11 @@ function actionTemplate(key) {
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic'}[key];
-  const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{})};
-  return {label:k.name,icon:k.icon,actions:[action]};
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer'}[key];
+  const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
+    ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
+  const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':k.name;
+  return {label,icon:k.icon,actions:[action]};
 }
 function addAction(key,id=selected) {
   const item=actionTemplate(key);if(!item)return;
@@ -435,7 +444,7 @@ function renderInspector() {
   const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color'});color.addEventListener('input',()=>{mutate(()=>appearance().color=color.value,false,editKey('color'));panel.querySelector('.selected-icon-image')?.replaceWith(iconVisual(current().icon,color.value,'selected-icon-image'));});appearanceRow.append(color,text('span','Shown on the panel','hint'));panel.append(appearanceRow);
   const selectedIcon=packIcons.get(b.icon);
   panel.append(element('div',{class:'selected-pack-icon'},iconVisual(b.icon,b.color,'selected-icon-image'),element('div',{},text('strong',selectedIcon?.name||iconNames[b.icon]||'Default icon'),button(iconPack?`Choose from ${iconPack.count.toLocaleString('en-US')} icons …`:'Open the large icon library …',openIcons,'text-button'))));
-  const upload=element('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',hidden:'hidden'});upload.onchange=()=>uploadImage(upload.files[0]).catch(showError);panel.append(upload,button('Image from file …',()=>upload.click(),'outline'));
+  const upload=element('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',hidden:'hidden'});upload.onchange=()=>chooseImage(upload.files[0]).catch(showError);panel.append(upload,button('Image from file …',()=>upload.click(),'outline'));
   panel.append(element('div',{class:'title-controls'},field('Text size',String(base.title?.size||16),v=>mutate(()=>{base.title??={};base.title.size=Number(v);}),{values:['16','20','24','28']}),field('Position',base.title?.position||'bottom',v=>mutate(()=>{base.title??={};base.title.position=v;}),{values:[['bottom','Bottom'],['top','Top'],['middle','Middle'],['hidden','Hide text']]})));
   panel.append(element('div',{class:'option-buttons'},button(base.title?.bold?'Bold text ✓':'Bold text',()=>mutate(()=>{base.title??={};base.title.bold=!base.title.bold;}),'outline'),button(config.profiles[profile].pinned?.includes(base)?'◆ Unpin':'◇ Pin to all pages',togglePin,'outline')));
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
@@ -443,13 +452,14 @@ function renderInspector() {
   renderGauge(panel,base);
   renderBind(panel,base);
   renderHold(panel,base);
+  renderStyle(panel);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
   panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+' STEPS','section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
   const addSelect=element('select',{'aria-label':'Add a new action step'});addSelect.append(element('option',{value:'',text:'＋ Add action …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));addSelect.addEventListener('change',()=>{if(addSelect.value)addAction(addSelect.value);});panel.append(addSelect);
-  panel.append(element('div',{class:'inspector-tools'},button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear button',clearButton,'quiet danger')));
+  panel.append(element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear button',clearButton,'quiet danger')));
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
   panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
@@ -461,8 +471,11 @@ function renderHold(panel,base) {
 }
 function renderBind(panel,base) {
   if(!base.states)return;
-  const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing']];
-  panel.append(field('Follow PC state',base.bind||'',value=>mutate(()=>{if(value)base.bind=value;else delete base.bind;}),{values:choices}));
+  const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing'],['__timer','A timer is running …']];
+  if(base.bind?.startsWith('timer-running:'))choices.splice(-1,0,[base.bind,`Timer “${base.bind.slice(14)}” is running`]);
+  panel.append(field('Follow PC state',base.bind||'',value=>mutate(()=>{
+    if(value==='__timer'){const name=(prompt('Name of the timer to follow')||'').trim();if(/^[A-Za-z0-9_.-]{1,64}$/.test(name))base.bind=`timer-running:${name}`;else if(name)toast('Use letters, digits, dots, dashes or underscores.');}
+    else if(value)base.bind=value;else delete base.bind;}),{values:choices}));
   if(base.bind)panel.append(text('p','State 1 shows while the condition is off, state 2 while it is on.','hint'));
 }
 function renderGauge(panel,base) {
@@ -519,7 +532,41 @@ function renderStep(action,index,count) {
     step.append(field('State to set',shown,v=>editAction(index,'state',v==='next'?'next':Number(v)-1),{values:['next',...Array.from({length:8},(_,i)=>String(i+1))]}),
       text('p','Sets the toggle state of another button. Choose next to cycle, or a state number to match reality.','hint'));
   }
+  if(action.type==='counter')renderCounterStep(step,action,index);
+  if(action.type==='timer')renderTimerStep(step,action,index);
   return step;
+}
+function optionalNumber(label,value,onChange) {
+  const input=element('input',{type:'number',step:'1',value:value??'',placeholder:'Off','aria-label':label});
+  input.addEventListener('change',()=>onChange(input.value.trim()===''?null:Math.round(Number(input.value))));
+  return element('label',{},text('span',label),input);
+}
+function setOptional(index,key,value) {mutate(()=>{const action=activeActions()[index];if(value===null||Number.isNaN(value))delete action[key];else action[key]=value;},false,editKey('action',index,key));}
+function renderCounterStep(step,action,index) {
+  const op=action.op||'inc';
+  step.append(field('Operation',op,v=>mutate(()=>{activeActions()[index].op=v;}),{values:[['inc','Add'],['dec','Subtract'],['set','Set to a value'],['reset','Reset']]}));
+  if(op==='inc'||op==='dec')step.append(field('Step',String(action.step??1),v=>editAction(index,'step',Math.max(1,Math.round(Number(v))||1)),{type:'number'}));
+  else step.append(field('Value',String(action.value??0),v=>editAction(index,'value',Math.round(Number(v))||0),{type:'number'}));
+  step.append(optionalNumber('Lowest value (optional)',action.min,v=>setOptional(index,'min',v)),optionalNumber('Highest value (optional)',action.max,v=>setOptional(index,'max',v)));
+  const wrap=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Wrap around'),text('small','Past the highest value it continues at the lowest (needs both limits).')));
+  const box=wrap.querySelector('input');box.checked=!!action.wrap;box.onchange=()=>mutate(()=>{activeActions()[index].wrap=box.checked;},false);step.append(wrap);
+  step.append(text('p',`Show it in a button name with $(counter:${action.name||'name'}). It is saved, so it survives restarts. For a reset on long press, use the Long-press setting.`,'hint'));
+}
+function clockToSeconds(value) {
+  const parts=String(value).trim().split(':').map(Number);if(!parts.length||parts.length>3||parts.some(n=>!Number.isFinite(n)||n<0))return null;
+  return parts.reduce((total,n)=>total*60+n,0)||null;
+}
+function secondsToClock(seconds) {const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60,two=n=>String(n).padStart(2,'0');return h?`${h}:${two(m)}:${two(s)}`:`${two(m)}:${two(s)}`;}
+function renderTimerStep(step,action,index) {
+  step.append(field('Operation',action.op||'toggle',v=>mutate(()=>{activeActions()[index].op=v;}),{values:[['toggle','Start, pause and resume'],['start','Start again from the beginning'],['pause','Pause'],['resume','Resume'],['stop','Stop and reset']]}));
+  step.append(field('Length (mm:ss or h:mm:ss)',secondsToClock(action.seconds||300),v=>{const seconds=clockToSeconds(v);if(seconds&&seconds<=604800)editAction(index,'seconds',seconds);},{placeholder:'05:00'}));
+  step.append(field('Message when finished (optional)',action.notify||'',v=>editAction(index,'notify',v),{placeholder:'for example Tea is ready'}));
+  const sound=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Play a sound when finished')));
+  const box=sound.querySelector('input');box.checked=!!action.sound;box.onchange=()=>mutate(()=>{activeActions()[index].sound=box.checked;},false);step.append(sound);
+  const pressed=action.actions?.find(a=>a.type==='press')?.id;
+  step.append(optionalNumber('When finished, press key (optional, 1-18)',pressed,v=>mutate(()=>{const target=activeActions()[index];if(v>=1&&v<=18)target.actions=[{type:'press',id:v}];else delete target.actions;},false)));
+  step.append(button('◔ Show the countdown ring on this key',()=>mutate(()=>{const base=current();base.gauge={key:`timer:${action.name||'timer'}`,max:action.seconds||300,fmt:'clock'};}),'outline'),
+    text('p',`Show the time in a button name with $(timer:${action.name||'name'}) or the ring above. The timer keeps running while Tessera is closed.`,'hint'));
 }
 function copyButton() {if(!current())return;clipboard=clone(current());toast('The button was copied. Choose a slot and press Ctrl+V.');}
 function pasteButton() {if(!clipboard)return toast('Copy a button first.');mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push({...clone(clipboard),id:selected});});}
@@ -726,7 +773,7 @@ async function start() {
   $('#icons-next').onclick=()=>{iconPage++;renderIconResults();};
   $('#new-page').onclick=()=>newPage();$('#page-options').onclick=pageSettings;$('#profile-options').onclick=profileSettings;
   $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=appSettings;
-  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();};
+  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
   $('#profile-templates').onclick=openTemplates;
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
@@ -822,3 +869,159 @@ async function pollFirmware() {
 $('#firmware-open').onclick = openFirmware;
 $('#firmware-close').onclick = () => $('#firmware-dialog').close();
 $('#firmware-install').onclick = installFirmware;
+
+/* Key colors: an own background, label color and outline per button (or per state of a toggle button). */
+function renderStyle(panel) {
+  const row = (label, key, fallback) => {
+    const input = element('input', {type: 'color', value: appearance()[key] || fallback, 'aria-label': label});
+    input.addEventListener('input', () => mutate(() => { appearance()[key] = input.value.toUpperCase(); }, false, editKey('style', key)));
+    return element('div', {class: 'appearance-row'}, text('span', label, 'hint'), input,
+      button('Default', () => mutate(() => { delete appearance()[key]; }), 'text-button'));
+  };
+  panel.append(element('details', {class: 'quick-icons'}, text('summary', 'Key colors'),
+    row('Background', 'bg', '#172329'), row('Label text', 'text_color', '#E8F4EF'), row('Outline', 'border', '#31444D')));
+}
+
+/* Test mode: what pressing a key would do, explained by the host without running anything. */
+async function testButton(id = selected) {
+  const base = visibleButtons().find(b => b.id === id);
+  if (!base) return toast('Choose a key with an action first.');
+  const holder = base.states ? base.states[id === selected ? Math.min(editState, base.states.length - 1) : 0] : base;
+  const payload = {actions: clone(holder.actions || [])};
+  if (base.hold_actions?.length) payload.hold_actions = clone(base.hold_actions);
+  const result = await api('command/dryrun', payload);
+  const box = $('#test-steps');
+  box.replaceChildren();
+  $('#test-title').textContent = `Test: ${resolveLabel(holder.label || base.label) || `key ${id}`}`;
+  const section = (title, report) => {
+    box.append(text('h3', title));
+    if (!report.steps.length) box.append(text('p', 'No actions.', 'hint'));
+    for (const step of report.steps) box.append(element('div', {class: `test-step ${step.ok ? 'ok' : 'bad'}`}, text('span', step.ok ? '✓' : '✕', 'test-mark'), text('span', `${step.index}. ${step.text}`)));
+    if (report.wait_seconds) box.append(text('p', `Waits ${report.wait_seconds} s in total.`, 'hint'));
+  };
+  section('When pressed', result.actions || {steps: [], wait_seconds: 0});
+  if (result.hold_actions) section('When held', result.hold_actions);
+  $('#test-dialog').showModal();
+}
+
+/* Ambient screen: a big clock (and optional weather) when the panel is idle. */
+function ambientSettings() {
+  $('#more-menu').hidden = true;
+  const ambient = {enabled: false, after: 120, ...(config.ambient || {})}, weather = ambient.weather;
+  const afterChoices = [30, 60, 120, 300, 600].map(v => [String(v), v < 60 ? `${v} seconds` : `${v / 60} min`]);
+  if (!afterChoices.some(([v]) => Number(v) === ambient.after)) afterChoices.push([String(ambient.after), `${ambient.after} seconds`]);
+  const where = weather ? `Currently ${weather.name} in ${weather.unit === 'fahrenheit' ? 'Fahrenheit' : 'Celsius'}. ` : '';
+  dialog('Ambient screen', [
+    {name: 'enabled', label: 'Show a big clock when the panel has been idle', type: 'checkbox', value: ambient.enabled, note: 'Touch the panel to get your keys back. Needs the firmware that ships with this version.'},
+    {name: 'after', label: 'Show it after', options: afterChoices, value: String(ambient.after)},
+    {name: 'city', label: 'Weather for (city, optional)', value: weather?.name || '', note: `${where}Weather comes from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use.`},
+    {name: 'unit', label: 'Temperature unit', options: [['celsius', 'Celsius'], ['fahrenheit', 'Fahrenheit']], value: weather?.unit || 'celsius'}
+  ], values => {
+    const city = values.city.trim(), keep = weather && weather.name === city;
+    mutate(() => {
+      config.ambient = {enabled: values.enabled, after: Number(values.after)};
+      if (keep) config.ambient.weather = {...weather, unit: values.unit};
+    });
+    if (city && !keep) lookupCity(city, values.unit).catch(showError);
+  }, 'Apply');
+}
+async function lookupCity(city, unit) {
+  const {places} = await api('command/weather-search', {query: city});
+  if (!places.length) throw new Error(`No place called “${city}” was found.`);
+  const place = places[0];
+  mutate(() => { config.ambient = {...(config.ambient || {enabled: true, after: 120}), weather: {name: place.name, latitude: place.latitude, longitude: place.longitude, unit}}; });
+  toast(`Weather for ${[place.name, place.region, place.country].filter(Boolean).join(', ')}.`);
+}
+
+/* Images: crop still pictures to the square the key shows; animations are sent as they are. */
+async function chooseImage(file, id = selected) {
+  if (!file) return;
+  if (file.type === 'image/gif' || file.type === 'image/webp') return uploadImage(file, id);
+  const bitmap = await createImageBitmap(file);
+  const blob = await openCropper(bitmap);
+  bitmap.close?.();
+  if (!blob) return;
+  await uploadImage(new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.png`, {type: 'image/png'}), id);
+}
+function openCropper(bitmap) {
+  return new Promise(resolve => {
+    const view = $('#crop-dialog'), canvas = $('#crop-canvas'), context = canvas.getContext('2d'), zoom = $('#crop-zoom');
+    const size = canvas.width, cover = Math.max(size / bitmap.width, size / bitmap.height), stop = new AbortController();
+    let scale = 1, x = (size - bitmap.width * cover) / 2, y = (size - bitmap.height * cover) / 2, drag = null, answer = null;
+    const clamp = () => {
+      const w = bitmap.width * cover * scale, h = bitmap.height * cover * scale;
+      x = Math.min(0, Math.max(size - w, x));
+      y = Math.min(0, Math.max(size - h, y));
+    };
+    const draw = () => {
+      clamp();
+      context.fillStyle = '#091014';
+      context.fillRect(0, 0, size, size);
+      context.drawImage(bitmap, x, y, bitmap.width * cover * scale, bitmap.height * cover * scale);
+    };
+    const setZoom = value => {
+      const w = bitmap.width * cover * scale, h = bitmap.height * cover * scale, cx = (size / 2 - x) / w, cy = (size / 2 - y) / h;
+      scale = Math.min(4, Math.max(1, value));
+      x = size / 2 - cx * bitmap.width * cover * scale;
+      y = size / 2 - cy * bitmap.height * cover * scale;
+      zoom.value = String(Math.round(scale * 100));
+      draw();
+    };
+    const finish = blob => { answer = blob; view.close(); };
+    canvas.addEventListener('pointerdown', event => { drag = {px: event.clientX, py: event.clientY, x, y}; canvas.setPointerCapture(event.pointerId); }, {signal: stop.signal});
+    canvas.addEventListener('pointermove', event => { if (!drag) return; const k = size / canvas.getBoundingClientRect().width; x = drag.x + (event.clientX - drag.px) * k; y = drag.y + (event.clientY - drag.py) * k; draw(); }, {signal: stop.signal});
+    canvas.addEventListener('pointerup', () => { drag = null; }, {signal: stop.signal});
+    canvas.addEventListener('wheel', event => { event.preventDefault(); setZoom(scale + (event.deltaY < 0 ? .1 : -.1)); }, {signal: stop.signal, passive: false});
+    zoom.addEventListener('input', () => setZoom(Number(zoom.value) / 100), {signal: stop.signal});
+    $('#crop-cancel').addEventListener('click', () => finish(null), {signal: stop.signal});
+    $('#crop-use').addEventListener('click', () => {
+      const out = document.createElement('canvas'), k = 144 / size;
+      out.width = out.height = 144;
+      out.getContext('2d').drawImage(bitmap, x * k, y * k, bitmap.width * cover * scale * k, bitmap.height * cover * scale * k);
+      out.toBlob(blob => finish(blob), 'image/png');
+    }, {signal: stop.signal});
+    view.addEventListener('close', () => { stop.abort(); resolve(answer); }, {once: true});
+    zoom.value = '100';
+    draw();
+    view.showModal();
+  });
+}
+
+/* Online icons (Iconify): searched and fetched by the host only when the user asks. */
+async function iconifySearch() {
+  const query = $('#iconify-query').value.trim(), box = $('#iconify-results');
+  $('#iconify-note').hidden = false;
+  box.hidden = false;
+  box.replaceChildren(text('p', 'Searching …', 'hint'));
+  const {icons} = await api('command/iconify-search', {query});
+  box.replaceChildren();
+  if (!icons.length) { box.append(text('p', 'Nothing found online.', 'hint')); return; }
+  const queue = [...icons];
+  const load = async () => {
+    while (queue.length) {
+      const id = queue.shift(), item = button('', () => useOnlineIcon(id).catch(showError), 'icon-choice online', id);
+      box.append(item);
+      try {
+        const {svg} = await api('command/iconify-svg', {id, color: '#FFFFFF'});
+        item.replaceChildren(element('img', {src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, alt: id, width: '36', height: '36'}));
+      } catch { item.textContent = '?'; }
+    }
+  };
+  await Promise.all([load(), load(), load(), load()]);
+}
+async function useOnlineIcon(id) {
+  const {svg} = await api('command/iconify-svg', {id, color: (appearance()?.color || '#FFFFFF').toUpperCase()});
+  const image = new Image();
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  await image.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 144;
+  canvas.getContext('2d').drawImage(image, 0, 0, 144, 144);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  await uploadImage(new File([blob], `${id.replace(':', '-')}.png`, {type: 'image/png'}));
+  $('#icon-dialog').close();
+}
+$('#ambient-open').onclick = ambientSettings;
+$('#test-close').onclick = () => $('#test-dialog').close();
+$('#iconify-search').onclick = () => iconifySearch().catch(showError);
+$('#iconify-query').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); iconifySearch().catch(showError); } });
