@@ -715,7 +715,7 @@ class HostTests(unittest.TestCase):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         daemon = self.daemon()
-        daemon.enqueue = Mock()
+        daemon.submit = Mock()
         daemon.connection_failed = threading.Event()
         info = Path(directory.name) / 'api.json'
         server = ControlServer(daemon, info)
@@ -740,18 +740,17 @@ class HostTests(unittest.TestCase):
     def test_control_api_queues_validated_commands_for_the_daemon(self):
         daemon, server, info = self.api_server()
         self.assertEqual(self.api_call(info, 'POST', '/v1/var', {'name': 'claude', 'value': 'working'})[0], 200)
-        daemon.enqueue.assert_called_with(('var', 'claude', 'working'))
+        daemon.submit.assert_called_with(('var', 'claude', 'working'))
         self.api_call(info, 'POST', '/v1/press', {'button': 3})
-        daemon.enqueue.assert_called_with(('api-press', 3))
+        daemon.submit.assert_called_with(('api-press', 3))
         self.api_call(info, 'POST', '/v1/state', {'button': 2, 'state': 1})
-        daemon.enqueue.assert_called_with(('state', 2, 1))
+        daemon.submit.assert_called_with(('state', 2, 1))
         self.api_call(info, 'POST', '/v1/feedback', {'button': 4, 'ok': False})
-        daemon.enqueue.assert_called_with(('feedback', 4, False))
+        daemon.submit.assert_called_with(('feedback', 4, False))
         self.api_call(info, 'POST', '/v1/display', {'action': 'dim'})
-        daemon.enqueue.assert_called_with(('dim',))
+        daemon.submit.assert_called_with(('dim',))
         self.api_call(info, 'POST', '/v1/page', {'profile': 'coding', 'page': 'git'})
-        daemon.enqueue.assert_any_call(('profile', 'coding'))
-        daemon.enqueue.assert_called_with(('page', 'git'))
+        daemon.submit.assert_called_with(('wake',), ('profile', 'coding'), ('page', 'git'))
 
     def test_control_api_rejects_bad_input_and_unauthorised_callers(self):
         daemon, server, info = self.api_server()
@@ -762,11 +761,11 @@ class HostTests(unittest.TestCase):
                            ('/v1/page', {'page': 'nope'}), ('/v1/nothing', {})):
             with self.subTest(path=path, body=body):
                 self.assertIn(self.api_call(info, 'POST', path, body)[0], (400, 404))
-        daemon.enqueue.assert_not_called()
+        daemon.submit.assert_not_called()
         self.assertEqual(self.api_call(info, 'POST', '/v1/press', {'button': 1}, {'X-Deck-Token': 'wrong'})[0], 401)
         self.assertEqual(self.api_call(info, 'POST', '/v1/press', {'button': 1}, {'Origin': 'http://evil.example'})[0], 403)
         self.assertEqual(self.api_call(info, 'POST', '/v1/press', {'button': 1}, {'Host': 'evil.example'})[0], 403)
-        daemon.enqueue.assert_not_called()
+        daemon.submit.assert_not_called()
 
     def test_control_api_reports_state_and_removes_its_info_file_on_stop(self):
         daemon, server, info = self.api_server()
@@ -781,11 +780,11 @@ class HostTests(unittest.TestCase):
         import deckctl
         daemon, server, info = self.api_server()
         self.assertEqual(deckctl.main(['var', 'claude', 'waiting'], info), 0)
-        daemon.enqueue.assert_called_with(('var', 'claude', 'waiting'))
+        daemon.submit.assert_called_with(('var', 'claude', 'waiting'))
         self.assertEqual(deckctl.main(['state', '3', '2'], info), 0)
-        daemon.enqueue.assert_called_with(('state', 3, 1))
+        daemon.submit.assert_called_with(('state', 3, 1))
         self.assertEqual(deckctl.main(['alert', '5'], info), 0)
-        daemon.enqueue.assert_called_with(('feedback', 5, False))
+        daemon.submit.assert_called_with(('feedback', 5, False))
         self.assertEqual(deckctl.main(['press', '99'], info), 1)
         missing = Path(tempfile.mkdtemp()) / 'none.json'
         self.assertEqual(deckctl.main(['wake'], missing), 1)

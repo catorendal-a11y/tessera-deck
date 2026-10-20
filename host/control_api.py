@@ -11,6 +11,7 @@ import os
 import re
 import secrets
 import threading
+from action_runner import Busy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -46,10 +47,10 @@ class ControlServer:
             raise ApiError('name must be 1-64 letters, digits, dots, dashes or underscores')
         if not isinstance(value, (str, int, float)) or isinstance(value, bool) or len(str(value)) > MAX_VALUE:
             raise ApiError(f'value must be text or a number of at most {MAX_VALUE} characters')
-        self.daemon.enqueue(('var', name, str(value)))
+        self.daemon.submit(('var', name, str(value)))
 
     def press(self, data):
-        self.daemon.enqueue(('api-press', _button(data)))
+        self.daemon.submit(('api-press', _button(data)))
 
     def show_page(self, data):
         config = self.daemon.config['profiles']
@@ -59,32 +60,32 @@ class ControlServer:
         page = data.get('page', next(iter(config[profile]['pages'])))
         if page not in config[profile]['pages']:
             raise ApiError(f'Unknown page: {page}')
-        self.daemon.enqueue(('wake',))
-        self.daemon.enqueue(('profile', profile))
-        self.daemon.enqueue(('page', page))
+        self.daemon.submit(('wake',), ('profile', profile), ('page', page))
 
     def set_state(self, data):
         value = data.get('state', 'next')
         if value != 'next' and (type(value) is not int or not 0 <= value <= 7):
             raise ApiError("state must be 'next' or a whole number from 0 to 7")
-        self.daemon.enqueue(('state', _button(data), value))
+        self.daemon.submit(('state', _button(data), value))
 
     def feedback(self, data):
         if type(data.get('ok', True)) is not bool:
             raise ApiError('ok must be true or false')
-        self.daemon.enqueue(('feedback', _button(data), data.get('ok', True)))
+        self.daemon.submit(('feedback', _button(data), data.get('ok', True)))
 
     def display(self, data):
         action = data.get('action')
         if action not in ('wake', 'dim'):
             raise ApiError("action must be 'wake' or 'dim'")
-        self.daemon.enqueue((action,))
+        self.daemon.submit((action,))
 
     def snapshot(self):
         daemon = self.daemon
         return {'profile': daemon.profile, 'page': daemon.page, 'connected': daemon.panel is not None
                 and not daemon.connection_failed.is_set(), 'dimmed': daemon.dimmed, 'locked': daemon.locked,
-                'variables': dict(daemon.custom_vars), 'agents': dict(daemon.agents)}
+                'variables': dict(daemon.custom_vars), 'agents': dict(daemon.agents),
+                'queue': {'pending': daemon.jobs.qsize(), 'capacity': daemon.jobs.maxsize,
+                          'dropped': daemon.dropped_jobs, 'slow_running': len(daemon.slow_running)}}
 
     # --- HTTP plumbing ---------------------------------------------------------------
     def make_handler(self):
@@ -134,9 +135,11 @@ class ControlServer:
                     if not isinstance(data, dict):
                         raise ApiError('The body must be a JSON object')
                     handler(data)
+                except Busy as exc:
+                    return self.reply(503, {'error': str(exc), 'retry': True})
                 except (ValueError, TypeError) as exc:
                     return self.reply(400, {'error': str(exc)})
-                self.reply(200, {'ok': True})
+                self.reply(200, {'ok': True, 'queued': True})
 
         return Handler
 

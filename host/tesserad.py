@@ -15,10 +15,11 @@ import time
 import urllib.request
 import zlib
 import psutil
+from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 from deck_assets import Assets
 from pc_state import FLAG_SOURCES, PcState, set_mute
-from host_runtime import InstanceLock, remember_port, resolve_port, session_locked
+from host_runtime import InstanceLock, SuspendableRLock, remember_port, resolve_port, session_locked
 from system_stats import SystemStats, gauge_state
 
 try:
@@ -218,6 +219,11 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'press': 'id', 'set': 'variable', 'audio': 'target',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
+JOB_QUEUE_SIZE = 128
+BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive
+SLOW_LANE_LIMIT = 4
+STALE_PRESS_SECONDS = 5  # a queued press older than this is dropped, never replayed
+PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke')
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
 CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
 UNSET_VARIABLE = re.compile(r'[$][(]var:[A-Za-z0-9_.-]+[)]')
@@ -539,12 +545,18 @@ class Daemon:
         self.custom_vars = {}
         self.trigger_state = {}
         self.stop = threading.Event()
-        self.jobs = queue.Queue(maxsize=128)
-        self.state_lock = threading.RLock()
+        self.jobs = queue.Queue(maxsize=JOB_QUEUE_SIZE)
+        self.enqueue_lock = threading.Lock()
+        self.state_lock = SuspendableRLock()
+        self.input_lock = threading.Lock()  # keyboard and mouse sequences never interleave
+        self.slow_slots = threading.BoundedSemaphore(SLOW_LANE_LIMIT)
+        self.slow_running = set()
+        self.slow_lock = threading.Lock()
+        self.local = threading.local()
+        self.dropped_jobs = 0
         self.panel_factory = panel_factory
         self.panel = None
         self.connection_failed = threading.Event()
-        self.active_press = []
         self.state_set_by_action = set()
         self.folder_stack = []
         self.button_states = {}
@@ -574,6 +586,13 @@ class Daemon:
                 path.write_bytes(seed.read_bytes())
         with open(path, encoding='utf-8') as stream:
             return validate_config(json.load(stream))
+
+    @property
+    def active_press(self):
+        """The chain of buttons this thread is pressing (nested 'press' actions), for loop detection."""
+        if not hasattr(self.local, 'active_press'):
+            self.local.active_press = []
+        return self.local.active_press
 
     def log(self, message):
         print(f'[{time.strftime("%H:%M:%S")}] {message}', flush=True)
@@ -778,9 +797,12 @@ class Daemon:
     def run_action(self, action):
         kind = action['type']
         if kind == 'hotkey':
-            send_hotkey(action['keys'])
+            with self.input_lock:
+                send_hotkey(action['keys'])
         elif kind == 'text':
-            send_text(self.substitute(action['text']))
+            text = self.substitute(action['text'])
+            with self.input_lock:
+                send_text(text)
         elif kind == 'open':
             target = self.substitute(action['target'])
             if IS_WINDOWS:
@@ -790,19 +812,22 @@ class Daemon:
             else:
                 subprocess.Popen(['xdg-open', target])
         elif kind == 'shell':
-            result = subprocess.run(self.substitute(action['command']), shell=True,
-                                    timeout=action.get('timeout', 30), check=False,
-                                    creationflags=subprocess.CREATE_NO_WINDOW if IS_WINDOWS else 0)
-            if result.returncode:
-                raise RuntimeError(f'Kommando avsluttet med kode {result.returncode}')
+            command, timeout = self.substitute(action['command']), action.get('timeout', 30)
+            with self.state_lock.suspended():  # the panel and API stay responsive while it runs
+                try:
+                    run_command(command, timeout, self.stop)
+                except CommandFailed as exc:
+                    raise RuntimeError(str(exc)) from exc
         elif kind == 'http':
             request = urllib.request.Request(self.substitute(action['url']),
                 method=action.get('method', 'GET'), headers=action.get('headers', {}),
                 data=self.substitute(action.get('body', '')).encode() or None)
-            with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
-                response.read(65536)
+            with self.state_lock.suspended():
+                with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
+                    response.read(65536)
         elif kind == 'delay':
-            self.stop.wait(action.get('ms', 100)/1000)
+            with self.state_lock.suspended():
+                self.stop.wait(action.get('ms', 100)/1000)
         elif kind == 'page':
             self.switch_page(action['page'])
         elif kind == 'folder':
@@ -830,6 +855,45 @@ class Daemon:
         else:
             raise ValueError(f'Unknown action: {kind}')
         return True
+
+    def is_slow(self, button_id, hold):
+        button = next((b for b in self.effective_buttons() if b['id'] == button_id), None)
+        if button is None:
+            return False
+        actions = self.resolved_button(button).get('hold_actions' if hold else 'actions', [])
+        return any(action['type'] in BLOCKING_ACTIONS for action in actions)
+
+    def start_press(self, button_id, hold=False):
+        """Run a press now, or on the slow lane when it waits (shell, HTTP, delay) so other keys keep working.
+
+        A button that is still running ignores further presses instead of running twice.
+        """
+        if not self.is_slow(button_id, hold):
+            return self.dispatch_press(button_id, hold=hold)
+        identity = (self.profile, self.page, button_id)
+        with self.slow_lock:
+            running = identity in self.slow_running
+            claimed = not running and self.slow_slots.acquire(blocking=False)
+            if claimed:
+                self.slow_running.add(identity)
+        if not claimed:
+            self.log(f'Button {button_id} is still running or the slow lane is full; press ignored')
+            self.panel.feedback(button_id, False)
+            return False
+        threading.Thread(target=self.run_slow_press, args=(button_id, hold, identity),
+                         name=f'slow-button-{button_id}', daemon=True).start()
+        return True
+
+    def run_slow_press(self, button_id, hold, identity):
+        try:
+            with self.state_lock:
+                self.dispatch_press(button_id, hold=hold)
+        except Exception as exc:
+            self.log(f'Action failed: {exc}')
+        finally:
+            with self.slow_lock:
+                self.slow_running.discard(identity)
+            self.slow_slots.release()
 
     def dispatch_press(self, button_id, hold=False):
         identity = (self.profile, self.page, button_id)
@@ -890,11 +954,42 @@ class Daemon:
         except (OSError, ValueError, AttributeError):
             pass  # the reader loop reports the disconnect
 
+    def submit(self, *jobs):
+        """Queue jobs all-or-nothing; raises Busy when the queue cannot take them, so callers can report it."""
+        with self.enqueue_lock:
+            if self.jobs.maxsize - self.jobs.qsize() < len(jobs):
+                self.dropped_jobs += len(jobs)
+                raise Busy('The host is busy: the action queue is full')
+            for job in jobs:
+                self.jobs.put_nowait(job)
+
     def enqueue(self, job):
+        """Queue a job from inside the host; a full queue is logged and counted. Returns whether it was queued."""
         try:
-            self.jobs.put_nowait(job)
-        except queue.Full:
-            self.log('The action queue is full; the press was rejected')
+            self.submit(job)
+        except Busy as exc:
+            self.log(f'{exc}; dropped {job[0]}')
+            return False
+        return True
+
+    def drop_queued_presses(self):
+        """Forget key presses queued before a reconnect so they are never replayed against the new session."""
+        kept, dropped = [], 0
+        with self.enqueue_lock:
+            while True:
+                try:
+                    job = self.jobs.get_nowait()
+                except queue.Empty:
+                    break
+                self.jobs.task_done()
+                if job[0] in ('press', 'api-press'):
+                    dropped += 1
+                else:
+                    kept.append(job)
+            for job in kept:
+                self.jobs.put_nowait(job)
+        if dropped:
+            self.log(f'Dropped {dropped} queued key press(es) from before the reconnect')
 
     def reader_loop(self, panel):
         try:
@@ -916,7 +1011,7 @@ class Daemon:
                         if message.get('type') == 'deck_event':
                             if type(message.get('button')) is int:
                                 self.enqueue(('press', message['button'], message.get('label'),
-                                              message.get('hold') is True))
+                                              message.get('hold') is True, time.monotonic()))
                         elif message.get('type') == 'wake':
                             self.enqueue(('panel-woke',))
                     elif self.args.verbose and line:
@@ -935,13 +1030,17 @@ class Daemon:
             if self.dimmed:
                 self.wake_display()  # the press that wakes the panel is not an action
                 return
+            if len(job) > 4 and time.monotonic() - job[4] > STALE_PRESS_SECONDS:
+                self.dropped_jobs += 1
+                self.log(f'Dropped a stale key press for button {job[1]}')
+                return
             self.last_activity = time.monotonic()
             current = next((b for b in self.current_buttons() if b['id'] == job[1]), None)
             path = (self.profile, self.page)
             shown = job[2] is None or job[2] == (current or {}).get('label') or any(
                 entry_path == path and labels.get(job[1]) == job[2] for entry_path, labels in self.pushed_labels)
             if current and shown:
-                self.dispatch_press(job[1], hold=len(job) > 3 and job[3])
+                self.start_press(job[1], hold=len(job) > 3 and job[3])
         elif kind == 'profile':
             self.switch_profile(job[1], auto=True)
         elif kind == 'page':
@@ -964,7 +1063,7 @@ class Daemon:
             self.panel.feedback(job[1], job[2])
         elif kind == 'api-press':
             self.wake_display()
-            self.dispatch_press(job[1])
+            self.start_press(job[1])
         elif kind == 'dim':
             self.dim_display('by request')
         elif kind == 'wake':
@@ -984,7 +1083,11 @@ class Daemon:
                 continue
             try:
                 with self.state_lock:
-                    if not (self.connection_failed.is_set() or self.panel is None):
+                    offline = self.connection_failed.is_set() or self.panel is None
+                    if offline and job[0] in PANEL_JOBS:
+                        self.dropped_jobs += 1
+                        self.log(f'The panel is not connected; dropped {job[0]}')
+                    else:
                         self.handle_job(job)
             except Exception as exc:
                 self.log(f'Action failed: {exc}')
@@ -1130,6 +1233,7 @@ class Daemon:
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
                         self.clock_sent_at = float('-inf')
                         threading.Thread(target=self.heartbeat_loop, args=(self.panel,), daemon=True).start()
+                        self.drop_queued_presses()
                         with self.state_lock:
                             self.last_activity = time.monotonic()
                             self.apply_brightness()

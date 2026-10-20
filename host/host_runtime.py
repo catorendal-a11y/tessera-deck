@@ -1,7 +1,62 @@
 """Single-instance lock and serial-number port pinning for the USB host."""
+import contextlib
 import json
 import os
 from pathlib import Path
+import threading
+
+
+class SuspendableRLock:
+    """A re-entrant lock that can be fully released around a blocking call and re-taken afterwards.
+
+    Actions that wait (shell, HTTP, delays) must not keep the host's state locked, otherwise the
+    panel, focus tracking and the control API stall behind them.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._owner = None
+        self._count = 0
+
+    def acquire(self, blocking=True, timeout=-1):
+        me = threading.get_ident()
+        if self._owner == me:
+            self._count += 1
+            return True
+        if not self._lock.acquire(blocking, timeout):
+            return False
+        self._owner, self._count = me, 1
+        return True
+
+    def release(self):
+        if self._owner != threading.get_ident():
+            raise RuntimeError('release of a lock the thread does not hold')
+        self._count -= 1
+        if self._count == 0:
+            self._owner = None
+            self._lock.release()
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, *_):
+        self.release()
+
+    @contextlib.contextmanager
+    def suspended(self):
+        """Fully release the lock for the duration of the block (no-op when this thread does not hold it)."""
+        if self._owner != threading.get_ident():
+            yield
+            return
+        saved = self._count
+        self._owner, self._count = None, 0
+        self._lock.release()
+        try:
+            yield
+        finally:
+            self._lock.acquire()
+            self._owner, self._count = threading.get_ident(), saved
 
 
 class InstanceLock:

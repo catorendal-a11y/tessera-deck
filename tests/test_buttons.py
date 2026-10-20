@@ -30,7 +30,7 @@ class ButtonTests(unittest.TestCase):
     def setUp(self):
         patches = [patch.object(deck, name, Mock()) for name in ('send_hotkey', 'send_text', 'focus_existing_process')]
         patches += [patch.object(deck.os, 'startfile', Mock(), create=True), patch.object(deck.subprocess, 'Popen', Mock()),
-                    patch.object(deck.subprocess, 'run', Mock(return_value=Mock(returncode=0))),
+                    patch.object(deck, 'run_command', Mock()),
                     patch.object(deck.urllib.request, 'urlopen', Mock())]
         self.mocks = [p.start() for p in patches]
         self.addCleanup(lambda: [p.stop() for p in patches])
@@ -80,7 +80,7 @@ class ButtonTests(unittest.TestCase):
 
     def test_every_action_type_does_what_it_says(self):
         daemon = make_daemon()
-        send_hotkey, send_text, _, startfile, popen, run, urlopen = self.mocks
+        send_hotkey, send_text, _, startfile, popen, run_command, urlopen = self.mocks
         page = next(iter(daemon.config['profiles']['main']['pages']))
         daemon.profile, daemon.page = 'main', page
         other = [p for p in daemon.config['profiles']['main']['pages'] if p != page][0]
@@ -90,7 +90,7 @@ class ButtonTests(unittest.TestCase):
         daemon.run_action({'type': 'text', 'text': 'Hi $(var:who)'})
         send_text.assert_called_with('Hi Ada')
         daemon.run_action({'type': 'shell', 'command': 'echo hi'})
-        run.assert_called_once()
+        run_command.assert_called_once()
         urlopen.return_value.__enter__ = Mock(return_value=Mock())
         urlopen.return_value.__exit__ = Mock(return_value=False)
         daemon.run_action({'type': 'http', 'url': 'http://127.0.0.1:1/x', 'method': 'POST', 'body': 'b'})

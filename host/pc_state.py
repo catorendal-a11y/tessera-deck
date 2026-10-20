@@ -74,6 +74,12 @@ class MediaReader:
         self._loop = None
         self._manager = None
 
+    def close(self) -> None:
+        if self._loop is not None:
+            self._loop.close()
+            self._loop = None
+        self._manager = None
+
     def __call__(self) -> dict:
         try:
             import asyncio
@@ -115,6 +121,11 @@ class PcState:
 
     def stop(self) -> None:
         self._stop.set()
+        if self._thread is not None:
+            self._thread.join(2)
+        close = getattr(self._media, 'close', None)
+        if close:
+            close()
 
     def _loop(self) -> None:
         while not self._stop.is_set():
