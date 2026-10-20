@@ -1,7 +1,6 @@
 idf_component_register(
     SRCS
         "main.cpp"
-        "network_service.cpp"
         "time_service.c"
         "date_math.c"
         "deck_model.c"
@@ -26,14 +25,8 @@ idf_component_register(
         espressif__esp32_p4_function_ev_board
         lvgl__lvgl
         espressif__cjson
-        78__esp-wifi-connect
-        espressif__esp_hosted
-        espressif__esp_wifi_remote
-        esp_http_server
         esp_timer
         esp_event
-        esp_netif
-        lwip
         esp_app_format
         nvs_flash
         mbedtls

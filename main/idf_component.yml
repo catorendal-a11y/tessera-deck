@@ -7,15 +7,3 @@ dependencies:
   espressif/esp_lcd_jd9165: "*"
   espressif/esp_lvgl_port: "^2.9.0"
   espressif/esp_lcd_touch_gt911: "^1"
-  78/esp-wifi-connect:
-    version: "^3.3.1"
-    rules:
-      - if: target in [esp32p4]
-  espressif/esp_hosted:
-    version: "^3.0.9"
-    rules:
-      - if: target in [esp32p4]
-  espressif/esp_wifi_remote:
-    version: "^1.6.5"
-    rules:
-      - if: target in [esp32p4]

@@ -11,7 +11,7 @@ extern "C" {
 
 /* How trustworthy the clock is (implementation plan section 8): a boot-time
  * clock with no set point and an insane epoch is UNKNOWN, a clock set by the
- * parent in Settings is MANUAL, and a clock corrected by SNTP is SYNCED. */
+ * parent in Settings is MANUAL, and a clock set by the USB host is SYNCED. */
 typedef enum {
     TIME_UNKNOWN = 0,
     TIME_MANUAL,
@@ -19,10 +19,8 @@ typedef enum {
 } time_quality_t;
 
 esp_err_t time_service_init(void);
-void time_service_start_sntp(void);
 void time_service_set_manual(int year, int month, int day, int hour, int minute);
-/* Local time from the USB host, used while SNTP has not synchronized the clock
- * (no Wi-Fi). Returns false when SNTP time is kept or the value is invalid. */
+/* Local time from the USB host (the panel has no network clock). Returns false when the value is invalid. */
 bool time_service_set_from_host(int year, int month, int day, int hour, int minute, int second);
 bool time_service_has_valid_time(void);
 time_quality_t time_service_time_quality(void);

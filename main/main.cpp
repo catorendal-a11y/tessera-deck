@@ -16,18 +16,15 @@
 #include "esp_app_desc.h"
 #include "esp_timer.h"
 #include "deck_images.h"
-#include "eh_host_cp_ota.h"
-#include "eh_host_sys.h"
-#include "lwip/sockets.h"
 #include "driver/usb_serial_jtag.h"
 #include "driver/usb_serial_jtag_vfs.h"
 #include "esp_system.h"
+#include "esp_random.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 
 extern "C" {
 #include "deck_model.h"
-#include "network_service.h"
 #include "time_service.h"
 #include "ui/ui.h"
 }
@@ -68,9 +65,8 @@ static bool parse_percent(const char *text, long low, long high, int *out)
     *out = static_cast<int>(value);
     return true;
 }
-/* USB console. The FQ_C6_x and FQ_WIFI commands keep the exact protocol of the
- * previous panel firmware so tools/update_network_coprocessor.py and the
- * scripted Wi-Fi provisioning keep working across both firmwares. */
+/* USB console: line protocol with the Windows host. The panel has no network
+ * stack; USB is the only transport. */
 static void usb_console_task(void *)
 {
     uint8_t received[256];
@@ -78,8 +74,6 @@ static void usb_console_task(void *)
     char line[1100];
     size_t used = 0;
     bool overflow = false;
-    bool updating_c6 = false, legacy_c6 = false;
-    size_t c6_bytes = 0;
     int deck_events_emitted = 0;
     /* Accumulator for the chunked AD_CFG_BEGIN/DATA/END config push. */
     static char *cfg_buf = static_cast<char *>(heap_caps_calloc(1, 8192 + 1, MALLOC_CAP_SPIRAM));
@@ -155,66 +149,6 @@ static void usb_console_task(void *)
             overflow = false;
             continue;
         }
-        if (!overflow && strcmp(line, "FQ_C6_BEGIN") == 0) {
-            eh_host_coprocessor_fwver_t version = {};
-            esp_err_t err = eh_host_sys_get_cp_fw_version(&version);
-            if (err == ESP_OK) {
-                legacy_c6 = version.major1 < 2 || (version.major1 == 2 && version.minor1 < 6);
-                err = eh_host_cp_ota_begin();
-            }
-            updating_c6 = err == ESP_OK;
-            c6_bytes = 0;
-            printf("FQ_C6_BEGIN %s\n", esp_err_to_name(err));
-            fflush(stdout);
-        }
-        if (!overflow && strncmp(line, "FQ_C6_DATA ", 11) == 0) {
-            uint8_t bytes[512];
-            size_t hex_size = strlen(line + 11);
-            bool valid = updating_c6 && hex_size > 0 && hex_size <= sizeof(bytes) * 2 && !(hex_size & 1) &&
-                         c6_bytes + hex_size / 2 <= 0x180000;
-            for (size_t i = 0; valid && i < hex_size; ++i) {
-                char digit = line[11 + i];
-                int value = digit >= '0' && digit <= '9' ? digit - '0' :
-                            digit >= 'a' && digit <= 'f' ? digit - 'a' + 10 : -1;
-                if (value < 0) valid = false;
-                else if (!(i & 1)) bytes[i / 2] = (uint8_t)(value << 4);
-                else bytes[i / 2] |= (uint8_t)value;
-            }
-            esp_err_t err = valid ? eh_host_cp_ota_write(bytes, hex_size / 2) : ESP_ERR_INVALID_ARG;
-            if (err == ESP_OK) c6_bytes += hex_size / 2;
-            else updating_c6 = false;
-            printf("FQ_C6_DATA %s\n", esp_err_to_name(err));
-            fflush(stdout);
-        }
-        if (!overflow && strcmp(line, "FQ_C6_END") == 0) {
-            esp_err_t err = updating_c6 && c6_bytes > 0 ? eh_host_cp_ota_end() : ESP_ERR_INVALID_STATE;
-            if (err == ESP_OK && !legacy_c6) err = eh_host_cp_ota_activate();
-            updating_c6 = false;
-            printf("FQ_C6_END %s\n", esp_err_to_name(err));
-            fflush(stdout);
-        }
-        if (!overflow && strcmp(line, "FQ_STATUS") == 0) {
-            network_status_t net = network_service_status();
-            cJSON *status = cJSON_CreateObject();
-            if (status) {
-                cJSON_AddNumberToObject(status, "network", net.state);
-                cJSON_AddBoolToObject(status, "deck_ready", true);
-                const esp_app_desc_t *application = esp_app_get_description();
-                cJSON_AddStringToObject(status, "project", application->project_name);
-                cJSON_AddStringToObject(status, "firmware", application->version);
-                cJSON_AddStringToObject(status, "built_date", application->date);
-                cJSON_AddStringToObject(status, "built_time", application->time);
-                cJSON_AddStringToObject(status, "ssid", net.ssid);
-                cJSON_AddStringToObject(status, "ip", net.address);
-                cJSON_AddNumberToObject(status, "rssi", net.rssi);
-                cJSON_AddNumberToObject(status, "clock_quality", time_service_time_quality());
-                cJSON_AddNumberToObject(status, "internal_free", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-                char *text = cJSON_PrintUnformatted(status);
-                if (text) { printf("FQ_STATUS %s\n", text); cJSON_free(text); }
-                cJSON_Delete(status);
-                fflush(stdout);
-            }
-        }
         if (!overflow && strcmp(line, "FQ_UI_STATUS") == 0) {
             char *labels = static_cast<char *>(heap_caps_malloc(4096, MALLOC_CAP_SPIRAM));
             int screen = -1;
@@ -232,45 +166,6 @@ static void usb_console_task(void *)
                 fflush(stdout);
             }
             heap_caps_free(labels);
-        }
-        if (!overflow && strcmp(line, "AD_NET_CHECK") == 0) {
-            /* Loopback probe: proves the HTTP server answers without
-             * needing a client on the station LAN. */
-            int status = 0;
-            int fd = socket(AF_INET, SOCK_STREAM, 0);
-            if (fd >= 0) {
-                struct timeval timeout = {2, 0};
-                setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-                setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
-                struct sockaddr_in local = {};
-                local.sin_family = AF_INET;
-                local.sin_port = htons(80);
-                local.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-                if (connect(fd, reinterpret_cast<struct sockaddr *>(&local), sizeof(local)) == 0) {
-                    const char request[] = "GET /api/status HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n";
-                    send(fd, request, sizeof(request) - 1, 0);
-                    char response[256] = {};
-                    int n = recv(fd, response, sizeof(response) - 1, 0);
-                    if (n > 0) {
-                        response[n] = '\0';
-                        sscanf(response, "HTTP/%*s %d", &status);
-                    }
-                }
-                close(fd);
-            }
-            printf("AD_NET_CHECK http_local=%d\n", status);
-            fflush(stdout);
-        }
-        if (!overflow && strncmp(line, "FQ_WIFI ", 8) == 0) {
-            cJSON *json = cJSON_Parse(line + 8);
-            const cJSON *ssid = cJSON_GetObjectItemCaseSensitive(json, "ssid");
-            const cJSON *password = cJSON_GetObjectItemCaseSensitive(json, "password");
-            bool ok = cJSON_IsString(ssid) && cJSON_IsString(password) &&
-                      network_service_configure(ssid->valuestring, password->valuestring);
-            if (cJSON_IsString(password)) memset(password->valuestring, 0, strlen(password->valuestring));
-            cJSON_Delete(json);
-            printf("FQ_WIFI_%s\n", ok ? "ACCEPTED" : "REJECTED");
-            fflush(stdout);
         }
         if (!overflow && strcmp(line, "AD_CFG_BEGIN") == 0) {
             cfg_active = true;
@@ -401,11 +296,6 @@ static void usb_console_task(void *)
             printf("AD_TIME %s\n", !parsed ? "INVALID" : set ? "OK" : "KEPT");
             fflush(stdout);
         }
-        if (!overflow && strcmp(line, "AD_SETUP") == 0) {
-            network_service_start_setup();
-            printf("AD_SETUP OK\n");
-            fflush(stdout);
-        }
         memset(line, 0, sizeof(line));
         used = 0;
         overflow = false;
@@ -422,12 +312,9 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
     usb_serial_jtag_vfs_use_driver();
     deck_model_init();
-    /* Idempotent; done here so the stored brightness is readable before the
-     * network task gets to its own initialization. */
+    /* Idempotent; the stored brightness must be readable before the display starts. */
     if (nvs_flash_init() == ESP_OK) load_brightness();
     (void)time_service_init();
-    time_service_start_sntp();
-    network_service_init();
 
     bsp_display_cfg_t cfg = {};
     cfg.lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG();

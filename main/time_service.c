@@ -8,8 +8,6 @@
 
 #include "esp_log.h"
 #include "esp_event.h"
-#include "esp_netif.h"
-#include "esp_sntp.h"
 
 #include "date_math.h"
 
@@ -19,18 +17,7 @@ static char s_time_text[12] = "--:--";
 static char s_iso_date[12] = "";
 
 static bool s_manual_time = false;
-/* Set from the SNTP callback once the network has corrected the clock; a
- * manual timestamp must not be presented as a reliable synchronized time. */
 static volatile bool s_time_synced = false;
-
-/* SNTP sets the system time itself before invoking this callback; here we
- * only record that the clock is now network-synchronized. */
-static void sntp_time_synced_cb(struct timeval *tv)
-{
-    (void)tv;
-    s_time_synced = true;
-    ESP_LOGI(TAG, "Clock synchronized by SNTP");
-}
 
 static bool manual_time_is_valid(int year, int month, int day, int hour, int minute)
 {
@@ -46,13 +33,7 @@ esp_err_t time_service_init(void)
     setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
     tzset();
 
-    esp_err_t err = esp_netif_init();
-    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
-        ESP_LOGE(TAG, "esp_netif_init failed: %s", esp_err_to_name(err));
-        return err;
-    }
-
-    err = esp_event_loop_create_default();
+    esp_err_t err = esp_event_loop_create_default();
     if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) {
         ESP_LOGE(TAG, "esp_event_loop_create_default failed: %s", esp_err_to_name(err));
         return err;
@@ -60,19 +41,6 @@ esp_err_t time_service_init(void)
 
     ESP_LOGI(TAG, "Time service ready with Oslo timezone");
     return ESP_OK;
-}
-
-void time_service_start_sntp(void)
-{
-    if (esp_sntp_enabled()) {
-        return;
-    }
-    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
-    esp_sntp_setservername(0, "pool.ntp.org");
-    /* Must be registered before esp_sntp_init() to be delivered. */
-    esp_sntp_set_time_sync_notification_cb(sntp_time_synced_cb);
-    esp_sntp_init();
-    ESP_LOGI(TAG, "SNTP started; waits for network to become available");
 }
 
 static bool local_time(struct tm *out_time)
@@ -109,8 +77,7 @@ static bool set_local_time(int year, int month, int day, int hour, int minute, i
     struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
     settimeofday(&tv, NULL);
     s_manual_time = true;
-    /* A parent-set clock is no longer network-authoritative: quality drops
-     * from SYNCED to MANUAL until SNTP corrects it again. */
+    /* A manually set clock is MANUAL quality. */
     s_time_synced = false;
     s_date_text[0] = '\0';
     ESP_LOGI(TAG, "Manual time set: %04d-%02d-%02d %02d:%02d", year, month, day, hour, minute);
