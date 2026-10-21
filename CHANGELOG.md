@@ -22,6 +22,7 @@ version on the next save; the old file is kept in `host/backups`.
   URLs; HTTP credentials can come from `$(env:NAME)` and exports replace them with such references.
 - The firmware image cache counts the incoming image, evicts the least recently used images and refuses what
   cannot fit (`AD_IMG_END FULL`).
+- Dependency audit in CI found eight known vulnerabilities in Pillow 12.3 (which decodes user images); Tessera now requires Pillow 13.
 - Fixed: the diagnostics redaction leaked user names containing a space and `Bearer` tokens (found by its test).
 
 ### Product
