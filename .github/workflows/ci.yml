@@ -56,6 +56,7 @@ jobs:
       - name: Native LVGL render and model tests
         shell: bash
         run: |
+          . $IDF_PATH/export.sh
           cmake -S tests/native -B build/native -DCMAKE_BUILD_TYPE=Release
           cmake --build build/native --parallel
           build/native/test_ui build/native/out

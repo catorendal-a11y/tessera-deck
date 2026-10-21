@@ -1067,7 +1067,10 @@ class HostTests(unittest.TestCase):
 
     def test_windows_autostart_script_can_be_enabled_and_removed(self):
         with tempfile.TemporaryDirectory() as directory:
-            with patch('deck_control.os.name', 'nt'):
+            fake_root = Path(directory) / 'program'
+            (fake_root / 'host/.venv/Scripts').mkdir(parents=True)
+            (fake_root / 'host/.venv/Scripts/pythonw.exe').write_bytes(b'')  # a fresh checkout has no virtual environment
+            with patch('deck_control.os.name', 'nt'), patch('deck_control.ROOT', fake_root):
                 path = set_autostart(True, directory)
                 self.assertTrue(autostart_enabled(directory))
                 self.assertIn('tessera_tray.py', path.read_text(encoding='utf-8'))

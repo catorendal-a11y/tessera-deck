@@ -33,6 +33,10 @@ class ButtonTests(unittest.TestCase):
                     patch.object(deck, 'run_command', Mock()),
                     patch.object(deck.urllib.request, 'urlopen', Mock())]
         self.mocks = [p.start() for p in patches]
+        # never touch the real speakers or microphone: the bundled audio keys call set_mute
+        muted = patch.object(deck, 'set_mute', Mock())
+        muted.start()
+        self.addCleanup(muted.stop)
         self.addCleanup(lambda: [p.stop() for p in patches])
 
     def every_button(self, daemon):
