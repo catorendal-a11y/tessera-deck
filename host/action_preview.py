@@ -25,7 +25,8 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
             return False, f'Unknown key combination: {exc}'
         return True, f'Press {action["keys"]}'
     if kind == 'text':
-        return True, f'Type "{_clip(substitute(action["text"], variables))}"'
+        slow = f' at {action["delay_ms"]} ms per character' if action.get('delay_ms') else ''
+        return True, f'Type "{_clip(substitute(action["text"], variables))}"{slow}'
     if kind == 'open':
         target = os.path.expandvars(substitute(action['target'], variables))
         if '://' in target or target.lower().startswith(('mailto:', 'ms-settings:', 'shell:')):
@@ -71,7 +72,13 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         value = _clip(substitute(str(action.get('value', '')), variables))
         return True, f'Set variable {action["variable"]} to "{value}"'
     if kind == 'audio':
-        return True, f'{action.get("op", "toggle").capitalize()} the {action["target"]}'
+        op, target = action.get('op', 'toggle'), action['target']
+        who = target.removeprefix('app:') + ' (its own sound)' if target.startswith('app:') else f'the {target}'
+        if op == 'volume':
+            return True, f'Set the volume of {who} to {action.get("value")}%'
+        if op in ('up', 'down'):
+            return True, f'Turn the volume of {who} {op} by {action.get("step", 5)}%'
+        return True, f'{op.capitalize()} {who}'
     if kind == 'counter':
         op, step, value = action.get('op', 'inc'), action.get('step', 1), action.get('value', 0)
         detail = {'inc': f'add {step} to', 'dec': f'subtract {step} from', 'set': f'set to {value}:',

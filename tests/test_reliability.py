@@ -167,6 +167,41 @@ class LockTests(unittest.TestCase):
             SuspendableRLock().release()
 
 
+class TypingTests(unittest.TestCase):
+    def test_a_pause_between_characters_is_applied_between_them_only(self):
+        waits, keys = [], Mock()
+        with patch.object(deck, '_key', keys):
+            deck.send_text('abc', 0.05, wait=waits.append)
+            self.assertEqual(waits, [0.05, 0.05])
+            self.assertEqual(keys.call_count, 6)
+            waits.clear()
+            deck.send_text('abc', wait=waits.append)
+        self.assertEqual(waits, [])
+
+    def test_the_delay_is_validated_and_slow_typing_runs_on_the_slow_lane(self):
+        config = json_defaults()
+        button = config['profiles']['main']['pages']['main'][0]
+        for good in (0, 40, 500):
+            button['actions'] = [{'type': 'text', 'text': 'hi', 'delay_ms': good}]
+            deck.validate_config(config)
+        for bad in (-1, 501, 1.5, '40', True):
+            button['actions'] = [{'type': 'text', 'text': 'hi', 'delay_ms': bad}]
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                deck.validate_config(config)
+        daemon = make_daemon()
+        daemon.profile, daemon.page = 'main', 'main'
+        page = daemon.config['profiles']['main']['pages']['main']
+        page[0]['actions'] = [{'type': 'text', 'text': 'hi', 'delay_ms': 30}]
+        page[1]['actions'] = [{'type': 'text', 'text': 'hi'}]
+        self.assertTrue(daemon.is_slow(page[0]['id'], False))
+        self.assertFalse(daemon.is_slow(page[1]['id'], False))
+
+
+def json_defaults():
+    import json
+    return json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+
+
 class ConcurrencyTests(unittest.TestCase):
     def test_many_threads_submitting_while_the_worker_runs_lose_nothing_and_never_deadlock(self):
         daemon = make_daemon()

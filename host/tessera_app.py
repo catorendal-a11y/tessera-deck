@@ -444,6 +444,8 @@ class Editor:
         return self.save({'config': config, 'revision': self.read()['revision']}, force_backup=True)
 
     def command(self, command, data):
+        if command == 'host-log':
+            return {'log': diagnostics.log_tail(ROOT / 'host/deck.local.log', int(data.get('lines', 200)) if isinstance(data.get('lines', 200), int) else 200)}
         if command == 'update-check':
             return self.check_updates()
         if command == 'update-download-firmware':

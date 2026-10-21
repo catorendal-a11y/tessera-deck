@@ -49,9 +49,57 @@ class PcStateTests(unittest.TestCase):
 
     def test_unknown_audio_commands_are_rejected(self):
         with self.assertRaises(ValueError):
-            pc_state.set_mute('headset', 'toggle')
+            pc_state.control_audio('headset', 'toggle')
         with self.assertRaises(ValueError):
-            pc_state.set_mute('mic', 'explode')
+            pc_state.control_audio('mic', 'explode')
+
+
+class AudioControlTests(unittest.TestCase):
+    def fake(self, volume=0.4, muted=False):
+        state = {'volume': volume, 'muted': muted}
+        control = pc_state._Control(lambda: state['muted'], lambda value, _: state.update(muted=bool(value)),
+                                    lambda: state['volume'], lambda value, _: state.update(volume=value))
+        return control, state
+
+    def test_mute_toggle_and_volume_operations(self):
+        control, state = self.fake()
+        pc_state.apply_operation(control, 'toggle')
+        self.assertTrue(state['muted'])
+        pc_state.apply_operation(control, 'unmute')
+        self.assertFalse(state['muted'])
+        pc_state.apply_operation(control, 'volume', 70)
+        self.assertEqual(state['volume'], 0.7)
+        pc_state.apply_operation(control, 'up', None, 10)
+        self.assertAlmostEqual(state['volume'], 0.8)
+        pc_state.apply_operation(control, 'down', None, 50)
+        self.assertAlmostEqual(state['volume'], 0.3)
+        pc_state.apply_operation(control, 'down', None, 50)
+        self.assertEqual(state['volume'], 0.0, 'the volume never goes below 0')
+        pc_state.apply_operation(control, 'volume', 100)
+        pc_state.apply_operation(control, 'up', None, 50)
+        self.assertEqual(state['volume'], 1.0, 'nor above 100')
+
+    def test_an_app_target_controls_every_session_of_that_program_and_explains_silence(self):
+        first, first_state = self.fake()
+        second, second_state = self.fake()
+        with patch.object(pc_state, '_app_controls', return_value=[first, second]) as found:
+            pc_state.control_audio('app:Spotify.exe', 'mute')
+        found.assert_called_once_with('Spotify.exe')
+        self.assertTrue(first_state['muted'] and second_state['muted'])
+        with patch.object(pc_state, '_app_controls', return_value=[]):
+            with self.assertRaises(OSError) as raised:
+                pc_state.control_audio('app:ghost.exe', 'mute')
+        self.assertIn('not playing sound', str(raised.exception))
+
+    def test_audio_actions_are_validated(self):
+        for good in ({'target': 'mic'}, {'target': 'speaker', 'op': 'volume', 'value': 30},
+                     {'target': 'app:chrome.exe', 'op': 'up', 'step': 10}):
+            pc_state.check_audio(good)
+        for bad in ({'target': 'tv'}, {'target': 'app:notexe'}, {'target': 'app:../x.exe'}, {'target': 'mic', 'op': 'explode'},
+                    {'target': 'mic', 'op': 'volume'}, {'target': 'mic', 'op': 'volume', 'value': 101},
+                    {'target': 'mic', 'op': 'up', 'step': 0}, {'target': 'mic', 'op': 'up', 'step': 1.5}, {}):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                pc_state.check_audio(bad)
 
 
 class DaemonBindingTests(unittest.TestCase):
@@ -72,9 +120,9 @@ class DaemonBindingTests(unittest.TestCase):
 
     def test_pressing_a_bound_button_toggles_audio_without_cycling_its_state(self):
         daemon = self.daemon()
-        with patch.object(deck, 'set_mute') as mute:
+        with patch.object(deck, 'control_audio') as mute:
             self.assertTrue(daemon.dispatch_press(8))
-        mute.assert_called_once_with('mic', 'toggle')
+        mute.assert_called_once_with('mic', 'toggle', None, 5)
         self.assertEqual(daemon.button_states, {})
 
     def test_media_labels_use_pc_variables(self):

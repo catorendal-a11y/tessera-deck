@@ -24,7 +24,7 @@ from control_api import ControlServer
 from deck_assets import Assets
 from program_locator import locate
 from substitution import expand_environment, substitute
-from pc_state import FLAG_SOURCES, PcState, set_mute
+from pc_state import FLAG_SOURCES, PcState, check_audio, control_audio
 from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
 
@@ -129,12 +129,15 @@ def send_hotkey(combo):
             _key(vk=vk, flags=KEYEVENTF_KEYUP | _extended_flag(vk))
 
 
-def send_text(text):
+def send_text(text, pause=0.0, wait=time.sleep):
+    # `pause` seconds between characters makes the typing look and behave like a person typing.
     raw = text.encode('utf-16-le')
     for i in range(0, len(raw), 2):
         code = int.from_bytes(raw[i:i+2], 'little')
         _key(scan=code, flags=4)
         _key(scan=code, flags=6)
+        if pause and i + 2 < len(raw):
+            wait(pause)
 
 
 def foreground_context():
@@ -265,6 +268,8 @@ def _check_action(action, pages, profiles):
         raise ValueError(f'Unknown page: {action["page"]}')
     if kind == 'profile' and action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
+    if kind == 'text' and (type(action.get('delay_ms', 0)) is not int or not 0 <= action.get('delay_ms', 0) <= 500):
+        raise ValueError('text: delay_ms must be a whole number from 0 to 500')
     if kind == 'plugin':
         args = action.get('args', {})
         if (not PLUGIN_ID.fullmatch(action['plugin']) or not isinstance(action.get('command'), str)
@@ -276,9 +281,8 @@ def _check_action(action, pages, profiles):
     if kind == 'timer':
         check_timer(action)
         _check_actions(action.get('actions', []), pages, profiles)
-    if kind == 'audio' and (action['target'] not in ('speaker', 'mic')
-                            or action.get('op', 'toggle') not in ('toggle', 'mute', 'unmute')):
-        raise ValueError('audio: target is speaker or mic, op is toggle, mute or unmute')
+    if kind == 'audio':
+        check_audio(action)
     if kind == 'delay' and (type(action.get('ms', 100)) is not int
                             or not 0 <= action.get('ms', 100) <= 60000):
         raise ValueError('delay must be 0..60000 ms')
@@ -925,9 +929,9 @@ class Daemon:
             with self.input_lock:
                 send_hotkey(action['keys'])
         elif kind == 'text':
-            text = self.substitute(action['text'])
+            text, pause = self.substitute(action['text']), action.get('delay_ms', 0) / 1000
             with self.input_lock:
-                send_text(text)
+                send_text(text, pause) if pause else send_text(text)
         elif kind == 'open':
             target = self.substitute(action['target'])
             if IS_WINDOWS:
@@ -982,7 +986,7 @@ class Daemon:
             self.live.apply_timer(action)
             self.push_page()
         elif kind == 'audio':
-            set_mute(action['target'], action.get('op', 'toggle'))
+            control_audio(action['target'], action.get('op', 'toggle'), action.get('value'), action.get('step', 5))
             self.pc.poll()
             self.push_page()
         elif kind == 'set':
@@ -997,7 +1001,8 @@ class Daemon:
         if button is None:
             return False
         actions = self.resolved_button(button).get('hold_actions' if hold else 'actions', [])
-        return any(action['type'] in BLOCKING_ACTIONS for action in actions)
+        return any(action['type'] in BLOCKING_ACTIONS or (action['type'] == 'text' and action.get('delay_ms'))
+                   for action in actions)
 
     def start_press(self, button_id, hold=False):
         """Run a press now, or on the slow lane when it waits (shell, HTTP, delay) so other keys keep working.

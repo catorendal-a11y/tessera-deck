@@ -6,6 +6,7 @@ Both readers are injectable so the logic can be tested without audio hardware.
 """
 from __future__ import annotations
 
+import re
 import threading
 from typing import Callable
 
@@ -54,15 +55,76 @@ def read_audio() -> dict:
         'speaker_muted': bool(ends['speaker'].GetMute()), 'mic_muted': bool(ends['mic'].GetMute())})
 
 
-def set_mute(target: str, operation: str = 'toggle') -> None:
-    """Mute, unmute or toggle the default speaker or microphone."""
-    if target not in ('speaker', 'mic') or operation not in ('toggle', 'mute', 'unmute'):
-        raise ValueError(f'Unknown audio command: {target} {operation}')
+AUDIO_OPERATIONS = ('toggle', 'mute', 'unmute', 'volume', 'up', 'down')
+APP_TARGET = re.compile(r'app:([A-Za-z0-9_.-]{1,64}\.exe)', re.IGNORECASE)
+
+
+def check_audio(action: dict) -> None:
+    """Validate an `audio` action: target speaker, mic or app:NAME.exe and what to do with it."""
+    target = action.get('target')
+    if not isinstance(target, str) or (target not in ('speaker', 'mic') and not APP_TARGET.fullmatch(target)):
+        raise ValueError('audio: target is speaker, mic or app:NAME.exe')
+    if action.get('op', 'toggle') not in AUDIO_OPERATIONS:
+        raise ValueError(f'audio: op must be one of {", ".join(AUDIO_OPERATIONS)}')
+    for key, low, high in (('value', 0, 100), ('step', 1, 50)):
+        if key in action and (type(action[key]) is not int or not low <= action[key] <= high):
+            raise ValueError(f'audio: {key} must be a whole number from {low} to {high}')
+    if action.get('op') == 'volume' and 'value' not in action:
+        raise ValueError('audio: volume needs a value from 0 to 100')
+
+
+class _Control:
+    """The four calls the audio operations need, for a device endpoint or one app's audio session."""
+
+    def __init__(self, get_mute, set_mute, get_volume, set_volume):
+        self.get_mute, self.set_mute, self.get_volume, self.set_volume = get_mute, set_mute, get_volume, set_volume
+
+
+def apply_operation(control: _Control, operation: str, value: int | None = None, step: int = 5) -> None:
+    if operation in ('toggle', 'mute', 'unmute'):
+        muted = (not control.get_mute()) if operation == 'toggle' else operation == 'mute'
+        control.set_mute(int(muted), None)
+        return
+    current = round(control.get_volume() * 100)
+    target = value if operation == 'volume' else current + (step if operation == 'up' else -step)
+    control.set_volume(max(0, min(100, target)) / 100, None)
+
+
+def _app_controls(name: str) -> list[_Control]:
+    from pycaw.pycaw import AudioUtilities
+    controls = []
+    for session in AudioUtilities.GetAllSessions():
+        process = session.Process
+        if process is not None and process.name().casefold() == name.casefold():
+            volume = session.SimpleAudioVolume
+            controls.append(_Control(volume.GetMute, volume.SetMute, volume.GetMasterVolume, volume.SetMasterVolume))
+    return controls
+
+
+def control_audio(target: str, operation: str = 'toggle', value: int | None = None, step: int = 5) -> None:
+    """Mute, unmute, toggle or set the volume of the speakers, the microphone or one program's sound."""
+    check_audio({'target': target, 'op': operation, **({'value': value} if value is not None else {}), 'step': step})
+    app = APP_TARGET.fullmatch(target)
+    if app:
+        try:
+            import comtypes
+        except ImportError as exc:
+            raise OSError(f'audio control is not installed: {exc}') from exc
+        comtypes.CoInitialize()
+        try:
+            controls = _app_controls(app.group(1))
+            if not controls:
+                raise OSError(f'{app.group(1)} is not playing sound right now')
+            for control in controls:
+                apply_operation(control, operation, value, step)
+        finally:
+            comtypes.CoUninitialize()
+        return
 
     def apply(ends):
         endpoint = ends[target]
-        muted = (not endpoint.GetMute()) if operation == 'toggle' else operation == 'mute'
-        endpoint.SetMute(int(muted), None)
+        apply_operation(_Control(endpoint.GetMute, endpoint.SetMute, endpoint.GetMasterVolumeLevelScalar,
+                                 endpoint.SetMasterVolumeLevelScalar), operation, value, step)
 
     _with_audio(apply)
 

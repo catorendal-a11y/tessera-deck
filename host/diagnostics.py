@@ -53,12 +53,17 @@ def _counts(config: dict) -> dict:
             'ambient_enabled': bool(config.get('ambient', {}).get('enabled')), 'version': config.get('version')}
 
 
-def _tail(path: Path) -> str:
+def log_tail(path: Path, lines: int = 200) -> str:
+    """The last `lines` lines of the host log with user names and credentials removed (for the live log view)."""
+    return _tail(path, max(1, min(lines, LOG_LINES)))
+
+
+def _tail(path: Path, count: int = LOG_LINES) -> str:
     try:
         with open(path, 'rb') as stream:
             stream.seek(0, 2)
             stream.seek(max(0, stream.tell() - MAX_LOG_BYTES))
-            lines = stream.read().decode('utf-8', 'replace').splitlines()[-LOG_LINES:]
+            lines = stream.read().decode('utf-8', 'replace').splitlines()[-count:]
     except OSError:
         return '(no log found)'
     return clean('\n'.join(lines))

@@ -145,3 +145,5 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .plugin-row{padding:10px 12px;margin:8px 0;border-radius:10px;background:#141c20;border:1px solid #26343b}
 .plugin-row small{display:block;color:var(--muted);margin-top:2px}
 .plugin-row .error{color:#ff8a80;font-size:13px}
+#log-dialog{width:min(900px,94vw)}
+#log-view{margin:12px 0 0;height:50vh;overflow:auto;background:#0b1114;border:1px solid #26343b;border-radius:10px;padding:10px 12px;font:12px/1.45 Consolas,monospace;color:#cfe3da;white-space:pre-wrap;word-break:break-word}

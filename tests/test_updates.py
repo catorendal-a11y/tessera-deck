@@ -200,6 +200,25 @@ class EditorTests(unittest.TestCase):
                 self.editor.command('update-check', {})
         self.assertIn('internet connection', str(raised.exception))
 
+    def test_the_host_log_view_is_cleaned_and_limited(self):
+        log = Path(self.temp.name) / 'deck.log'
+        lines = [f'line {i} C:\\Users\\jane\\x token=abc' for i in range(300)]
+        log.write_text('\n'.join(lines), encoding='utf-8')
+        with patch.object(diagnostics, 'log_tail', wraps=diagnostics.log_tail) as tail:
+            text = diagnostics.log_tail(log, 50)
+        self.assertEqual(len(text.splitlines()), 50)
+        self.assertNotIn('jane', text.replace('<user>', ''))
+        self.assertNotIn('abc', text)
+        self.assertEqual(len(diagnostics.log_tail(log, 10 ** 6).splitlines()), 300, 'a huge request is capped, never more than the log has')
+        self.assertEqual(diagnostics.log_tail(Path(self.temp.name) / 'missing.log'), '(no log found)')
+        tail.assert_called_once()
+
+    def test_the_host_log_command_answers_even_without_a_log(self):
+        with patch.object(diagnostics, 'log_tail', return_value='hello') as tail:
+            self.assertEqual(self.editor.command('host-log', {'lines': 20}), {'log': 'hello'})
+            self.assertEqual(self.editor.command('host-log', {'lines': 'many'}), {'log': 'hello'})
+        self.assertEqual([call.args[1] for call in tail.call_args_list], [20, 200])
+
     def test_the_diagnostics_command_returns_the_bundle_path(self):
         with patch.object(diagnostics, 'build', return_value=Path('diagnostics/tessera-diagnostics-x.zip')) as build, \
                 patch('os.startfile', create=True):

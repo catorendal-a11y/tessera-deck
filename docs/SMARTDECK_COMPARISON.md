@@ -4,9 +4,11 @@
 ESP32-S3 touchscreen with an Electron app for Windows. This page compares it with Tessera and records what Tessera
 took from the comparison.
 
-**What this is based on, and what it is not.** Only SmartDeck's public README and release notes could be read
-(retrieved 2026-10-21). Its source code, firmware and `DOM.html` were *not* read, and none of its code was copied or
-studied for implementation. SmartDeck is GPL-3.0; Tessera's features below were designed from scratch for
+**What this is based on, and what it is not.** SmartDeck's public README, release notes (v1.0.0 to v2.5.1), file list and
+issue list were read (retrieved 2026-10-21). The repository contains the panel firmware and 3D-print files; its
+Windows app source is not published (its issue #1 asks for it), so the app's behaviour is known only from the README
+and release notes. Firmware and library sources were *not* read, and none of its code was copied or studied for
+implementation. SmartDeck is GPL-3.0; Tessera's features below were designed from scratch for
 Tessera's own ESP-IDF/LVGL firmware and Windows host. Where SmartDeck's behaviour is described, it is as the
 README states it; behaviour that was not stated is marked *not stated*.
 
@@ -24,9 +26,14 @@ README states it; behaviour that was not stated is marked *not stated*.
 | Per-button colors: background, text, icon, stroke, shadow; alignment | **Added** background, label text and outline colors per key and per toggle state. Shadow and horizontal alignment were not added. |
 | Seven interface languages | **Not added, on purpose.** Tessera's interface and documentation are English only by decision of the project owner. |
 | Clock and weather (the About text mentions a weather widget; no details stated) | **Added.** Ambient screen: a large clock built from brand-colored tiles, the date and, if the user picks a city, current weather from Open-Meteo. Off by default; no internet use unless weather is configured. |
+| Per-app volume ("App Audio" presets) | **Added.** The `audio` action targets `speaker`, `mic` or `app:NAME.exe` and can mute, unmute, toggle, set the volume or step it up and down. |
+| Realistic typing simulation | **Added.** A `delay_ms` per character on the `text` action (0-500 ms); slow typing runs on the slow lane. |
+| Weather city search with autocomplete, hourly refresh | **Partly.** Tessera searches by name and lets you choose between matching places; weather refreshes every 15 minutes. No live autocomplete and no condition icon on the clock screen. |
+| Serial debug monitor | **Added as a host log.** *Host log …* shows a live, cleaned tail of the host's log (connections, presses, actions, problems). |
+| Deep Sleep (screen and LEDs off after the dim period) | Already possible: set "Brightness when dimmed" to Off; a touch wakes the panel. |
 | Rotary encoder with LED ring | Not applicable: Tessera targets a different board without an encoder. |
 | Mouse actions, presets for creative apps | Not added; Tessera has 119 ready-made actions and 10 templates for other programs. |
-| Smart upload (only changed files), serial debug monitor | Tessera already sends only changed layouts and images, and now has *Export diagnostics* instead of a live monitor. |
+| Smart upload (only changed files) | Tessera already sends only changed layouts and images; *Export diagnostics* adds a support bundle. |
 | Multi-action builder, undo/redo (50 steps), app-based pages, tray, sleep/wake | Already in Tessera. |
 
 ## Where Tessera is ahead

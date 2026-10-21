@@ -509,7 +509,7 @@ function renderStep(action,index,count) {
   const move=delta=>{if(index+delta<0||index+delta>=count)return;mutate(()=>{const a=activeActions();[a[index],a[index+delta]]=[a[index+delta],a[index]];});};
   const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.disabled=index===0;down.disabled=index===count-1;
   step.append(element('div',{class:'step-header'},text('strong',`${index+1}. ${k.name}`),up,down,button('×',()=>mutate(()=>activeActions().splice(index,1)),'quiet danger','Remove step')));
-  let values=action.type==='audio'?['mic','speaker']:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  let values=['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
   const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
@@ -517,7 +517,13 @@ function renderStep(action,index,count) {
     const input=parameter.querySelector('input');input.setAttribute('data-path',index);parameter.append(button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target){applyProgramDetails(result,index);}}catch(error){showError(error);}},'text-button'));
   }
   step.append(parameter);
-  if(action.type==='audio')step.append(field('Operation',action.op||'toggle',value=>editAction(index,'op',value),{values:['toggle','mute','unmute']}));
+  if(action.type==='audio') {
+    const op=action.op||'toggle';
+    step.append(field('Operation',op,v=>mutate(()=>{const a=activeActions()[index];a.op=v;if(v==='volume'&&a.value===undefined)a.value=50;}),{values:[['toggle','Mute / unmute'],['mute','Mute'],['unmute','Unmute'],['volume','Set volume'],['up','Volume up'],['down','Volume down']]}));
+    if(op==='volume')step.append(field('Volume (0–100)',String(action.value??50),v=>editAction(index,'value',Math.max(0,Math.min(100,Math.round(Number(v))||0))),{type:'number'}));
+    if(op==='up'||op==='down')step.append(field('Step (1–50)',String(action.step??5),v=>editAction(index,'step',Math.max(1,Math.min(50,Math.round(Number(v))||5))),{type:'number'}));
+    step.append(text('p','Device: mic, speaker, or app:NAME.exe to control one program’s own sound (for example app:spotify.exe; it must be playing).','hint'));
+  }
   if(action.type==='open') {
     const focus=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Focus open window'),text('small','Starts the program only when it is not already running.')));
     const checkbox=focus.querySelector('input');checkbox.checked=!!action.reuse;checkbox.onchange=()=>mutate(()=>activeActions()[index].reuse=checkbox.checked);step.append(focus);
@@ -526,6 +532,7 @@ function renderStep(action,index,count) {
   if(action.type==='hotkey') {const record=button('⌨ Record hotkey',()=>{recording={index,input:parameter.querySelector('input'),button:record};record.textContent='Press the combination · Esc cancels';record.classList.add('recording');record.focus();},'outline record');step.append(record);}
   if(['page','folder'].includes(action.type))step.append(button('＋ Create new subpage',()=>newPage(true,index),'text-button'));
   if(action.type==='http'){step.append(field('Method',action.method||'GET',v=>editAction(index,'method',v),{values:['GET','POST','PUT','PATCH','DELETE']}),field('Body (optional)',action.body||'',v=>editAction(index,'body',v),{multiline:true}));}
+  if(action.type==='text')step.append(field('Typing speed: milliseconds per character (0 = instant)',String(action.delay_ms??0),v=>editAction(index,'delay_ms',Math.max(0,Math.min(500,Math.round(Number(v))||0))),{type:'number'}));
   if(action.type==='set')step.append(field('Value',action.value||'',v=>editAction(index,'value',v)));
   if(action.type==='state') {
     const shown=action.state===undefined||action.state==='next'?'next':String(action.state+1);
@@ -928,9 +935,14 @@ function ambientSettings() {
 async function lookupCity(city, unit) {
   const {places} = await api('command/weather-search', {query: city});
   if (!places.length) throw new Error(`No place called “${city}” was found.`);
-  const place = places[0];
-  mutate(() => { config.ambient = {...(config.ambient || {enabled: true, after: 120}), weather: {name: place.name, latitude: place.latitude, longitude: place.longitude, unit}}; });
-  toast(`Weather for ${[place.name, place.region, place.country].filter(Boolean).join(', ')}.`);
+  const describe = place => [place.name, place.region, place.country].filter(Boolean).join(', ');
+  const choose = place => {
+    mutate(() => { config.ambient = {...(config.ambient || {enabled: true, after: 120}), weather: {name: place.name, latitude: place.latitude, longitude: place.longitude, unit}}; });
+    toast(`Weather for ${describe(place)}.`);
+  };
+  if (places.length === 1) return choose(places[0]);
+  dialog('Which place?', [{name: 'place', label: `Several places match “${city}”`, options: places.map((place, index) => [String(index), describe(place)]), value: '0'}],
+    values => choose(places[Number(values.place)]), 'Use this place');
 }
 
 /* Images: crop still pictures to the square the key shows; animations are sent as they are. */
@@ -1063,6 +1075,25 @@ async function downloadFirmware() {
 $('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmware-latest').textContent = error.message; });
 $('#firmware-download').onclick = () => downloadFirmware().catch(showError);
 $('#diagnostics-export').onclick = async () => { $('#more-menu').hidden = true; try { await command('diagnostics'); } catch (error) { showError(error); } };
+/* Host log: a live tail of the host's own log, like a serial monitor for the whole product. */
+let logTimer = null;
+async function refreshLog() {
+  const view = $('#log-view'), atEnd = view.scrollHeight - view.scrollTop - view.clientHeight < 40;
+  view.textContent = (await api('command/host-log', {lines: 200})).log;
+  if (atEnd) view.scrollTop = view.scrollHeight;
+}
+async function openLog() {
+  $('#more-menu').hidden = true;
+  await refreshLog();
+  $('#log-view').scrollTop = $('#log-view').scrollHeight;
+  $('#log-dialog').showModal();
+  clearInterval(logTimer);
+  logTimer = setInterval(() => refreshLog().catch(() => {}), 2000);
+}
+$('#log-open').onclick = () => openLog().catch(showError);
+$('#log-close').onclick = () => $('#log-dialog').close();
+$('#log-dialog').addEventListener('close', () => clearInterval(logTimer));
+
 /* Plugins: turn integrations on and off and set their options; the host starts and stops them. */
 async function openPlugins() {
   $('#more-menu').hidden = true;
