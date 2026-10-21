@@ -198,5 +198,28 @@ class DaemonAmbientTests(unittest.TestCase):
         self.assertNotIn('bg', plain)
 
 
+class ThemeTests(unittest.TestCase):
+    def test_the_theme_is_the_default_look_and_a_keys_own_colors_win(self):
+        daemon = DaemonAmbientTests().daemon()
+        daemon.profile, daemon.page = 'main', 'main'
+        daemon.config['theme'] = {'bg': '#102030', 'text_color': '#EEEEEE', 'border': '#335577'}
+        deck.validate_config(daemon.config)
+        keys = {item['id']: item for item in daemon.current_buttons()}
+        first = next(b for b in daemon.config['profiles']['main']['pages']['main'] if b['id'] == 1)
+        first['bg'] = '#FF0000'
+        own = {item['id']: item for item in daemon.current_buttons()}[1]
+        self.assertEqual((keys[2]['bg'], keys[2]['text_color'], keys[2]['border']), ('#102030', '#EEEEEE', '#335577'))
+        self.assertEqual((own['bg'], own['text_color']), ('#FF0000', '#EEEEEE'))
+
+    def test_a_bad_theme_is_rejected(self):
+        config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        for bad in ([], {'bg': 'blue'}, {'color': '#FFFFFF'}, {'border': 5}):
+            config['theme'] = bad
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                deck.validate_config(config)
+        config['theme'] = {}
+        deck.validate_config(config)
+
+
 if __name__ == '__main__':
     unittest.main()

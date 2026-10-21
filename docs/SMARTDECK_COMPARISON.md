@@ -4,7 +4,7 @@
 ESP32-S3 touchscreen with an Electron app for Windows. This page compares it with Tessera and records what Tessera
 took from the comparison.
 
-**What this is based on, and what it is not.** SmartDeck's public README, release notes (v1.0.0 to v2.5.1), file list and
+**What this is based on, and what it is not.** SmartDeck's four README screenshots (editor, settings, button dialog, the device), its public README, release notes (v1.0.0 to v2.5.1), file list and
 issue list were read (retrieved 2026-10-21). The repository contains the panel firmware and 3D-print files; its
 Windows app source is not published (its issue #1 asks for it), so the app's behaviour is known only from the README
 and release notes. Firmware and library sources were *not* read, and none of its code was copied or studied for
@@ -31,6 +31,8 @@ README states it; behaviour that was not stated is marked *not stated*.
 | Weather city search with autocomplete, hourly refresh | **Partly.** Tessera searches by name and lets you choose between matching places; weather refreshes every 15 minutes. No live autocomplete and no condition icon on the clock screen. |
 | Serial debug monitor | **Added as a host log.** *Host log …* shows a live, cleaned tail of the host's log (connections, presses, actions, problems). |
 | Deep Sleep (screen and LEDs off after the dim period) | Already possible: set "Brightness when dimmed" to Off; a touch wakes the panel. |
+| Global theme row (background, button, text, stroke, shadow) and a Themes menu (seen in its screenshots) | **Added.** *Key theme …* sets the default background, label and outline for every key with five presets or custom colors; a key's own colors win. |
+| Mouse action type (click, double-click, move, drag) | **Added** click, right/middle click, double-click, scroll, move by and move to. Drag was not added. |
 | Rotary encoder with LED ring | Not applicable: Tessera targets a different board without an encoder. |
 | Mouse actions, presets for creative apps | Not added; Tessera has 119 ready-made actions and 10 templates for other programs. |
 | Smart upload (only changed files) | Tessera already sends only changed layouts and images; *Export diagnostics* adds a support bundle. |

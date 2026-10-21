@@ -107,11 +107,44 @@ if IS_WINDOWS:
 
 def _key(vk=0, scan=0, flags=0):
     if not IS_WINDOWS:
-        raise OSError('Hurtigtaster og tekst krever Windows')
+        raise OSError('Hotkeys and typing need Windows')
     value = INPUT(type=1)
     value.ki = KEYBDINPUT(vk, scan, flags, 0, 0)
     if user32.SendInput(1, ctypes.byref(value), ctypes.sizeof(value)) != 1:
-        raise OSError('Windows avviste tastetrykket (kontroller appens rettigheter)')
+        raise OSError('Windows refused the key press (check the permissions of Tessera)')
+
+
+MOUSE_FLAGS = {'left': (0x2, 0x4), 'right': (0x8, 0x10), 'middle': (0x20, 0x40)}
+MOUSE_OPERATIONS = ('left', 'right', 'middle', 'double', 'scroll', 'move', 'moveto')
+
+
+def _mouse(flags, dx=0, dy=0, data=0):
+    if not IS_WINDOWS:
+        raise OSError('Mouse actions need Windows')
+    value = INPUT(type=0)
+    value.mi = MOUSEINPUT(dx, dy, data & 0xFFFFFFFF, flags, 0, 0)
+    if user32.SendInput(1, ctypes.byref(value), ctypes.sizeof(value)) != 1:
+        raise OSError('Windows refused the mouse input (check the permissions of Tessera)')
+
+
+def send_mouse(op, x=0, y=0, amount=0, press=None):
+    # click: left, right, middle, double; scroll: `amount` notches (positive up); move: relative pixels;
+    # moveto: absolute screen position in pixels.
+    press = press or _mouse
+    if op in MOUSE_FLAGS or op == 'double':
+        down, up = MOUSE_FLAGS['left' if op == 'double' else op]
+        for _ in range(2 if op == 'double' else 1):
+            press(down)
+            press(up)
+    elif op == 'scroll':
+        press(0x800, data=amount * 120)
+    elif op == 'move':
+        press(0x1, x, y)
+    elif op == 'moveto':
+        width, height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
+        press(0x8001 | 0x4000, round(x * 65535 / max(1, width - 1)), round(y * 65535 / max(1, height - 1)))
+    else:
+        raise ValueError(f'Unknown mouse operation: {op}')
 
 
 def _extended_flag(vk):
@@ -225,7 +258,7 @@ def matches_foreground(pattern, context):
 
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
-                 'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin',
+                 'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 BOARD_ID = 'tessera-p4'
@@ -270,6 +303,14 @@ def _check_action(action, pages, profiles):
         raise ValueError(f'Unknown profile: {action["profile"]}')
     if kind == 'text' and (type(action.get('delay_ms', 0)) is not int or not 0 <= action.get('delay_ms', 0) <= 500):
         raise ValueError('text: delay_ms must be a whole number from 0 to 500')
+    if kind == 'mouse':
+        if action['op'] not in MOUSE_OPERATIONS:
+            raise ValueError(f'mouse: op must be one of {", ".join(MOUSE_OPERATIONS)}')
+        for key, low, high in (('x', -20000, 20000), ('y', -20000, 20000), ('amount', -50, 50)):
+            if key in action and (type(action[key]) is not int or not low <= action[key] <= high):
+                raise ValueError(f'mouse: {key} must be a whole number from {low} to {high}')
+        if action['op'] == 'moveto' and ('x' not in action or 'y' not in action or action['x'] < 0 or action['y'] < 0):
+            raise ValueError('mouse: moveto needs x and y screen positions of at least 0')
     if kind == 'plugin':
         args = action.get('args', {})
         if (not PLUGIN_ID.fullmatch(action['plugin']) or not isinstance(action.get('command'), str)
@@ -460,6 +501,11 @@ def _validate_config(config):
     _check_display(config.get('display', {}))
     if 'ambient' in config:
         check_ambient(config['ambient'])
+    theme = config.get('theme', {})
+    if not isinstance(theme, dict) or set(theme) - {'bg', 'text_color', 'border'}:
+        raise ValueError('theme may only set bg, text_color and border')
+    for key, value in theme.items():
+        _check_color(value, f'Invalid theme {key.replace("_", " ")}')
     if 'plugins' in config:
         check_plugin_config(config['plugins'])
     triggers = config.get('triggers', [])
@@ -790,6 +836,7 @@ class Daemon:
                 icon=self.resolve_icon(button), color=color, title=button.get('title', {}))
             if button.get('hold_actions'):
                 entry['hold'] = True  # the panel reports long presses for this key
+            entry.update(self.config.get('theme', {}))  # the theme is the default look; a key's own colors win
             entry.update({key: button[key] for key in ('bg', 'text_color', 'border') if key in button})
             if isinstance(button.get('gauge'), dict):
                 state = gauge_state(button['gauge'], dict(self.stats.raw, **self.live.raw()), color)
@@ -977,6 +1024,9 @@ class Daemon:
                 raise ValueError('The child button failed')
         elif kind == 'state':
             self.set_button_state(action['button'], action.get('state', 'next'))
+        elif kind == 'mouse':
+            with self.input_lock:
+                send_mouse(action['op'], action.get('x', 0), action.get('y', 0), action.get('amount', 0))
         elif kind == 'plugin':
             self.events.add('command', plugin=action['plugin'], command=action['command'], args=action.get('args', {}))
         elif kind == 'counter':

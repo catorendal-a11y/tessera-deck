@@ -167,6 +167,40 @@ class LockTests(unittest.TestCase):
             SuspendableRLock().release()
 
 
+class MouseTests(unittest.TestCase):
+    def sent(self, op, **kwargs):
+        calls = []
+        deck.send_mouse(op, press=lambda flags, dx=0, dy=0, data=0: calls.append((flags, dx, dy, data)), **kwargs)
+        return calls
+
+    def test_clicks_scrolling_and_moves_become_the_right_mouse_events(self):
+        self.assertEqual(self.sent('left'), [(0x2, 0, 0, 0), (0x4, 0, 0, 0)])
+        self.assertEqual(self.sent('right'), [(0x8, 0, 0, 0), (0x10, 0, 0, 0)])
+        self.assertEqual(self.sent('middle'), [(0x20, 0, 0, 0), (0x40, 0, 0, 0)])
+        self.assertEqual(self.sent('double'), [(0x2, 0, 0, 0), (0x4, 0, 0, 0)] * 2)
+        self.assertEqual(self.sent('scroll', amount=-3), [(0x800, 0, 0, -360)])
+        self.assertEqual(self.sent('move', x=15, y=-4), [(0x1, 15, -4, 0)])
+        with self.assertRaises(ValueError):
+            self.sent('teleport')
+
+    def test_mouse_actions_are_validated_and_run_under_the_input_lock(self):
+        config = json_defaults()
+        button = config['profiles']['main']['pages']['main'][0]
+        for good in ({'op': 'left'}, {'op': 'scroll', 'amount': 3}, {'op': 'move', 'x': -20, 'y': 10},
+                     {'op': 'moveto', 'x': 100, 'y': 200}):
+            button['actions'] = [dict(good, type='mouse')]
+            deck.validate_config(config)
+        for bad in ({'op': 'fly'}, {'op': 'scroll', 'amount': 99}, {'op': 'move', 'x': 1.5}, {'op': 'moveto'},
+                    {'op': 'moveto', 'x': -1, 'y': 5}, {'op': 'left', 'x': 'a'}):
+            button['actions'] = [dict(bad, type='mouse')]
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                deck.validate_config(config)
+        daemon = make_daemon()
+        with patch.object(deck, 'send_mouse') as send:
+            daemon.run_action({'type': 'mouse', 'op': 'scroll', 'amount': 2})
+        send.assert_called_once_with('scroll', 0, 0, 2)
+
+
 class TypingTests(unittest.TestCase):
     def test_a_pause_between_characters_is_applied_between_them_only(self):
         waits, keys = [], Mock()

@@ -35,6 +35,7 @@ version on the next save; the old file is kept in `host/backups`.
 - Editor: test (dry run), image cropper, online icon search, backups and restore, plugins, ambient settings,
   panel firmware installer with update check, diagnostics export.
 - Per-app and device volume (`audio` targets `app:NAME.exe`, volume set/up/down), typing speed for `text`, a choice between matching cities, and a live *Host log* view.
+- Key theme (default look for all keys, five presets), mouse actions (click, double, scroll, move).
 - Plugins with scoped tokens and an event stream; AI tool adapters for Claude Code hooks and Codex notify.
 - Portable defaults: programs are found when installed elsewhere, GPU sensors prefer the discrete card on any
   vendor.

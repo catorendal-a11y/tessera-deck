@@ -17,6 +17,7 @@ const kinds = {
   press:{name:'Trigger another button',icon:'loop',field:'id',label:'Button number (1–18)',group:'Advanced'},
   audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
   counter:{name:'Counter',icon:'plus',field:'name',label:'Counter name',placeholder:'for example laps',group:'On the computer'},
+  mouse:{name:'Mouse',icon:'settings',field:'op',label:'Mouse operation',group:'On the computer'},
   timer:{name:'Timer',icon:'pause',field:'name',label:'Timer name',placeholder:'for example tea',group:'On the computer'},
   set:{name:'Set variable',icon:'edit',field:'variable',label:'Variable name',group:'Advanced'},
   state:{name:'Set button state',icon:'loop',field:'button',label:'Button number (1–18)',group:'Advanced'},
@@ -287,9 +288,11 @@ function renderGrid() {
     tile.style.left=`${DEVICE.x+(index%6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.top=`${DEVICE.y+Math.floor(index/6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.setProperty('--key-color',b?.color||'#92edba');
-    if(b?.bg)tile.style.background=b.bg;
-    if(b?.border){tile.style.borderColor=b.border;tile.style.borderWidth='3px';}
-    if(b?.text_color)tile.style.setProperty('--key-text',b.text_color);
+    const look={...(b?config.theme:{})};
+    for(const key of ['bg','text_color','border'])if(b?.[key])look[key]=b[key];
+    if(look.bg)tile.style.background=look.bg;
+    if(look.border){tile.style.borderColor=look.border;tile.style.borderWidth='3px';}
+    if(look.text_color)tile.style.setProperty('--key-text',look.text_color);
     tile.append(text('span',String(id),'slot-number'));
     if(!b)tile.append(text('span','+','empty-plus'));
     else {
@@ -351,7 +354,7 @@ function actionTemplate(key) {
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer'}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
     ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
   const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':k.name;
@@ -509,7 +512,7 @@ function renderStep(action,index,count) {
   const move=delta=>{if(index+delta<0||index+delta>=count)return;mutate(()=>{const a=activeActions();[a[index],a[index+delta]]=[a[index+delta],a[index]];});};
   const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.disabled=index===0;down.disabled=index===count-1;
   step.append(element('div',{class:'step-header'},text('strong',`${index+1}. ${k.name}`),up,down,button('×',()=>mutate(()=>activeActions().splice(index,1)),'quiet danger','Remove step')));
-  let values=['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  let values=action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
   const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
@@ -538,6 +541,11 @@ function renderStep(action,index,count) {
     const shown=action.state===undefined||action.state==='next'?'next':String(action.state+1);
     step.append(field('State to set',shown,v=>editAction(index,'state',v==='next'?'next':Number(v)-1),{values:['next',...Array.from({length:8},(_,i)=>String(i+1))]}),
       text('p','Sets the toggle state of another button. Choose next to cycle, or a state number to match reality.','hint'));
+  }
+  if(action.type==='mouse') {
+    if(action.op==='scroll')step.append(field('Notches (positive = up)',String(action.amount??3),v=>editAction(index,'amount',Math.max(-50,Math.min(50,Math.round(Number(v))||0))),{type:'number'}));
+    if(action.op==='move'||action.op==='moveto')step.append(field(action.op==='move'?'Pixels right (negative = left)':'Screen X',String(action.x??0),v=>editAction(index,'x',Math.round(Number(v))||0),{type:'number'}),field(action.op==='move'?'Pixels down (negative = up)':'Screen Y',String(action.y??0),v=>editAction(index,'y',Math.round(Number(v))||0),{type:'number'}));
+    step.append(text('p','The pointer acts where it is now, except Move the pointer to, which uses screen pixels.','hint'));
   }
   if(action.type==='counter')renderCounterStep(step,action,index);
   if(action.type==='timer')renderTimerStep(step,action,index);
@@ -1033,6 +1041,31 @@ async function useOnlineIcon(id) {
   await uploadImage(new File([blob], `${id.replace(':', '-')}.png`, {type: 'image/png'}));
   $('#icon-dialog').close();
 }
+/* Theme: the default look of every key (a key's own colors still win). */
+const THEMES = {
+  midnight: {name: 'Midnight blue', bg: '#10243E', text_color: '#E6F1FF', border: '#3B82F6'},
+  graphite: {name: 'Graphite', bg: '#22272B', text_color: '#EDEFF0', border: '#4A5258'},
+  forest: {name: 'Forest', bg: '#14281E', text_color: '#E3F5EA', border: '#35A06B'},
+  paper: {name: 'Paper', bg: '#E9EEF0', text_color: '#101820', border: '#8FA0A8'},
+  ember: {name: 'Ember', bg: '#2A1A14', text_color: '#FFEDE0', border: '#E8793C'}
+};
+function themeSettings() {
+  $('#more-menu').hidden = true;
+  const theme = config.theme || {};
+  const current = Object.entries(THEMES).find(([, preset]) => preset.bg === theme.bg && preset.text_color === theme.text_color && preset.border === theme.border)?.[0] || (Object.keys(theme).length ? 'custom' : 'default');
+  dialog('Key theme', [
+    {name: 'preset', label: 'Theme', options: [['default', 'Default'], ...Object.entries(THEMES).map(([id, preset]) => [id, preset.name]), ['custom', 'Custom colors below']], value: current},
+    {name: 'bg', label: 'Key background (custom)', type: 'color', value: theme.bg || '#172329'},
+    {name: 'text_color', label: 'Label text (custom)', type: 'color', value: theme.text_color || '#E8F4EF'},
+    {name: 'border', label: 'Key outline (custom)', type: 'color', value: theme.border || '#31444D', note: 'Applies to every key that has no colors of its own. Pick Default to go back to the standard look.'}
+  ], values => mutate(() => {
+    if (values.preset === 'default') delete config.theme;
+    else if (values.preset === 'custom') config.theme = {bg: values.bg.toUpperCase(), text_color: values.text_color.toUpperCase(), border: values.border.toUpperCase()};
+    else { const {bg, text_color, border} = THEMES[values.preset]; config.theme = {bg, text_color, border}; }
+  }), 'Apply');
+}
+$('#theme-open').onclick = themeSettings;
+
 /* Backups: the host keeps rotating copies of profiles.json; any of them can be put back. */
 async function openBackups() {
   $('#more-menu').hidden = true;

@@ -79,6 +79,14 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         if op in ('up', 'down'):
             return True, f'Turn the volume of {who} {op} by {action.get("step", 5)}%'
         return True, f'{op.capitalize()} {who}'
+    if kind == 'mouse':
+        op = action['op']
+        words = {'left': 'Click the left mouse button', 'right': 'Click the right mouse button',
+                 'middle': 'Click the middle mouse button', 'double': 'Double-click the left mouse button',
+                 'scroll': f'Scroll {abs(action.get("amount", 0))} notch(es) {"up" if action.get("amount", 0) >= 0 else "down"}',
+                 'move': f'Move the pointer by {action.get("x", 0)}, {action.get("y", 0)} pixels',
+                 'moveto': f'Move the pointer to {action.get("x")}, {action.get("y")} on the screen'}
+        return True, words[op]
     if kind == 'counter':
         op, step, value = action.get('op', 'inc'), action.get('step', 1), action.get('value', 0)
         detail = {'inc': f'add {step} to', 'dec': f'subtract {step} from', 'set': f'set to {value}:',
