@@ -141,3 +141,7 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .firmware-update{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
 .firmware-update span{font-size:13px;color:var(--muted)}
 .firmware-update a{color:var(--accent)}
+#plugins-dialog{width:min(620px,92vw)}
+.plugin-row{padding:10px 12px;margin:8px 0;border-radius:10px;background:#141c20;border:1px solid #26343b}
+.plugin-row small{display:block;color:var(--muted);margin-top:2px}
+.plugin-row .error{color:#ff8a80;font-size:13px}

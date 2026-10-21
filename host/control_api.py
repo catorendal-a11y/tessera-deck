@@ -12,8 +12,10 @@ import re
 import secrets
 import threading
 from action_runner import Busy
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 MAX_BODY = 64 * 1024
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
@@ -22,6 +24,20 @@ MAX_VALUE = 200
 
 class ApiError(ValueError):
     """A request the API rejects with HTTP 400."""
+
+
+class Forbidden(ApiError):
+    """A request the caller's token does not allow (HTTP 403)."""
+
+
+@dataclass(frozen=True)
+class Grant:
+    """What one token may do: routes (None = everything), a variable-name prefix, and the two read routes."""
+    name: str
+    routes: frozenset | None = None
+    prefix: str | None = None
+    events: bool = True
+    read: bool = True
 
 
 def _button(data) -> int:
@@ -36,9 +52,49 @@ class ControlServer:
         self.daemon = daemon
         self.info_path = Path(info_path)
         self.token = secrets.token_urlsafe(32)
+        self.grants = {self.token: Grant('owner')}
+        self.grant_lock = threading.Lock()
         self.server: ThreadingHTTPServer | None = None
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display}
+
+    # --- scoped tokens for plugins -----------------------------------------------------
+    def add_grant(self, name, routes, prefix=None, events=False, read=False) -> str:
+        token = secrets.token_urlsafe(32)
+        with self.grant_lock:
+            self.grants[token] = Grant(name, frozenset(routes), prefix, events, read)
+        return token
+
+    def remove_grant(self, token) -> None:
+        with self.grant_lock:
+            if token != self.token:
+                self.grants.pop(token, None)
+
+    def grant_for(self, supplied):
+        with self.grant_lock:
+            found = None
+            for token, grant in self.grants.items():
+                if secrets.compare_digest(supplied, token):
+                    found = grant
+            return found
+
+    @staticmethod
+    def check_scope(grant, route, data):
+        if grant.routes is not None and route not in grant.routes:
+            raise Forbidden(f'This token may not use {route}')
+        if grant.prefix and route in ('var', 'vars'):
+            names = [data.get('name')] if route == 'var' else list(data.get('set') or {}) if isinstance(data.get('set'), dict) else []
+            if any(not isinstance(name, str) or not name.startswith(grant.prefix) for name in names):
+                raise Forbidden(f'Variables of this plugin must start with {grant.prefix}')
+
+    def events(self, query, grant):
+        try:
+            since = int(query.get('since', ['0'])[0])
+            wait = float(query.get('wait', ['0'])[0])
+        except ValueError as exc:
+            raise ApiError('since must be a whole number and wait a number of seconds') from exc
+        plugin = None if grant.name == 'owner' else grant.name
+        return {'events': self.daemon.events.since(since, plugin, wait), 'last': self.daemon.events.last}
 
     # --- request handlers: validate, then queue work for the daemon's worker thread ---
     def set_variable(self, data):
@@ -122,23 +178,34 @@ class ControlServer:
                 host = f'127.0.0.1:{self.server.server_port}'
                 if self.headers.get('Host') != host or self.headers.get('Origin'):
                     self.reply(403, {'error': 'Forbidden'})
-                    return False
-                if not secrets.compare_digest(self.headers.get('X-Deck-Token', ''), api.token):
+                    return None
+                grant = api.grant_for(self.headers.get('X-Deck-Token', ''))
+                if grant is None:
                     self.reply(401, {'error': 'Invalid token'})
-                    return False
-                return True
+                return grant
 
             def do_GET(self):
-                if not self.authorized():
+                grant = self.authorized()
+                if grant is None:
                     return
-                if self.path == '/v1/state':
-                    return self.reply(200, api.snapshot())
+                url = urlparse(self.path)
+                if url.path == '/v1/state':
+                    return self.reply(200, api.snapshot()) if grant.read else self.reply(403, {'error': 'This token may not read the state'})
+                if url.path == '/v1/events':
+                    if not grant.events:
+                        return self.reply(403, {'error': 'This token may not read events'})
+                    try:
+                        return self.reply(200, api.events(parse_qs(url.query), grant))
+                    except ApiError as exc:
+                        return self.reply(400, {'error': str(exc)})
                 self.reply(404, {'error': 'Not found'})
 
             def do_POST(self):
-                if not self.authorized():
+                grant = self.authorized()
+                if grant is None:
                     return
-                handler = api.routes.get(self.path.removeprefix('/v1/')) if self.path.startswith('/v1/') else None
+                route = self.path.removeprefix('/v1/') if self.path.startswith('/v1/') else None
+                handler = api.routes.get(route)
                 if handler is None:
                     return self.reply(404, {'error': 'Not found'})
                 try:
@@ -148,9 +215,12 @@ class ControlServer:
                     data = json.loads(self.rfile.read(length) or b'{}')
                     if not isinstance(data, dict):
                         raise ApiError('The body must be a JSON object')
+                    api.check_scope(grant, route, data)
                     handler(data)
                 except Busy as exc:
                     return self.reply(503, {'error': str(exc), 'retry': True})
+                except Forbidden as exc:
+                    return self.reply(403, {'error': str(exc)})
                 except (ValueError, TypeError) as exc:
                     return self.reply(400, {'error': str(exc)})
                 self.reply(200, {'ok': True, 'queued': True})
@@ -160,6 +230,7 @@ class ControlServer:
     def start(self):
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), self.make_handler())
         self.server.daemon_threads = True
+        self.server.handle_error = lambda request, client_address: None  # a client that hangs up is not an error
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         info = {'pid': os.getpid(), 'port': self.server.server_port, 'token': self.token}
         temporary = self.info_path.with_suffix('.tmp')

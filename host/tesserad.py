@@ -17,6 +17,7 @@ import zlib
 import psutil
 from ambient import Weather, check_ambient
 from config_store import CONFIG_VERSION, migrate, version_of
+from plugins import EventLog, PLUGIN_ID, PluginManager, check_plugin_config
 from live_state import NAME as LIVE_NAME, LiveState, check_counter, check_timer
 from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
@@ -221,7 +222,7 @@ def matches_foreground(pattern, context):
 
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
-                 'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name',
+                 'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 BOARD_ID = 'tessera-p4'
@@ -264,6 +265,12 @@ def _check_action(action, pages, profiles):
         raise ValueError(f'Unknown page: {action["page"]}')
     if kind == 'profile' and action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
+    if kind == 'plugin':
+        args = action.get('args', {})
+        if (not PLUGIN_ID.fullmatch(action['plugin']) or not isinstance(action.get('command'), str)
+                or not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', action['command']) or not isinstance(args, dict)
+                or len(json.dumps(args)) > 1024):
+            raise ValueError('plugin: needs a plugin id, a command name and small arguments')
     if kind == 'counter':
         check_counter(action)
     if kind == 'timer':
@@ -449,6 +456,8 @@ def _validate_config(config):
     _check_display(config.get('display', {}))
     if 'ambient' in config:
         check_ambient(config['ambient'])
+    if 'plugins' in config:
+        check_plugin_config(config['plugins'])
     triggers = config.get('triggers', [])
     if not isinstance(triggers, list):
         raise ValueError('triggers must be a list')
@@ -640,6 +649,9 @@ class Daemon:
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
         self.pc = PcState()
+        self.events = EventLog()
+        self.plugins = None
+        self.plugins_checked = 0.0
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
         self.notices = collections.deque(maxlen=5)
         self.stats_scan_at = 0.0
@@ -685,6 +697,7 @@ class Daemon:
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
                  'agents': self.agents, 'stats': self.stats.display, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
+                 'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}
         temporary = self.runtime_path.with_suffix('.tmp')
         try:
@@ -878,6 +891,7 @@ class Daemon:
         else:
             self.folder_stack.clear()
         self.page = page
+        self.events.add('page', profile=self.profile, page=page)
         self.push_page(force=True)
         return True
 
@@ -888,6 +902,7 @@ class Daemon:
             self.folder_stack.clear()
             self.profile = profile
             self.page = next(iter(self.config['profiles'][profile]['pages']))
+            self.events.add('profile', profile=profile, page=self.page)
             self.push_page()
         if not auto:
             self.auto_profile = None
@@ -958,6 +973,8 @@ class Daemon:
                 raise ValueError('The child button failed')
         elif kind == 'state':
             self.set_button_state(action['button'], action.get('state', 'next'))
+        elif kind == 'plugin':
+            self.events.add('command', plugin=action['plugin'], command=action['command'], args=action.get('args', {}))
         elif kind == 'counter':
             self.live.apply_counter(action)
             self.push_page()
@@ -1050,6 +1067,8 @@ class Daemon:
             self.active_press.pop()
             self.last_action = {'id': button_id, 'label': button['label'], 'ok': ok,
                                 'error': error or None, 'at': time.time()}
+            self.events.add('press', button=button_id, label=button['label'], profile=self.profile, page=self.page,
+                            ok=ok, hold=hold)
             try:
                 self.panel.feedback(button_id, ok)
             finally:
@@ -1308,6 +1327,13 @@ class Daemon:
             self.enqueue(('push',))
         self.live.flush()
 
+    def plugin_tick(self, now):
+        # Starts, restarts and stops plugins to match the configuration (cheap; at most every 3 seconds).
+        if self.plugins is None or now - self.plugins_checked < 3:
+            return
+        self.plugins_checked = now
+        self.plugins.sync(self.config.get('plugins'))
+
     def stats_tick(self, now):
         if now < self.stats_scan_at:
             return
@@ -1359,6 +1385,9 @@ class Daemon:
         threading.Thread(target=self.worker_loop, daemon=True).start()
         self.api = ControlServer(self, Path(self.args.profiles).with_name('deck-api.local.json'))
         self.api.start()
+        self.plugins = PluginManager(Path(__file__).resolve().parents[1] / 'plugins', Path(__file__).with_name('plugins'),
+                                     lambda: f'http://127.0.0.1:{self.api.server.server_port}', self.api.add_grant,
+                                     self.api.remove_grant, log=self.log)
         self.pc.start()
         # Standalone Deck host: the USB owner only handles buttons and assets.
         startup_fired = False
@@ -1405,7 +1434,7 @@ class Daemon:
                         continue
                 now = time.monotonic()
                 for tick in (lambda: self.agent_tick(now), lambda: self.stats_tick(now),
-                             lambda: self.ambient_tick(now), self.live_tick, self.focus_tick, self.reload_profiles):
+                             lambda: self.ambient_tick(now), lambda: self.plugin_tick(now), self.live_tick, self.focus_tick, self.reload_profiles):
                     try:
                         tick()
                     except Exception as exc:
@@ -1433,6 +1462,8 @@ class Daemon:
             pass
         finally:
             self.stop.set()
+            if self.plugins is not None:
+                self.plugins.stop_all()
             self.api.stop()
             self.pc.stop()
             self.live.flush()

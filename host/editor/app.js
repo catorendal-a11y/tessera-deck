@@ -1063,6 +1063,52 @@ async function downloadFirmware() {
 $('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmware-latest').textContent = error.message; });
 $('#firmware-download').onclick = () => downloadFirmware().catch(showError);
 $('#diagnostics-export').onclick = async () => { $('#more-menu').hidden = true; try { await command('diagnostics'); } catch (error) { showError(error); } };
+/* Plugins: turn integrations on and off and set their options; the host starts and stops them. */
+async function openPlugins() {
+  $('#more-menu').hidden = true;
+  await renderPlugins();
+  $('#plugins-dialog').showModal();
+}
+async function renderPlugins() {
+  const {plugins, problems} = await api('command/plugins', {}), list = $('#plugins-list');
+  list.replaceChildren();
+  if (!plugins.length) list.append(text('p', 'No plugins installed. Put a plugin folder in the plugins folder next to Tessera.cmd.', 'hint'));
+  for (const plugin of plugins) {
+    const box = element('div', {class: 'plugin-row'});
+    const toggle = element('label', {class: 'check-option'}, element('input', {type: 'checkbox'}), element('span', {},
+      text('strong', `${plugin.name} ${plugin.version}`),
+      text('small', `${plugin.enabled ? plugin.state : 'off'} · may use: ${plugin.permissions.join(', ') || 'nothing'}`)));
+    const check = toggle.querySelector('input');
+    check.checked = plugin.enabled;
+    check.onchange = () => { setPlugin(plugin.id, {enabled: check.checked}); renderPlugins(); };
+    box.append(toggle);
+    if (plugin.error) box.append(text('p', plugin.error, 'error'));
+    for (const [key, spec] of Object.entries(plugin.settings || {})) {
+      const value = plugin.values[key] ?? spec.default ?? (spec.type === 'checkbox' ? false : '');
+      if (spec.type === 'checkbox') {
+        const option = element('label', {class: 'check-option'}, element('input', {type: 'checkbox'}), element('span', {}, text('strong', spec.label || key)));
+        const input = option.querySelector('input');
+        input.checked = !!value;
+        input.onchange = () => setPlugin(plugin.id, {settings: {[key]: input.checked}});
+        box.append(option);
+      } else {
+        box.append(field(spec.label || key, String(value), v => setPlugin(plugin.id, {settings: {[key]: spec.type === 'number' ? Number(v) : v}}), {type: spec.type === 'number' ? 'number' : 'text'}));
+      }
+    }
+    list.append(box);
+  }
+  for (const problem of problems) list.append(text('p', problem, 'error'));
+}
+function setPlugin(id, change) {
+  mutate(() => {
+    config.plugins ??= {};
+    const entry = config.plugins[id] ??= {enabled: false, settings: {}};
+    if ('enabled' in change) entry.enabled = change.enabled;
+    if (change.settings) entry.settings = {...entry.settings, ...change.settings};
+  }, false);
+}
+$('#plugins-open').onclick = () => openPlugins().catch(showError);
+$('#plugins-close').onclick = () => $('#plugins-dialog').close();
 $('#backups-open').onclick = () => openBackups().catch(showError);
 $('#backup-close').onclick = () => $('#backup-dialog').close();
 $('#ambient-open').onclick = ambientSettings;

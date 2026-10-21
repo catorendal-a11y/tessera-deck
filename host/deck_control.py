@@ -103,6 +103,7 @@ class Controller:
             result['agents'] = runtime.get('agents', {})
             result['notices'] = runtime.get('notices', [])
             result['variables'] = runtime.get('variables', {})
+            result['plugins'] = runtime.get('plugins', [])
             # Label previews in the editor resolve $(var:…) and $(stat:…) like the panel does.
             result['vars'] = runtime.get('vars', {})
             result['stats'] = runtime.get('stats', {})

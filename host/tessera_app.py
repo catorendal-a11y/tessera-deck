@@ -25,6 +25,7 @@ import config_store
 import diagnostics
 import firmware_update
 import iconify
+import plugins
 import updates
 from action_preview import preview
 from import_review import redact_secrets, review, strip_executable
@@ -419,6 +420,23 @@ class Editor:
             os.startfile(target.parent)
         return {'path': str(target), 'message': f'Saved {target.name} in the diagnostics folder. It contains no button contents.'}
 
+    def plugin_list(self):
+        # Installed plugins with their configuration and, when the host runs, their live state.
+        manifests, problems = plugins.discover(ROOT / 'plugins')
+        live = {item['id']: item for item in self.status().get('plugins', [])}
+        configured = self.read()['config'].get('plugins', {})
+        rows = []
+        for manifest in manifests:
+            entry = configured.get(manifest.id, {})
+            enabled = bool(entry.get('enabled'))
+            state = live.get(manifest.id, {})
+            rows.append({'id': manifest.id, 'name': manifest.name, 'version': manifest.version,
+                         'permissions': sorted(manifest.permissions), 'settings': manifest.settings, 'enabled': enabled,
+                         'values': entry.get('settings', {}),
+                         'state': state.get('state', 'starting' if enabled else 'disabled') if enabled else 'disabled',
+                         'error': state.get('error', '')})
+        return {'plugins': rows, 'problems': problems}
+
     def restore_backup(self, name):
         # Put a backup back in place; the configuration it replaces is backed up first.
         config = config_store.read_backup(self.path, name)
@@ -432,6 +450,8 @@ class Editor:
             return self.download_firmware()
         if command == 'diagnostics':
             return self.export_diagnostics()
+        if command == 'plugins':
+            return self.plugin_list()
         if command == 'backups':
             return {'backups': config_store.list_backups(self.path)}
         if command == 'restore-backup':

@@ -2541,22 +2541,6 @@
                 "keys": "enter"
               }
             ]
-          },
-          {
-            "id": 18,
-            "label": "$(var:claude)",
-            "icon": "lc:e059",
-            "color": "#35D07F",
-            "status": {
-              "var": "claude",
-              "colors": {
-                "working": "#FFB74D",
-                "waiting": "#FF7070",
-                "idle": "#35D07F",
-                "ended": "#78909A"
-              }
-            },
-            "actions": []
           }
         ],
         "more": [

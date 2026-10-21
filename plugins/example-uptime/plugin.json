@@ -1,0 +1,11 @@
+{
+  "id": "example-uptime",
+  "name": "Example: uptime",
+  "version": "1.0.0",
+  "api": 1,
+  "command": ["python", "main.py"],
+  "permissions": ["vars", "events"],
+  "settings": {
+    "interval": {"type": "number", "label": "Seconds between updates", "default": 5}
+  }
+}
