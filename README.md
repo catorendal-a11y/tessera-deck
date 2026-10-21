@@ -11,7 +11,7 @@
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-118%20passing-35D07F">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-300%2B%20passing-35D07F">
 </p>
 
 <p align="center">
@@ -48,6 +48,13 @@ shows exactly what the panel shows.
 - **Scriptable** — a local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages (for example a Claude Code status light).
 - **Tray app, auto-dim and brightness** — start with Windows, dim after inactivity or when the PC locks, and wake with a touch that does not trigger a button.
 - **Free sensors** — Windows performance counters out of the box; optional [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) for temperatures, power and fan speed.
+- **Counters and timers** — `counter` and `timer` actions with labels (`$(counter:laps)`, `$(timer:tea)`), a countdown ring, notifications and end actions. They are saved, and a running timer keeps counting while Tessera is closed.
+- **Your own look** — background, label and outline colors per key, an image cropper, and optional online icon search (Iconify) next to the 1,895 offline icons.
+- **Ambient screen and offline layout** — an idle clock built from brand-colored tiles (with optional weather from Open-Meteo for a city you choose); the panel remembers its last layout and shows it even when the PC is off.
+- **Test before you press** — *Test (dry run)* explains what a key would do, checks paths, hotkeys and web addresses, and runs nothing.
+- **Safe by default** — verified device identity, a bounded action queue, long commands that never block other keys, import review, rotating backups with restore and configuration versioning.
+- **Integrations** — plugins with their own limited API tokens ([`docs/PLUGINS.md`](docs/PLUGINS.md)) and adapters that turn Claude Code hooks and Codex notifications into key states.
+- **Easy upkeep** — panel firmware installer with verified packages and an update check, `Tessera.cmd --setup`, `--uninstall` and `--diagnostics`.
 
 ## Screenshots
 
@@ -99,14 +106,22 @@ icon and the USB host running; start `Tessera.cmd` again to bring the editor bac
 Enable **Start with Windows** in the tray menu to have it ready after every sign-in.
 
 Optional entry points: `Tessera.cmd --terminal` (terminal UI), `--tray` (tray and host only) and `--editor`
-(editor window only).
+(editor window only). `--setup` installs the dependencies and puts a shortcut on the Desktop, `--uninstall`
+removes the autostart entry and the shortcut (add `--purge` to delete your profiles, icons and backups too) and
+`--diagnostics` writes a support bundle with versions, counts and a cleaned log tail, and no button contents.
+Dependencies are installed again only when `host/requirements.txt` changes.
 
 The default port is `COM4`; set `TESSERA_PORT` to change it. After the first successful connection Tessera
 remembers the board's USB serial number and follows it if Windows renumbers the port.
 
 ### 2. Flash the firmware
 
-Install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html), then:
+**From a release (no developer tools):** download `tessera-firmware-<version>.zip` from the Releases page (or press
+*Check for updates* in **⋯ → Panel firmware …**), choose it there and press *Install*. The installer verifies the
+package, the board and the protocol before writing. See [`docs/RELEASING.md`](docs/RELEASING.md) for how updates
+and the lack of an automatic rollback work.
+
+**From source:** install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html), then:
 
 ```powershell
 idf.py -B build/idf6 build
@@ -190,16 +205,26 @@ python host\deckctl.py press 5 | ok 5 | alert 5 | wake | dim | status
 ```
 
 A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`.
-The Claude Code profile uses this on its first key. To drive it from Claude Code hooks (verify the event names
-against the Claude Code hooks documentation):
+The Claude Code profile uses this on its first key.
 
-```json
-{ "hooks": {
-  "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"<tessera>/host/.venv/Scripts/pythonw.exe\" \"<tessera>/host/deckctl.py\" var claude working" }] }],
-  "Notification":     [{ "hooks": [{ "type": "command", "command": "\"<tessera>/host/.venv/Scripts/pythonw.exe\" \"<tessera>/host/deckctl.py\" var claude waiting" }] }],
-  "Stop":             [{ "hooks": [{ "type": "command", "command": "\"<tessera>/host/.venv/Scripts/pythonw.exe\" \"<tessera>/host/deckctl.py\" var claude idle" }] }]
-} }
-```
+**Claude Code.** `python host\deckctl.py hooks claude` prints the `hooks` block for `~/.claude/settings.json`
+(Tessera never edits your settings itself; merge it yourself). Every hook runs `deckctl adapter claude`, which reads
+the hook's JSON from stdin and sets `$(var:claude)` (`working`, `waiting`, `idle`, `ended`), `$(var:claude.tool)`,
+`$(var:claude.project)` and `$(var:claude.message)` (the text of a notification, for example a permission prompt).
+It always exits 0, so a stopped host never disturbs Claude Code. Check the event names against the Claude Code
+hooks documentation for your version.
+
+**Codex.** Codex reports only finished turns through its `notify` setting: point it at
+`python host\deckctl.py adapter codex` and `$(var:codex)`, `codex.project` and `codex.message` are set when a turn
+completes. While Codex works, the key still shows `$(agent:codex)` from process detection; Codex offers no
+"working" event to read.
+
+**Any other tool.** `python host\deckctl.py adapter generic NAME STATE [MESSAGE]` sets `$(var:NAME)` and
+`$(var:NAME.message)`. Adapters live in `host/adapters.py`; adding one is a function from the tool's event to
+`{variable: value}`.
+
+**Your own program.** Write a [plugin](docs/PLUGINS.md): a separate process with its own limited token that sets
+values, reads key presses and receives commands from a key.
 
 ### Real icons for existing keys
 
@@ -220,9 +245,17 @@ the key's `open` action. It is a dry run by default; add `--apply` to write the 
 | host → panel | `AD_FEEDBACK <ok or alert> <id>` | Flash a key green or red |
 | host → panel | `AD_BRIGHTNESS <1-100>`, `AD_DISPLAY_DIM <0-100>`, `AD_DISPLAY_WAKE` | Backlight control; the brightness is stored on the panel |
 | host → panel | `AD_PING` | Heartbeat every second; the header shows *NO PC* after 3.5 s without one |
-| host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | PC clock for the header when SNTP has not synchronized it (no Wi-Fi) |
-| panel → host | `{"type":"deck_event","button":N,"label":"…"}` | A key was pressed |
+| host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | The PC's local time for the header and the ambient clock; the panel has no network clock |
+| host → panel | `AD_SCREEN deck` / `AD_SCREEN ambient` | Show the keys or the ambient clock (protocol 3) |
+| host → panel | `AD_AMBIENT <text>` | The line under the ambient clock, for example the weather (protocol 3) |
+| panel → host | `{"type":"info","boardId":"tessera-p4","firmwareVersion":…,"protocol":3,…}` | The answer to `get_info`; the host refuses another board or an unsupported protocol |
+| panel → host | `{"type":"deck_event","button":N,"label":"…","hold":true}` | A key was pressed (`hold` for a long press, protocol 2) |
 | panel → host | `{"type":"wake"}` | A touch woke the dimmed panel; it presses no key |
+| panel → host | `{"type":"screen","name":"deck","by":"touch"}` | A touch left the ambient screen (protocol 3) |
+
+Layout entries may also carry `hold` (the key has a long-press action) and `bg`, `text_color` and `border` colors.
+A layout is limited to 8 KB and up to 18 keys; an image upload answers `AD_IMG_END OK <id>`, `INVALID` or `FULL`
+(the 8 MiB image cache cannot hold it). Protocol versions are listed in [`docs/RELEASING.md`](docs/RELEASING.md).
 
 A pressed key stays highlighted until the host confirms it with `AD_FEEDBACK`. Without a host it flashes red at once.
 
@@ -238,10 +271,20 @@ host/            Windows host
   tessera_app.py       Local editor server and WebView2 window
   tessera_terminal.py  Terminal UI
   tessera_tray.py      Tray app
-  deckctl.py           Command line for the control API
+  deckctl.py           Command line for the control API, adapters and hooks
+  control_api.py       Local API with scoped tokens and the event stream
+  action_runner.py     Bounded, killable command execution
+  live_state.py        Counters and timers      pc_state.py   Microphone, speakers, media
+  ambient.py           Idle screen line and weather     adapters.py   AI tool adapters
+  plugins.py           Plugin manifests and lifecycle   config_store.py   Versions and backups
+  firmware_update.py   Firmware packages and installer  updates.py   Update check
+  import_review.py     Import approval      action_preview.py   Dry run
+  setup_tool.py        Setup, uninstall, dependency sync
   editor/              Editor front end (HTML, JS, CSS)
+plugins/         Plugins (example-uptime is a working reference)
+docs/            Plugin guide, release process, SmartDeck comparison, images
 tests/           Unit, editor, native render and hardware smoke tests
-tools/           Icon refresh, sensor setup and icon font tooling
+tools/           Packaging, icon refresh, sensor setup and icon font tooling
 vendor/          Lucide icon pack (ISC) and ArduinoJson (MIT)
 ```
 
@@ -258,8 +301,11 @@ build\native\test_ui.exe build\previews          # renders the real LVGL UI to i
 host\.venv\Scripts\python.exe tests\hardware_smoke.py   # talks to the panel; presses no keys on the PC
 ```
 
-The hardware smoke test never sends hotkeys or runs actions on the PC. See [`VERIFICATION.md`](VERIFICATION.md)
-for what the checks cover and [`ELGATO_RESEARCH.md`](ELGATO_RESEARCH.md) for the design research.
+The hardware smoke test never sends hotkeys or runs actions on the PC. GitHub Actions runs the Windows host
+tests, a lint and dependency audit, the firmware build and the native LVGL tests on every push. See
+[`VERIFICATION.md`](VERIFICATION.md) for what the checks cover and what has not been run on hardware,
+[`CHANGELOG.md`](CHANGELOG.md), [`docs/SMARTDECK_COMPARISON.md`](docs/SMARTDECK_COMPARISON.md) and
+[`ELGATO_RESEARCH.md`](ELGATO_RESEARCH.md) for the design research.
 
 ## Troubleshooting
 
@@ -274,15 +320,27 @@ for what the checks cover and [`ELGATO_RESEARCH.md`](ELGATO_RESEARCH.md) for the
 
 ## Security notes
 
-Profiles can run commands, open files and call URLs. **Treat imported profiles like code** and read them before
-you press a key. The editor and the control API accept connections from `127.0.0.1` only, require a per-run token
-and reject browser requests.
+Profiles can run commands, open files and call URLs, so **treat imported profiles like code**. Importing lists every
+command, web request, program launch and automatic rule and asks before keeping them (you can import without them).
+The editor and the control API accept connections from `127.0.0.1` only, require a per-run token and reject
+browser requests. Variable values are refused in shell commands when they contain characters like `& | < > ^ " %`
+and are percent-encoded in URLs. Keep API keys out of profiles: write `$(env:NAME)` in an HTTP header or body and
+set the variable in Windows; exports replace known credential headers with such references.
+Plugins run with your own rights and are not sandboxed; the limited tokens only restrict what they can ask
+Tessera to do. Only the project's own GitHub releases, `api.open-meteo.com` and `api.iconify.design` are ever
+contacted, each only after you ask for it (update check, weather, online icons).
 
 ## Roadmap
 
-- Long-press and press-and-release actions
-- Import of Stream Deck and OpenDeck profiles
-- A plugin bridge for the OpenAction API
+Not done yet, in rough order of value:
+
+- Run the 0.5.0 firmware on the panel and fix what only hardware shows (see `VERIFICATION.md`)
+- A real A/B firmware layout with over-USB OTA and automatic rollback (see `docs/RELEASING.md`)
+- Counters and timers that tick on the panel itself, without the PC
+- Press-and-release (key-down / key-up) actions, for example push-to-talk; today a long press runs a second action
+- Sliders and other touch widgets beyond the key grid
+- Import of Stream Deck and OpenDeck profiles; OpenAction/OpenDeck plugin compatibility (not built, so not claimed)
+- A signed Windows installer
 
 ## Acknowledgements
 

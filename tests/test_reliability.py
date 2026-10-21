@@ -167,5 +167,36 @@ class LockTests(unittest.TestCase):
             SuspendableRLock().release()
 
 
+class ConcurrencyTests(unittest.TestCase):
+    def test_many_threads_submitting_while_the_worker_runs_lose_nothing_and_never_deadlock(self):
+        daemon = make_daemon()
+        worker = threading.Thread(target=daemon.worker_loop, daemon=True)
+        worker.start()
+
+        def hammer(number):
+            for index in range(50):
+                try:
+                    daemon.submit(('var', f't{number}-{index}', '1'))
+                except Busy:
+                    time.sleep(0.001)
+
+        threads = [threading.Thread(target=hammer, args=(number,)) for number in range(8)]
+        started = time.monotonic()
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(15)
+        deadline = time.monotonic() + 15
+        while daemon.jobs.unfinished_tasks and time.monotonic() < deadline:
+            time.sleep(0.01)
+        daemon.stop.set()
+        worker.join(2)
+        self.assertFalse(any(thread.is_alive() for thread in threads), 'a submitting thread is stuck')
+        self.assertEqual(daemon.jobs.unfinished_tasks, 0, 'queued jobs were not all handled')
+        self.assertEqual(len(daemon.custom_vars) + daemon.dropped_jobs, 400,
+                         'every request was either run or counted as rejected')
+        self.assertLess(time.monotonic() - started, 20)
+
+
 if __name__ == '__main__':
     unittest.main()
