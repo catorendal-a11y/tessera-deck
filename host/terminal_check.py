@@ -11,7 +11,7 @@ from deck_control import ROOT
 async def check():
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / 'profiles.json'
-        config = json.loads((ROOT / 'host/profiles.json').read_text(encoding='utf-8'))
+        config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
         config['profiles']['main']['pages']['main'][0]['icon'] = 'lc:e064'
         config['profiles']['main']['pinned'] = [
             {'id': 17, 'label': 'Pinned button', 'icon': 'home', 'color': '#35D07F', 'actions': []}]
