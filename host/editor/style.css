@@ -147,3 +147,8 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .plugin-row .error{color:#ff8a80;font-size:13px}
 #log-dialog{width:min(900px,94vw)}
 #log-view{margin:12px 0 0;height:50vh;overflow:auto;background:#0b1114;border:1px solid #26343b;border-radius:10px;padding:10px 12px;font:12px/1.45 Consolas,monospace;color:#cfe3da;white-space:pre-wrap;word-break:break-word}
+.screen-wordmark{left:80px;top:26px;width:auto;height:auto;font-size:24px;line-height:28px;letter-spacing:6px;font-weight:700;color:#e8f4ef}
+.screen-header{background:linear-gradient(#171f25,#101a1f)}
+.device-screen{background:linear-gradient(#091014,#05090b)}
+.deck-key:not(.empty){background:linear-gradient(#232e34,#11191d);border-color:color-mix(in srgb,var(--key-color,#31444d) 38%,#31444d);box-shadow:0 5px 18px #0008;border-radius:22px}
+.deck-key.selected{box-shadow:0 0 0 3px #58e09b30,0 5px 18px #0008;border-color:#58e09b}

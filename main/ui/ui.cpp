@@ -26,6 +26,7 @@ constexpr uint32_t Border=0x31444D,Text=0xE8F4EF,Muted=0x78909A,Accent=0x58E09B;
 constexpr uint32_t PressedBg=0x254E3B,OkBg=0x1E6042,AlertBg=0x6E2633,Amber=0xFFB74D;
 /* The four logo tile colors; they are the interface roles: go, info, media, toggle. */
 constexpr uint32_t Cyan=0x4DD0E1,Purple=0xB388FF;
+uint32_t mix(uint32_t from,uint32_t to,float t);
 /* The host pings every second; three missed pings mean nobody runs the keys. */
 constexpr int64_t HostTimeoutMs=3500;
 /* A pressed key stays highlighted until the host confirms it. Long multi-step
@@ -91,9 +92,13 @@ void image_frame(ImageTile& value) {
     lv_image_set_src(value.widget,&value.descriptor);lv_obj_invalidate(value.widget);
     value.due=millis()+value.image->durations[value.frame];
 }
-uint32_t base_bg[DECK_MAX_BUTTONS];  /* resting key background, restored after a confirmation flash */
+uint32_t base_bg[DECK_MAX_BUTTONS],base_top[DECK_MAX_BUTTONS],base_bottom[DECK_MAX_BUTTONS];  /* resting key fill, restored after a flash */
+void fill(int slot,uint32_t top,uint32_t bottom) {
+    lv_obj_set_style_bg_color(keys[slot],lv_color_hex(top),0);lv_obj_set_style_bg_grad_color(keys[slot],lv_color_hex(bottom),0);
+    lv_obj_set_style_bg_grad_dir(keys[slot],LV_GRAD_DIR_VER,0);
+}
 void flash(int slot,uint32_t color,uint32_t ms) {
-    lv_obj_set_style_bg_color(keys[slot],lv_color_hex(color),0);flash_until[slot]=millis()+ms;
+    fill(slot,color,mix(color,0x000000,.25f));flash_until[slot]=millis()+ms;
 }
 void press(lv_event_t *event) {
     const int slot=static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));
@@ -132,12 +137,14 @@ void style_gauge(int slot,const deck_button_t& value) {
 }
 void make_gauge(int slot,lv_obj_t *tile,const deck_button_t& value) {
     constexpr int D=108,Top=6;
+    auto *disc=lv_obj_create(tile);flat(disc,mix(base_bg[slot],0xFFFFFF,.035f));lv_obj_set_size(disc,D-36,D-36);
+    lv_obj_set_pos(disc,(Cell-(D-36))/2,Top+18);lv_obj_set_style_radius(disc,LV_RADIUS_CIRCLE,0);lv_obj_remove_flag(disc,LV_OBJ_FLAG_CLICKABLE);
     auto *arc=lv_arc_create(tile);gauge_arc[slot]=arc;
     lv_obj_set_size(arc,D,D);lv_obj_set_pos(arc,(Cell-D)/2,Top);
     lv_arc_set_range(arc,0,100);lv_arc_set_bg_angles(arc,135,45);
     lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
-    lv_obj_set_style_arc_width(arc,11,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,11,LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc,lv_color_hex(0x25343C),LV_PART_MAIN);
+    lv_obj_set_style_arc_width(arc,13,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,13,LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc,lv_color_hex(0x1E2B32),LV_PART_MAIN);
     lv_obj_set_style_arc_rounded(arc,true,LV_PART_MAIN);lv_obj_set_style_arc_rounded(arc,true,LV_PART_INDICATOR);
     gauge_value[slot]=label(tile,"",0,Top+D/2-16,Cell,&fq_font_dejavu_bold_28,Text);
     lv_obj_set_style_text_align(gauge_value[slot],LV_TEXT_ALIGN_CENTER,0);
@@ -161,10 +168,13 @@ void rebuild() {
         for(int n=0;n<deck_model_button_count();++n){deck_button_t item{};if(deck_model_get_button(n,&item)&&item.id==slot+1){value=item;assigned=true;break;}}
         auto *tile=lv_button_create(grid);keys[slot]=tile;
         lv_obj_set_pos(tile,X+(slot%6)*(Cell+Gap),Y+(slot/6)*(Cell+Gap));lv_obj_set_size(tile,Cell,Cell);
-        base_bg[slot]=assigned?((value.style&DECK_STYLE_BG)?value.bg:Surface):0x0E171B;
-        flat(tile,base_bg[slot]);lv_obj_set_style_radius(tile,20,0);
-        lv_obj_set_style_border_width(tile,(assigned&&(value.style&DECK_STYLE_BORDER))?3:1,0);
-        lv_obj_set_style_border_color(tile,lv_color_hex(!assigned?0x1B2A30:(value.style&DECK_STYLE_BORDER)?value.border:Border),0);
+        const uint32_t mid=assigned?((value.style&DECK_STYLE_BG)?value.bg:Surface):0x0E171B;
+        base_bg[slot]=mid;base_top[slot]=mix(mid,0xFFFFFF,assigned?.05f:0.f);base_bottom[slot]=mix(mid,0x000000,assigned?.28f:0.f);
+        flat(tile,mid);lv_obj_set_style_radius(tile,22,0);fill(slot,base_top[slot],base_bottom[slot]);
+        const bool own_border=assigned&&(value.style&DECK_STYLE_BORDER);
+        lv_obj_set_style_border_width(tile,own_border?3:1,0);
+        lv_obj_set_style_border_color(tile,lv_color_hex(!assigned?0x1B2A30:own_border?value.border:mix(Border,value.color,.38f)),0);
+        if(assigned){lv_obj_set_style_shadow_width(tile,18,0);lv_obj_set_style_shadow_color(tile,lv_color_hex(0x000000),0);lv_obj_set_style_shadow_opa(tile,LV_OPA_50,0);lv_obj_set_style_shadow_offset_y(tile,5,0);}
         lv_obj_set_style_bg_color(tile,lv_color_hex(0x244D3A),LV_STATE_PRESSED);
         if(!assigned){lv_obj_set_clickable(tile,false);auto *plus=label(tile,"+",0,51,Cell,&fq_font_dejavu_28,0x263940);lv_obj_set_style_text_align(plus,LV_TEXT_ALIGN_CENTER,0);continue;}
         ids[slot]=value.id;char packed[5]{};const bool lucide=deck_lucide_glyph(value.icon,packed);auto image=deck_image_get(value.icon);
@@ -174,7 +184,7 @@ void rebuild() {
         // Bold 16 uses the 20 px bold font; place it by that height, as the editor does.
         const int size=value.title_size?value.title_size:16,px=value.title_bold&&size==16?20:size;
         const int y=value.title_position==1?10:value.title_position==2?(Cell-px)/2:Cell-px-17;
-        auto *name=name_label[slot]=label(tile,value.label,9,y,Cell-18,title_font(value),(value.style&DECK_STYLE_TEXT)?value.text:Text);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(name,value.title_position==3);
+        auto *name=name_label[slot]=label(tile,value.label,9,y,Cell-18,title_font(value),(value.style&DECK_STYLE_TEXT)?value.text:value.has_gauge?mix(Text,Muted,.3f):Text);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(name,value.title_position==3);
         /* With a hold action, a click is a short press only; a long press reports a hold instead. */
         lv_obj_add_event_cb(tile,press,value.has_hold?LV_EVENT_SHORT_CLICKED:LV_EVENT_CLICKED,reinterpret_cast<void*>(static_cast<intptr_t>(slot)));
         if(value.has_hold)lv_obj_add_event_cb(tile,press,LV_EVENT_LONG_PRESSED,reinterpret_cast<void*>(static_cast<intptr_t>(slot)));
@@ -214,21 +224,6 @@ void make_logo(lv_obj_t *parent,int x,int y) {
         tile(parent,x+col*(Tile+Space),y+4+row*(Tile+Space),Tile,4,sweep((row+col)/4.f));
     }
     tile(parent,x+34,y,12,4,Amber);
-}
-/* TESSERA drawn from rounded tiles (5x7 letters), swept across the brand gradient. */
-void make_wordmark(lv_obj_t *parent,int x,int y) {
-    static const char *const glyphs[][7]={
-        {"11111","00100","00100","00100","00100","00100","00100"},
-        {"11111","10000","10000","11110","10000","10000","11111"},
-        {"01111","10000","10000","01110","00001","00001","11110"},
-        {"11110","10001","10001","11110","10100","10010","10001"},
-        {"01110","10001","10001","11111","10001","10001","10001"}};
-    static const int word[]={0,1,2,2,1,3,4};
-    constexpr int Cell=3,Pitch=4,Advance=5*Pitch+2,Count=7;
-    for(int letter=0;letter<Count;++letter)for(int row=0;row<7;++row)for(int col=0;col<5;++col) {
-        if(glyphs[word[letter]][row][col]!='1')continue;
-        tile(parent,x+letter*Advance+col*Pitch,y+row*Pitch,Cell,1,sweep((letter*5+col)/(Count*5.f-1)));
-    }
 }
 /* ---- Ambient clock: a big clock built from brand-gradient tiles, the date and a host-supplied line. ---- */
 lv_obj_t *ambient,*ambient_clock,*ambient_date,*ambient_line;
@@ -295,7 +290,7 @@ void update(lv_timer_t*) {
     for(auto& image:images)if(image.image&&image.image->frames.size()>1&&static_cast<int32_t>(millis()-image.due)>=0){image.frame=(image.frame+1)%image.image->frames.size();image_frame(image);}
     int id=0;deck_feedback_t result;
     while(deck_model_take_feedback(&id,&result))for(int i=0;i<DECK_MAX_BUTTONS;++i)if(ids[i]==id&&keys[i])flash(i,result==DECK_FEEDBACK_ALERT?AlertBg:OkBg,500);
-    for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){lv_obj_set_style_bg_color(keys[i],lv_color_hex(base_bg[i]),0);flash_until[i]=0;}
+    for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){fill(i,base_top[i],base_bottom[i]);flash_until[i]=0;}
     update_link();
     update_ambient();
     lv_label_set_text(clock_label,time_service_time_text());
@@ -304,9 +299,11 @@ void update(lv_timer_t*) {
 
 extern "C" void ui_show_destination(int) {if(screen){deck_model_set_screen(DECK_SCREEN_DECK);lv_screen_load(screen);}}
 extern "C" void ui_init(void) {
-    screen=lv_obj_create(nullptr);flat(screen,Bg);auto *header=lv_obj_create(screen);flat(header,HeaderBg);lv_obj_set_size(header,W,Header);lv_obj_set_style_radius(header,0,0);
+    screen=lv_obj_create(nullptr);flat(screen,Bg);lv_obj_set_style_bg_grad_color(screen,lv_color_hex(0x05090B),0);lv_obj_set_style_bg_grad_dir(screen,LV_GRAD_DIR_VER,0);
+    auto *header=lv_obj_create(screen);flat(header,mix(HeaderBg,0xFFFFFF,.05f));lv_obj_set_style_bg_grad_color(header,lv_color_hex(HeaderBg),0);lv_obj_set_style_bg_grad_dir(header,LV_GRAD_DIR_VER,0);
+    lv_obj_set_size(header,W,Header);lv_obj_set_style_radius(header,0,0);
     make_logo(header,20,15);
-    make_wordmark(header,78,24);
+    auto *wordmark=label(header,"TESSERA",80,26,220,&fq_font_dejavu_bold_24,Text);lv_obj_set_style_text_letter_space(wordmark,6,0);
     profile_label=label(header,"LOCAL",340,10,380,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(profile_label,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_style_text_letter_space(profile_label,2,0);
     page_label=label(header,"Main",340,29,380,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_align(page_label,LV_TEXT_ALIGN_CENTER,0);
     link_pill=lv_obj_create(header);flat(link_pill,0x16372A);lv_obj_set_pos(link_pill,730,21);lv_obj_set_size(link_pill,148,34);lv_obj_set_style_radius(link_pill,17,0);

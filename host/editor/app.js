@@ -264,10 +264,11 @@ function expandLabel(value) {
   return text.replace(/[\u0000-\u001f]/g,' ');
 }
 function gaugeVisual(b,live) {
-  const NS='http://www.w3.org/2000/svg',D=108,width=11,r=(D-width)/2,C=2*Math.PI*r,arc=C*.75;
+  const NS='http://www.w3.org/2000/svg',D=108,width=13,r=(D-width)/2,C=2*Math.PI*r,arc=C*.75;
   const p=Math.max(0,Math.min(100,live?live.p:0)),color=live?.color||b.color||'#35D07F';
   const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox',`0 0 ${D} ${D}`);svg.setAttribute('class','gauge-ring');
-  const rings=[[arc,'#25343C']];if(p>0)rings.push([arc*p/100,color]);
+  const disc=document.createElementNS(NS,'circle');for(const [name,value] of Object.entries({cx:D/2,cy:D/2,r:(D-36)/2,fill:'#1B272D'}))disc.setAttribute(name,value);svg.append(disc);
+  const rings=[[arc,'#1E2B32']];if(p>0)rings.push([arc*p/100,color]);
   for(const [dash,stroke] of rings) {
     const circle=document.createElementNS(NS,'circle');
     const attributes={cx:D/2,cy:D/2,r,fill:'none',stroke,'stroke-width':width,'stroke-linecap':'round','stroke-dasharray':`${dash} ${C}`,transform:`rotate(135 ${D/2} ${D/2})`};
