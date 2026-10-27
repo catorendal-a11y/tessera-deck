@@ -341,7 +341,13 @@ function renderGrid() {
   }));
   if(focused)$(`[data-slot="${focused}"]`)?.focus();
 }
+/* The editor is designed for about 1450x900; larger windows scale everything up so the proportions stay the same. */
+function applyZoom() {
+  const zoom=Math.max(.85,Math.min(1.7,innerHeight/990,innerWidth/1450));
+  document.documentElement.style.setProperty('--z',zoom.toFixed(3));document.body.style.zoom=zoom;
+}
 function fitDevice() {
+  applyZoom();
   const frame=$('#device-frame'),screen=$('#device-screen');if(!frame||!screen)return;
   const scale=frame.clientWidth/1024;screen.style.transform=`scale(${scale})`;frame.style.height=`${600*scale}px`;
 }
@@ -380,17 +386,29 @@ function addAction(key,id=selected) {
   mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
   toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust the settings on the right.');
 }
+/* Action categories fold like Stream Deck's action list. The folded set is remembered; a search opens everything. */
+const foldedCategories=(()=>{try{return new Set(JSON.parse(localStorage.getItem('tessera-folded')||'[]'));}catch{return new Set();}})();
+const foldPrefStored=(()=>{try{return localStorage.getItem('tessera-folded')!==null;}catch{return false;}})();
+let categoryOrder=0;
+function category(name,items,tone,searching) {
+  if(!foldPrefStored&&!searching&&categoryOrder++>0)foldedCategories.add(name);
+  const box=element('details',{class:'lib-cat tone-'+tone});box.open=searching||!foldedCategories.has(name);
+  box.append(element('summary',{},text('span',name),text('small',String(items.length))),element('div',{class:'lib-items'},...items));
+  box.addEventListener('toggle',()=>{if(searching)return;box.open?foldedCategories.delete(name):foldedCategories.add(name);
+    try{localStorage.setItem('tessera-folded',JSON.stringify([...foldedCategories]));}catch{}});
+  return box;
+}
 function renderLibrary() {
-  const search=$('#action-search').value.toLocaleLowerCase();const list=$('#actions-library');list.replaceChildren();
+  const search=$('#action-search').value.toLocaleLowerCase();const list=$('#actions-library');list.replaceChildren();categoryOrder=0;
   const make=(name,icon,sub,key)=>{if(!(name+' '+sub).toLocaleLowerCase().includes(search))return null;
-    const item=button('',()=>addAction(key),'action-preset');item.draggable=false;item.dataset.action=key;item.setAttribute('aria-label','Add '+name);
+    const item=button('',()=>addAction(key),'action-preset');item.draggable=false;item.dataset.action=key;item.title=name;item.setAttribute('aria-label','Add '+name);
     item.append(text('span',icons[icon],'action-symbol'),element('span',{},text('span',name),text('small',sub)));
     item.addEventListener('dragstart',e=>{e.dataTransfer.setData('application/x-deck-action',key);e.dataTransfer.effectAllowed='copy';});return item;};
   if(('installed programs app launcher'.includes(search)||!search))list.append(button('▦ Installed programs',openProgramPicker,'program-launcher'));
   const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='page'?'Folders and subpages':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
-  for(const [group,items] of groups){list.append(text('div',group.toUpperCase(),'library-group'),...items);}
-  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});for(const [group,items] of packed)list.append(text('div',group.toUpperCase(),'library-group'),...items);}
-  else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)list.append(text('div','READY TO USE','library-group'),...ready);}
+  [...groups].forEach(([group,items],index)=>list.append(category(group,items,index%4,!!search)));
+  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)list.append(category(group,items,tone++%4,!!search));}
+  else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)list.append(category('Ready to use',ready,0,!!search));}
   if(!list.children.length)list.append(element('div',{class:'library-empty'},text('strong','No matches'),text('span','Try another search term.')));
 }
 function applyProgramDetails(result,index=0) {
@@ -447,32 +465,54 @@ function field(label,value,handler,{type='text',placeholder='',values=null,multi
   return element('label',{},text('span',label),input);
 }
 function editAction(index,key,value) {mutate(()=>activeActions()[index][key]=value,false,editKey('action',index,key));}
+/* Groups a run of inspector rows under a collapsible heading. Wrapped last-first so the earlier indexes stay valid. */
+function wrapSection(panel,from,to,title,open,cls='') {
+  const nodes=[...panel.children].slice(from,to);if(!nodes.length)return;
+  const section=element('details',{class:'inspector-section '+cls});section.open=open;
+  panel.insertBefore(section,nodes[0]);section.append(text('summary',title),element('div',{class:'section-body'},...nodes));
+}
 function renderInspector() {
   recording=null;const panel=$('#inspector'),base=current(),b=appearance();panel.replaceChildren();
-  panel.append(element('div',{class:'inspector-title'},element('div',{},text('div',`BUTTON ${String(selected).padStart(2,'0')}`,'section-label'),text('h2',b?'Customize the button':'An empty slot'))));
+  panel.append(element('div',{class:'inspector-title'},element('div',{},text('div',`BUTTON ${String(selected).padStart(2,'0')}`,'section-label'),b?null:text('h2','An empty slot'))));
+  const firstField=panel.children.length;
   if(!b){panel.append(element('div',{class:'empty-inspector'},text('strong','What do you want here?'),text('p','Drag an action here from the list on the left. Or pick one of the shortcuts below.')));
     panel.append(button('▦ Choose installed program',openProgramPicker,'add-action'),button('＋ Add hotkey',()=>addAction('hotkey'),'add-action'),button('▱ Open file or program',()=>addAction('open'),'add-action'),button('▶ Play / pause',()=>addAction('preset:3'),'add-action'));if(clipboard)panel.append(button('Paste copied button',pasteButton,'add-action'));return;}
+  const previewLabel=text('span',resolveLabel(b.label)||' ','prop-label');
   const meter=text('small','','label-meter');
   const updateMeter=()=>{const full=expandLabel(appearance()?.label),bytes=new TextEncoder().encode(full).length,variable=/[$][(]/.test(appearance()?.label||'');
     meter.classList.toggle('over',bytes>LABEL_BYTES);
     meter.textContent=bytes>LABEL_BYTES?`Too long for the panel: it shows “${panelLabel(full)}”`:`${bytes} / ${LABEL_BYTES} bytes on the panel${variable?' with the current values':''}`;};
-  const nameField=field('Button name',b.label,value=>{mutate(()=>appearance().label=value,false,editKey('label'));updateMeter();},{placeholder:'A short, clear name'});
-  nameField.append(meter);updateMeter();panel.append(nameField);
-  const appearanceRow=element('div',{class:'appearance-row'},text('span','Icon color','hint'));
-  const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color'});color.addEventListener('input',()=>{mutate(()=>appearance().color=color.value,false,editKey('color'));panel.querySelector('.selected-icon-image')?.replaceWith(iconVisual(current().icon,color.value,'selected-icon-image'));});appearanceRow.append(color,text('span','Shown on the panel','hint'));panel.append(appearanceRow);
+  const nameInput=element('input',{type:'text',placeholder:'A short, clear name','aria-label':'Button name'});nameInput.value=b.label??'';
+  nameInput.addEventListener('input',()=>{mutate(()=>appearance().label=nameInput.value,false,editKey('label'));updateMeter();previewLabel.textContent=resolveLabel(nameInput.value)||' ';});
+  updateMeter();
+  const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color',title:'Icon color'});
+  color.addEventListener('input',()=>{mutate(()=>appearance().color=color.value,false,editKey('color'));panel.querySelector('.prop-icon')?.replaceWith(iconVisual(current().icon,color.value,'prop-icon'));});
   const selectedIcon=packIcons.get(b.icon);
-  panel.append(element('div',{class:'selected-pack-icon'},iconVisual(b.icon,b.color,'selected-icon-image'),element('div',{},text('strong',selectedIcon?.name||iconNames[b.icon]||'Default icon'),button(iconPack?`Choose from ${iconPack.count.toLocaleString('en-US')} icons …`:'Open the large icon library …',openIcons,'text-button'))));
-  const upload=element('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',hidden:'hidden'});upload.onchange=()=>chooseImage(upload.files[0]).catch(showError);panel.append(upload,button('Image from file …',()=>upload.click(),'outline'));
-  panel.append(element('div',{class:'title-controls'},field('Text size',String(base.title?.size||16),v=>mutate(()=>{base.title??={};base.title.size=Number(v);}),{values:['16','20','24','28']}),field('Position',base.title?.position||'bottom',v=>mutate(()=>{base.title??={};base.title.position=v;}),{values:[['bottom','Bottom'],['top','Top'],['middle','Middle'],['hidden','Hide text']]})));
-  panel.append(element('div',{class:'option-buttons'},button(base.title?.bold?'Bold text ✓':'Bold text',()=>mutate(()=>{base.title??={};base.title.bold=!base.title.bold;}),'outline'),button(config.profiles[profile].pinned?.includes(base)?'◆ Unpin':'◇ Pin to all pages',togglePin,'outline')));
+  const iconButton=button(`${selectedIcon?.name||iconNames[b.icon]||'Default icon'} · Choose …`,openIcons,'prop-field');
+  const upload=element('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',hidden:'hidden'});upload.onchange=()=>chooseImage(upload.files[0]).catch(showError);
+  const sizeField=field('Text size',String(base.title?.size||16),v=>mutate(()=>{base.title??={};base.title.size=Number(v);}),{values:['16','20','24','28']});
+  const positionField=field('Position',base.title?.position||'bottom',v=>mutate(()=>{base.title??={};base.title.position=v;}),{values:[['bottom','Bottom'],['top','Top'],['middle','Middle'],['hidden','Hide text']]});
+  const boldButton=button(base.title?.bold?'Bold ✓':'Bold',()=>mutate(()=>{base.title??={};base.title.bold=!base.title.bold;}),'outline');
+  const pinButton=button(config.profiles[profile].pinned?.includes(base)?'◆ Unpin':'◇ Pin',togglePin,'outline');
+  const first=activeActions()?.[0],detail=first&&['target','path','keys','text','url','command','name'].map(key=>first[key]).find(value=>typeof value==='string'&&value);
+  const actionButton=button(first?`${(kinds[first.type]||kinds.hotkey).name}${detail?': '+detail:''}${activeActions().length>1?`  (+${activeActions().length-1})`:''}`:'No action yet · Add one below',
+    ()=>{const target=panel.querySelector('.handling');if(target){target.open=true;target.scrollIntoView({block:'nearest',behavior:'smooth'});}},'prop-field');
+  const row=(name,...nodes)=>element('div',{class:'prop-row'},text('span',name,'prop-name'),element('div',{class:'prop-value'},...nodes));
+  const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('🗑',clearButton,'prop-clear','Clear button'));
+  panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
+    element('div',{class:'prop-rows'},row('Title',nameInput,meter),row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
+      row('Text',sizeField,positionField,boldButton,pinButton),row('Action',actionButton))));
+  const typeStart=panel.children.length;
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
+  const bindStart=panel.children.length;
   renderGauge(panel,base);
   renderBind(panel,base);
   renderStyle(panel);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
   panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
+  const actionsStart=panel.children.length;
   panel.append(renderTriggers(base));
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+' STEPS','section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
@@ -480,6 +520,9 @@ function renderInspector() {
   panel.append(element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear button',clearButton,'quiet danger')));
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
+  wrapSection(panel,actionsStart,panel.children.length,'Handling',false,'handling');
+  wrapSection(panel,bindStart,actionsStart,'Gauge and binding',false);
+  wrapSection(panel,typeStart,bindStart,'Button type',false);
   panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
 }
 /* The same corner marks as the panel: a ring for a long press, two dots for a double press (150 px key, positions in %). */

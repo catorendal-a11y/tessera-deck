@@ -4,12 +4,10 @@
 <body>
 <header class="appbar"><div class="brand"><span class="brandmark" data-logo></span><div>TESSERA<small>CONTROL CENTER</small></div></div><div class="connection" role="status" aria-live="polite"><span id="led"></span><span id="connection">Connecting …</span></div><button id="host-toggle" class="outline" hidden>Start host</button><button id="app-settings" class="quiet">⚙ Settings</button></header>
 <main id="deck-view">
-<aside class="library"><div class="section-label">TOOLBOX</div><h2>Add an action</h2><label class="search"><span>⌕</span><input id="action-search" type="search" placeholder="Search actions" aria-label="Search for an action"></label><p class="hint">Drag to a key, or click to add.</p><div id="actions-library"></div><div class="library-bottom"><span class="live-dot"></span> Safe editing mode · actions are not run</div></aside>
+<aside class="library"><div class="section-label">ACTIONS</div><h2>Add an action</h2><label class="search"><span>⌕</span><input id="action-search" type="search" placeholder="Search actions" aria-label="Search for an action"></label><p class="hint">Drag to a key, or click to add.</p><div id="actions-library"></div><div class="library-bottom"><span class="live-dot"></span> Safe editing mode · actions are not run</div></aside>
 <section class="workspace">
 <div class="toolbar">
-<label class="profile-select"><span>Profile</span><select id="profile" aria-label="Profile"></select></label>
-<div id="page-list" class="page-tabs" role="group" aria-label="Pages"></div>
-<button id="new-page" class="quiet icon-button" title="New page" aria-label="New page">＋</button>
+<div class="who"><b class="device-name">Tessera Deck</b><label class="profile-select"><span>Profile</span><select id="profile" aria-label="Profile"></select></label></div>
 <span class="spacer"></span>
 <button id="undo" class="quiet icon-button" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
 <button id="redo" class="quiet icon-button" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
@@ -21,11 +19,13 @@
 <button id="theme-open" role="menuitem">Key theme …</button><button id="plugins-open" role="menuitem">Plugins …</button><button id="backups-open" role="menuitem">Restore a backup …</button><button id="log-open" role="menuitem">Host log …</button><button id="diagnostics-export" role="menuitem">Export diagnostics</button><button id="ambient-open" role="menuitem">Ambient screen …</button><button id="firmware-open" role="menuitem">Panel firmware …</button></div></div>
 <input type="file" id="import-file" accept=".json,application/json" hidden>
 </div>
-<div class="device-frame" id="device-frame"><div class="device-screen" id="device-screen">
+<div class="deck-card"><div class="device-frame" id="device-frame"><div class="device-screen" id="device-screen">
 <div class="screen-header"><span class="screen-logo" data-logo></span><b class="screen-wordmark">TESSERA</b><div class="screen-context"><small id="screen-profile">LOCAL</small><b id="screen-page">Main</b></div><div class="screen-pill"><i></i><span id="screen-usb">PC CONNECTED</span></div><span class="screen-clock" id="screen-clock">--:--</span><span class="screen-rule"></span></div>
 <div id="deck-grid" class="deck-grid" role="group" aria-label="Deck: 18 button slots"></div></div></div>
+<div class="page-pill"><div id="page-list" class="page-tabs" role="group" aria-label="Pages"></div><button id="new-page" class="quiet icon-button" title="New page" aria-label="New page">＋</button></div>
 <div class="syncbar"><div><span id="save-state" role="status" aria-live="polite">Loading configuration …</span><small id="save-note">Changes are saved automatically.</small></div>
 <label class="sync-switch"><input type="checkbox" id="sync" checked><span>Mirror on panel</span></label><button id="reload" class="outline" hidden>Reload</button><button id="activate" class="primary" hidden>Show on device</button></div>
+</div>
 </section>
 <aside id="inspector" class="inspector" aria-label="Button settings"></aside>
 </main>

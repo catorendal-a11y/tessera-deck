@@ -160,3 +160,170 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 @media(max-width:640px){#deck-view{display:flex;flex-direction:column;height:auto}.library{order:2;border-right:0;border-top:1px solid var(--line)}.inspector{order:1;border-top:1px solid var(--line)}}
 .gesture-mark{position:absolute;border-radius:50%;pointer-events:none;background:color-mix(in srgb,var(--key-color,#92edba) 75%,#78909a)}
 .gesture-mark.ring{background:transparent;border:2px solid color-mix(in srgb,var(--key-color,#92edba) 75%,#78909a)}
+
+/* ===== Stream Deck style editor =====
+   Designed for about 1450x900; applyZoom() in app.js scales it up on larger windows (--z). */
+:root{--z:1;--bg:#18181a;--panel:#232326;--line:#2c2c30;--text:#e8e8ea;--muted:#a0a0a6;--accent:#3b82f6}
+body{background:#18181a;zoom:var(--z)}
+.appbar{background:#1d1d20;border-bottom:1px solid #2c2c30}
+@media(min-width:901px){
+body{height:calc(100vh / var(--z)) !important;overflow:hidden}
+#deck-view{display:grid !important;grid-template-columns:minmax(0,1fr) 340px !important;grid-template-areas:"work lib" "insp lib";grid-template-rows:auto 1fr;height:calc(100vh / var(--z) - 72px) !important;min-height:0 !important;overflow-y:auto;overflow-x:hidden;align-items:start;scrollbar-width:thin;scrollbar-color:#3a3a3f transparent}
+.workspace{grid-area:work;padding:18px 24px 0 !important;background:none !important;overflow:visible !important;display:block}
+.inspector{grid-area:insp;align-self:stretch;overflow:visible !important;border:0;background:none;padding:14px 24px 24px !important;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 14px;align-items:start}
+.library{grid-area:lib;position:sticky;top:0;align-self:start;height:calc(100vh / var(--z) - 72px);overflow-y:auto !important;background:#1d1d20;border:0;border-left:1px solid #2c2c30;padding:16px 14px !important}
+}
+/* Top row */
+.toolbar{background:none;border:0;padding:0;margin:0 0 14px;gap:10px;max-width:none}
+.profile-select>span{display:none}
+.profile-select select{font-size:15px;padding:10px 16px;background:#2a2a2e;border:1px solid #3a3a3f;border-radius:11px;color:#e8e8ea}
+.page-tabs{background:none;border:0;padding:0;gap:6px}
+.page-chip{font-size:14px;padding:9px 15px;background:#2a2a2e;border:1px solid transparent;border-radius:10px;color:#c8c8cc}
+.page-chip.active{background:#3b82f6;color:#fff;font-weight:600;box-shadow:none}
+/* Deck card: the panel preview sits centred in a dark card, status line at the bottom of the card */
+.deck-card{background:#0f0f11;border:1px solid #2c2c30;border-radius:18px;padding:22px 22px 10px}
+.device-frame{width:min(100%,660px);max-width:none;margin:0 auto}
+.device-screen{box-shadow:0 0 0 1px #2c2c30,0 10px 28px #0008}
+.deck-key.selected{border-color:#3b82f6 !important;box-shadow:0 0 0 3px #3b82f666 !important}
+.syncbar{max-width:none;margin:14px 0 0;background:none;border:0;border-top:1px solid #222226;border-radius:0;padding:8px 2px 0;font-size:13px}
+#save-note{display:none}
+#save-state{display:inline-flex;align-items:center;gap:7px;font-weight:600;color:#7ee0a8}
+.sync-switch{color:#c8c8cc}
+/* Settings card: preview on the left, four equal fields on the right */
+.inspector>*{min-width:0}
+.inspector-title:not(:has(h2)){display:none}
+.inspector input,.inspector select,.inspector textarea{background:#2a2a2e;border:1px solid #3a3a3f;border-radius:10px;color:#e8e8ea}
+.prop-card{grid-column:1/-1;display:grid;grid-template-columns:218px minmax(0,1fr);gap:22px;background:#232326;border:1px solid #2c2c30;border-radius:18px;padding:24px}
+.prop-preview{background:#0f0f11;border:1px solid #2c2c30;border-radius:16px;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:14px}
+.prop-icon{width:76px;height:76px;object-fit:contain;font-size:60px;line-height:76px;text-align:center;color:#e8e8ea}
+.prop-label{font-size:18px;font-weight:600;color:#e8e8ea;text-align:center;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prop-rows{display:grid;gap:14px;align-content:center;min-width:0}
+.prop-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:16px;align-items:center}
+.prop-name{color:#a0a0a6;font-size:17px}
+.prop-value{display:flex;gap:10px;align-items:center;min-width:0}
+.prop-value>*{height:50px;margin:0;font-size:17px;color:#e8e8ea}
+.prop-value input[type=text]{flex:1;min-width:0;padding:0 14px}
+.prop-value input[type=color]{width:50px;flex:none;padding:4px;cursor:pointer}
+.prop-field,.prop-value button.outline{display:flex;align-items:center;background:#2a2a2e;border:1px solid #3a3a3f;border-radius:10px;padding:0 14px;color:#e8e8ea;font-size:17px;cursor:pointer;white-space:nowrap}
+.prop-field{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left}
+.prop-field:hover,.prop-value button.outline:hover{border-color:#3b82f6}
+.prop-value label{display:block;margin:0;flex:1;min-width:90px}
+.prop-value label>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.prop-value select{width:100%;height:50px;padding:0 12px;font-size:17px}
+.label-meter{position:absolute;opacity:0;pointer-events:none;height:0;overflow:hidden}
+.label-meter.over{position:static;opacity:1;height:auto;color:#ffb74d;font-size:12px;flex-basis:100%}
+/* Extra settings: slim cards under the settings card */
+.inspector-section{background:#232326;border:1px solid #2c2c30;border-radius:14px;margin:0;padding:0 14px 10px}
+.inspector-section>summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:600;color:#e8e8ea;padding:13px 0 10px;user-select:none}
+.inspector-section>summary::-webkit-details-marker{display:none}
+.inspector-section>summary::after{content:"▾";color:#a0a0a6}
+.inspector-section:not([open])>summary::after{content:"▸"}
+.inspector-section:not([open]){padding-bottom:0}
+.inspector>.hint,.inspector>.empty-inspector,.inspector>.shortcuts{grid-column:1/-1}
+/* Action list */
+.library>.section-label{margin:0 0 10px;color:#a0a0a6}
+.library h2{display:none}
+.library .search{margin:0}
+.library .search input{background:#2a2a2e;border:1px solid #3a3a3f;border-radius:11px;font-size:16px;padding:12px 14px;color:#e8e8ea}
+.library>.hint{font-size:13px;color:#a0a0a6;margin:10px 2px}
+.program-launcher{background:#2a2a2e;border:1px solid #3a3a3f;color:#e8e8ea;border-radius:11px;margin:2px 0 12px;width:100%;text-align:left;padding:12px 14px;font-size:15px}
+.lib-cat{border-top:1px solid #2c2c30;--tone:#3b82f6}
+.lib-cat.tone-0{--tone:#35d07f}.lib-cat.tone-1{--tone:#64b5f6}.lib-cat.tone-2{--tone:#b388ff}.lib-cat.tone-3{--tone:#ffb74d}
+.lib-cat>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;padding:14px 4px;font-weight:600;font-size:17px;color:#e8e8ea;user-select:none}
+.lib-cat>summary::-webkit-details-marker{display:none}
+.lib-cat>summary::before{content:"▾";color:#a0a0a6;width:12px;font-size:12px}
+.lib-cat:not([open])>summary::before{content:"▸"}
+.lib-cat>summary span{flex:1}.lib-cat>summary small{color:#7a7a80;font-weight:400;font-size:13px}
+.lib-items{padding:0 0 10px}
+.action-preset{display:flex !important;flex-direction:row;align-items:center;gap:14px;width:100%;padding:7px 8px 7px 22px;margin:0;background:transparent;border:0;border-radius:9px;text-align:left;color:#e8e8ea}
+.action-preset:hover{background:#2a2a2e}
+.action-preset .action-symbol{flex:none;width:32px;height:32px;border-radius:9px;background:var(--tone);color:#0d1417;font-size:16px;display:flex;align-items:center;justify-content:center}
+.action-preset span span{font-size:16px;font-weight:500;color:#e8e8ea}
+.action-preset small{display:none}
+.library-bottom{font-size:12px;color:#7a7a80;padding-top:12px}
+
+/* ===== Flat Stream Deck look (from the official app screenshots) =====
+   flat dark grey window, keys on the bare background, page pill under the keys, property inspector under a divider,
+   action list on the right with category rows and grey outline icons. */
+:root{--bg:#2b2b2b;--panel:#2b2b2b;--line:#1c1c1c;--text:#ffffff;--muted:#b4b4b4;--accent:#1e90ff}
+body{background:#2b2b2b}
+.appbar{background:#202020;border-bottom:1px solid #151515}
+@media(min-width:901px){
+#deck-view{background:#2b2b2b}
+.library{background:#262626;border-left:1px solid #1c1c1c;padding:14px 12px !important}
+}
+.workspace{padding:20px 28px 0 !important}
+/* Stacked device and profile at the top left, tools at the right */
+.toolbar{margin:0 0 6px;align-items:flex-start}
+.who{display:flex;flex-direction:column;gap:2px}
+.device-name{font-size:19px;font-weight:700;color:#fff;letter-spacing:.01em}
+.device-name::after{content:"  ⌄";font-weight:400;color:#b4b4b4;font-size:14px}
+.profile-select select{background:none !important;border:0 !important;padding:2px 0 !important;font-size:15px !important;color:#d0d0d0 !important;appearance:auto;cursor:pointer}
+.toolbar .icon-button{color:#d0d0d0;font-size:18px}
+/* The keys sit directly on the window: no card, no screen header */
+.deck-card{background:none;border:0;border-radius:0;padding:0 0 8px}
+.device-frame{width:min(100%,640px);height:auto !important;aspect-ratio:1024/524;margin:6px auto 0}
+.device-screen{background:none !important;box-shadow:none !important;border-radius:0 !important;height:524px !important;top:0 !important}
+.screen-header{display:none !important}
+.deck-grid{top:0 !important;height:524px !important}
+.deck-key{background:#1f1f1f !important;border:3px solid #3a3a3a !important;border-radius:18px !important;box-shadow:none !important}
+.deck-key.empty{background:transparent !important;border:3px solid #424242 !important}
+.deck-key.selected{border-color:#1e90ff !important;box-shadow:0 0 0 2px #1e90ff55 !important}
+/* Page pill under the keys */
+.page-pill{display:flex;justify-content:center;align-items:center;gap:6px;margin:10px auto 0;width:max-content;max-width:100%;background:#3a3a3a;border-radius:999px;padding:4px 8px}
+.page-pill .page-tabs{display:flex;gap:2px;flex-wrap:nowrap;overflow:hidden}
+.page-pill .page-chip{background:none;border:0;border-radius:999px;color:#d0d0d0;font-size:14px;padding:4px 12px;min-width:30px}
+.page-pill .page-chip.active{background:#d9d9d9;color:#202020;font-weight:700;box-shadow:none}
+.page-pill .icon-button{color:#d0d0d0;padding:2px 8px;font-size:16px}
+.syncbar{border-top:0;margin:8px 0 0;padding:0;justify-content:space-between}
+/* Property inspector: under a divider, flat */
+.inspector{border-top:1px solid #1c1c1c !important;background:#2b2b2b !important;margin-top:8px;padding:0 28px 24px !important}
+.prop-card{background:none;border:0;border-radius:0;padding:16px 0 0;grid-template-columns:120px minmax(0,1fr);gap:16px 22px}
+.prop-head{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid #3a3a3a}
+.prop-head b{font-size:15px;color:#fff}
+.prop-clear{background:none;border:0;color:#b4b4b4;font-size:18px;cursor:pointer;padding:2px 6px}
+.prop-clear:hover{color:#ff6b6b}
+.prop-preview{background:#1f1f1f;border:3px solid #3a3a3a;border-radius:18px;min-height:0;aspect-ratio:1;width:120px;padding:8px;gap:6px}
+.prop-icon{width:52px;height:52px;font-size:42px;line-height:52px}
+.prop-label{font-size:13px;max-width:100px}
+.prop-rows{gap:10px;align-content:start}
+.prop-row{grid-template-columns:70px minmax(0,1fr);gap:12px}
+.prop-name{font-size:14px;color:#cfcfcf;text-align:right}
+.prop-value>*{height:36px;font-size:14px}
+.prop-value input[type=text],.prop-field,.prop-value select,.prop-value button.outline{background:#404040;border:0;border-radius:6px;color:#fff;font-size:14px}
+.prop-value input[type=color]{width:36px;padding:3px;background:#404040;border:0}
+.prop-value select{height:36px;padding:0 10px;font-size:14px}
+.prop-field:hover,.prop-value button.outline:hover{background:#4a4a4a;border:0}
+/* Other cards stay slim and flat */
+.inspector-section{background:none;border:0;border-top:1px solid #3a3a3a;border-radius:0;padding:0 0 8px}
+.inspector-section>summary{font-size:13px;color:#cfcfcf}
+.inspector{gap:0 18px}
+/* Action list (right) */
+.library .search input{background:#404040;border:0;border-radius:8px;font-size:14px;padding:10px 12px}
+.library>.section-label{display:none}
+.library>.hint{display:none}
+.program-launcher{background:#404040;border:0;border-radius:8px;font-size:14px;padding:10px 12px}
+.lib-cat{border-top:0;margin-top:4px}
+.lib-cat>summary{background:#2f2f2f;border-radius:6px;padding:10px 10px;font-size:14px}
+.lib-cat>summary::before{font-size:11px}
+.lib-cat>summary small{display:none}
+.lib-items{padding:2px 0 8px}
+.action-preset{padding:8px 10px 8px 26px !important;gap:12px;border:2px solid transparent !important;border-radius:999px !important}
+.action-preset .action-symbol{width:26px;height:26px;background:none !important;color:#b4b4b4 !important;font-size:17px}
+.action-preset span span{font-size:14px;font-weight:400;color:#c8c8c8}
+.action-preset:hover{background:linear-gradient(#262626,#262626) padding-box,linear-gradient(90deg,#4f6bff,#c04bff) border-box !important;border:2px solid transparent !important}
+.action-preset:hover span span{color:#fff}
+
+/* Action list rows like the official app: dividers between plugins, chevron on the left, darker list when open */
+.library .search{border:0 !important;background:none !important;padding:0 !important}
+.library .search>span{display:none}
+.library .search input{background:#3c3c3c;border:0;border-radius:8px;font-size:14px;padding:10px 12px;width:100%}
+.lib-cat{border-bottom:1px solid #1f1f1f;margin:0;--tone:#3b82f6}
+.lib-cat>summary{background:none !important;border-radius:0;padding:13px 8px;font-size:14px}
+.lib-cat>summary::before{content:"›" !important;font-size:20px;line-height:14px;width:14px;color:#b4b4b4;transition:transform .12s}
+.lib-cat[open]>summary::before{transform:rotate(90deg)}
+.lib-cat[open]>summary{background:#303030 !important}
+.lib-cat>summary span{font-weight:700}
+.lib-cat>summary span::before{content:"";display:inline-block;width:18px;height:18px;border-radius:5px;background:var(--tone);margin-right:10px;vertical-align:-3px}
+.lib-items{background:#232323;padding:6px 6px 8px}
+.action-preset{padding:7px 10px 7px 16px !important}
