@@ -86,12 +86,13 @@ deck_model_note_host();updates();assert(find(lv_screen_active(),"PC CONNECTED"))
 {deck_button_t g[3]{};int gc=0;
 assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"CPU","icon":"ok","color":"#35D07F","gauge":{"p":45,"t":"45%"}},{"id":2,"label":"RAM","icon":"ok","color":"#35D07F","gauge":{"p":150,"t":"69%"}}]})",g,3,&gc));
 assert(gc==2&&g[0].has_gauge&&g[0].gauge_percent==45&&g[1].gauge_percent==100);
-assert(deck_model_replace_buttons(g,gc));updates();assert(find(lv_screen_active(),"45%"));
+/* A gauge key shows the number and the unit as two labels: "45" and "%". */
+assert(deck_model_replace_buttons(g,gc));updates();assert(find(lv_screen_active(),"45")&&find(lv_screen_active(),"%"));
 const uint32_t structure=deck_model_buttons_version(),live=deck_model_live_version();
 g[0].gauge_percent=80;strcpy(g[0].gauge_text,"80%");g[0].color=0xFF7070;
 assert(deck_model_replace_buttons(g,gc));
 assert(deck_model_buttons_version()==structure&&deck_model_live_version()==live+1);
-updates();assert(find(lv_screen_active(),"80%")&&!find(lv_screen_active(),"45%"));
+updates();assert(find(lv_screen_active(),"80")&&!find(lv_screen_active(),"45"));
 assert(deck_model_replace_buttons(g,gc));assert(deck_model_live_version()==live+1);
 g[0].has_gauge=false;assert(deck_model_replace_buttons(g,gc));assert(deck_model_buttons_version()==structure+1);
 assert(!deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"X","gauge":{"p":"no","t":"1"}}]})",g,3,&gc));
