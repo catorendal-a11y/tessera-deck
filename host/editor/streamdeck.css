@@ -313,6 +313,13 @@ body {
 .prop-value input[type=color] { width: 29px; padding: 2px; border: 0; background: #3b3b3b; }
 .prop-value select { height: 29px; padding: 0 7px; }
 .prop-field:hover,.prop-value button.outline:hover { border-color: #686868; background: #444; }
+.prop-row-title .prop-value { flex-wrap: wrap; }
+.prop-row-title .prop-value input[type=text] { flex: 1 1 100%; width: 100%; }
+.prop-row-title .label-meter.over {
+  flex: 0 0 100%;
+  margin-top: 2px;
+  white-space: normal;
+}
 .prop-row-text .prop-value {
   flex-wrap: wrap;
   justify-content: flex-start;

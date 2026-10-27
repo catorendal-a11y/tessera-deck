@@ -337,6 +337,7 @@ function renderGrid() {
       else {const key=event.dataTransfer.getData('application/x-deck-action');if(key)addAction(key,id);}
     });
     tile.addEventListener('keydown',event=>{const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:6,ArrowUp:-6}[event.key];if(delta){event.preventDefault();selected=Math.max(1,Math.min(18,id+delta));renderGrid();renderInspector();$(`[data-slot="${selected}"]`).focus();}});
+    if(b)tile.addEventListener('dblclick',event=>{event.preventDefault();renameButton(id);});
     return tile;
   }));
   if(focused)$(`[data-slot="${focused}"]`)?.focus();
@@ -498,10 +499,11 @@ function renderInspector() {
   const actionButton=button(first?`${(kinds[first.type]||kinds.hotkey).name}${detail?': '+detail:''}${activeActions().length>1?`  (+${activeActions().length-1})`:''}`:'No action yet · Add one below',
     ()=>{const target=panel.querySelector('.handling');if(target){target.open=true;target.scrollIntoView({block:'nearest',behavior:'smooth'});}},'prop-field');
   const row=(name,...nodes)=>element('div',{class:'prop-row'},text('span',name,'prop-name'),element('div',{class:'prop-value'},...nodes));
+  const titleRow=row('Title',nameInput,meter);titleRow.classList.add('prop-row-title');
   const textRow=row('Text',sizeField,positionField,boldButton,pinButton);textRow.classList.add('prop-row-text');
   const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('🗑',clearButton,'prop-clear','Clear button'));
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
-    element('div',{class:'prop-rows'},row('Title',nameInput,meter),row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
+    element('div',{class:'prop-rows'},titleRow,row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
       textRow,row('Action',actionButton))));
   const typeStart=panel.children.length;
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
@@ -793,11 +795,17 @@ document.addEventListener('keydown',event=>{
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().then(()=>toast('All changes are saved.')).catch(showError);return;}
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||$('#form-dialog').open||$('#icon-dialog').open)return;
   const onDeck=!document.activeElement||document.activeElement===document.body||document.activeElement.closest('#deck-grid');
+  if(event.key==='F2'&&onDeck&&current()){event.preventDefault();renameButton();return;}
   if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Button ${selected} was cleared. Press Ctrl+Z to undo.`);return;}
   if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&current()){event.preventDefault();openKeyMenu(selected);return;}
   if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y','c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}
 });
 function hideKeyMenu(restore=false) {$('#key-menu').hidden=true;if(restore)keyMenuReturnFocus?.focus();keyMenuReturnFocus=null;}
+function renameButton(id=selected) {
+  if(!visibleButtons().some(button=>button.id===id))return;
+  selected=id;editState=0;renderGrid();renderInspector();
+  const input=$('#inspector input[aria-label="Button name"]');input?.scrollIntoView({block:'nearest'});input?.focus();input?.select();
+}
 function openKeyMenu(id,x,y) {
   let tile=$(`[data-slot="${id}"]`);if(!tile||!visibleButtons().some(b=>b.id===id))return;
   selected=id;editState=0;renderGrid();renderInspector();tile=$(`[data-slot="${id}"]`);keyMenuReturnFocus=tile;
@@ -866,7 +874,7 @@ async function start() {
   $('#icons-next').onclick=()=>{iconPage++;renderIconResults();};
   $('#new-page').onclick=()=>newPage();$('#page-options').onclick=pageSettings;$('#profile-options').onclick=profileSettings;
   $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=appSettings;
-  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
+  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
   $('#profile-templates').onclick=openTemplates;
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
