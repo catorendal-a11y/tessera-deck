@@ -90,6 +90,7 @@ class WindowsCounters:
         self._handles: dict[str, object] = {}
         self._performance = None
         self._expanded_at = 0.0
+        self._last: dict[str, float] = {}  # shown while the counters are listed again, so the gauges do not blink
 
     @property
     def available(self) -> bool:
@@ -126,7 +127,7 @@ class WindowsCounters:
         try:
             if self._query is None or time.monotonic() - self._expanded_at > RE_EXPAND_SECONDS:
                 self._reset()
-                return {}
+                return dict(self._last)
             win32pdh.CollectQueryData(self._query)
             values = {}
             for path, handle in self._handles.items():
@@ -134,7 +135,8 @@ class WindowsCounters:
                     values[path] = win32pdh.GetFormattedCounterValue(handle, win32pdh.PDH_FMT_DOUBLE)[1]
                 except Exception:
                     continue
-            return self._summarize(values)
+            self._last = self._summarize(values)
+            return dict(self._last)
         except Exception:
             self._query = None
             return {}

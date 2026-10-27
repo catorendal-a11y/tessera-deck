@@ -38,7 +38,8 @@ int link_shown=-1;
 lv_obj_t *keys[DECK_MAX_BUTTONS]{};
 int ids[DECK_MAX_BUTTONS]{};
 uint32_t button_version=0,live_version=0,context_version=0;
-lv_obj_t *gauge_arc[DECK_MAX_BUTTONS]{},*gauge_value[DECK_MAX_BUTTONS]{};
+lv_obj_t *gauge_arc[DECK_MAX_BUTTONS]{},*gauge_value[DECK_MAX_BUTTONS]{},*gauge_unit[DECK_MAX_BUTTONS]{},*gauge_icon[DECK_MAX_BUTTONS]{},*gauge_dim[DECK_MAX_BUTTONS]{},*gauge_badge[DECK_MAX_BUTTONS]{};
+constexpr int GaugeIconTop=8;
 lv_obj_t *name_label[DECK_MAX_BUTTONS]{},*glyph_label[DECK_MAX_BUTTONS]{};
 uint32_t flash_until[DECK_MAX_BUTTONS]{};
 
@@ -127,27 +128,78 @@ void update_link() {
     lv_obj_set_style_text_color(link_label,lv_color_hex(linked?0xA8F2CA:0xFFD699),0);
     lv_label_set_text(link_label,linked?"PC CONNECTED":"NO PC");
 }
+/* Small marks in the top-right corner say what else a key does: a ring for a long press, two dots for a double tap. */
+void gesture_marks(lv_obj_t *tile,const deck_button_t& value) {
+    const uint32_t color=mix(Muted,value.color,.75f);
+    int right=Cell-11;
+    auto add=[&](int size,bool ring) {
+        auto *item=lv_obj_create(tile);flat(item,color);lv_obj_set_size(item,size,size);lv_obj_set_pos(item,right-size,10);
+        lv_obj_set_style_radius(item,LV_RADIUS_CIRCLE,0);lv_obj_remove_flag(item,LV_OBJ_FLAG_CLICKABLE);
+        if(ring){lv_obj_set_style_bg_opa(item,LV_OPA_TRANSP,0);lv_obj_set_style_border_width(item,2,0);lv_obj_set_style_border_color(item,lv_color_hex(color),0);}
+        right-=size+6;
+    };
+    if(value.has_double){add(7,false);add(7,false);}
+    if(value.has_hold)add(13,true);
+}
+/* "58C" is shown as a big 58 and a small C: the number stays easy to read and the unit stops competing with it. */
+void split_gauge_text(const char *text,char *number,size_t number_size,char *unit,size_t unit_size) {
+    size_t n=0;
+    while(text[n]&&((text[n]>='0'&&text[n]<='9')||text[n]=='.'||text[n]==','))++n;
+    if(n==0){snprintf(number,number_size,"%s",text);unit[0]=' ';return;}
+    snprintf(number,number_size,"%.*s",static_cast<int>(n),text);snprintf(unit,unit_size,"%s",text+n);
+}
 void style_gauge(int slot,const deck_button_t& value) {
-    if(!gauge_arc[slot]||!gauge_value[slot])return;
-    lv_arc_set_value(gauge_arc[slot],value.gauge_percent);
-    lv_obj_set_style_arc_color(gauge_arc[slot],lv_color_hex(value.color),LV_PART_INDICATOR);
-    lv_label_set_text(gauge_value[slot],value.gauge_text);
+    if(!gauge_value[slot])return;
+    char number[DECK_GAUGE_TEXT_MAX+1],unit[DECK_GAUGE_TEXT_MAX+1];
+    split_gauge_text(value.gauge_text,number,sizeof(number),unit,sizeof(unit));
+    lv_label_set_text(gauge_value[slot],number);
     lv_obj_set_style_text_color(gauge_value[slot],lv_color_hex(value.color),0);
-    lv_obj_set_style_text_font(gauge_value[slot],strlen(value.gauge_text)>3?&fq_font_dejavu_bold_24:&fq_font_dejavu_bold_28,0);
+    lv_obj_set_style_text_font(gauge_value[slot],strlen(value.gauge_text)>4?&fq_font_dejavu_bold_24:&fq_font_dejavu_bold_28,0);
+    if(gauge_unit[slot]){
+        lv_label_set_text(gauge_unit[slot],unit);lv_obj_set_hidden(gauge_unit[slot],unit[0]==' ');
+        lv_obj_set_style_text_color(gauge_unit[slot],lv_color_hex(mix(value.color,Muted,.45f)),0);
+    }
+    /* The icon is the gauge: a dim copy sits behind, the bright copy is clipped to the filled part from the bottom. */
+    if(gauge_icon[slot]){
+        constexpr int Box=60,Pad=5,Span=Box-2*Pad;
+        const int top=Box-Pad-Span*value.gauge_percent/100;
+        lv_obj_set_y(gauge_arc[slot],GaugeIconTop+top);lv_obj_set_height(gauge_arc[slot],Box-top);
+        lv_obj_set_y(gauge_icon[slot],-top);
+        lv_obj_set_style_text_color(gauge_icon[slot],lv_color_hex(value.color),0);
+        lv_obj_set_style_text_color(gauge_dim[slot],lv_color_hex(mix(base_bg[slot],value.color,.3f)),0);
+    }
+    if(gauge_badge[slot])lv_obj_set_style_bg_color(gauge_badge[slot],lv_color_hex(value.color),0);
 }
 void make_gauge(int slot,lv_obj_t *tile,const deck_button_t& value) {
-    constexpr int D=108,Top=6;
-    auto *disc=lv_obj_create(tile);flat(disc,mix(base_bg[slot],0xFFFFFF,.035f));lv_obj_set_size(disc,D-36,D-36);
-    lv_obj_set_pos(disc,(Cell-(D-36))/2,Top+18);lv_obj_set_style_radius(disc,LV_RADIUS_CIRCLE,0);lv_obj_remove_flag(disc,LV_OBJ_FLAG_CLICKABLE);
-    auto *arc=lv_arc_create(tile);gauge_arc[slot]=arc;
-    lv_obj_set_size(arc,D,D);lv_obj_set_pos(arc,(Cell-D)/2,Top);
-    lv_arc_set_range(arc,0,100);lv_arc_set_bg_angles(arc,135,45);
-    lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
-    lv_obj_set_style_arc_width(arc,13,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,13,LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc,lv_color_hex(0x1E2B32),LV_PART_MAIN);
-    lv_obj_set_style_arc_rounded(arc,true,LV_PART_MAIN);lv_obj_set_style_arc_rounded(arc,true,LV_PART_INDICATOR);
-    gauge_value[slot]=label(tile,"",0,Top+D/2-16,Cell,&fq_font_dejavu_bold_28,Text);
-    lv_obj_set_style_text_align(gauge_value[slot],LV_TEXT_ALIGN_CENTER,0);
+    constexpr int Box=60,BoxX=(Cell-Box)/2;
+    char packed[5]{};
+    if(deck_lucide_glyph(value.icon,packed)){
+        auto *dim=gauge_dim[slot]=label(tile,packed,BoxX,GaugeIconTop,Box,&deck_lucide_60,value.color);
+        lv_obj_set_style_text_align(dim,LV_TEXT_ALIGN_CENTER,0);lv_obj_remove_flag(dim,LV_OBJ_FLAG_CLICKABLE);
+        auto *clip=gauge_arc[slot]=lv_obj_create(tile);flat(clip,0);lv_obj_set_style_bg_opa(clip,LV_OPA_TRANSP,0);
+        lv_obj_remove_flag(clip,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_pos(clip,BoxX,GaugeIconTop);lv_obj_set_size(clip,Box,Box);
+        auto *icon=gauge_icon[slot]=label(clip,packed,0,0,Box,&deck_lucide_60,value.color);
+        lv_obj_set_style_text_align(icon,LV_TEXT_ALIGN_CENTER,0);lv_obj_remove_flag(icon,LV_OBJ_FLAG_CLICKABLE);
+    }
+    /* A small coloured disc on the icon says what is measured (temperature, power, fan ...). */
+    char badge[5]{};
+    if(deck_lucide_glyph(value.gauge_badge,badge)){
+        constexpr int R=26;
+        auto *disc=gauge_badge[slot]=lv_obj_create(tile);flat(disc,value.color);lv_obj_set_size(disc,R,R);lv_obj_set_pos(disc,BoxX+Box-R/2-2,GaugeIconTop+Box-R/2-4);
+        lv_obj_set_style_radius(disc,LV_RADIUS_CIRCLE,0);lv_obj_remove_flag(disc,LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_border_width(disc,3,0);lv_obj_set_style_border_color(disc,lv_color_hex(base_bg[slot]),0);
+        auto *glyph=label(disc,badge,0,0,60,&deck_lucide_60,0x0D1417);lv_obj_set_style_text_align(glyph,LV_TEXT_ALIGN_CENTER,0);
+        lv_obj_set_style_transform_pivot_x(glyph,30,0);lv_obj_set_style_transform_pivot_y(glyph,30,0);lv_obj_set_style_transform_scale(glyph,84,0);
+        lv_obj_align(glyph,LV_ALIGN_CENTER,0,0);
+    }
+    /* Number and unit sit in one row below the icon, bottoms aligned. */
+    auto *row=lv_obj_create(tile);flat(row,0);lv_obj_set_style_bg_opa(row,LV_OPA_TRANSP,0);lv_obj_remove_flag(row,LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_pos(row,0,GaugeIconTop+Box+4);lv_obj_set_size(row,Cell,38);
+    lv_obj_set_flex_flow(row,LV_FLEX_FLOW_ROW);lv_obj_set_flex_align(row,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_END,LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row,2,0);
+    gauge_value[slot]=lv_label_create(row);lv_obj_set_style_text_font(gauge_value[slot],&fq_font_dejavu_bold_28,0);
+    gauge_unit[slot]=lv_label_create(row);lv_obj_set_style_text_font(gauge_unit[slot],&fq_font_dejavu_16,0);
+    lv_obj_set_style_pad_bottom(gauge_unit[slot],3,0);
     style_gauge(slot,value);
 }
 void update_live() {
@@ -160,7 +212,7 @@ void update_live() {
     live_version=deck_model_live_version();
 }
 void rebuild() {
-    memset(gauge_arc,0,sizeof(gauge_arc));memset(gauge_value,0,sizeof(gauge_value));memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));
+    memset(gauge_arc,0,sizeof(gauge_arc));memset(gauge_value,0,sizeof(gauge_value));memset(gauge_unit,0,sizeof(gauge_unit));memset(gauge_icon,0,sizeof(gauge_icon));memset(gauge_dim,0,sizeof(gauge_dim));memset(gauge_badge,0,sizeof(gauge_badge));memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));
     lv_obj_clean(grid);for(auto& image:images){lv_image_cache_drop(&image.descriptor);image=ImageTile{};}
     memset(keys,0,sizeof(keys));memset(ids,0,sizeof(ids));memset(flash_until,0,sizeof(flash_until));
     for(int slot=0;slot<DECK_MAX_BUTTONS;++slot) {
@@ -181,6 +233,7 @@ void rebuild() {
         if(value.has_gauge){make_gauge(slot,tile,value);}
         else if(image){auto& target=images[slot];target.image=image;target.widget=lv_image_create(tile);lv_obj_set_pos(target.widget,(Cell-image->width)/2,value.title_position==1?57:18);image_frame(target);}
         else {auto *glyph=glyph_label[slot]=label(tile,lucide?packed:fallback_icon(value.icon),0,value.title_position==1?61:(lucide?17:25),Cell,lucide?&deck_lucide_60:&lv_font_montserrat_48,value.color);lv_obj_set_style_text_align(glyph,LV_TEXT_ALIGN_CENTER,0);}
+        if(value.has_hold||value.has_double)gesture_marks(tile,value);
         // Bold 16 uses the 20 px bold font; place it by that height, as the editor does.
         const int size=value.title_size?value.title_size:16,px=value.title_bold&&size==16?20:size;
         const int y=value.title_position==1?10:value.title_position==2?(Cell-px)/2:Cell-px-17;

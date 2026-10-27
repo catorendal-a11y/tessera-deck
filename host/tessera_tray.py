@@ -78,7 +78,7 @@ def make_icon(state: str, size: int = 64) -> Image.Image:
     """
     image = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    for color, (x, y, tile) in zip(TILE_COLORS, icon_tiles(size)):
+    for color, (x, y, tile) in zip(TILE_COLORS, icon_tiles(size), strict=False):
         draw.rounded_rectangle((x, y, x + tile - 1, y + tile - 1), radius=max(1, tile // 4),
                                fill=(color or STATE_COLORS[state]) + (255,))
     return image

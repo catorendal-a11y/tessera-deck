@@ -2326,7 +2326,7 @@
     },
     {
       "name": "Browser",
-      "description": "Tabs, navigation and media control",
+      "description": "Tabs, navigation, bookmarks, history and developer tools",
       "profile": {
         "match": [
           "chrome.exe",
@@ -2338,7 +2338,7 @@
             {
               "id": 1,
               "label": "New tab",
-              "icon": "plus",
+              "icon": "lc:e13d",
               "color": "#35D07F",
               "actions": [
                 {
@@ -2350,7 +2350,7 @@
             {
               "id": 2,
               "label": "Close tab",
-              "icon": "close",
+              "icon": "lc:e1b2",
               "color": "#FF7070",
               "actions": [
                 {
@@ -2361,9 +2361,9 @@
             },
             {
               "id": 3,
-              "label": "Reopen",
-              "icon": "refresh",
-              "color": "#35D07F",
+              "label": "Reopen tab",
+              "icon": "lc:e2a1",
+              "color": "#FFB74D",
               "actions": [
                 {
                   "type": "hotkey",
@@ -2374,8 +2374,8 @@
             {
               "id": 4,
               "label": "Previous tab",
-              "icon": "upload",
-              "color": "#35D07F",
+              "icon": "lc:e06e",
+              "color": "#64B5F6",
               "actions": [
                 {
                   "type": "hotkey",
@@ -2386,8 +2386,8 @@
             {
               "id": 5,
               "label": "Next tab",
-              "icon": "download",
-              "color": "#35D07F",
+              "icon": "lc:e06f",
+              "color": "#64B5F6",
               "actions": [
                 {
                   "type": "hotkey",
@@ -2397,9 +2397,9 @@
             },
             {
               "id": 6,
-              "label": "Address",
-              "icon": "edit",
-              "color": "#35D07F",
+              "label": "Address bar",
+              "icon": "lc:e0e8",
+              "color": "#64B5F6",
               "actions": [
                 {
                   "type": "hotkey",
@@ -2410,8 +2410,8 @@
             {
               "id": 7,
               "label": "Back",
-              "icon": "loop",
-              "color": "#35D07F",
+              "icon": "lc:e048",
+              "color": "#64B5F6",
               "actions": [
                 {
                   "type": "hotkey",
@@ -2422,8 +2422,8 @@
             {
               "id": 8,
               "label": "Forward",
-              "icon": "refresh",
-              "color": "#35D07F",
+              "icon": "lc:e049",
+              "color": "#64B5F6",
               "actions": [
                 {
                   "type": "hotkey",
@@ -2434,7 +2434,7 @@
             {
               "id": 9,
               "label": "Refresh",
-              "icon": "refresh",
+              "icon": "lc:e149",
               "color": "#35D07F",
               "actions": [
                 {
@@ -2445,9 +2445,21 @@
             },
             {
               "id": 10,
+              "label": "Hard refresh",
+              "icon": "lc:e148",
+              "color": "#FFB74D",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+r"
+                }
+              ]
+            },
+            {
+              "id": 11,
               "label": "Find",
-              "icon": "list",
-              "color": "#35D07F",
+              "icon": "lc:e151",
+              "color": "#64B5F6",
               "actions": [
                 {
                   "type": "hotkey",
@@ -2456,9 +2468,69 @@
               ]
             },
             {
-              "id": 11,
-              "label": "Play/pause",
-              "icon": "play",
+              "id": 12,
+              "label": "Bookmark",
+              "icon": "lc:e176",
+              "color": "#FFB74D",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+d"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Incognito",
+              "icon": "lc:e0bb",
+              "color": "#B388FF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+n"
+                }
+              ]
+            },
+            {
+              "id": 14,
+              "label": "History",
+              "icon": "lc:e1f5",
+              "color": "#90A4AE",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+h"
+                }
+              ]
+            },
+            {
+              "id": 15,
+              "label": "Downloads",
+              "icon": "lc:e0b2",
+              "color": "#90A4AE",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+j"
+                }
+              ]
+            },
+            {
+              "id": 16,
+              "label": "Developer",
+              "icon": "lc:e093",
+              "color": "#B388FF",
+              "actions": [
+                {
+                  "type": "folder",
+                  "page": "developer"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Play / pause",
+              "icon": "lc:e13c",
               "color": "#35D07F",
               "actions": [
                 {
@@ -2466,21 +2538,191 @@
                   "keys": "playpause"
                 }
               ]
+            }
+          ],
+          "developer": [
+            {
+              "id": 1,
+              "label": "DevTools",
+              "icon": "lc:e093",
+              "color": "#B388FF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "f12"
+                }
+              ]
             },
             {
-              "id": 12,
-              "label": "Screenshot",
-              "icon": "bolt",
+              "id": 2,
+              "label": "Inspect",
+              "icon": "lc:e120",
+              "color": "#B388FF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+c"
+                }
+              ]
+            },
+            {
+              "id": 3,
+              "label": "Console",
+              "icon": "lc:e20a",
+              "color": "#B388FF",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+j"
+                }
+              ]
+            },
+            {
+              "id": 4,
+              "label": "View source",
+              "icon": "lc:e0c3",
+              "color": "#90A4AE",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+u"
+                }
+              ]
+            },
+            {
+              "id": 5,
+              "label": "Zoom in",
+              "icon": "lc:e1b6",
+              "color": "#64B5F6",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+equals"
+                }
+              ]
+            },
+            {
+              "id": 6,
+              "label": "Zoom out",
+              "icon": "lc:e1b7",
+              "color": "#64B5F6",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+minus"
+                }
+              ]
+            },
+            {
+              "id": 7,
+              "label": "Reset zoom",
+              "icon": "lc:e537",
+              "color": "#64B5F6",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+0"
+                }
+              ]
+            },
+            {
+              "id": 8,
+              "label": "Full screen",
+              "icon": "lc:e112",
               "color": "#35D07F",
               "actions": [
                 {
                   "type": "hotkey",
-                  "keys": "win+shift+s"
+                  "keys": "f11"
+                }
+              ]
+            },
+            {
+              "id": 9,
+              "label": "Print",
+              "icon": "lc:e141",
+              "color": "#90A4AE",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+p"
+                }
+              ]
+            },
+            {
+              "id": 10,
+              "label": "Save page",
+              "icon": "lc:e14d",
+              "color": "#35D07F",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+s"
+                }
+              ]
+            },
+            {
+              "id": 11,
+              "label": "Bookmarks bar",
+              "icon": "lc:e060",
+              "color": "#FFB74D",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+b"
+                }
+              ]
+            },
+            {
+              "id": 12,
+              "label": "Task manager",
+              "icon": "lc:e0a9",
+              "color": "#90A4AE",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "shift+escape"
+                }
+              ]
+            },
+            {
+              "id": 13,
+              "label": "Clear data",
+              "icon": "lc:e18e",
+              "color": "#FF7070",
+              "actions": [
+                {
+                  "type": "hotkey",
+                  "keys": "ctrl+shift+delete"
+                }
+              ]
+            },
+            {
+              "id": 17,
+              "label": "Back",
+              "icon": "lc:e06e",
+              "color": "#64B5F6",
+              "actions": [
+                {
+                  "type": "back"
                 }
               ]
             }
           ]
-        }
+        },
+        "pinned": [
+          {
+            "id": 18,
+            "label": "Home",
+            "icon": "lc:e0f5",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "home"
+              }
+            ]
+          }
+        ]
       }
     },
     {

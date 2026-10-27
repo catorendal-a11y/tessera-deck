@@ -2,10 +2,9 @@
 from __future__ import annotations
 
 import os
-import urllib.parse
 
 from program_locator import locate
-from substitution import ENV_REFERENCE, substitute
+from substitution import ENV_REFERENCE, check_web_url, substitute
 
 MAX_TEXT = 90
 
@@ -43,9 +42,10 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, f'Run the command: {_clip(command)} (timeout {action.get("timeout", 30)} s)'
     if kind == 'http':
         url = substitute(action['url'], variables, 'url')
-        parsed = urllib.parse.urlparse(url)
-        if parsed.scheme not in ('http', 'https') or not parsed.netloc:
-            return False, f'Request {_clip(url)}: the address must start with http:// or https://'
+        try:
+            check_web_url(url)
+        except ValueError as exc:
+            return False, f'Request {_clip(url)}: {str(exc).lower()}'
         names = sorted({name for part in (*action.get('headers', {}).values(), action.get('body', ''))
                         for name in ENV_REFERENCE.findall(part)})
         known = os.environ if environment is None else environment
@@ -71,6 +71,10 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
     if kind == 'set':
         value = _clip(substitute(str(action.get('value', '')), variables))
         return True, f'Set variable {action["variable"]} to "{value}"'
+    if kind == 'screen':
+        words = {'clock': 'Show the clock screen on the panel', 'keys': 'Show the keys on the panel',
+                 'toggle': 'Switch the panel between the clock and the keys'}
+        return True, words[action['show']]
     if kind == 'audio':
         op, target = action.get('op', 'toggle'), action['target']
         who = target.removeprefix('app:') + ' (its own sound)' if target.startswith('app:') else f'the {target}'

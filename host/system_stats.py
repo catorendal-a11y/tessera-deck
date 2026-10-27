@@ -5,9 +5,18 @@ import ctypes
 import os
 import struct
 import time
+from pathlib import Path
 
 import psutil
+from gpu_sources import GpuReaders
 from sensor_sources import LibreHardwareMonitorReader, WindowsCounters
+
+
+LHM_EXE = Path(__file__).resolve().parent / 'sensors' / 'LibreHardwareMonitor' / 'LibreHardwareMonitor.exe'
+HINT_NOT_RUNNING = ('CPU temperature and power need Libre Hardware Monitor, which is installed but not running. '
+                    'Run Tessera.cmd --sensors once: it starts at every sign-in after that.')
+HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. '
+                      'Run tools/setup_sensors.ps1, then Tessera.cmd --sensors.')
 
 
 def _text(raw: bytes) -> str:
@@ -169,17 +178,20 @@ def _uptime(seconds: float) -> str:
 
 
 class SystemStats:
-    def __init__(self, hwinfo=None, lhm=None, counters=None):
+    def __init__(self, hwinfo=None, lhm=None, counters=None, gpu=None):
         self.hwinfo = hwinfo or HWiNFOReader()
         self.lhm = lhm or LibreHardwareMonitorReader()
         frequency = psutil.cpu_freq()
         self.counters = counters or WindowsCounters(frequency.max if frequency else None)
+        # Tests that inject their own counters get no real graphics-driver readings unless they ask for them.
+        self.gpu = gpu if gpu is not None else (GpuReaders() if counters is None else GpuReaders([]))
         self.raw: dict[str, float] = {}
         self.display = {key: '--' for key in (
             'cpu_temp', 'cpu_load', 'cpu_power', 'cpu_clock', 'gpu_temp',
             'gpu_load', 'gpu_power', 'gpu_clock', 'gpu_fan', 'ram', 'vram',
             'disk', 'net_down', 'net_up', 'uptime')}
         self.display['sensor_status'] = 'BASIC'
+        self.hint = ''  # why temperatures may be missing and what to do about it
         self._net = psutil.net_io_counters()
         self._net_at = time.monotonic()
         psutil.cpu_percent(None)
@@ -200,8 +212,8 @@ class SystemStats:
         self._net, self._net_at = net, now
         readings = self.lhm.read() or self.hwinfo.read()
         sensor_values = select_hwinfo_metrics(readings)
-        # Sensor tools win; Windows counters fill GPU load, VRAM and clock when they are absent.
-        merged = dict(self.counters.sample(), **sensor_values)
+        # Sensor tools win; Windows counters, then the graphics-driver readers fill what they leave empty.
+        merged = {**self.gpu.sample(), **self.counters.sample(), **sensor_values}
         self.raw = dict(merged, cpu_load=cpu, ram=ram, disk=disk, net_down=down, net_up=up,
                         uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
         for key in ('cpu_temp', 'cpu_load', 'cpu_power', 'gpu_temp', 'gpu_load',
@@ -217,6 +229,7 @@ class SystemStats:
         self.display['net_up'] = _rate(up)
         self.display['uptime'] = _uptime(time.time() - psutil.boot_time())
         self.display['sensor_status'] = 'LIVE' if readings else 'BASIC'
+        self.hint = '' if readings else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED
         return dict(self.display)
 
 

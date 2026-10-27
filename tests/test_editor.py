@@ -49,6 +49,14 @@ class EditorTests(unittest.TestCase):
             self.assertIn('HttpOnly', reply.headers['Set-Cookie'])
             self.assertIn('SameSite=Strict', reply.headers['Set-Cookie'])
 
+    def test_a_body_that_is_not_json_is_refused_in_english(self):
+        self.login()
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            self.request('/api/config', {}, {'Content-Type': 'text/plain'})
+        self.assertEqual(error.exception.code, 415)
+        self.assertEqual(json.loads(error.exception.read())['error'], 'Expected JSON')
+        error.exception.close()
+
     def test_no_unauthenticated_config_or_cross_origin_actions(self):
         with self.assertRaises(urllib.error.HTTPError) as error:
             self.request('/api/config')

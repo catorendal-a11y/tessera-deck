@@ -61,7 +61,9 @@ static void save_brightness(int level)
  * shows its keys instead of the factory sample. Flash is written rarely: only when the key structure changed
  * (not for every live label) and at most once per LAYOUT_SAVE_INTERVAL_US. */
 static const char *LAYOUT_KEY = "layout";
-static constexpr size_t LAYOUT_MAX = 3800;  /* one NVS page; bigger layouts are simply not kept offline */
+/* The nvs partition is only 24 KB and a rewrite needs room for the old and the new copy, so a larger blob could
+ * fail to save. Bigger layouts still work live; they are just not kept for offline use (and say so in the log). */
+static constexpr size_t LAYOUT_MAX = 3800;
 static constexpr int64_t LAYOUT_SAVE_INTERVAL_US = 10LL * 60 * 1000000;
 static std::string s_layout_pending;
 static uint32_t s_layout_version_seen = 0, s_layout_version_saved = 0;
@@ -81,12 +83,19 @@ static void layout_flush_if_due(void)
     const int64_t now = esp_timer_get_time();
     if (now - s_layout_saved_at < LAYOUT_SAVE_INTERVAL_US) return;
     s_layout_saved_at = now;
-    s_layout_version_saved = s_layout_version_seen;
-    if (s_layout_pending.size() > LAYOUT_MAX) return;
+    if (s_layout_pending.size() > LAYOUT_MAX) {
+        s_layout_version_saved = s_layout_version_seen;  /* retrying cannot help */
+        ESP_LOGW(TAG, "layout is %u bytes, over the %u that fit in flash: not kept for offline use",
+                 static_cast<unsigned>(s_layout_pending.size()), static_cast<unsigned>(LAYOUT_MAX));
+        return;
+    }
     nvs_handle_t handle;
-    if (nvs_open(SETTINGS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) return;
-    if (nvs_set_blob(handle, LAYOUT_KEY, s_layout_pending.c_str(), s_layout_pending.size() + 1) == ESP_OK) nvs_commit(handle);
+    if (nvs_open(SETTINGS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) return;  /* tried again next interval */
+    esp_err_t result = nvs_set_blob(handle, LAYOUT_KEY, s_layout_pending.c_str(), s_layout_pending.size() + 1);
+    if (result == ESP_OK) result = nvs_commit(handle);
     nvs_close(handle);
+    if (result == ESP_OK) s_layout_version_saved = s_layout_version_seen;
+    else ESP_LOGW(TAG, "could not save the layout for offline use: %s", esp_err_to_name(result));
 }
 
 static void layout_restore(void)

@@ -49,9 +49,9 @@ def run_command(command: str, timeout: float, stop: threading.Event, shell: bool
             except subprocess.TimeoutExpired:
                 waited += POLL_SECONDS
                 if stop.is_set():
-                    raise CommandFailed('Stopped before the command finished')
+                    raise CommandFailed('Stopped before the command finished') from None
                 if waited >= timeout:
-                    raise CommandFailed(f'The command did not finish within {timeout:g} seconds')
+                    raise CommandFailed(f'The command did not finish within {timeout:g} seconds') from None
     finally:
         kill_tree(process)
     if process.returncode:

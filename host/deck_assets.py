@@ -189,7 +189,7 @@ class Assets:
                 Image.DecompressionBombWarning, OSError) as exc:
             raise ValueError('The image could not be read as PNG, JPEG, GIF or WebP') from exc
         blob = bytearray(b'ADI1' + bytes((SIZE, SIZE, len(frames))))
-        for frame, duration in zip(frames, durations):
+        for frame, duration in zip(frames, durations, strict=False):
             pixels = frame.tobytes('raw', 'BGRA')
             encoded = bytearray()
             at = 0

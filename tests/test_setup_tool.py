@@ -119,3 +119,15 @@ class CommandLineTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+@unittest.skipUnless(sys.platform == 'win32', 'Windows shortcuts')
+class ShortcutTests(unittest.TestCase):
+    def test_the_shortcut_is_written_with_its_target_and_folder(self):
+        with tempfile.TemporaryDirectory() as folder:
+            link = Path(folder) / 'Tessera.lnk'
+            target = Path(folder) / 'my app' / 'Tessera.cmd'
+            target.parent.mkdir()
+            setup_tool.create_shortcut(target, link)
+            import tessera_app
+            self.assertEqual(Path(tessera_app.shortcut_target(link)), target)

@@ -4,6 +4,30 @@ Researched 18-19 October 2026. Official product, help and SDK pages were used fo
 Elgato features. The status of Tessera was checked against the local source
 code. This is a basis for comparison, not a claim of full compatibility.
 
+## Update 26 October 2026: Stream Deck 7.x
+
+Elgato's release notes (7.0, 12 August 2025, up to 7.4.x) add **Key Logic** (up to three actions on one key:
+press, double press, press and hold), a **Virtual Stream Deck** (on-screen keys), hotkey presets, a running-app
+indicator on *Open Application* and a weather plugin. Earlier releases added *Multi Action Switch* and
+*Random Action* (4.4). Tessera now covers press, double press and hold, toggle states, multi-actions and weather
+on the ambient screen. Still open: random action, an indicator that an opened program is running, hotkey presets
+in the editor and running multi-action steps at the same time. Sources:
+[7.0 release notes](https://help.elgato.com/hc/en-us/articles/38011940576273-Elgato-Stream-Deck-7-0-Release-Notes),
+[Key Logic](https://www.elgato.com/us/de/explorer/products/stream-deck/key-logic-stream-deck/),
+[4.4 release notes](https://help.elgato.com/hc/en-us/articles/5162934218637-Elgato-Stream-Deck-4-4-Release-Notes).
+
+## Smart Profiles and switching programs (26 October 2026)
+
+Elgato's [Smart Profiles](https://help.elgato.com/hc/en-us/articles/360053419071) link one profile to one program
+and switch when that program is the focused window. Limits found in Elgato's guide and user threads: only one
+program per profile, no window-title rule, no UWP/Store apps, no built-in way back to the previous profile (users
+build macros for it), and the feature is off while the Stream Deck window is open
+([forum thread](https://forum.keyboardmaestro.com/t/stream-deck-return-to-previous-profile/40931)).
+
+Tessera already matched by process, child process or window title and returned to the previous profile. This
+round added: transient Windows surfaces and Tessera's own windows are ignored, the page and folder you left are
+restored, and Store apps are recognised through the window behind `ApplicationFrameHost`.
+
 ## What people actually use
 
 Elgato's default profile includes screenshot, volume and app launching. The

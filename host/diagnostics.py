@@ -45,7 +45,7 @@ def _counts(config: dict) -> dict:
     kinds: dict[str, int] = {}
     for button in buttons:
         for holder in [button, *button.get('states', [])]:
-            for action in holder.get('actions', []) + holder.get('hold_actions', []):
+            for action in holder.get('actions', []) + holder.get('hold_actions', []) + holder.get('double_actions', []):
                 kind = action.get('type', '?')
                 kinds[kind] = kinds.get(kind, 0) + 1
     return {'profiles': len(profiles), 'pages': sum(len(p.get('pages', {})) for p in profiles.values()),

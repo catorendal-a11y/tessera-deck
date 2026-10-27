@@ -23,9 +23,9 @@ def iter_actions(config):
     for where, buttons in _button_lists(config):
         for button in buttons:
             name = f"{where} / button {button.get('id')} '{button.get('label', '')}'"
-            for key in ('actions', 'hold_actions'):
+            for key, suffix in (('actions', ''), ('hold_actions', ' (long press)'), ('double_actions', ' (double press)')):
                 if isinstance(button.get(key), list):
-                    yield name + (' (long press)' if key == 'hold_actions' else ''), button, key, False
+                    yield name + suffix, button, key, False
             for number, state in enumerate(button.get('states', []), 1):
                 if isinstance(state.get('actions'), list):
                     yield f'{name} state {number}', state, 'actions', False

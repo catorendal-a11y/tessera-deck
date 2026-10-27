@@ -90,7 +90,7 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .key-symbol.symbol-top{top:61px}.key-symbol.symbol-image.symbol-top{top:57px}
 .key-label{position:absolute;left:9px;width:132px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e8f4ef;line-height:1.1;font-size:16px;max-width:none}
 .gauge-ring{position:absolute;left:21px;top:6px;width:108px;height:108px}
-.gauge-value{position:absolute;left:0;top:44px;width:150px;text-align:center;font-weight:700;font-size:26px;line-height:32px}
+.gauge-icon{position:absolute;left:45px;top:8px;width:60px;height:60px;object-fit:contain}.gauge-icon.dim{opacity:.3}.gauge-badge{position:absolute;left:77px;top:50px;width:26px;height:26px;border-radius:50%;border:3px solid #12191d;box-sizing:border-box;display:flex;align-items:center;justify-content:center}.gauge-badge-icon{width:13px;height:13px}.gauge-value{position:absolute;left:0;top:70px;width:150px;text-align:center;font-weight:700;font-size:26px;line-height:32px}
 .slot-number{position:absolute;left:8px;top:6px;font-size:10px;color:#58e09b;opacity:0;transition:opacity .12s;z-index:2}
 .deck-key:hover .slot-number,.deck-key.selected .slot-number{opacity:.8}
 .pin-badge{position:absolute;right:9px;top:6px;font-size:11px;color:#ffb74d;opacity:.85}
@@ -152,3 +152,11 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .device-screen{background:linear-gradient(#091014,#05090b)}
 .deck-key:not(.empty){background:linear-gradient(#232e34,#11191d);border-color:color-mix(in srgb,var(--key-color,#31444d) 38%,#31444d);box-shadow:0 5px 18px #0008;border-radius:22px}
 .deck-key.selected{box-shadow:0 0 0 3px #58e09b30,0 5px 18px #0008;border-color:#58e09b}
+
+.triggers{margin:14px 0 10px}.triggers .option-buttons{display:flex;gap:5px;flex-wrap:wrap}.triggers .outline.active{border-color:var(--accent);color:var(--accent);background:var(--mint-dark)}.triggers .hint{margin-top:8px}
+/* Narrow windows: the three columns shrink, then the inspector moves under the deck, so the page never scrolls sideways. */
+@media(max-width:1280px){#deck-view{grid-template-columns:200px minmax(0,1fr) 300px}}
+@media(max-width:1000px){#deck-view{grid-template-columns:180px minmax(0,1fr)}.inspector{grid-column:2;border-left:0;border-top:1px solid var(--line)}.library{grid-row:1 / span 2}}
+@media(max-width:640px){#deck-view{display:flex;flex-direction:column;height:auto}.library{order:2;border-right:0;border-top:1px solid var(--line)}.inspector{order:1;border-top:1px solid var(--line)}}
+.gesture-mark{position:absolute;border-radius:50%;pointer-events:none;background:color-mix(in srgb,var(--key-color,#92edba) 75%,#78909a)}
+.gesture-mark.ring{background:transparent;border:2px solid color-mix(in srgb,var(--key-color,#92edba) 75%,#78909a)}

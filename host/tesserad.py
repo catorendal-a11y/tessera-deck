@@ -2,6 +2,7 @@
 """Tessera action engine and sole USB owner."""
 import argparse
 import collections
+import itertools
 import ctypes
 import json
 import os
@@ -23,7 +24,7 @@ from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 from deck_assets import Assets
 from program_locator import locate
-from substitution import expand_environment, substitute
+from substitution import check_web_url, expand_environment, substitute
 from pc_state import FLAG_SOURCES, PcState, check_audio, control_audio
 from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
@@ -173,12 +174,57 @@ def send_text(text, pause=0.0, wait=time.sleep):
             wait(pause)
 
 
+FRAME_HOST = 'applicationframehost.exe'
+# Windows surfaces that take focus for a moment (search, Start, notifications, Alt+Tab, the lock screen): they say
+# nothing about which program you are working in, so they never end or start an automatic profile switch.
+NEUTRAL_EXES = frozenset({'searchhost.exe', 'searchapp.exe', 'startmenuexperiencehost.exe', 'shellexperiencehost.exe',
+                          'textinputhost.exe', 'lockapp.exe', 'shellhost.exe'})
+NEUTRAL_EXPLORER_TITLES = frozenset({'', 'task switching', 'task view'})
+TESSERA_WINDOW_EXES = frozenset({'python.exe', 'pythonw.exe', 'msedgewebview2.exe'})
+
+
+def is_neutral_window(context):
+    exe, title = context.get('exe', ''), context.get('title', '')
+    if exe in NEUTRAL_EXES:
+        return True
+    if exe == 'explorer.exe':
+        return title in NEUTRAL_EXPLORER_TITLES
+    return exe in TESSERA_WINDOW_EXES and title.startswith('tessera')
+
+
+def real_app_exe(exe, child_exes):
+    """Store (UWP) apps are drawn inside ApplicationFrameHost; the program behind the frame is the app that matters."""
+    if exe != FRAME_HOST:
+        return exe
+    return next((name for name in child_exes if name and name != FRAME_HOST), exe)
+
+
+def child_process_names(hwnd):
+    names = []
+    callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+    @callback_type
+    def visit(child, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(child, ctypes.byref(owner))
+        try:
+            names.append(psutil.Process(owner.value).name().lower())
+        except (psutil.Error, OSError):
+            pass
+        return True
+
+    user32.EnumChildWindows(hwnd, visit, 0)
+    return names
+
+
 def foreground_context():
     if not IS_WINDOWS:
         return {'exe': '', 'title': '', 'processes': []}
     hwnd = user32.GetForegroundWindow()
-    if not hwnd:
-        return {'exe': '', 'title': '', 'processes': []}
+    return window_context(hwnd) if hwnd else {'exe': '', 'title': '', 'processes': []}
+
+
+def window_context(hwnd):
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     length = min(max(user32.GetWindowTextLengthW(hwnd), 0), 4096)
@@ -196,6 +242,8 @@ def foreground_context():
             exe = os.path.basename(buf.value).lower()
     finally:
         kernel32.CloseHandle(handle)
+    if exe == FRAME_HOST:
+        exe = real_app_exe(exe, child_process_names(hwnd))
     processes = [exe] if exe else []
     try:
         for child in psutil.Process(pid.value).children(recursive=True):
@@ -258,7 +306,7 @@ def matches_foreground(pattern, context):
 
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
-                 'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op',
+                 'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 BOARD_ID = 'tessera-p4'
@@ -268,6 +316,7 @@ JOB_QUEUE_SIZE = 128
 BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive
 SLOW_LANE_LIMIT = 4
 STALE_PRESS_SECONDS = 5  # a queued press older than this is dropped, never replayed
+DOUBLE_PRESS_SECONDS = 0.35  # a key with double_actions waits this long for a second tap
 PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke',
               'screen-deck')
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
@@ -276,6 +325,140 @@ VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
 TIME_PATTERN = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d')
 TRIGGER_KINDS = ('startup', 'interval', 'daily', 'file', 'variable')
+
+
+OFFLINE_LAYOUT_BYTES = 3800  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
+
+
+def layout_payload(buttons):
+    return json.dumps({'buttons': buttons}, ensure_ascii=True, separators=(',', ':'))
+
+
+def layout_bytes(buttons):
+    return len(layout_payload(buttons).encode())
+
+
+class ReconnectBackoff:
+    """How long to wait before the next USB attempt, and whether this failure is worth a log line."""
+    WAITS = (2, 5, 10)
+
+    def __init__(self):
+        self.failures, self.last_message = 0, None
+
+    def failed(self, message):
+        wait = self.WAITS[min(self.failures, len(self.WAITS) - 1)]
+        # An unchanged problem is logged while the wait still grows, then stays quiet until it clears.
+        log = message != self.last_message or self.failures < len(self.WAITS)
+        self.failures, self.last_message = self.failures + 1, message
+        return wait, log
+
+    def recovered(self):
+        failures, self.failures, self.last_message = self.failures, 0, None
+        return failures
+
+
+def action_list_name(hold, double=False):
+    return 'hold_actions' if hold else 'double_actions' if double else 'actions'
+
+
+def _check_press(action, pages, profiles):
+    if type(action['id']) is not int or not 1 <= action['id'] <= 18:
+        raise ValueError('press: id must be 1..18')
+
+
+def _check_hotkey(action, pages, profiles):
+    parse_hotkey(action['keys'])
+
+
+def _check_open(action, pages, profiles):
+    if (type(action.get('reuse', False)) is not bool or not isinstance(action.get('process', ''), str)
+            or len(action.get('process', '')) > 260):
+        raise ValueError('Invalid program setting')
+
+
+def _check_page(action, pages, profiles):
+    if action['page'] not in pages:
+        raise ValueError(f'Unknown page: {action["page"]}')
+
+
+def _check_profile(action, pages, profiles):
+    if action['profile'] not in profiles:
+        raise ValueError(f'Unknown profile: {action["profile"]}')
+
+
+def _check_text(action, pages, profiles):
+    if type(action.get('delay_ms', 0)) is not int or not 0 <= action.get('delay_ms', 0) <= 500:
+        raise ValueError('text: delay_ms must be a whole number from 0 to 500')
+
+
+def _check_mouse(action, pages, profiles):
+    if action['op'] not in MOUSE_OPERATIONS:
+        raise ValueError(f'mouse: op must be one of {", ".join(MOUSE_OPERATIONS)}')
+    for key, low, high in (('x', -20000, 20000), ('y', -20000, 20000), ('amount', -50, 50)):
+        if key in action and (type(action[key]) is not int or not low <= action[key] <= high):
+            raise ValueError(f'mouse: {key} must be a whole number from {low} to {high}')
+    if action['op'] == 'moveto' and ('x' not in action or 'y' not in action or action['x'] < 0 or action['y'] < 0):
+        raise ValueError('mouse: moveto needs x and y screen positions of at least 0')
+
+
+def _check_plugin(action, pages, profiles):
+    args = action.get('args', {})
+    if (not PLUGIN_ID.fullmatch(action['plugin']) or not isinstance(action.get('command'), str)
+            or not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', action['command']) or not isinstance(args, dict)
+            or len(json.dumps(args)) > 1024):
+        raise ValueError('plugin: needs a plugin id, a command name and small arguments')
+
+
+SCREEN_CHOICES = ('clock', 'keys', 'toggle')
+
+
+def _check_screen(action, pages, profiles):
+    if action['show'] not in SCREEN_CHOICES:
+        raise ValueError(f'screen: show must be one of {", ".join(SCREEN_CHOICES)}')
+
+
+def _check_counter(action, pages, profiles):
+    check_counter(action)
+
+
+def _check_timer_action(action, pages, profiles):
+    check_timer(action)
+    _check_actions(action.get('actions', []), pages, profiles)
+
+
+def _check_audio(action, pages, profiles):
+    check_audio(action)
+
+
+def _check_delay(action, pages, profiles):
+    if type(action.get('ms', 100)) is not int or not 0 <= action.get('ms', 100) <= 60000:
+        raise ValueError('delay must be 0..60000 ms')
+
+
+def _check_timeout(action):
+    timeout = action.get('timeout', 5)
+    if type(timeout) not in (int, float) or not 0 < timeout <= 300:
+        raise ValueError('timeout must be between 0 and 300 seconds')
+
+
+def _check_shell(action, pages, profiles):
+    _check_timeout(action)
+
+
+def _check_http_action(action, pages, profiles):
+    _check_timeout(action)
+    _check_http(action)
+
+
+def _check_state_kind(action, pages, profiles):
+    _check_state_action(action)
+
+
+ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _check_hotkey, 'open': _check_open,
+                 'page': _check_page, 'folder': _check_page, 'profile': _check_profile, 'text': _check_text,
+                 'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
+                 'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
+                 'shell': _check_shell, 'http': _check_http_action}
 
 
 def _check_action(action, pages, profiles):
@@ -287,52 +470,9 @@ def _check_action(action, pages, profiles):
         raise ValueError(f'{kind} is missing {field}')
     if field and kind not in ('press', 'state') and not isinstance(action[field], str):
         raise ValueError(f'{kind}: {field} must be text')
-    if kind == 'press' and (type(action['id']) is not int or not 1 <= action['id'] <= 18):
-        raise ValueError('press: id must be 1..18')
-    if kind == 'state':
-        _check_state_action(action)
-    if kind == 'hotkey':
-        parse_hotkey(action['keys'])
-    if kind == 'open' and (type(action.get('reuse', False)) is not bool
-                           or not isinstance(action.get('process', ''), str)
-                           or len(action.get('process', '')) > 260):
-        raise ValueError('Invalid program setting')
-    if kind in ('page', 'folder') and action['page'] not in pages:
-        raise ValueError(f'Unknown page: {action["page"]}')
-    if kind == 'profile' and action['profile'] not in profiles:
-        raise ValueError(f'Unknown profile: {action["profile"]}')
-    if kind == 'text' and (type(action.get('delay_ms', 0)) is not int or not 0 <= action.get('delay_ms', 0) <= 500):
-        raise ValueError('text: delay_ms must be a whole number from 0 to 500')
-    if kind == 'mouse':
-        if action['op'] not in MOUSE_OPERATIONS:
-            raise ValueError(f'mouse: op must be one of {", ".join(MOUSE_OPERATIONS)}')
-        for key, low, high in (('x', -20000, 20000), ('y', -20000, 20000), ('amount', -50, 50)):
-            if key in action and (type(action[key]) is not int or not low <= action[key] <= high):
-                raise ValueError(f'mouse: {key} must be a whole number from {low} to {high}')
-        if action['op'] == 'moveto' and ('x' not in action or 'y' not in action or action['x'] < 0 or action['y'] < 0):
-            raise ValueError('mouse: moveto needs x and y screen positions of at least 0')
-    if kind == 'plugin':
-        args = action.get('args', {})
-        if (not PLUGIN_ID.fullmatch(action['plugin']) or not isinstance(action.get('command'), str)
-                or not re.fullmatch(r'[A-Za-z0-9_.-]{1,64}', action['command']) or not isinstance(args, dict)
-                or len(json.dumps(args)) > 1024):
-            raise ValueError('plugin: needs a plugin id, a command name and small arguments')
-    if kind == 'counter':
-        check_counter(action)
-    if kind == 'timer':
-        check_timer(action)
-        _check_actions(action.get('actions', []), pages, profiles)
-    if kind == 'audio':
-        check_audio(action)
-    if kind == 'delay' and (type(action.get('ms', 100)) is not int
-                            or not 0 <= action.get('ms', 100) <= 60000):
-        raise ValueError('delay must be 0..60000 ms')
-    if kind in ('shell', 'http'):
-        timeout = action.get('timeout', 5)
-        if type(timeout) not in (int, float) or not 0 < timeout <= 300:
-            raise ValueError('timeout must be between 0 and 300 seconds')
-    if kind == 'http':
-        _check_http(action)
+    check = ACTION_CHECKS.get(kind)
+    if check:
+        check(action, pages, profiles)
 
 
 def _check_state_action(action):
@@ -351,6 +491,9 @@ def _check_http(action):
                    for key, value in headers.items())
             or not isinstance(action.get('body', ''), str)):
         raise ValueError('Invalid HTTP setup')
+    url = action['url']
+    if not url.startswith('$('):  # an address built from a variable is checked again when it runs
+        check_web_url(url)
 
 
 def _check_actions(actions, pages, profiles):
@@ -390,6 +533,8 @@ def _check_gauge(gauge):
         raise ValueError('gauge.unit must be at most 3 characters')
     if 'percent_key' in gauge and not isinstance(gauge['percent_key'], str):
         raise ValueError('gauge.percent_key must be text')
+    if 'badge' in gauge and not (isinstance(gauge['badge'], str) and re.fullmatch(r'lc:[0-9a-f]{4}', gauge['badge'])):
+        raise ValueError('gauge.badge must be a Lucide icon like lc:e186')
 
 
 def _check_button(button, pages, profiles):
@@ -407,6 +552,7 @@ def _check_button(button, pages, profiles):
         _check_status(button['status'])
     _check_actions(button.get('actions', []), pages, profiles)
     _check_actions(button.get('hold_actions', []), pages, profiles)
+    _check_actions(button.get('double_actions', []), pages, profiles)
     states = button.get('states', [])
     if not isinstance(states, list) or len(states) > 8 or (states and len(states) < 2):
         raise ValueError('A toggle button needs 2-8 states')
@@ -472,11 +618,31 @@ def _check_trigger(trigger, pages, profiles):
     _check_actions(trigger.get('actions', []), pages, profiles)
 
 
+def _check_night(night):
+    if (not isinstance(night, dict) or set(night) != {'from', 'to', 'brightness'}
+            or not all(isinstance(night[key], str) and TIME_PATTERN.fullmatch(night[key]) for key in ('from', 'to'))
+            or type(night['brightness']) is not int or not 1 <= night['brightness'] <= 100):
+        raise ValueError('display.night needs from and to as HH:MM and a brightness from 1 to 100')
+
+
+def in_quiet_hours(night, minute_of_day):
+    """Whether the minute (0-1439) falls inside the night window, which may run past midnight."""
+    if not night:
+        return False
+    start, end = (int(night[key][:2]) * 60 + int(night[key][3:]) for key in ('from', 'to'))
+    if start == end:
+        return False
+    return start <= minute_of_day < end if start < end else minute_of_day >= start or minute_of_day < end
+
+
 def _check_display(display):
     if not isinstance(display, dict):
         raise ValueError('display must be an object')
     limits = {'brightness': (1, 100), 'dim_after': (0, 86400), 'dim_level': (0, 100)}
     for key, value in display.items():
+        if key == 'night':
+            _check_night(value)
+            continue
         if key not in limits:
             raise ValueError(f'Unknown display setting: {key}')
         low, high = limits[key]
@@ -608,17 +774,26 @@ class PanelSerial:
             del self.rx[:end + 1]
         return result
 
+    ack_seconds = 4
+
     def push_buttons(self, buttons):
-        payload = json.dumps({'buttons': buttons}, ensure_ascii=True, separators=(',', ':'))
+        payload = layout_payload(buttons)
         if len(payload.encode()) > 8192:
             raise ValueError('The button layout is too large')
+        try:
+            self.push_payload(payload)
+        except TimeoutError:
+            self.log('The panel did not acknowledge the button layout; sending it once more')
+            self.push_payload(payload)  # the layout replaces the old one, so sending it twice is harmless
+
+    def push_payload(self, payload):
         with self.write_lock:
             self.cfg_done.clear()
             self.send_line('AD_CFG_BEGIN')
             for i in range(0, len(payload), 380):
                 self.send_line('AD_CFG_DATA ' + payload[i:i+380])
             self.send_line('AD_CFG_END')
-            if not self.cfg_done.wait(4):
+            if not self.cfg_done.wait(self.ack_seconds):
                 raise TimeoutError('The panel did not acknowledge the button layout')
             if not self.cfg_reply.startswith('AD_CFG_END OK'):
                 raise ValueError(self.cfg_reply)
@@ -660,6 +835,8 @@ class Daemon:
         self.page = next(iter(self.config['profiles'][self.profile]['pages']))
         self.auto_profile = None
         self.profile_before_auto = None  # restored when the program behind an auto switch loses focus
+        self.view_before_auto = None  # (profile, page, folder stack) shown when the automatic switch happened
+        self.resume_view = None  # that view, handed back to switch_profile once when the switch is undone
         # A profile chosen from a physical button stays selected while the same
         # foreground app remains active. Focus automation resumes on app change.
         self.manual_focus_exe = ''
@@ -677,6 +854,11 @@ class Daemon:
         self.state_lock = SuspendableRLock()
         self.input_lock = threading.Lock()  # keyboard and mouse sequences never interleave
         self.slow_slots = threading.BoundedSemaphore(SLOW_LANE_LIMIT)
+        self.reconnect = ReconnectBackoff()
+        self.sent_brightness = None  # the brightness last sent to the panel, to notice when quiet hours begin or end
+        self.ambient_requested = False  # the clock was asked for by a screen action rather than by being idle
+        self.pending_single = {}  # (profile, page, button) -> token of a first tap that may still become a double tap
+        self.single_tokens = itertools.count(1)
         self.slow_running = set()
         self.slow_lock = threading.Lock()
         self.local = threading.local()
@@ -742,10 +924,10 @@ class Daemon:
         state = {'pid': os.getpid(), 'updated': now, 'connected': bool(connected),
                  'port': self.port, 'profile': self.profile, 'page': self.page, 'gauges': gauges,
                  'dimmed': self.dimmed,
-                 'buttons': len(buttons), 'error': str(error)[:180] if error else None,
+                 'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
-                 'agents': self.agents, 'stats': self.stats.display, 'vars': self.custom_vars,
+                 'agents': self.agents, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}
@@ -836,11 +1018,13 @@ class Daemon:
                 icon=self.resolve_icon(button), color=color, title=button.get('title', {}))
             if button.get('hold_actions'):
                 entry['hold'] = True  # the panel reports long presses for this key
+            if button.get('double_actions'):
+                entry['double'] = True  # the panel draws a mark; the host tells one tap from two
             entry.update(self.config.get('theme', {}))  # the theme is the default look; a key's own colors win
             entry.update({key: button[key] for key in ('bg', 'text_color', 'border') if key in button})
             if isinstance(button.get('gauge'), dict):
                 state = gauge_state(button['gauge'], dict(self.stats.raw, **self.live.raw()), color)
-                entry.update(color=state['color'], gauge={'p': state['p'], 't': state['t']})
+                entry.update(color=state['color'], gauge={'p': state['p'], 't': state['t'], **({'b': button['gauge']['badge']} if 'badge' in button['gauge'] else {})})
             result.append(entry)
         return result
 
@@ -848,11 +1032,28 @@ class Daemon:
         display = self.config.get('display', {})
         return {'brightness': display.get('brightness', 100),
                 'dim_after': display.get('dim_after', DEFAULT_DIM_AFTER),
-                'dim_level': display.get('dim_level', 10)}
+                'dim_level': display.get('dim_level', 10), 'night': display.get('night')}
+
+    def minute_of_day(self):
+        now = time.localtime()
+        return now.tm_hour * 60 + now.tm_min
+
+    def wanted_brightness(self):
+        settings = self.display_settings()
+        night = settings['night']
+        return night['brightness'] if in_quiet_hours(night, self.minute_of_day()) else settings['brightness']
 
     def apply_brightness(self):
-        self.panel.send_line(f'AD_BRIGHTNESS {self.display_settings()["brightness"]}')
+        self.sent_brightness = self.wanted_brightness()
+        self.panel.send_line(f'AD_BRIGHTNESS {self.sent_brightness}')
         self.dimmed = False
+
+    def brightness_tick(self):
+        """Quiet hours: change the brightness when the clock enters or leaves the night window."""
+        if self.panel is None or self.dimmed or self.sent_brightness is None:
+            return
+        if self.wanted_brightness() != self.sent_brightness:
+            self.enqueue(('brightness',))
 
     def wake_display(self):
         self.last_activity = time.monotonic()
@@ -886,13 +1087,27 @@ class Daemon:
         if self.ambient_active and self.panel is not None:
             self.panel.send_line('AD_SCREEN deck')
         self.ambient_active = False
+        self.ambient_requested = False
         self.ambient_sent = ''
+
+    def show_screen(self, show):
+        """The screen action: the clock or the keys on demand, whether or not the idle clock is switched on."""
+        if (self.device_info.get('protocol') or 1) < 3:
+            raise ValueError('The panel firmware does not have the clock screen; update it first')
+        if show == 'toggle':
+            show = 'keys' if self.ambient_active else 'clock'
+        if show == 'keys':
+            self.leave_ambient()
+            return
+        self.ambient_active = self.ambient_requested = True
+        self.ambient_sent = ''
+        self.panel.send_line('AD_SCREEN ambient')
 
     def ambient_tick(self, now):
         """Show the ambient clock after `after` idle seconds and keep its weather line fresh."""
         settings = self.ambient_settings()
         supported = (self.device_info.get('protocol') or 1) >= 3
-        if self.panel is None or not supported or not settings['enabled']:
+        if self.panel is None or not supported or not (settings['enabled'] or self.ambient_requested):
             if self.ambient_active:
                 self.leave_ambient()
             return
@@ -949,10 +1164,15 @@ class Daemon:
     def switch_profile(self, profile, auto=False):
         if profile not in self.config['profiles']:
             raise ValueError(f'Unknown profile: {profile}')
+        resume, self.resume_view = self.resume_view, None
         if profile != self.profile:
             self.folder_stack.clear()
             self.profile = profile
-            self.page = next(iter(self.config['profiles'][profile]['pages']))
+            pages = self.config['profiles'][profile]['pages']
+            self.page = next(iter(pages))
+            if auto and resume and resume[0] == profile and resume[1] in pages:
+                self.page = resume[1]
+                self.folder_stack.extend(name for name in resume[2] if name in pages)
             self.events.add('profile', profile=profile, page=self.page)
             self.push_page()
         if not auto:
@@ -998,7 +1218,7 @@ class Daemon:
         elif kind == 'http':
             headers = {name: self.expand_environment(self.substitute(value))
                        for name, value in action.get('headers', {}).items()}
-            request = urllib.request.Request(self.substitute(action['url'], 'url'),
+            request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
                 method=action.get('method', 'GET'), headers=headers,
                 data=self.expand_environment(self.substitute(action.get('body', ''))).encode() or None)
             with self.state_lock.suspended():
@@ -1035,6 +1255,8 @@ class Daemon:
         elif kind == 'timer':
             self.live.apply_timer(action)
             self.push_page()
+        elif kind == 'screen':
+            self.show_screen(action['show'])
         elif kind == 'audio':
             control_audio(action['target'], action.get('op', 'toggle'), action.get('value'), action.get('step', 5))
             self.pc.poll()
@@ -1046,21 +1268,21 @@ class Daemon:
             raise ValueError(f'Unknown action: {kind}')
         return True
 
-    def is_slow(self, button_id, hold):
+    def is_slow(self, button_id, hold, double=False):
         button = next((b for b in self.effective_buttons() if b['id'] == button_id), None)
         if button is None:
             return False
-        actions = self.resolved_button(button).get('hold_actions' if hold else 'actions', [])
+        actions = self.resolved_button(button).get(action_list_name(hold, double), [])
         return any(action['type'] in BLOCKING_ACTIONS or (action['type'] == 'text' and action.get('delay_ms'))
                    for action in actions)
 
-    def start_press(self, button_id, hold=False):
+    def start_press(self, button_id, hold=False, double=False):
         """Run a press now, or on the slow lane when it waits (shell, HTTP, delay) so other keys keep working.
 
         A button that is still running ignores further presses instead of running twice.
         """
-        if not self.is_slow(button_id, hold):
-            return self.dispatch_press(button_id, hold=hold)
+        if not self.is_slow(button_id, hold, double):
+            return self.dispatch_press(button_id, hold=hold, double=double)
         identity = (self.profile, self.page, button_id)
         with self.slow_lock:
             running = identity in self.slow_running
@@ -1071,14 +1293,14 @@ class Daemon:
             self.log(f'Button {button_id} is still running or the slow lane is full; press ignored')
             self.panel.feedback(button_id, False)
             return False
-        threading.Thread(target=self.run_slow_press, args=(button_id, hold, identity),
+        threading.Thread(target=self.run_slow_press, args=(button_id, hold, identity, double),
                          name=f'slow-button-{button_id}', daemon=True).start()
         return True
 
-    def run_slow_press(self, button_id, hold, identity):
+    def run_slow_press(self, button_id, hold, identity, double=False):
         try:
             with self.state_lock:
-                self.dispatch_press(button_id, hold=hold)
+                self.dispatch_press(button_id, hold=hold, double=double)
         except Exception as exc:
             self.log(f'Action failed: {exc}')
         finally:
@@ -1086,7 +1308,7 @@ class Daemon:
                 self.slow_running.discard(identity)
             self.slow_slots.release()
 
-    def dispatch_press(self, button_id, hold=False):
+    def dispatch_press(self, button_id, hold=False, double=False):
         identity = (self.profile, self.page, button_id)
         if identity in self.active_press or len(self.active_press) >= 16:
             raise ValueError('Circular button action')
@@ -1105,12 +1327,12 @@ class Daemon:
         resolved = self.resolved_button(button)
         ok, error = False, ''
         try:
-            self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ''))
-            for action in resolved.get('hold_actions' if hold else 'actions', []):
+            self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ' (double)' if double else ''))
+            for action in resolved.get(action_list_name(hold, double), []):
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
                 self.run_action(action)
-            if (button.get('states') and not hold and not button.get('bind')
+            if (button.get('states') and not hold and not double and not button.get('bind')
                     and state_key not in self.state_set_by_action):
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
                 self.push_page()
@@ -1123,7 +1345,7 @@ class Daemon:
             self.last_action = {'id': button_id, 'label': button['label'], 'ok': ok,
                                 'error': error or None, 'at': time.time()}
             self.events.add('press', button=button_id, label=button['label'], profile=self.profile, page=self.page,
-                            ok=ok, hold=hold)
+                            ok=ok, hold=hold, double=double)
             try:
                 self.panel.feedback(button_id, ok)
             finally:
@@ -1144,7 +1366,7 @@ class Daemon:
             while not self.stop.is_set() and panel is self.panel and not self.connection_failed.is_set():
                 self.heartbeat(panel, time.monotonic())
                 self.stop.wait(1)
-        except (OSError, ValueError, AttributeError):
+        except (OSError, ValueError, AttributeError, TypeError):
             pass  # the reader loop reports the disconnect
 
     def submit(self, *jobs):
@@ -1155,6 +1377,21 @@ class Daemon:
                 raise Busy('The host is busy: the action queue is full')
             for job in jobs:
                 self.jobs.put_nowait(job)
+
+    def schedule_job(self, job, delay):
+        timer = threading.Timer(delay, self.enqueue, args=(job,))
+        timer.daemon = True
+        timer.start()
+
+    def tap_with_double(self, button_id):
+        """A tap on a key with double_actions: a second tap in time runs them, otherwise the single actions run late."""
+        identity = (self.profile, self.page, button_id)
+        if self.pending_single.pop(identity, None) is not None:
+            self.start_press(button_id, double=True)
+            return
+        token = next(self.single_tokens)
+        self.pending_single[identity] = token
+        self.schedule_job(('single-due', identity, token), DOUBLE_PRESS_SECONDS)
 
     def enqueue(self, job):
         """Queue a job from inside the host; a full queue is logged and counted. Returns whether it was queued."""
@@ -1235,7 +1472,17 @@ class Daemon:
             shown = job[2] is None or job[2] == (current or {}).get('label') or any(
                 entry_path == path and labels.get(job[1]) == job[2] for entry_path, labels in self.pushed_labels)
             if current and shown:
-                self.start_press(job[1], hold=len(job) > 3 and job[3])
+                hold = len(job) > 3 and job[3]
+                if not hold and any(b['id'] == job[1] and b.get('double_actions') for b in self.effective_buttons()):
+                    self.tap_with_double(job[1])
+                else:
+                    self.start_press(job[1], hold=hold)
+        elif kind == 'single-due':
+            _, identity, token = job
+            if self.pending_single.get(identity) == token:
+                del self.pending_single[identity]
+                if identity[:2] == (self.profile, self.page):
+                    self.start_press(identity[2])
         elif kind == 'profile':
             self.switch_profile(job[1], auto=True)
         elif kind == 'page':
@@ -1266,7 +1513,7 @@ class Daemon:
         elif kind == 'screen-deck':
             # A touch on the ambient screen already returned the panel to the deck.
             self.last_activity = time.monotonic()
-            self.ambient_active = False
+            self.ambient_active = self.ambient_requested = False
         elif kind == 'panel-woke':
             # The panel already restored its backlight after a touch.
             self.last_activity = time.monotonic()
@@ -1333,7 +1580,7 @@ class Daemon:
             return
         context = foreground_context()
         self.foreground = context
-        if not context.get('exe'):
+        if not context.get('exe') or is_neutral_window(context):
             return
         if self.manual_focus_exe:
             if context['exe'] == self.manual_focus_exe:
@@ -1345,11 +1592,13 @@ class Daemon:
             if match != self.profile:
                 if self.auto_profile is None:
                     self.profile_before_auto = self.profile
+                    self.view_before_auto = (self.profile, self.page, list(self.folder_stack))
                 self.auto_profile = match
                 self.enqueue(('profile', match))
         elif self.auto_profile is not None:
             self.auto_profile = None
             before, self.profile_before_auto = self.profile_before_auto, None
+            self.resume_view, self.view_before_auto = self.view_before_auto, None
             fallback = self.config.get('default_profile', next(iter(self.config['profiles'])))
             self.enqueue(('profile', before if before in self.config['profiles'] else fallback))
 
@@ -1469,7 +1718,7 @@ class Daemon:
                         self.clock_sent_at = float('-inf')
                         threading.Thread(target=self.heartbeat_loop, args=(self.panel,), daemon=True).start()
                         self.drop_queued_presses()
-                        self.ambient_active, self.ambient_sent = False, ''
+                        self.ambient_active, self.ambient_requested, self.ambient_sent = False, False, ''
                         with self.state_lock:
                             self.last_activity = time.monotonic()
                             self.apply_brightness()
@@ -1477,21 +1726,25 @@ class Daemon:
                             if (self.device_info.get('protocol') or 1) >= 3:
                                 self.panel.send_line('AD_SCREEN deck')  # a restarted host may find the ambient clock showing
                         self.publish_runtime(True, force=True)
-                        self.log(f'USB ready on {self.port}')
+                        missed = self.reconnect.recovered()
+                        self.log(f'USB ready on {self.port}' + (f' after {missed} failed attempts' if missed > 1 else ''))
                         if not startup_fired:
                             self.fire_trigger({'type': 'startup'})
                             startup_fired = True
                     except (OSError, ValueError, TimeoutError) as exc:
-                        self.log(f'USB: {exc}; retrying in 2 seconds')
+                        wait, show = self.reconnect.failed(str(exc))
+                        if show:
+                            self.log(f'USB: {exc}; retrying in {wait} seconds')
                         self.publish_runtime(False, exc, force=True)
                         self.connection_failed.set()
-                        self.stop.wait(2)
+                        self.stop.wait(wait)
                         continue
                 now = time.monotonic()
-                for tick in (lambda: self.agent_tick(now), lambda: self.stats_tick(now),
-                             lambda: self.ambient_tick(now), lambda: self.plugin_tick(now), self.live_tick, self.focus_tick, self.reload_profiles):
+                for tick, arguments in ((self.agent_tick, (now,)), (self.stats_tick, (now,)), (self.ambient_tick, (now,)),
+                                        (self.plugin_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
+                                        (self.reload_profiles, ())):
                     try:
-                        tick()
+                        tick(*arguments)
                     except Exception as exc:
                         self.log(f'Background task failed: {exc!r}')
                 command_path = Path(__file__).with_name('deck-command.local.json')

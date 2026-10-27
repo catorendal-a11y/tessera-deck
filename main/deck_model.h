@@ -38,6 +38,7 @@ typedef struct {
     uint8_t title_position;            /* 0 bottom, 1 top, 2 middle, 3 hidden */
     bool title_bold;
     bool has_hold;                     /* the host has a long-press action: report holds, not clicks, past the hold time */
+    bool has_double;                   /* the host has a double-press action: only drawn as a mark; the host tells taps apart */
     uint8_t style;                     /* DECK_STYLE_* bits: which of the colors below replace the defaults */
     uint32_t bg;                       /* key background */
     uint32_t text;                     /* label color */
@@ -48,6 +49,7 @@ typedef struct {
     bool has_gauge;
     uint8_t gauge_percent;             /* 0..100 */
     char gauge_text[DECK_GAUGE_TEXT_MAX + 1];
+    char gauge_badge[DECK_ICON_NAME_MAX + 1]; /* optional Lucide icon for what the gauge measures */
 } deck_button_t;
 
 typedef struct {

@@ -198,10 +198,11 @@ def installed_programs():
 def shortcut_target(path):
     if os.name != 'nt' or Path(path).suffix.lower() != '.lnk':
         return str(path)
-    script = ('$shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($args[0]); '
+    script = ('$shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($env:TESSERA_LINK); '
               '[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); $shortcut.TargetPath')
     try:
-        result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script, str(path)],
+        result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
+                                env=dict(os.environ, TESSERA_LINK=str(path)),
                                 capture_output=True, text=True, encoding='utf-8', timeout=10,
                                 creationflags=subprocess.CREATE_NO_WINDOW)
         value = result.stdout.strip()
@@ -386,7 +387,7 @@ class Editor:
 
     def dry_run(self, data):
         # What pressing a button would do, explained without doing any of it.
-        groups = {key: data.get(key) for key in ('actions', 'hold_actions') if data.get(key) is not None}
+        groups = {key: data.get(key) for key in ('actions', 'hold_actions', 'double_actions') if data.get(key) is not None}
         if not groups or any(not isinstance(value, list) or len(value) > 50
                              or any(not isinstance(item, dict) for item in value) for value in groups.values()):
             raise ValueError('Send the button actions as lists of at most 50 steps')
@@ -638,7 +639,7 @@ def make_server(editor, port=0, token=None):
                 if not 0 <= length <= (12 * 1024 * 1024 if self.path == '/api/image' else 1024 * 1024):
                     return self.json({'error': 'The configuration is too large'}, 413)
                 if self.headers.get_content_type() != 'application/json':
-                    return self.json({'error': 'Forventet JSON'}, 415)
+                    return self.json({'error': 'Expected JSON'}, 415)
                 data = json.loads(self.rfile.read(length), parse_constant=lambda _: (_ for _ in ()).throw(ValueError('Invalid number')))
                 if not isinstance(data, dict):
                     raise ValueError('Invalid configuration')

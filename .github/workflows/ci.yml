@@ -14,21 +14,27 @@ concurrency:
 
 jobs:
   host:
-    name: Windows host (tests, lint, dependency audit)
+    name: Windows host (Python ${{ matrix.python }}: tests, lint, dependency audit)
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.14']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: host/requirements.txt
       - name: Install host dependencies
-        run: python -m pip install -r host/requirements.txt ruff pip-audit
-      - name: Lint (syntax errors, undefined names, unused imports)
-        run: python -m ruff check host tests tools --select E9,F
-      - name: Unit, editor, protocol and reliability tests
-        run: python -m unittest discover -s tests -v
+        run: python -m pip install -r host/requirements.txt ruff pip-audit coverage
+      - name: Lint (syntax errors, undefined names, unused imports, bug-prone patterns)
+        run: python -m ruff check host tests tools --select E9,F,B --exclude host/.venv
+      - name: Unit, editor, protocol and reliability tests (host coverage must stay at 73 %)
+        run: |
+          python -m coverage run --source=host --omit="host/.venv/*,host/tessera_terminal.py" -m unittest discover -s tests -v
+          python -m coverage report --fail-under=73
       - name: Terminal self-check
         run: python host/tessera_terminal.py --check
       - name: Dependency audit

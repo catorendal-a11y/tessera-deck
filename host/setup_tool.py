@@ -71,10 +71,13 @@ def desktop_shortcut_path() -> Path:
 def create_shortcut(target: Path = ROOT / 'Tessera.cmd', link: Path | None = None) -> Path:
     """A Desktop shortcut with the Tessera icon that starts the program minimised."""
     link = link or desktop_shortcut_path()
-    script = ('$s=(New-Object -ComObject WScript.Shell).CreateShortcut($args[0]);$s.TargetPath=$args[1];'
-              '$s.WorkingDirectory=$args[2];$s.IconLocation=$args[3];$s.WindowStyle=7;$s.Save()')
-    result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script, str(link),
-                             str(target), str(target.parent), str(target.parent / 'host/tessera.ico')],
+    # `powershell -Command` does not expose trailing arguments as $args, so the values travel as environment variables.
+    script = ('$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:TESSERA_LINK);$s.TargetPath=$env:TESSERA_TARGET;'
+              '$s.WorkingDirectory=$env:TESSERA_FOLDER;$s.IconLocation=$env:TESSERA_ICON;$s.WindowStyle=7;$s.Save()')
+    environment = dict(os.environ, TESSERA_LINK=str(link), TESSERA_TARGET=str(target), TESSERA_FOLDER=str(target.parent),
+                       TESSERA_ICON=str(target.parent / 'host/tessera.ico'))
+    link.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script], env=environment,
                             capture_output=True, text=True, creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     if result.returncode:
         raise OSError(result.stderr.strip() or 'The shortcut could not be created')

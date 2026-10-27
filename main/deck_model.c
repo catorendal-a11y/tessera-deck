@@ -446,6 +446,8 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
             out[parsed].has_gauge = true;
             out[parsed].gauge_percent = (uint8_t)(percent->valuedouble < 0 ? 0 : percent->valuedouble > 100 ? 100 : percent->valuedouble);
             copy_text(out[parsed].gauge_text, sizeof(out[parsed].gauge_text), gauge_text->valuestring);
+            const cJSON *badge = cJSON_GetObjectItemCaseSensitive(gauge, "b");
+            if (cJSON_IsString(badge)) snprintf(out[parsed].gauge_badge, sizeof(out[parsed].gauge_badge), "%s", badge->valuestring);
         }
         const cJSON *title = cJSON_GetObjectItemCaseSensitive(item, "title");
         const cJSON *size = cJSON_GetObjectItemCaseSensitive(title, "size");
@@ -456,6 +458,7 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
         }
         out[parsed].title_bold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(title,"bold"));
         out[parsed].has_hold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"hold"));
+        out[parsed].has_double=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"double"));
         {
             const struct {const char *key; uint8_t bit; uint32_t *target;} styles[] = {
                 {"bg", DECK_STYLE_BG, &out[parsed].bg}, {"text_color", DECK_STYLE_TEXT, &out[parsed].text},

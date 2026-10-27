@@ -239,7 +239,7 @@
           {
             "id": 1,
             "label": "CPU LOAD",
-            "icon": "lc:e038",
+            "icon": "lc:e0a9",
             "color": "#35D07F",
             "actions": [],
             "gauge": {
@@ -247,25 +247,27 @@
               "max": 100,
               "unit": "%",
               "warn": 85,
-              "critical": 97
+              "critical": 97,
+              "badge": "lc:e038"
             }
           },
           {
             "id": 2,
             "label": "CPU CLOCK",
-            "icon": "lc:e038",
+            "icon": "lc:e0a9",
             "color": "#35D07F",
             "actions": [],
             "gauge": {
               "key": "cpu_clock",
               "max": 5500,
-              "fmt": "ghz"
+              "fmt": "ghz",
+              "badge": "lc:e1e0"
             }
           },
           {
             "id": 3,
             "label": "CPU TEMP",
-            "icon": "lc:e038",
+            "icon": "lc:e0a9",
             "color": "#35D07F",
             "actions": [],
             "gauge": {
@@ -273,13 +275,14 @@
               "max": 100,
               "unit": "C",
               "warn": 80,
-              "critical": 90
+              "critical": 90,
+              "badge": "lc:e186"
             }
           },
           {
             "id": 4,
             "label": "CPU POWER",
-            "icon": "lc:e038",
+            "icon": "lc:e0a9",
             "color": "#35D07F",
             "actions": [],
             "gauge": {
@@ -287,13 +290,14 @@
               "max": 170,
               "unit": "W",
               "warn": 130,
-              "critical": 160
+              "critical": 160,
+              "badge": "lc:e1b4"
             }
           },
           {
             "id": 5,
             "label": "RAM",
-            "icon": "lc:e038",
+            "icon": "lc:e445",
             "color": "#64B5F6",
             "actions": [],
             "gauge": {
@@ -301,13 +305,14 @@
               "max": 100,
               "unit": "%",
               "warn": 85,
-              "critical": 95
+              "critical": 95,
+              "badge": "lc:e038"
             }
           },
           {
             "id": 6,
             "label": "DISK",
-            "icon": "lc:e038",
+            "icon": "lc:e0ed",
             "color": "#64B5F6",
             "actions": [],
             "gauge": {
@@ -315,25 +320,27 @@
               "max": 100,
               "unit": "%",
               "warn": 90,
-              "critical": 97
+              "critical": 97,
+              "badge": "lc:e038"
             }
           },
           {
             "id": 7,
             "label": "GPU LOAD",
-            "icon": "lc:e038",
+            "icon": "lc:e66a",
             "color": "#B388FF",
             "actions": [],
             "gauge": {
               "key": "gpu_load",
               "max": 100,
-              "unit": "%"
+              "unit": "%",
+              "badge": "lc:e038"
             }
           },
           {
             "id": 8,
             "label": "VRAM",
-            "icon": "lc:e038",
+            "icon": "lc:e66a",
             "color": "#B388FF",
             "actions": [],
             "gauge": {
@@ -342,13 +349,14 @@
               "max": 100,
               "fmt": "gb",
               "warn": 85,
-              "critical": 95
+              "critical": 95,
+              "badge": "lc:e445"
             }
           },
           {
             "id": 9,
             "label": "GPU TEMP",
-            "icon": "lc:e038",
+            "icon": "lc:e66a",
             "color": "#B388FF",
             "actions": [],
             "gauge": {
@@ -356,13 +364,14 @@
               "max": 110,
               "unit": "C",
               "warn": 85,
-              "critical": 100
+              "critical": 100,
+              "badge": "lc:e186"
             }
           },
           {
             "id": 10,
             "label": "GPU POWER",
-            "icon": "lc:e038",
+            "icon": "lc:e66a",
             "color": "#B388FF",
             "actions": [],
             "gauge": {
@@ -370,36 +379,39 @@
               "max": 350,
               "unit": "W",
               "warn": 320,
-              "critical": 360
+              "critical": 360,
+              "badge": "lc:e1b4"
             }
           },
           {
             "id": 11,
             "label": "GPU CLOCK",
-            "icon": "lc:e038",
+            "icon": "lc:e66a",
             "color": "#B388FF",
             "actions": [],
             "gauge": {
               "key": "gpu_clock",
               "max": 2600,
-              "fmt": "ghz"
+              "fmt": "ghz",
+              "badge": "lc:e1e0"
             }
           },
           {
             "id": 12,
             "label": "GPU FAN",
-            "icon": "lc:e038",
+            "icon": "lc:e379",
             "color": "#B388FF",
             "actions": [],
             "gauge": {
               "key": "gpu_fan",
-              "max": 3000
+              "max": 3000,
+              "badge": "lc:e66a"
             }
           },
           {
             "id": 13,
             "label": "DOWN",
-            "icon": "lc:e038",
+            "icon": "lc:e042",
             "color": "#90A4AE",
             "actions": [],
             "gauge": {
@@ -412,7 +424,7 @@
           {
             "id": 14,
             "label": "UP",
-            "icon": "lc:e038",
+            "icon": "lc:e04a",
             "color": "#90A4AE",
             "actions": [],
             "gauge": {
@@ -425,7 +437,7 @@
           {
             "id": 15,
             "label": "UPTIME",
-            "icon": "lc:e038",
+            "icon": "lc:e087",
             "color": "#90A4AE",
             "actions": [],
             "gauge": {
@@ -437,7 +449,7 @@
           {
             "id": 16,
             "label": "SENSORS",
-            "icon": "lc:e038",
+            "icon": "lc:e142",
             "color": "#90A4AE",
             "actions": [],
             "gauge": {
@@ -2990,6 +3002,401 @@
               {
                 "type": "hotkey",
                 "keys": "enter"
+              }
+            ]
+          }
+        ]
+      },
+      "pinned": [
+        {
+          "id": 18,
+          "label": "Home",
+          "icon": "lc:e0f5",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "home"
+            }
+          ]
+        }
+      ]
+    },
+    "Chrome": {
+      "match": [
+        "chrome.exe"
+      ],
+      "pages": {
+        "main": [
+          {
+            "id": 1,
+            "label": "New tab",
+            "icon": "lc:e13d",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+t"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Close tab",
+            "icon": "lc:e1b2",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+w"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Reopen tab",
+            "icon": "lc:e2a1",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+t"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Previous tab",
+            "icon": "lc:e06e",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+tab"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Next tab",
+            "icon": "lc:e06f",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+tab"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Address bar",
+            "icon": "lc:e0e8",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+l"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+left"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Forward",
+            "icon": "lc:e049",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+right"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Refresh",
+            "icon": "lc:e149",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+r"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Hard refresh",
+            "icon": "lc:e148",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+r"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Find",
+            "icon": "lc:e151",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+f"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Bookmark",
+            "icon": "lc:e176",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+d"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Incognito",
+            "icon": "lc:e0bb",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+n"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "History",
+            "icon": "lc:e1f5",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+h"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Downloads",
+            "icon": "lc:e0b2",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+j"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Developer",
+            "icon": "lc:e093",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "developer"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Play / pause",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "playpause"
+              }
+            ]
+          }
+        ],
+        "developer": [
+          {
+            "id": 1,
+            "label": "DevTools",
+            "icon": "lc:e093",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "f12"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Inspect",
+            "icon": "lc:e120",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+c"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Console",
+            "icon": "lc:e20a",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+j"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "View source",
+            "icon": "lc:e0c3",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+u"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Zoom in",
+            "icon": "lc:e1b6",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+equals"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Zoom out",
+            "icon": "lc:e1b7",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+minus"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Reset zoom",
+            "icon": "lc:e537",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+0"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Full screen",
+            "icon": "lc:e112",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "f11"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Print",
+            "icon": "lc:e141",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+p"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Save page",
+            "icon": "lc:e14d",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+s"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Bookmarks bar",
+            "icon": "lc:e060",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+b"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Task manager",
+            "icon": "lc:e0a9",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "shift+escape"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Clear data",
+            "icon": "lc:e18e",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+delete"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e06e",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
               }
             ]
           }

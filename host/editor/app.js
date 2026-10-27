@@ -18,6 +18,7 @@ const kinds = {
   audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
   counter:{name:'Counter',icon:'plus',field:'name',label:'Counter name',placeholder:'for example laps',group:'On the computer'},
   mouse:{name:'Mouse',icon:'settings',field:'op',label:'Mouse operation',group:'On the computer'},
+  screen:{name:'Switch screen',icon:'home',field:'show',label:'Show on the panel',group:'More actions'},
   timer:{name:'Timer',icon:'pause',field:'name',label:'Timer name',placeholder:'for example tea',group:'On the computer'},
   set:{name:'Set variable',icon:'edit',field:'variable',label:'Variable name',group:'Advanced'},
   state:{name:'Set button state',icon:'loop',field:'button',label:'Button number (1–18)',group:'Advanced'},
@@ -149,7 +150,10 @@ function visibleButtons() {const values=new Map(buttons().map(b=>[b.id,b]));for(
 function current() {return visibleButtons().find(b=>b.id===selected);}
 function owner(id=selected) {const pins=config.profiles[profile].pinned||[];return pins.some(b=>b.id===id)?pins:buttons();}
 function appearance(b=current()) {return b?.states?.[editState]||b;}
-function activeActions() {const b=current();return b.states?b.states[Math.min(editState,b.states.length-1)].actions:b.actions;}
+/* Which action list of the key the steps below edit: a normal press, a long press or a double press. */
+let editList='actions';
+const TRIGGERS=[['actions','Pressed'],['hold_actions','Held'],['double_actions','Double-press']];
+function activeActions() {const b=current();if(editList!=='actions')return b[editList]||[];return b.states?b.states[Math.min(editState,b.states.length-1)].actions:b.actions;}
 function togglePin() {mutate(()=>{const b=current(),list=owner(),p=config.profiles[profile];list.splice(list.indexOf(b),1);p.pinned??=[];if(list===p.pinned){const at=buttons().findIndex(v=>v.id===b.id);if(at>=0)buttons().splice(at,1);buttons().push(b);}else p.pinned.push(b);});}
 function uniqueName(base,names) {let name=`${base} copy`,number=2;while(names.includes(name))name=`${base} copy ${number++}`;return name;}
 function clearButton() {if(!current())return;mutate(()=>{const list=owner(),at=list.findIndex(x=>x.id===selected);if(at>=0)list.splice(at,1);});}
@@ -176,7 +180,7 @@ function draftError() {
   for(const item of Object.values(config.profiles)) for(const b of profileButtons(item)) {
     if(!b.label?.trim()) return 'Give the button a name';
     if((b.states||[]).some(state=>state.label!==undefined&&!String(state.label).trim()))return 'Give every state of the toggle button a name';
-    for(const holder of [b,...(b.states||[])]) for(const a of holder.actions||[]) {
+    for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {
       const kind=kinds[a.type];
       if(!kind) return 'Unknown action';
       if(kind.field && a.type!=='text' && (a[kind.field]===undefined || String(a[kind.field]).trim()==='')) return 'Fill in '+kind.label.toLowerCase();
@@ -210,7 +214,7 @@ async function save() {
     saveInFlight=api('config',{config:clone(config),revision});
     const result=await saveInFlight;revision=result.revision;
     if(version===sentVersion){dirty=false;const same=dashboard.device?.profile===profile&&dashboard.device?.page===page;
-      setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Press “Show on device” to switch.`):'Connect the panel and start the host to synchronize.');}
+      setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Press “Show on device” to switch.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
   } finally {saving=false;saveInFlight=null;}
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);
 }
@@ -277,6 +281,15 @@ function gaugeVisual(b,live) {
   }
   return svg;
 }
+/* The icon is the gauge: a dim copy behind, the bright copy clipped to the filled part from the bottom, plus a badge for what is measured. */
+function gaugeIcon(b,live) {
+  const color=live?.color||b.color||'#35D07F',p=Math.max(0,Math.min(100,live?live.p:0));
+  const dim=iconVisual(b.icon,color,'gauge-icon dim'),lit=iconVisual(b.icon,color,'gauge-icon');
+  lit.style.clipPath=`inset(${(55-50*p/100)/60*100}% 0 0 0)`;
+  const out=[dim,lit];
+  if(b.gauge?.badge){const disc=element('span',{class:'gauge-badge'});disc.style.background=color;disc.append(iconVisual(b.gauge.badge,'#0d1417','gauge-badge-icon'));out.push(disc);}
+  return out;
+}
 function deviceShowsSelection() {const d=dashboard.device;return !!d?.connected&&d.profile===profile&&d.page===page;}
 function renderGrid() {
   const grid=$('#deck-grid');const focused=document.activeElement?.dataset.slot;
@@ -300,7 +313,7 @@ function renderGrid() {
       const geometry=tileGeometry(b);
       if(b.gauge) {
         const value=text('span',live[id]?.t||'--','gauge-value');value.style.color=live[id]?.color||b.color||'#35D07F';
-        tile.append(gaugeVisual(b,live[id]),value);
+        tile.append(...gaugeIcon(b,live[id]),value);
       } else {
         const symbol=iconVisual(b.icon,b.color,'key-symbol');
         if(b.icon?.startsWith('im:'))symbol.classList.add('symbol-image');
@@ -310,6 +323,7 @@ function renderGrid() {
       const label=text('span',resolveLabel(b.label),'key-label');
       label.style.top=geometry.labelTop+'px';label.style.fontSize=geometry.px+'px';
       if(b.title?.bold)label.style.fontWeight='700';label.hidden=geometry.hidden;tile.append(label);
+      tile.append(...gestureMarks(base));
     }
     if(base&&config.profiles[profile].pinned?.includes(base))tile.append(text('span','◆','pin-badge'));
     tile.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});
@@ -355,7 +369,7 @@ function actionTemplate(key) {
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left'}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
     ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
   const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':k.name;
@@ -363,7 +377,7 @@ function actionTemplate(key) {
 }
 function addAction(key,id=selected) {
   const item=actionTemplate(key);if(!item)return;
-  mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}b.actions??=[];activeActions().push(...clone(item.actions));});
+  mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
   toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust the settings on the right.');
 }
 function renderLibrary() {
@@ -455,11 +469,11 @@ function renderInspector() {
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
   renderGauge(panel,base);
   renderBind(panel,base);
-  renderHold(panel,base);
   renderStyle(panel);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
   panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
+  panel.append(renderTriggers(base));
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+' STEPS','section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
   const addSelect=element('select',{'aria-label':'Add a new action step'});addSelect.append(element('option',{value:'',text:'＋ Add action …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));addSelect.addEventListener('change',()=>{if(addSelect.value)addAction(addSelect.value);});panel.append(addSelect);
@@ -468,11 +482,22 @@ function renderInspector() {
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
   panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
 }
-function renderHold(panel,base) {
-  const keys=base.hold_actions?.[0]?.type==='hotkey'?base.hold_actions[0].keys:'';
-  panel.append(field('Long-press hotkey (optional)',keys,value=>mutate(()=>{const keys=value.trim();if(keys)base.hold_actions=[{type:'hotkey',keys}];else delete base.hold_actions;}),{placeholder:'for example ctrl+shift+m'}));
-  panel.append(text('p','Hold the key for about half a second to send this instead of the normal actions.','hint'));
+/* The same corner marks as the panel: a ring for a long press, two dots for a double press (150 px key, positions in %). */
+function gestureMarks(base) {
+  const marks=[];let right=150-11;
+  const add=(size,ring)=>{marks.push(element('span',{class:'gesture-mark'+(ring?' ring':''),'aria-hidden':'true',style:`width:${size/1.5}%;height:${size/1.5}%;left:${(right-size)/1.5}%;top:${10/1.5}%`}));right-=size+6;};
+  if(base?.double_actions?.length){add(7);add(7);}
+  if(base?.hold_actions?.length)add(13,true);
+  return marks;
 }
+function renderTriggers(base) {
+  const tabs=element('div',{class:'option-buttons',role:'group','aria-label':'When the actions run'});
+  for(const [key,name] of TRIGGERS){const count=(key==='actions'?activeActionsOf(base):base[key]||[]).length;
+    const tab=button(count?`${name} (${count})`:name,()=>{editList=key;renderInspector();},'outline'+(editList===key?' active':''));tab.setAttribute('aria-pressed',editList===key);tabs.append(tab);}
+  const hints={actions:'Runs when you tap the key.',hold_actions:'Runs when you hold the key for about half a second instead of the normal actions.',double_actions:'Runs when you tap twice quickly. A key with a double-press waits a moment before its normal actions run.'};
+  return element('div',{class:'triggers'},tabs,text('p',hints[editList],'hint'));
+}
+function activeActionsOf(base) {return base.states?base.states[Math.min(editState,base.states.length-1)].actions||[]:base.actions||[];}
 function renderBind(panel,base) {
   if(!base.states)return;
   const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing'],['__timer','A timer is running …']];
@@ -512,8 +537,8 @@ function renderStep(action,index,count) {
   step.addEventListener('drop',event=>{const value=event.dataTransfer.getData('application/x-deck-step');if(value==='')return;event.preventDefault();const source=Number(value);mutate(()=>{const actions=activeActions();actions.splice(index,0,actions.splice(source,1)[0]);});});
   const move=delta=>{if(index+delta<0||index+delta>=count)return;mutate(()=>{const a=activeActions();[a[index],a[index+delta]]=[a[index+delta],a[index]];});};
   const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.disabled=index===0;down.disabled=index===count-1;
-  step.append(element('div',{class:'step-header'},text('strong',`${index+1}. ${k.name}`),up,down,button('×',()=>mutate(()=>activeActions().splice(index,1)),'quiet danger','Remove step')));
-  let values=action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  step.append(element('div',{class:'step-header'},text('strong',`${index+1}. ${k.name}`),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
+  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
   const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
@@ -634,6 +659,10 @@ async function profileSettings() {
     mutate(()=>{renameProfile(profile,name);profile=name;const rules=values.match.split(',').map(s=>s.trim()).filter(Boolean);if(values.program&&!rules.includes(values.program))rules.push(values.program);config.profiles[profile].match=rules;if(values.default)config.default_profile=profile;});renderAll();
   });
 }
+const NIGHT_WINDOWS=[['','Off'],['22:00-07:00','22:00 – 07:00'],['23:00-07:00','23:00 – 07:00'],['00:00-06:00','00:00 – 06:00']],nightLevelChoices=[5,10,20,40];
+function nightWindowValue(night) {return night?`${night.from}-${night.to}`:'';}
+function nightChoices(night) {const value=nightWindowValue(night);return NIGHT_WINDOWS.some(([v])=>v===value)?NIGHT_WINDOWS:[...NIGHT_WINDOWS,[value,value.replace('-',' – ')]];}
+function nightFromValues(window,level) {if(!window)return undefined;const [from,to]=window.split('-');return {from,to,brightness:Number(level)};}
 const brightnessChoices=[100,80,60,40,20],dimAfterChoices=[0,60,300,600,1800,3600],dimLevelChoices=[0,5,10,20];
 function displayChoices(values,current,format) {
   const all=values.includes(current)?values:[...values,current].sort((a,b)=>b-a);
@@ -646,8 +675,10 @@ function appSettings() {
   {name:'autoProfiles',label:'Switch profile automatically by active program',type:'checkbox',value:config.auto_profiles!==false,note:'Turn off if the panel should stay on the program launcher until you switch profile yourself.'},
   {name:'brightness',label:'Panel brightness',options:displayChoices(brightnessChoices,display.brightness,v=>`${v}%`),value:String(display.brightness)},
   {name:'dimAfter',label:'Dim the panel after',options:displayChoices(dimAfterChoices,display.dim_after,v=>`${Math.round(v/60)} min`),value:String(display.dim_after),note:'The first touch on a dimmed panel only wakes it; it does not press a button.'},
-  {name:'dimLevel',label:'Brightness when dimmed',options:displayChoices(dimLevelChoices,display.dim_level,v=>v?`${v}%`:'Off'),value:String(display.dim_level)}
-],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.display={brightness:Number(values.brightness),dim_after:Number(values.dimAfter),dim_level:Number(values.dimLevel)};});command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
+  {name:'dimLevel',label:'Brightness when dimmed',options:displayChoices(dimLevelChoices,display.dim_level,v=>v?`${v}%`:'Off'),value:String(display.dim_level)},
+  {name:'nightWindow',label:'Quiet hours',options:nightChoices(display.night),value:nightWindowValue(display.night),note:'Between these times the panel uses the lower brightness below instead of the normal one.'},
+  {name:'nightLevel',label:'Brightness during quiet hours',options:displayChoices(nightLevelChoices,display.night?.brightness||10,v=>`${v}%`),value:String(display.night?.brightness||10)}
+],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.display={brightness:Number(values.brightness),dim_after:Number(values.dimAfter),dim_level:Number(values.dimLevel)};const night=nightFromValues(values.nightWindow,values.nightLevel);if(night)config.display.night=night;});command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
 function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',value:page,required:true},{name:'remove',label:'Delete this page and remove actions that point to it',type:'checkbox'}],values=>{
   const pages=config.profiles[profile].pages,name=values.name.trim(),old=page;
   if(values.remove&&Object.keys(pages).length===1)throw new Error('Keep at least one page.');
@@ -688,7 +719,9 @@ function renderStatus() {
   $('#led').classList.toggle('connected',!!connected);$('#led').classList.toggle('waiting',dashboard.running&&!connected);
   const context=[dashboard.device?.profile,dashboard.device?.page].filter(Boolean).join(' / ');
   $('#connection').textContent=connected?[dashboard.device.port,context].filter(Boolean).join(' · '):dashboard.running?(dashboard.connection||'Waiting for the device'):'The host has stopped';
-  $('#connection').title=dashboard.device?.error||'';
+  const layoutBytes=dashboard.device?.layout_bytes||0,offlineLimit=3800;
+  $('#connection').title=dashboard.device?.error||(connected&&dashboard.device?.sensor_hint?dashboard.device.sensor_hint:connected&&layoutBytes>offlineLimit?`This page is ${layoutBytes} bytes. The panel keeps at most ${offlineLimit} for use without the PC, so it will show the older saved layout offline.`:'');
+  if(connected&&layoutBytes>offlineLimit)$('#connection').textContent+=' · too big to keep offline';
   $('#host-toggle').hidden=!!dashboard.running;
   $('#screen-profile').textContent=profile.toUpperCase();$('#screen-page').textContent=titleCase(page);
   $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);
@@ -905,6 +938,7 @@ async function testButton(id = selected) {
   const holder = base.states ? base.states[id === selected ? Math.min(editState, base.states.length - 1) : 0] : base;
   const payload = {actions: clone(holder.actions || [])};
   if (base.hold_actions?.length) payload.hold_actions = clone(base.hold_actions);
+  if (base.double_actions?.length) payload.double_actions = clone(base.double_actions);
   const result = await api('command/dryrun', payload);
   const box = $('#test-steps');
   box.replaceChildren();
@@ -917,6 +951,7 @@ async function testButton(id = selected) {
   };
   section('When pressed', result.actions || {steps: [], wait_seconds: 0});
   if (result.hold_actions) section('When held', result.hold_actions);
+  if (result.double_actions) section('When double-pressed', result.double_actions);
   $('#test-dialog').showModal();
 }
 

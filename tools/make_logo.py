@@ -29,7 +29,7 @@ def sweep(t: float) -> tuple[int, int, int]:
     scaled = min(max(t, 0.0), 1.0) * 2
     index = min(int(scaled), 1)
     fraction = scaled - index
-    return tuple(round(a + (b - a) * fraction) for a, b in zip(STOPS[index], STOPS[index + 1]))
+    return tuple(round(a + (b - a) * fraction) for a, b in zip(STOPS[index], STOPS[index + 1], strict=True))
 
 
 def mark_tiles() -> list[tuple[float, float, float, float, tuple[int, int, int]]]:

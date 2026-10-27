@@ -20,6 +20,8 @@ if "%~1"=="--setup" goto setup
 if "%~1"=="--diagnostics" goto diagnostics
 if "%~1"=="--terminal" goto terminal
 if "%~1"=="--tray" goto tray
+if "%~1"=="--sensors" goto sensors
+if "%~1"=="--sensors-off" goto sensorsoff
 if "%~1"=="--check" goto console
 if "%~1"=="--no-browser" goto console
 start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_app.py" %*
@@ -27,6 +29,12 @@ exit /b 0
 :app
 start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_tray.py"
 start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_app.py" --editor
+exit /b 0
+:sensors
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "tools\enable_sensors.ps1"
+exit /b 0
+:sensorsoff
+powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "tools\enable_sensors.ps1" -Remove
 exit /b 0
 :tray
 start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_tray.py"

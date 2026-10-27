@@ -28,7 +28,7 @@ class ActionForm(ModalScreen):
                 for key,label,kind,value,choices in self.fields:
                     yield Static(label, markup=False)
                     if kind == 'bool':
-                        yield Select([('Ja', True), ('No', False)], value=bool(value),
+                        yield Select([('Yes', True), ('No', False)], value=bool(value),
                                      allow_blank=False, id='field-'+key)
                     elif kind == 'select':
                         yield Select(choices, value=value if value not in (None,'') else Select.NULL, id='field-'+key)

@@ -94,11 +94,11 @@ class HostTests(unittest.TestCase):
         daemon.stats.raw['cpu_temp'] = 84
         button = next(item for item in daemon.current_buttons() if item['id'] == 3)
         self.assertEqual(button['label'], 'CPU TEMP')
-        self.assertEqual(button['gauge'], {'p': 84, 't': '84C'})
+        self.assertEqual(button['gauge'], {'p': 84, 't': '84C', 'b': 'lc:e186'})
         self.assertEqual(button['color'], '#FFB74D')
         daemon.stats.raw.pop('cpu_temp')
         missing = next(item for item in daemon.current_buttons() if item['id'] == 3)
-        self.assertEqual(missing['gauge'], {'p': 0, 't': '--'})
+        self.assertEqual(missing['gauge'], {'p': 0, 't': '--', 'b': 'lc:e186'})
 
     def test_letters_use_uppercase_virtual_key_codes(self):
         self.assertEqual(deck.parse_hotkey('ctrl+c'), [0x11, 0x43])
@@ -142,7 +142,7 @@ class HostTests(unittest.TestCase):
 
     def test_config_requires_acknowledgment(self):
         panel = deck.PanelSerial.__new__(deck.PanelSerial)
-        panel.write_lock = threading.RLock()
+        panel.log, panel.write_lock = Mock(), threading.RLock()
         panel.cfg_done = Mock()
         panel.cfg_done.wait.return_value = False
         panel.send_line = Mock()
@@ -354,7 +354,7 @@ class HostTests(unittest.TestCase):
 
     def test_display_settings_default_and_validate(self):
         daemon = self.daemon()
-        self.assertEqual(daemon.display_settings(), {'brightness': 100, 'dim_after': 300, 'dim_level': 10})
+        self.assertEqual(daemon.display_settings(), {'brightness': 100, 'dim_after': 300, 'dim_level': 10, 'night': None})
         config = deck.Daemon.load_profiles(ROOT / 'host/profiles.default.json')
         config['display'] = {'brightness': 60, 'dim_after': 300, 'dim_level': 5}
         deck.validate_config(config)
@@ -383,7 +383,7 @@ class HostTests(unittest.TestCase):
         daemon.push_page()
         daemon.custom_vars['cpu'] = '43'  # computed after the press, not yet pushed
         daemon.handle_job(('press', 1, 'CPU 41'))
-        daemon.dispatch_press.assert_called_once_with(1, hold=False)
+        daemon.dispatch_press.assert_called_once_with(1, hold=False, double=False)
 
     def test_press_from_a_page_that_is_no_longer_shown_is_ignored(self):
         daemon = self.dynamic_label_daemon()
@@ -578,9 +578,9 @@ class HostTests(unittest.TestCase):
             daemon.stats.raw = {'cpu_load': 42.0, 'cpu_temp': 91.0}
             daemon.publish_runtime(True, force=True)
             published = json.loads(daemon.runtime_path.read_text(encoding='utf-8'))
-            self.assertEqual(published['gauges']['1'], {'p': 42, 't': '42%', 'color': '#35D07F'})
+            self.assertEqual(published['gauges']['1'], {'p': 42, 't': '42%', 'b': 'lc:e038', 'color': '#35D07F'})
             self.assertEqual(published['gauges']['3']['color'], '#FF7070')
-            self.assertEqual(published['gauges']['7'], {'p': 0, 't': '--', 'color': '#4A5A63'})
+            self.assertEqual(published['gauges']['7'], {'p': 0, 't': '--', 'b': 'lc:e038', 'color': '#4A5A63'})
             daemon.page = 'main'
             daemon.publish_runtime(True, force=True)
             self.assertEqual(json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['gauges'], {})
