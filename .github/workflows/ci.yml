@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   host:
-    name: Windows host (Python ${{ matrix.python }}: tests, lint, dependency audit)
+    name: "Windows host (Python ${{ matrix.python }}: tests, lint, dependency audit)"
     runs-on: windows-latest
     strategy:
       fail-fast: false
