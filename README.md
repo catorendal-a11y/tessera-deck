@@ -11,11 +11,11 @@
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-300%2B%20passing-35D07F">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-400%2B%20passing-35D07F">
 </p>
 
 <p align="center">
-  <img src="docs/images/editor-main.png" alt="The Tessera editor mirrors the panel pixel for pixel" width="900">
+  <img src="docs/images/editor-main.png" alt="The Tessera editor: the keys of the panel, the settings of the selected key and the action list" width="900">
 </p>
 
 Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into an 18-key control surface:
@@ -58,13 +58,11 @@ shows exactly what the panel shows.
 
 ## Screenshots
 
-| Editor — status page | Panel — system page |
+| Editor — status page with live gauges | Editor — system page |
 |---|---|
-| <img src="docs/images/editor-status.png" alt="Status page with live gauges in the editor"> | <img src="docs/images/device-system.png" alt="System page rendered by the panel firmware"> |
+| <img src="docs/images/editor-status.png" alt="Status page with live gauges in the editor"> | <img src="docs/images/editor-system.png" alt="System page in the editor"> |
 
-<p align="center"><img src="docs/images/device-gauges.png" alt="Live ring gauges rendered by the panel firmware" width="640"></p>
-
-*Panel images are rendered by the real firmware UI (LVGL) in a native test build.*
+*Screenshots of the real editor window with a connected panel. The keys show what the panel shows; the settings of the selected key are under them and the action list is on the right.*
 
 ## How it works
 

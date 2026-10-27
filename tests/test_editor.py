@@ -142,6 +142,12 @@ class EditorTests(unittest.TestCase):
         with self.request('/app.js') as reply:
             self.assertIn("frame-ancestors 'none'", reply.headers['Content-Security-Policy'])
             self.assertIn('script', reply.headers['Content-Type'])
+        with self.request('/streamdeck.css') as reply:
+            self.assertIn('text/css', reply.headers['Content-Type'])
+            self.assertIn(b'compact, flat hardware-editor layout', reply.read())
+        with self.request('/logo-mark.svg') as reply:
+            self.assertIn('image/svg+xml', reply.headers['Content-Type'])
+            self.assertIn(b'aria-label="Tessera"', reply.read())
         for path in ('/../host/profiles.json', '/api/command/execute'):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 self.request(path, {} if '/api/' in path else None)

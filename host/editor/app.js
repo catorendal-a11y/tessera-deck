@@ -392,7 +392,7 @@ const foldPrefStored=(()=>{try{return localStorage.getItem('tessera-folded')!==n
 let categoryOrder=0;
 function category(name,items,tone,searching) {
   if(!foldPrefStored&&!searching&&categoryOrder++>0)foldedCategories.add(name);
-  const box=element('details',{class:'lib-cat tone-'+tone});box.open=searching||!foldedCategories.has(name);
+  const box=element('details',{class:'lib-cat tone-'+tone,'data-category':name});box.open=searching||!foldedCategories.has(name);
   box.append(element('summary',{},text('span',name),text('small',String(items.length))),element('div',{class:'lib-items'},...items));
   box.addEventListener('toggle',()=>{if(searching)return;box.open?foldedCategories.delete(name):foldedCategories.add(name);
     try{localStorage.setItem('tessera-folded',JSON.stringify([...foldedCategories]));}catch{}});
@@ -498,10 +498,11 @@ function renderInspector() {
   const actionButton=button(first?`${(kinds[first.type]||kinds.hotkey).name}${detail?': '+detail:''}${activeActions().length>1?`  (+${activeActions().length-1})`:''}`:'No action yet · Add one below',
     ()=>{const target=panel.querySelector('.handling');if(target){target.open=true;target.scrollIntoView({block:'nearest',behavior:'smooth'});}},'prop-field');
   const row=(name,...nodes)=>element('div',{class:'prop-row'},text('span',name,'prop-name'),element('div',{class:'prop-value'},...nodes));
+  const textRow=row('Text',sizeField,positionField,boldButton,pinButton);textRow.classList.add('prop-row-text');
   const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('🗑',clearButton,'prop-clear','Clear button'));
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
     element('div',{class:'prop-rows'},row('Title',nameInput,meter),row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
-      row('Text',sizeField,positionField,boldButton,pinButton),row('Action',actionButton))));
+      textRow,row('Action',actionButton))));
   const typeStart=panel.children.length;
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}

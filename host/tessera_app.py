@@ -613,7 +613,8 @@ def make_server(editor, port=0, token=None):
                     return self.json(editor.read() if self.path == '/api/config' else dict(icon_catalog(), preferences=editor.icon_preferences()) if self.path == '/api/icons' else editor.status())
                 except (ValueError, OSError, TypeError):
                     return self.json({'error': 'Could not read the local configuration'}, 400)
-            files = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css'}
+            files = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css',
+                     '/streamdeck.css': 'streamdeck.css', '/logo-mark.svg': 'logo-mark.svg'}
             if self.path not in files:
                 return self.json({'error': 'Not found'}, 404)
             file = WEB / files[self.path]
