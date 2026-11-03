@@ -405,7 +405,8 @@
             "gauge": {
               "key": "gpu_fan",
               "max": 3000,
-              "badge": "lc:e66a"
+              "badge": "lc:e66a",
+              "unit": "rpm"
             }
           },
           {

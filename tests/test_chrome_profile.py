@@ -59,7 +59,7 @@ class ChromeProfileTests(unittest.TestCase):
         shown = {'exe': 'chrome.exe', 'title': 'new tab - google chrome', 'processes': ['chrome.exe']}
         with patch.object(deck, 'foreground_context', return_value=shown):
             daemon.focus_tick()
-        self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'Chrome'))
+        self.assertEqual(daemon.jobs.get_nowait(), ('focus-profile', 'Chrome'))
 
     def test_the_browser_template_uses_the_same_keys_for_all_three_browsers(self):
         catalog = json.loads((ROOT / 'host/action_packs.json').read_text(encoding='utf-8'))

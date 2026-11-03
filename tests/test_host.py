@@ -503,11 +503,11 @@ class HostTests(unittest.TestCase):
         hot = gauge_state({'key': 'cpu_temp', 'max': 100, 'unit': 'C', 'warn': 75, 'critical': 90}, raw, '#35D07F')
         self.assertEqual((hot['p'], hot['t'], hot['color']), (85, '85C', '#FFB74D'))
         clock = gauge_state({'key': 'cpu_clock', 'max': 5500, 'fmt': 'ghz'}, raw, '#35D07F')
-        self.assertEqual((clock['p'], clock['t'], clock['color']), (85, '4.7G', '#35D07F'))
+        self.assertEqual((clock['p'], clock['t'], clock['color']), (85, '4.7GHz', '#35D07F'))
         idle = gauge_state({'key': 'gpu_idle', 'max': 2600, 'fmt': 'ghz'}, {'gpu_idle': 313.0}, '#B388FF')
-        self.assertEqual(idle['t'], '313M')
+        self.assertEqual(idle['t'], '313MHz')
         vram = gauge_state({'key': 'vram_used_gb', 'percent_key': 'vram', 'max': 100, 'fmt': 'gb', 'warn': 85, 'critical': 95}, raw, '#B388FF')
-        self.assertEqual((vram['p'], vram['t'], vram['color']), (90, '14.4G', '#FFB74D'))
+        self.assertEqual((vram['p'], vram['t'], vram['color']), (90, '14.4GB', '#FFB74D'))
         net = gauge_state({'key': 'net_down', 'max': 125_000_000, 'fmt': 'rate', 'scale': 'log'}, raw, '#64B5F6')
         self.assertGreater(net['p'], 50)
         self.assertEqual(gauge_state({'key': 'uptime', 'max': 604800, 'fmt': 'uptime'}, raw, '#90A4AE')['t'], '4d')
@@ -883,7 +883,7 @@ class HostTests(unittest.TestCase):
         context = {'exe': 'notepad.exe', 'title': 'Notepad', 'processes': ['notepad.exe']}
         with patch.object(deck, 'foreground_context', return_value=context):
             daemon.focus_tick()
-        self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'main'))
+        self.assertEqual(daemon.jobs.get_nowait(), ('focus-profile', 'main'))
 
     def test_long_press_runs_the_hold_actions_and_is_flagged_in_the_layout(self):
         daemon = self.daemon()
@@ -909,12 +909,12 @@ class HostTests(unittest.TestCase):
         with patch.object(deck, 'foreground_context',
                           return_value={'exe': 'code.exe', 'title': 'Editor', 'processes': ['code.exe']}):
             daemon.focus_tick()
-        self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'coding'))
+        self.assertEqual(daemon.jobs.get_nowait(), ('focus-profile', 'coding'))
         daemon.profile = 'coding'
         with patch.object(deck, 'foreground_context',
                           return_value={'exe': 'notepad.exe', 'title': 'Notepad', 'processes': ['notepad.exe']}):
             daemon.focus_tick()
-        self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'Codex'))
+        self.assertEqual(daemon.jobs.get_nowait(), ('focus-profile', 'Codex'))
         self.assertIsNone(daemon.profile_before_auto)
 
     def test_manual_home_is_not_immediately_overridden_by_focus(self):
@@ -974,7 +974,7 @@ class HostTests(unittest.TestCase):
                    'processes': ['windowsterminal.exe', 'claude.exe']}
         with patch.object(deck, 'foreground_context', return_value=context):
             daemon.focus_tick()
-        self.assertEqual(daemon.jobs.get_nowait(), ('profile', 'coding'))
+        self.assertEqual(daemon.jobs.get_nowait(), ('focus-profile', 'coding'))
 
     def test_agent_status_variables_follow_running_processes(self):
         daemon = self.daemon()

@@ -8,10 +8,27 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+from system_stats import select_presentmon_fps
 
 
 def context(exe, title=''):
     return {'exe': exe, 'title': title.lower(), 'processes': [exe]}
+
+
+class FpsSensorTests(unittest.TestCase):
+    def test_only_presentmon_presented_fps_is_used(self):
+        readings = [
+            {'sensor': 'Monitor', 'label': 'Framerate (Presented)', 'unit': 'FPS', 'value': 60},
+            {'sensor': 'PresentMon [game.exe]', 'label': 'Frame Time', 'unit': 'ms', 'value': 8},
+            {'sensor': 'PresentMon [game.exe]', 'label': 'Framerate Presented (avg)', 'unit': 'FPS', 'value': 144},
+        ]
+        self.assertEqual(select_presentmon_fps(readings), 144)
+        self.assertIsNone(select_presentmon_fps(readings[:2]))
+
+    def test_missing_fps_is_not_a_zero_gauge(self):
+        from system_stats import gauge_state
+        self.assertEqual(gauge_state({'key': 'fps', 'max': 240, 'unit': 'fps'}, {}, '#90A4AE')['t'], '--')
+        self.assertEqual(gauge_state({'key': 'fps', 'max': 240, 'unit': 'fps'}, {'fps': 144}, '#90A4AE')['t'], '144fps')
 
 
 class NeutralWindowTests(unittest.TestCase):
@@ -92,6 +109,38 @@ class SwitchingTests(unittest.TestCase):
         daemon.switch_profile('coding')  # a manual switch afterwards
         daemon.switch_profile('main')
         self.assertEqual(daemon.page, 'main')
+
+    def test_profile_lock_pauses_and_resumes_following_the_active_program(self):
+        daemon = self.make_daemon()
+        self.tick(daemon, context('code.exe', 'editor'))
+        daemon.run_action({'type': 'profile_lock'})
+        self.assertEqual(daemon.variables()['profile_lock'], 'LÅST')
+        self.tick(daemon, context('notepad.exe', 'Notepad'))
+        self.assertEqual(daemon.profile, 'coding')
+        daemon.handle_job(('focus-profile', 'main'))  # A queued focus change cannot bypass the lock.
+        self.assertEqual(daemon.profile, 'coding')
+        daemon.run_action({'type': 'profile_lock'})
+        self.assertEqual(daemon.variables()['profile_lock'], 'AUTO')
+        self.tick(daemon, context('notepad.exe', 'Notepad'))
+        self.assertEqual(daemon.profile, 'main')
+        self.tick(daemon, context('code.exe', 'editor'))
+        self.assertEqual(daemon.profile, 'coding')
+        self.tick(daemon, context('notepad.exe', 'Notepad'))
+        self.assertEqual(daemon.profile, 'main')
+        self.tick(daemon, context('chrome.exe', 'browser'))
+        self.assertEqual(daemon.profile, 'Chrome')
+
+    def test_home_shows_lock_status_and_color(self):
+        daemon = self.make_daemon()
+        home = daemon.config['profiles']['main']['pinned'][0]
+        home.update(label='Home $(profile_lock)', color='#64B5F6', hold_actions=[{'type': 'profile_lock'}])
+        def shown():
+            return next(button for button in daemon.current_buttons() if button['id'] == home['id'])
+        self.assertEqual((shown()['label'], shown()['color']), ('Home AUTO', '#64B5F6'))
+        daemon.run_action({'type': 'profile_lock'})
+        self.assertEqual((shown()['label'], shown()['color']), ('Home LÅST', '#FFB13B'))
+        daemon.run_action({'type': 'profile_lock'})
+        self.assertEqual((shown()['label'], shown()['color']), ('Home AUTO', '#64B5F6'))
 
 
 if __name__ == '__main__':

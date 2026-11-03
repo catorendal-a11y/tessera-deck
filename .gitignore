@@ -3,6 +3,7 @@ managed_components/
 sdkconfig.old
 outputs/
 __pycache__/
+.coverage
 *.pyc
 *.local.json
 *.local.lock

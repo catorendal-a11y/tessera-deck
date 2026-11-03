@@ -11,6 +11,7 @@ const kinds = {
   back:{name:'Back',icon:'home',field:null,label:'Back to the previous folder',group:'Navigation'},
   page:{name:'Switch page',icon:'folder',field:'page',label:'Go to page',group:'Navigation'},
   profile:{name:'Switch profile',icon:'list',field:'profile',label:'Go to profile',group:'Navigation'},
+  profile_lock:{name:'Lock profile',icon:'settings',field:null,label:'Lock or unlock automatic profile switching',group:'Navigation'},
   delay:{name:'Wait',icon:'pause',field:'ms',label:'Delay (milliseconds)',placeholder:'500',group:'More actions'},
   shell:{name:'Run command',icon:'settings',field:'command',label:'Command',placeholder:'The command runs when the button is pressed',group:'Advanced'},
   http:{name:'HTTP request',icon:'wifi',field:'url',label:'Address',placeholder:'https://…',group:'Advanced'},
@@ -26,12 +27,13 @@ const kinds = {
 };
 // Sensors the host provides, with the ranges and thresholds of the bundled status page.
 const gaugeSensors={
+  fps:['FPS (HWiNFO PresentMon)',{max:240,unit:'fps'}],
   cpu_load:['CPU load',{max:100,unit:'%',warn:85,critical:97}],cpu_temp:['CPU temperature',{max:100,unit:'C',warn:80,critical:90}],
   cpu_power:['CPU power',{max:170,unit:'W',warn:130,critical:160}],cpu_clock:['CPU clock',{max:5500,fmt:'ghz'}],
   ram:['RAM',{max:100,unit:'%',warn:85,critical:95}],disk:['Disk',{max:100,unit:'%',warn:90,critical:97}],
   gpu_load:['GPU load',{max:100,unit:'%'}],vram_used_gb:['VRAM',{percent_key:'vram',max:100,fmt:'gb',warn:85,critical:95}],
   gpu_temp:['GPU temperature',{max:110,unit:'C',warn:85,critical:100}],gpu_power:['GPU power',{max:350,unit:'W',warn:320,critical:360}],
-  gpu_clock:['GPU clock',{max:2600,fmt:'ghz'}],gpu_fan:['GPU fan',{max:3000}],
+  gpu_clock:['GPU clock',{max:2600,fmt:'ghz'}],gpu_fan:['GPU fan',{max:3000,unit:'rpm'}],
   net_down:['Download',{max:125000000,fmt:'rate',scale:'log'}],net_up:['Upload',{max:125000000,fmt:'rate',scale:'log'}],
   uptime:['Uptime',{max:604800,fmt:'uptime'}],sensors:['Sensor source',{max:1,fmt:'live'}]
 };
@@ -183,7 +185,7 @@ function draftError() {
     for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {
       const kind=kinds[a.type];
       if(!kind) return 'Unknown action';
-      if(kind.field && a.type!=='text' && (a[kind.field]===undefined || String(a[kind.field]).trim()==='')) return 'Fill in '+kind.label.toLowerCase();
+      if(kind.field && a.type!=='text' && (a[kind.field]===undefined || String(a[kind.field]).trim()==='')) return `${b.label}: fill in ${kind.label.toLowerCase()}`;
     }
   }
   return '';
@@ -258,6 +260,7 @@ function expandLabel(value) {
   const text=String(value||'').replace(/[$][(]([a-z_-]+)(?::([A-Za-z0-9_.-]+))?[)]/g,(match,kind,name)=>{
     const live=dashboard.variables?.[name?`${kind}:${name}`:kind];
     if(live!==undefined&&['pc','counter','timer','timer-state'].includes(kind))return String(live);
+    if(kind==='profile_lock'&&!name)return String(live??'AUTO');
     if(kind==='agent')return dashboard.agents?.[name]?'ON':'OFF';
     if(kind==='profile'&&!name)return profile;if(kind==='page'&&!name)return page;
     if(kind==='time'&&!name)return `${two(now.getHours())}:${two(now.getMinutes())}`;
@@ -266,20 +269,6 @@ function expandLabel(value) {
     if(kind==='stat'&&name)return String(dashboard.stats?.[name]??'--');
     return match;});
   return text.replace(/[\u0000-\u001f]/g,' ');
-}
-function gaugeVisual(b,live) {
-  const NS='http://www.w3.org/2000/svg',D=108,width=13,r=(D-width)/2,C=2*Math.PI*r,arc=C*.75;
-  const p=Math.max(0,Math.min(100,live?live.p:0)),color=live?.color||b.color||'#35D07F';
-  const svg=document.createElementNS(NS,'svg');svg.setAttribute('viewBox',`0 0 ${D} ${D}`);svg.setAttribute('class','gauge-ring');
-  const disc=document.createElementNS(NS,'circle');for(const [name,value] of Object.entries({cx:D/2,cy:D/2,r:(D-36)/2,fill:'#1B272D'}))disc.setAttribute(name,value);svg.append(disc);
-  const rings=[[arc,'#1E2B32']];if(p>0)rings.push([arc*p/100,color]);
-  for(const [dash,stroke] of rings) {
-    const circle=document.createElementNS(NS,'circle');
-    const attributes={cx:D/2,cy:D/2,r,fill:'none',stroke,'stroke-width':width,'stroke-linecap':'round','stroke-dasharray':`${dash} ${C}`,transform:`rotate(135 ${D/2} ${D/2})`};
-    for(const [name,value] of Object.entries(attributes))circle.setAttribute(name,value);
-    svg.append(circle);
-  }
-  return svg;
 }
 /* The icon is the gauge: a dim copy behind, the bright copy clipped to the filled part from the bottom, plus a badge for what is measured. */
 function gaugeIcon(b,live) {
@@ -294,7 +283,8 @@ function deviceShowsSelection() {const d=dashboard.device;return !!d?.connected&
 function renderGrid() {
   const grid=$('#deck-grid');const focused=document.activeElement?.dataset.slot;
   const live=deviceShowsSelection()?(dashboard.device?.gauges||{}):{};
-  grid.replaceChildren(...Array.from({length:18},(_,index)=>{
+  const shown=[...grid.children];
+  const next=Array.from({length:18},(_,index)=>{
     const id=index+1,base=visibleButtons().find(b=>b.id===id),b=base&&{...base,...(id===selected?appearance(base):base.states?.[0]||{})};
     const tile=element('button',{class:'deck-key'+(!b?' empty':'')+(id===selected?' selected':''),type:'button',draggable:'false',
       'data-slot':id,'aria-label':`Button ${id}: ${b?.label||'Empty slot'}`,'aria-pressed':id===selected,
@@ -312,7 +302,8 @@ function renderGrid() {
     else {
       const geometry=tileGeometry(b);
       if(b.gauge) {
-        const value=text('span',live[id]?.t||'--','gauge-value');value.style.color=live[id]?.color||b.color||'#35D07F';
+        const shown=live[id]?.t||'--',number=/^[\d.,]*/.exec(shown)[0],unit=number?shown.slice(number.length):'';
+        const value=text('span',number||shown,'gauge-value');value.style.color=live[id]?.color||b.color||'#35D07F';if(unit)value.append(text('small',unit,'gauge-unit'));
         tile.append(...gaugeIcon(b,live[id]),value);
       } else {
         const symbol=iconVisual(b.icon,b.color,'key-symbol');
@@ -339,13 +330,15 @@ function renderGrid() {
     tile.addEventListener('keydown',event=>{const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:6,ArrowUp:-6}[event.key];if(delta){event.preventDefault();selected=Math.max(1,Math.min(18,id+delta));renderGrid();renderInspector();$(`[data-slot="${selected}"]`).focus();}});
     if(b)tile.addEventListener('dblclick',event=>{event.preventDefault();renameButton(id);});
     return tile;
-  }));
+  });
+  // Keys that look the same stay in place, so a live update does not interrupt a hover or a press on them.
+  grid.replaceChildren(...next.map((tile,index)=>shown[index]?.isEqualNode(tile)?shown[index]:tile));
   if(focused)$(`[data-slot="${focused}"]`)?.focus();
 }
 /* The editor is designed for about 1450x900; larger windows scale everything up so the proportions stay the same. */
 function applyZoom() {
   const zoom=Math.max(.85,Math.min(1.7,innerHeight/990,innerWidth/1450));
-  document.documentElement.style.setProperty('--z',zoom.toFixed(3));document.body.style.zoom=zoom;
+  document.documentElement.style.setProperty('--z',zoom.toFixed(3));
 }
 function fitDevice() {
   applyZoom();
@@ -379,13 +372,13 @@ function actionTemplate(key) {
     profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
     ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
-  const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':k.name;
+  const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':k.name;
   return {label,icon:k.icon,actions:[action]};
 }
 function addAction(key,id=selected) {
   const item=actionTemplate(key);if(!item)return;
   mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
-  toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust the settings on the right.');
+  toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust its settings under the keys.');
 }
 /* Action categories fold like Stream Deck's action list. The folded set is remembered; a search opens everything. */
 const foldedCategories=(()=>{try{return new Set(JSON.parse(localStorage.getItem('tessera-folded')||'[]'));}catch{return new Set();}})();
@@ -476,7 +469,7 @@ function renderInspector() {
   recording=null;const panel=$('#inspector'),base=current(),b=appearance();panel.replaceChildren();
   panel.append(element('div',{class:'inspector-title'},element('div',{},text('div',`BUTTON ${String(selected).padStart(2,'0')}`,'section-label'),b?null:text('h2','An empty slot'))));
   const firstField=panel.children.length;
-  if(!b){panel.append(element('div',{class:'empty-inspector'},text('strong','What do you want here?'),text('p','Drag an action here from the list on the left. Or pick one of the shortcuts below.')));
+  if(!b){panel.append(element('div',{class:'empty-inspector'},text('strong','What do you want here?'),text('p','Drag an action here from the action list. Or pick one of the shortcuts below.')));
     panel.append(button('▦ Choose installed program',openProgramPicker,'add-action'),button('＋ Add hotkey',()=>addAction('hotkey'),'add-action'),button('▱ Open file or program',()=>addAction('open'),'add-action'),button('▶ Play / pause',()=>addAction('preset:3'),'add-action'));if(clipboard)panel.append(button('Paste copied button',pasteButton,'add-action'));return;}
   const previewLabel=text('span',resolveLabel(b.label)||' ','prop-label');
   const meter=text('small','','label-meter');
@@ -523,7 +516,7 @@ function renderInspector() {
   panel.append(element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear button',clearButton,'quiet danger')));
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
-  wrapSection(panel,actionsStart,panel.children.length,'Handling',false,'handling');
+  wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');
   wrapSection(panel,bindStart,actionsStart,'Gauge and binding',false);
   wrapSection(panel,typeStart,bindStart,'Button type',false);
   panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
@@ -587,6 +580,7 @@ function renderStep(action,index,count) {
   let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
+  if(action.type==='profile_lock'){step.append(text('p','Locks the current profile when pressed. Press again to follow the active program. Pin this button to make it available on every page in this profile.','hint'));return step;}
   const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
   if(action.type==='open') {
     const input=parameter.querySelector('input');input.setAttribute('data-path',index);parameter.append(button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target){applyProgramDetails(result,index);}}catch(error){showError(error);}},'text-button'));
@@ -777,7 +771,8 @@ function renderStatus() {
   followDevice();
   const usesStats=visibleButtons().some(b=>[b,...(b.states||[])].some(v=>v.label?.includes('$(stat:')));
   const live=JSON.stringify([deviceShowsSelection()?dashboard.device?.gauges||{}:{},dashboard.vars||{},dashboard.agents||{},usesStats?dashboard.stats||{}:{}]);
-  if(live!==lastLive){lastLive=live;renderGrid();}
+  // Never rebuild keys under a finger: the press or drag would lose its key. The next poll catches up.
+  if(live!==lastLive&&!drag){lastLive=live;renderGrid();}
 }
 let lastLive='';
 async function pollStatus() {try{dashboard=await api('status');renderStatus();}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}}

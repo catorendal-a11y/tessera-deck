@@ -245,14 +245,30 @@ def window_context(hwnd):
     if exe == FRAME_HOST:
         exe = real_app_exe(exe, child_process_names(hwnd))
     processes = [exe] if exe else []
+    processes += [name for name in child_names(pid.value) if name not in processes]
+    return {'exe': exe, 'title': title, 'processes': processes}
+
+
+CHILD_NAMES_SECONDS = 3.0  # listing children walks every process on the PC; a new foreground window is listed at once
+_child_names = (None, 0.0, [])
+
+
+def child_names(pid):
+    global _child_names
+    known, listed_at, names = _child_names
+    now = time.monotonic()
+    if known == pid and now - listed_at < CHILD_NAMES_SECONDS:
+        return names
+    names = []
     try:
-        for child in psutil.Process(pid.value).children(recursive=True):
+        for child in psutil.Process(pid).children(recursive=True):
             name = child.name().lower()
-            if name and name not in processes:
-                processes.append(name)
+            if name and name not in names:
+                names.append(name)
     except (psutil.Error, OSError):
         pass
-    return {'exe': exe, 'title': title, 'processes': processes}
+    _child_names = (pid, now, names)
+    return names
 
 
 def foreground_exe():
@@ -307,7 +323,7 @@ def matches_foreground(pattern, context):
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
-                 'folder': 'page', 'back': None, 'home': None, 'state': 'button'}
+                 'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 BOARD_ID = 'tessera-p4'
 SUPPORTED_PROTOCOLS = (1, 2, 3)  # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen
@@ -834,6 +850,7 @@ class Daemon:
         self.profile = self.config.get('default_profile', next(iter(self.config['profiles'])))
         self.page = next(iter(self.config['profiles'][self.profile]['pages']))
         self.auto_profile = None
+        self.profile_locked = False
         self.profile_before_auto = None  # restored when the program behind an auto switch loses focus
         self.view_before_auto = None  # (profile, page, folder stack) shown when the automatic switch happened
         self.resume_view = None  # that view, handed back to switch_profile once when the switch is undone
@@ -941,7 +958,7 @@ class Daemon:
 
     def variables(self):
         return dict(time=time.strftime('%H:%M'), date=time.strftime('%d.%m'),
-                    profile=self.profile, page=self.page,
+                    profile=self.profile, page=self.page, profile_lock='LÅST' if self.profile_locked else 'AUTO',
                     **{f'agent:{name}': 'ON' if running else 'OFF'
                        for name, running in self.agents.items()},
                     **{f'stat:{name}': value for name, value in self.stats.display.items()},
@@ -1013,6 +1030,9 @@ class Daemon:
             status = button.get('status')
             if isinstance(status, dict):
                 color = status.get('colors', {}).get(str(self.custom_vars.get(status['var'], '')), color)
+            if self.profile_locked and any(action.get('type') == 'profile_lock' for key in ('actions', 'hold_actions', 'double_actions')
+                                           for action in button.get(key, [])):
+                color = '#FFB13B'
             entry = dict(
                 id=button['id'], label=label.encode('utf-8')[:24].decode('utf-8', 'ignore'),
                 icon=self.resolve_icon(button), color=color, title=button.get('title', {}))
@@ -1239,6 +1259,10 @@ class Daemon:
             self.go_home()
         elif kind == 'profile':
             self.switch_profile(action['profile'])
+        elif kind == 'profile_lock':
+            self.profile_locked = not self.profile_locked
+            self.manual_focus_exe = ''
+            self.push_page(force=True)
         elif kind == 'press':
             if not self.dispatch_press(int(action['id'])):
                 raise ValueError('The child button failed')
@@ -1485,6 +1509,9 @@ class Daemon:
                     self.start_press(identity[2])
         elif kind == 'profile':
             self.switch_profile(job[1], auto=True)
+        elif kind == 'focus-profile':
+            if not self.profile_locked:
+                self.switch_profile(job[1], auto=True)
         elif kind == 'page':
             self.switch_page(job[1])
         elif kind == 'actions':
@@ -1576,7 +1603,7 @@ class Daemon:
                 self.enqueue(('actions', trigger.get('actions', [])))
 
     def focus_tick(self):
-        if self.args.no_focus or not self.config.get('auto_profiles', True):
+        if self.profile_locked or self.args.no_focus or not self.config.get('auto_profiles', True):
             return
         context = foreground_context()
         self.foreground = context
@@ -1594,13 +1621,13 @@ class Daemon:
                     self.profile_before_auto = self.profile
                     self.view_before_auto = (self.profile, self.page, list(self.folder_stack))
                 self.auto_profile = match
-                self.enqueue(('profile', match))
+                self.enqueue(('focus-profile', match))
         elif self.auto_profile is not None:
             self.auto_profile = None
             before, self.profile_before_auto = self.profile_before_auto, None
             self.resume_view, self.view_before_auto = self.view_before_auto, None
             fallback = self.config.get('default_profile', next(iter(self.config['profiles'])))
-            self.enqueue(('profile', before if before in self.config['profiles'] else fallback))
+            self.enqueue(('focus-profile', before if before in self.config['profiles'] else fallback))
 
     def agent_tick(self, now):
         if now < self.agent_scan_at:

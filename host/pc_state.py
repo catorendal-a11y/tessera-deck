@@ -224,5 +224,5 @@ class PcState:
         return {'pc:volume': '' if volume is None else f'{volume}%',
                 'pc:speaker': 'MUTED' if values['speaker_muted'] else 'ON',
                 'pc:mic': 'MUTED' if values['mic_muted'] else 'LIVE',
-                'pc:track': values['title'], 'pc:artist': values['artist'], 'pc:media': track,
+                'pc:track': values['title'] or 'No music', 'pc:artist': values['artist'], 'pc:media': track,
                 'pc:playing': values['status']}

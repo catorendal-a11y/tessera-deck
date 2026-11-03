@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Fixed: in large windows the right-click menu of a key and the drag label appeared far from the pointer, and dialogs could reach past the screen edge. Only the main view scales with the window now.
+- Fixed: on pages with live gauges a press or drag could lose its key when the editor refreshed the keys at that moment. The editor waits for the press to finish and leaves unchanged keys alone.
+- Fixed: the *Lock profile* key only turned orange when the lock was on its long press.
+- Fixed: *Settings* was hidden in windows narrower than 900 px, and the editor's hints still pointed at the old layout. A draft that cannot be saved now names the key.
+- Fixed: a gauge without a unit (such as `301` or `LIVE`) sat slightly off centre on the panel.
+- New action *Lock profile* (`profile_lock`): keeps the current profile while another program is in front; `$(profile_lock)` shows the state and the key turns orange while locked.
+- New FPS gauge (`fps`) from HWiNFO's PresentMon sensor.
+- Gauges say what they measure: `GHz`, `MHz`, `GB` and `rpm`. The size of a gauge's number now depends on the number alone, not on its unit.
+- `$(pc:track)` shows *No music* when nothing is playing, so the music key is no longer blank.
+- `tools/render_screens.py` draws every page of every profile with the real panel UI into `build/screens`, without touching the panel.
+- Faster status page: the host keeps one connection to Libre Hardware Monitor and lists the child processes of the window in front at most every 3 seconds, instead of both every second.
+
 - Fixed: the VRAM, GPU load and CPU clock gauges blinked to "--" for one second every 15 seconds while the Windows counters were listed again; they now keep their last values meanwhile.
 - GPU temperature, power, fan speed and clock now show without administrator rights or extra software: AMD cards through the driver's ADL library (checked on an RX 6950 XT), NVIDIA through `nvidia-smi`. Libre Hardware Monitor and HWiNFO still win when they run.
 - `Tessera.cmd --sensors` registers a scheduled task that starts Libre Hardware Monitor at every sign-in with administrator rights (one Windows prompt), so the CPU temperature and power are always there; `--sensors-off` removes it. The editor's connection tooltip says what is missing when the CPU sensors are not available.

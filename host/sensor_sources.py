@@ -7,12 +7,12 @@ open-source Libre Hardware Monitor when its remote web server is running.
 from __future__ import annotations
 
 import collections
+import http.client
 import json
 import os
 import re
 import time
-import urllib.error
-import urllib.request
+import urllib.parse
 
 try:
     import win32pdh
@@ -25,6 +25,7 @@ PERFORMANCE_PATH = r'\Processor Information(_Total)\% Processor Performance'
 ENGINE_INSTANCE = re.compile(r'\(pid_\d+_luid_(0x[0-9A-Fa-f]+_0x[0-9A-Fa-f]+)_phys_\d+_eng_(\d+)_engtype_([^)]+)\)')
 MEMORY_INSTANCE = re.compile(r'\(luid_(0x[0-9A-Fa-f]+_0x[0-9A-Fa-f]+)_phys_\d+\)')
 RE_EXPAND_SECONDS = 15.0
+MAX_SENSOR_BYTES = 4 * 1024 * 1024
 DISPLAY_CLASS_KEY = r'SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}'
 
 
@@ -202,14 +203,36 @@ class LibreHardwareMonitorReader:
         self.url = url
         self.timeout = timeout
         self._retry_at = 0.0
+        self._connection = None  # kept open between reads: connecting took as long as the rest of the read
+
+    def _fetch(self) -> bytes:
+        parts = urllib.parse.urlsplit(self.url)
+        reused = self._connection is not None
+        connection = self._connection or http.client.HTTPConnection(parts.hostname, parts.port, timeout=self.timeout)
+        self._connection = None
+        try:
+            connection.request('GET', parts.path)
+            reply = connection.getresponse()
+            body = reply.read(MAX_SENSOR_BYTES)
+            if reply.status != 200:
+                raise OSError(f'HTTP {reply.status}')
+        except (OSError, http.client.HTTPException):
+            connection.close()
+            if reused:  # the tool closed the idle connection: that says nothing about whether it still runs
+                return self._fetch()
+            raise
+        if reply.isclosed():
+            self._connection = connection
+        else:
+            connection.close()
+        return body
 
     def read(self) -> list[dict]:
         if time.monotonic() < self._retry_at:
             return []
         try:
-            with urllib.request.urlopen(self.url, timeout=self.timeout) as reply:
-                tree = json.loads(reply.read(4 * 1024 * 1024))
-        except (OSError, ValueError, urllib.error.URLError):
+            tree = json.loads(self._fetch())
+        except (OSError, ValueError, http.client.HTTPException):
             self._retry_at = time.monotonic() + self.RETRY_SECONDS
             return []
         return flatten_sensor_tree(tree) if isinstance(tree, dict) else []

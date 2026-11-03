@@ -97,7 +97,7 @@ Create Folder to a button; custom actions are then placed in the folder.
 Right-click gives, among other things, copy, delete and move.
 [Official quick-start guide](https://www.elgato.com/us/en/explorer/products/stream-deck/elgato-stream-deck-quick-start-guide/).
 
-Tessera has the action list on the left and properties on the right. Drag and
+Tessera follows the same layout: the keys on top, the properties of the selected key under them and the action list on the right. Drag and
 drop exists, but this is its own layout. It is not an exact reproduction of
 Elgato's editor. Putting a new action on an occupied button automatically adds a
 step in the current implementation.

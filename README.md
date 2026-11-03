@@ -62,7 +62,11 @@ shows exactly what the panel shows.
 |---|---|
 | <img src="docs/images/editor-status.png" alt="Status page with live gauges in the editor"> | <img src="docs/images/editor-system.png" alt="System page in the editor"> |
 
-*Screenshots of the real editor window with a connected panel. The keys show what the panel shows; the settings of the selected key are under them and the action list is on the right.*
+| Panel — status page | Panel — main page |
+|---|---|
+| <img src="docs/images/panel-status.png" alt="Status page drawn by the panel firmware UI"> | <img src="docs/images/panel-main.png" alt="Main page drawn by the panel firmware UI"> |
+
+*The editor images show the real editor with this PC's sensor values. The panel images are drawn by the real firmware UI (LVGL) in a native build with `tools/render_screens.py`, not photographed.*
 
 ## How it works
 
@@ -295,6 +299,7 @@ host\.venv\Scripts\python.exe host\tessera_terminal.py --check
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build/native
 build\native\test_ui.exe build\previews          # renders the real LVGL UI to images
+host\.venv\Scripts\python.exe tools\render_screens.py host\profiles.json build\screens build\native\render_screens.exe   # draws every page of every profile
 
 host\.venv\Scripts\python.exe tests\hardware_smoke.py   # talks to the panel; presses no keys on the PC
 ```

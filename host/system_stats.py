@@ -163,6 +163,19 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
     return selected
 
 
+def select_presentmon_fps(readings: list[dict]) -> float | None:
+    """Use PresentMon's presented frame rate, never display refresh rate or frame time."""
+    for item in readings:
+        label = _norm(str(item.get('label', '')))
+        if ('presentmon' in _norm(str(item.get('sensor', '')))
+                and label in ('framerate (presented)', 'framerate presented (avg)')
+                and _norm(str(item.get('unit', ''))) in ('fps', 'frames/s')):
+            value = float(item['value'])
+            if 0 < value < 10000:
+                return value
+    return None
+
+
 def _rate(value: float) -> str:
     if value >= 1024 * 1024:
         return f'{value / 1024 / 1024:.1f}M'
@@ -189,7 +202,7 @@ class SystemStats:
         self.display = {key: '--' for key in (
             'cpu_temp', 'cpu_load', 'cpu_power', 'cpu_clock', 'gpu_temp',
             'gpu_load', 'gpu_power', 'gpu_clock', 'gpu_fan', 'ram', 'vram',
-            'disk', 'net_down', 'net_up', 'uptime')}
+            'disk', 'net_down', 'net_up', 'uptime', 'fps')}
         self.display['sensor_status'] = 'BASIC'
         self.hint = ''  # why temperatures may be missing and what to do about it
         self._net = psutil.net_io_counters()
@@ -210,14 +223,19 @@ class SystemStats:
         down = max(0, net.bytes_recv - self._net.bytes_recv) / elapsed
         up = max(0, net.bytes_sent - self._net.bytes_sent) / elapsed
         self._net, self._net_at = net, now
-        readings = self.lhm.read() or self.hwinfo.read()
+        lhm_readings = self.lhm.read()
+        hwinfo_readings = self.hwinfo.read()
+        readings = lhm_readings or hwinfo_readings
         sensor_values = select_hwinfo_metrics(readings)
         # Sensor tools win; Windows counters, then the graphics-driver readers fill what they leave empty.
         merged = {**self.gpu.sample(), **self.counters.sample(), **sensor_values}
+        fps = select_presentmon_fps(hwinfo_readings)
+        if fps is not None:
+            merged['fps'] = fps
         self.raw = dict(merged, cpu_load=cpu, ram=ram, disk=disk, net_down=down, net_up=up,
                         uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
         for key in ('cpu_temp', 'cpu_load', 'cpu_power', 'gpu_temp', 'gpu_load',
-                    'gpu_power', 'ram', 'vram', 'disk'):
+                    'gpu_power', 'ram', 'vram', 'disk', 'fps'):
             value = self.raw.get(key)
             self.display[key] = '--' if value is None else f'{value:.0f}'
         for key in ('cpu_clock', 'gpu_clock'):
@@ -245,9 +263,9 @@ def _format_gauge_text(value: float, spec: dict) -> str:
         from live_state import clock_text
         return clock_text(value)
     if fmt == 'ghz':
-        return f'{value / 1000:.1f}G' if value >= 1000 else f'{value:.0f}M'
+        return f'{value / 1000:.1f}GHz' if value >= 1000 else f'{value:.0f}MHz'
     if fmt == 'gb':
-        return f'{value:.1f}G'
+        return f'{value:.1f}GB'
     if fmt == 'rate':
         return _rate(value)
     if fmt == 'live':

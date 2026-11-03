@@ -164,10 +164,11 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 /* ===== Stream Deck style editor =====
    Designed for about 1450x900; applyZoom() in app.js scales it up on larger windows (--z). */
 :root{--z:1;--bg:#18181a;--panel:#232326;--line:#2c2c30;--text:#e8e8ea;--muted:#a0a0a6;--accent:#3b82f6}
-body{background:#18181a;zoom:var(--z)}
+body{background:#18181a}
+.appbar,#deck-view{zoom:var(--z)}
 .appbar{background:#1d1d20;border-bottom:1px solid #2c2c30}
 @media(min-width:901px){
-body{height:calc(100vh / var(--z)) !important;overflow:hidden}
+body{height:100vh !important;overflow:hidden}
 #deck-view{display:grid !important;grid-template-columns:minmax(0,1fr) 340px !important;grid-template-areas:"work lib" "insp lib";grid-template-rows:auto 1fr;height:calc(100vh / var(--z) - 72px) !important;min-height:0 !important;overflow-y:auto;overflow-x:hidden;align-items:start;scrollbar-width:thin;scrollbar-color:#3a3a3f transparent}
 .workspace{grid-area:work;padding:18px 24px 0 !important;background:none !important;overflow:visible !important;display:block}
 .inspector{grid-area:insp;align-self:stretch;overflow:visible !important;border:0;background:none;padding:14px 24px 24px !important;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 14px;align-items:start}

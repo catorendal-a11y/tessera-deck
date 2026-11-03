@@ -18,3 +18,11 @@ target_include_directories(test_ui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT
   "${ROOT}/managed_components/espressif__cjson/cJSON")
 target_link_libraries(test_ui PRIVATE lvgl_native)
 target_compile_options(test_ui PRIVATE -UNDEBUG)
+
+# Draws screens for tools/render_screens.py; not part of the tests.
+get_target_property(UI_SOURCES test_ui SOURCES)
+list(REMOVE_ITEM UI_SOURCES test_ui.cpp)
+add_executable(render_screens render_screens.cpp ${UI_SOURCES})
+target_include_directories(render_screens PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/main"
+  "${ROOT}/managed_components/espressif__cjson/cJSON")
+target_link_libraries(render_screens PRIVATE lvgl_native)
