@@ -21,8 +21,8 @@ jobs:
       matrix:
         python: ['3.12', '3.14']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     container: espressif/idf:v6.1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build firmware
         shell: bash
         run: |
@@ -55,7 +55,7 @@ jobs:
       - name: Package firmware
         shell: bash
         run: python3 tools/package_firmware.py build/idf6 dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tessera-firmware
           path: dist/
@@ -66,3 +66,13 @@ jobs:
           cmake -S tests/native -B build/native -DCMAKE_BUILD_TYPE=Release
           cmake --build build/native --parallel
           build/native/test_ui build/native/out
+      - name: Native tests under ASan and UBSan
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          F="-fsanitize=address,undefined -fno-sanitize-recover=undefined -fno-omit-frame-pointer -g"
+          cmake -S tests/native -B build/asan -DCMAKE_BUILD_TYPE=Debug "-DCMAKE_C_FLAGS=$F" "-DCMAKE_CXX_FLAGS=$F"
+          cmake --build build/asan --parallel
+          export ASAN_OPTIONS=detect_leaks=1:strict_string_checks=1:detect_stack_use_after_return=1 UBSAN_OPTIONS=print_stacktrace=1
+          build/asan/test_ui build/asan/out
+          build/asan/test_ui build/asan/out-status tests/native/status-check.json MAIN STATUS pc

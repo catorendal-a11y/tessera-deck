@@ -134,7 +134,7 @@ void gesture_marks(lv_obj_t *tile,const deck_button_t& value) {
     int right=Cell-11;
     auto add=[&](int size,bool ring) {
         auto *item=lv_obj_create(tile);flat(item,color);lv_obj_set_size(item,size,size);lv_obj_set_pos(item,right-size,10);
-        lv_obj_set_style_radius(item,LV_RADIUS_CIRCLE,0);lv_obj_remove_flag(item,LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_radius(item,LV_RADIUS_CIRCLE,0);lv_obj_set_clickable(item,false);
         if(ring){lv_obj_set_style_bg_opa(item,LV_OPA_TRANSP,0);lv_obj_set_style_border_width(item,2,0);lv_obj_set_style_border_color(item,lv_color_hex(color),0);}
         right-=size+6;
     };
@@ -145,7 +145,7 @@ void gesture_marks(lv_obj_t *tile,const deck_button_t& value) {
 void split_gauge_text(const char *text,char *number,size_t number_size,char *unit,size_t unit_size) {
     size_t n=0;
     while(text[n]&&((text[n]>='0'&&text[n]<='9')||text[n]=='.'||text[n]==','))++n;
-    if(n==0){snprintf(number,number_size,"%s",text);unit[0]=' ';return;}
+    if(n==0){snprintf(number,number_size,"%s",text);unit[0]='\0';return;}
     snprintf(number,number_size,"%.*s",static_cast<int>(n),text);snprintf(unit,unit_size,"%s",text+n);
 }
 void style_gauge(int slot,const deck_button_t& value) {
@@ -156,7 +156,7 @@ void style_gauge(int slot,const deck_button_t& value) {
     lv_obj_set_style_text_color(gauge_value[slot],lv_color_hex(value.color),0);
     lv_obj_set_style_text_font(gauge_value[slot],strlen(value.gauge_text)>4?&fq_font_dejavu_bold_24:&fq_font_dejavu_bold_28,0);
     if(gauge_unit[slot]){
-        lv_label_set_text(gauge_unit[slot],unit);lv_obj_set_hidden(gauge_unit[slot],unit[0]==' ');
+        lv_label_set_text(gauge_unit[slot],unit);lv_obj_set_hidden(gauge_unit[slot],unit[0]=='\0');
         lv_obj_set_style_text_color(gauge_unit[slot],lv_color_hex(mix(value.color,Muted,.45f)),0);
     }
     /* The icon is the gauge: a dim copy sits behind, the bright copy is clipped to the filled part from the bottom. */
@@ -175,25 +175,25 @@ void make_gauge(int slot,lv_obj_t *tile,const deck_button_t& value) {
     char packed[5]{};
     if(deck_lucide_glyph(value.icon,packed)){
         auto *dim=gauge_dim[slot]=label(tile,packed,BoxX,GaugeIconTop,Box,&deck_lucide_60,value.color);
-        lv_obj_set_style_text_align(dim,LV_TEXT_ALIGN_CENTER,0);lv_obj_remove_flag(dim,LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_text_align(dim,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_clickable(dim,false);
         auto *clip=gauge_arc[slot]=lv_obj_create(tile);flat(clip,0);lv_obj_set_style_bg_opa(clip,LV_OPA_TRANSP,0);
-        lv_obj_remove_flag(clip,LV_OBJ_FLAG_CLICKABLE);lv_obj_set_pos(clip,BoxX,GaugeIconTop);lv_obj_set_size(clip,Box,Box);
+        lv_obj_set_clickable(clip,false);lv_obj_set_pos(clip,BoxX,GaugeIconTop);lv_obj_set_size(clip,Box,Box);
         auto *icon=gauge_icon[slot]=label(clip,packed,0,0,Box,&deck_lucide_60,value.color);
-        lv_obj_set_style_text_align(icon,LV_TEXT_ALIGN_CENTER,0);lv_obj_remove_flag(icon,LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_text_align(icon,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_clickable(icon,false);
     }
     /* A small coloured disc on the icon says what is measured (temperature, power, fan ...). */
     char badge[5]{};
     if(deck_lucide_glyph(value.gauge_badge,badge)){
         constexpr int R=26;
         auto *disc=gauge_badge[slot]=lv_obj_create(tile);flat(disc,value.color);lv_obj_set_size(disc,R,R);lv_obj_set_pos(disc,BoxX+Box-R/2-2,GaugeIconTop+Box-R/2-4);
-        lv_obj_set_style_radius(disc,LV_RADIUS_CIRCLE,0);lv_obj_remove_flag(disc,LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_set_style_radius(disc,LV_RADIUS_CIRCLE,0);lv_obj_set_clickable(disc,false);
         lv_obj_set_style_border_width(disc,3,0);lv_obj_set_style_border_color(disc,lv_color_hex(base_bg[slot]),0);
         auto *glyph=label(disc,badge,0,0,60,&deck_lucide_60,0x0D1417);lv_obj_set_style_text_align(glyph,LV_TEXT_ALIGN_CENTER,0);
         lv_obj_set_style_transform_pivot_x(glyph,30,0);lv_obj_set_style_transform_pivot_y(glyph,30,0);lv_obj_set_style_transform_scale(glyph,84,0);
         lv_obj_align(glyph,LV_ALIGN_CENTER,0,0);
     }
     /* Number and unit sit in one row below the icon, bottoms aligned. */
-    auto *row=lv_obj_create(tile);flat(row,0);lv_obj_set_style_bg_opa(row,LV_OPA_TRANSP,0);lv_obj_remove_flag(row,LV_OBJ_FLAG_CLICKABLE);
+    auto *row=lv_obj_create(tile);flat(row,0);lv_obj_set_style_bg_opa(row,LV_OPA_TRANSP,0);lv_obj_set_clickable(row,false);
     lv_obj_set_pos(row,0,GaugeIconTop+Box+4);lv_obj_set_size(row,Cell,38);
     lv_obj_set_flex_flow(row,LV_FLEX_FLOW_ROW);lv_obj_set_flex_align(row,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_END,LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(row,2,0);
@@ -315,7 +315,7 @@ void ambient_touched(lv_event_t *) {
 void build_ambient() {
     ambient=lv_obj_create(nullptr);flat(ambient,Bg);
     ambient_clock=lv_obj_create(ambient);flat(ambient_clock,Bg);lv_obj_set_pos(ambient_clock,0,120);lv_obj_set_size(ambient_clock,W,7*31);
-    lv_obj_clear_flag(ambient_clock,LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_clickable(ambient_clock,false);
     ambient_date=label(ambient,"",0,360,W,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_align(ambient_date,LV_TEXT_ALIGN_CENTER,0);
     ambient_line=label(ambient,"",60,420,W-120,&fq_font_dejavu_24,Muted);lv_obj_set_style_text_align(ambient_line,LV_TEXT_ALIGN_CENTER,0);
     lv_obj_add_event_cb(ambient,ambient_touched,LV_EVENT_PRESSED,nullptr);
