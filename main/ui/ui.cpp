@@ -154,7 +154,7 @@ void style_gauge(int slot,const deck_button_t& value) {
     split_gauge_text(value.gauge_text,number,sizeof(number),unit,sizeof(unit));
     lv_label_set_text(gauge_value[slot],number);
     lv_obj_set_style_text_color(gauge_value[slot],lv_color_hex(value.color),0);
-    lv_obj_set_style_text_font(gauge_value[slot],strlen(value.gauge_text)>4?&fq_font_dejavu_bold_24:&fq_font_dejavu_bold_28,0);
+    lv_obj_set_style_text_font(gauge_value[slot],strlen(number)>4?&fq_font_dejavu_bold_24:&fq_font_dejavu_bold_28,0);
     if(gauge_unit[slot]){
         lv_label_set_text(gauge_unit[slot],unit);lv_obj_set_hidden(gauge_unit[slot],unit[0]=='\0');
         lv_obj_set_style_text_color(gauge_unit[slot],lv_color_hex(mix(value.color,Muted,.45f)),0);
@@ -289,17 +289,17 @@ const char *const DigitGlyphs[11][7]={
     {"01110","10001","10001","01110","10001","10001","01110"},{"01110","10001","10001","01111","00001","00010","01100"},
     {"0","0","1","0","1","0","0"}};
 void draw_big_clock(const char *text) {
-    constexpr int Cell=26,Pitch=31,Gap=22;
+    constexpr int Dot=26,Pitch=31,Space=22;
     lv_obj_clean(ambient_clock);
     int width=0,glyphs=0;
-    for(const char *c=text;*c;++c){width+=(*c==':'?1:5)*Pitch-(Pitch-Cell)+Gap;++glyphs;}
-    width-=Gap;int x=(W-width)/2,index=0;
+    for(const char *c=text;*c;++c){width+=(*c==':'?1:5)*Pitch-(Pitch-Dot)+Space;++glyphs;}
+    width-=Space;int x=(W-width)/2,index=0;
     for(const char *c=text;*c;++c,++index) {
         const int glyph=*c==':'?10:(*c>='0'&&*c<='9'?*c-'0':-1);
         const int columns=*c==':'?1:5;
         if(glyph>=0)for(int row=0;row<7;++row)for(int col=0;col<columns;++col)
-            if(DigitGlyphs[glyph][row][col]=='1')tile(ambient_clock,x+col*Pitch,row*Pitch,Cell,5,sweep((index+col/5.f)/(glyphs>0?glyphs:1)));
-        x+=columns*Pitch-(Pitch-Cell)+Gap;
+            if(DigitGlyphs[glyph][row][col]=='1')tile(ambient_clock,x+col*Pitch,row*Pitch,Dot,5,sweep((index+col/5.f)/(glyphs>0?glyphs:1)));
+        x+=columns*Pitch-(Pitch-Dot)+Space;
     }
 }
 void show_ambient(bool on) {
