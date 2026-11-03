@@ -20,8 +20,10 @@
 
 Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into an 18-key control surface:
 launch apps, fire hotkeys, drive Codex and Claude Code, watch live system gauges and run multi-step macros.
-A small Windows host owns the USB connection, runs the actions and serves a drag-and-drop editor that always
-shows exactly what the panel shows.
+A small Windows host owns the USB connection, runs the actions and serves a drag-and-drop editor that shows the
+same keys as the panel.
+
+**Contents:** [Highlights](#highlights) · [Screenshots](#screenshots) · [How it works](#how-it-works) · [Hardware](#hardware) · [Quick start](#quick-start) · [Using Tessera](#using-tessera) · [Serial protocol](#serial-protocol) · [Project layout](#project-layout) · [Development](#development) · [Troubleshooting](#troubleshooting) · [Security notes](#security-notes) · [Roadmap](#roadmap)
 
 > [!IMPORTANT]
 > **Made for one board:** the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
@@ -37,23 +39,35 @@ shows exactly what the panel shows.
 
 ## Highlights
 
+### On the panel
+
 - **Fast, flicker-free panel UI** — a fixed 6 × 3 grid rendered by LVGL. Live values update in place; the grid is never rebuilt while you touch it.
 - **Real app icons** — rendered by the Windows shell at 256 px (Store apps, shortcuts and aliases included) and scaled to the panel, plus 1,895 bundled [Lucide](https://lucide.dev) icons and your own PNG, JPEG, GIF and WebP images.
-- **Live ring gauges** — CPU, GPU, VRAM, RAM, disk, network, uptime, temperatures, power and fan speed, with amber and red thresholds.
-- **A WYSIWYG editor** — drag and drop, undo/redo, copy/paste, folders, pinned buttons, toggle buttons with 2–8 states and multi-step actions. The editor mirrors the panel and follows it when the profile changes.
-- **119 ready-made actions and 10 profile templates** for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
+- **Live gauges** — CPU, GPU, VRAM, RAM, disk, network, uptime, temperatures, power, fan speed and FPS. The icon fills from the bottom with the value, a small badge says what is measured, and amber and red mark the thresholds.
 - **Keys that follow the PC** — the microphone, speaker and media buttons show the real Windows state (muted, live, playing) and flip on their own, and labels can show the current track and volume.
-- **Smart profiles** — the panel switches profile by the foreground program, process or window title, and returns to the profile you had before when that program loses focus.
-- **Long press and double press** — a key can have a second action (`hold_actions`, or the *Long-press hotkey* field in the editor) that runs when you hold it for about half a second, and a third (`double_actions`, or the *Double-press hotkey* field) for two quick taps. A key with a double-press waits about a third of a second before its normal action runs.
-- **Scriptable** — a local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages (for example a Claude Code status light).
-- **Tray app, auto-dim and brightness** — start with Windows, dim after inactivity or when the PC locks, and wake with a touch that does not trigger a button.
-- **Free sensors** — Windows performance counters out of the box; the graphics driver fills in GPU temperature, power, fan speed and clock without administrator rights (AMD through ADL, NVIDIA through `nvidia-smi`); [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) adds the CPU temperature and power. `Tessera.cmd --sensors` makes it start at every sign-in (one Windows prompt); `--sensors-off` undoes it.
-- **Counters and timers** — `counter` and `timer` actions with labels (`$(counter:laps)`, `$(timer:tea)`), a countdown ring, notifications and end actions. They are saved, and a running timer keeps counting while Tessera is closed.
-- **Your own look** — background, label and outline colors per key, an image cropper, and optional online icon search (Iconify) next to the 1,895 offline icons.
 - **Ambient screen and offline layout** — an idle clock built from brand-colored tiles (with optional weather from Open-Meteo for a city you choose); the panel remembers its last layout and shows it even when the PC is off.
+- **Auto-dim and brightness** — dim after inactivity or when the PC locks, and wake with a touch that does not trigger a button.
+
+### In the editor
+
+- **A WYSIWYG editor** — keys on top, the settings of the selected key under them and the action list on the right, with drag and drop, undo/redo, copy/paste, folders, pinned buttons, toggle buttons with 2–8 states and multi-step actions. The editor follows the panel when the profile changes.
+- **119 ready-made actions and 10 profile templates** for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
+- **Your own look** — background, label and outline colors per key, an image cropper, and optional online icon search (Iconify) next to the 1,895 offline icons.
 - **Test before you press** — *Test (dry run)* explains what a key would do, checks paths, hotkeys and web addresses, and runs nothing.
-- **Safe by default** — verified device identity, a bounded action queue, long commands that never block other keys, import review, rotating backups with restore and configuration versioning.
+
+### Actions and automation
+
+- **Smart profiles** — the panel switches profile by the foreground program, process or window title, and returns to the profile you had before when that program loses focus. A *Lock profile* key keeps the current profile until you press it again.
+- **Long press and double press** — a key can have a second action (`hold_actions`, the *Held* tab in the editor) that runs when you hold it for about half a second, and a third (`double_actions`, the *Double-press* tab) for two quick taps. A key with a double-press waits about a third of a second before its normal action runs.
+- **Counters and timers** — `counter` and `timer` actions with labels (`$(counter:laps)`, `$(timer:tea)`), a countdown ring, notifications and end actions. They are saved, and a running timer keeps counting while Tessera is closed.
+- **Scriptable** — a local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages (for example a Claude Code status light).
 - **Integrations** — plugins with their own limited API tokens ([`docs/PLUGINS.md`](docs/PLUGINS.md)) and adapters that turn Claude Code hooks and Codex notifications into key states.
+
+### Sensors, safety and upkeep
+
+- **Free sensors** — Windows performance counters out of the box; the graphics driver fills in GPU temperature, power, fan speed and clock without administrator rights (AMD through ADL, NVIDIA through `nvidia-smi`); [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) adds the CPU temperature and power. `Tessera.cmd --sensors` makes it start at every sign-in (one Windows prompt); `--sensors-off` undoes it.
+- **Safe by default** — verified device identity, a bounded action queue, long commands that never block other keys, import review, rotating backups with restore and configuration versioning.
+- **Tray app and autostart** — start with Windows and control the host from the tray.
 - **Easy upkeep** — panel firmware installer with verified packages and an update check, `Tessera.cmd --setup`, `--uninstall` and `--diagnostics`.
 
 ## Screenshots
@@ -161,32 +175,41 @@ with a *Back* key in slot 17. A key runs one or more actions in order:
 | `press` | Run another key |
 | `set` | Set a variable |
 | `state` | Set the state of a toggle key (`next` or a state number) |
+| `audio` | Mute or unmute the real microphone or speaker |
+| `counter`, `timer` | Change a counter; start, stop or reset a timer |
+| `mouse` | Click (left, right or middle) |
+| `screen` | Show the clock, the keys, or switch between them |
+| `profile_lock` | Lock or unlock automatic profile switching |
+| `plugin` | Send a command to a plugin |
 
-Labels can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(agent:claude)`, `$(var:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`.
+Labels can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`. `$(pc:track)` shows *No music* when nothing is playing.
 A toggle button can follow the PC instead of the presses with `"bind": "mic_muted" | "speaker_muted" | "media_playing"` (state 1 = off, state 2 = on), and the `audio` action (`target`: `mic` or `speaker`, `op`: `toggle`, `mute` or `unmute`) mutes the real device. Profiles switch
 automatically with rules such as `chrome.exe`, `process:claude.exe` or `title:codex`.
 
 ### Live gauges and sensors
 
-A key becomes a gauge with a `gauge` block; the host fills in the value, the ring and the color:
+A key becomes a gauge with a `gauge` block; the host fills in the value, how far the icon is filled and the color:
 
 ```json
 {
   "label": "CPU TEMP",
-  "gauge": { "key": "cpu_temp", "max": 100, "unit": "C", "warn": 80, "critical": 90 }
+  "icon": "lc:e0a9",
+  "gauge": { "key": "cpu_temp", "max": 100, "unit": "C", "warn": 80, "critical": 90, "badge": "lc:e186" }
 }
 ```
 
-Formats are `int`, `ghz`, `gb`, `rate`, `uptime` and `live`; `scale: "log"` suits network rates.
+`icon` is what the gauge belongs to and the optional `badge` is what it measures. Formats are `int`, `ghz` (GHz or MHz), `gb`, `rate`, `uptime`, `clock` and `live`; `scale: "log"` suits network rates, and `percent_key` fills the icon from another value than the one shown.
 
 | Source | Needs | Provides |
 |---|---|---|
 | Windows | nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
+| Graphics driver | nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power, fan speed, clock |
 | Libre Hardware Monitor | free download, administrator rights | temperatures, CPU and GPU power, fan speed, clocks |
+| HWiNFO | running with shared memory enabled | sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
 Install the optional sensor source with `tools\setup_sensors.ps1`. It downloads the official release, verifies
 its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation
-once). Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
+once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
 
 ### Brightness and auto-dim
 
@@ -255,9 +278,9 @@ the key's `open` action. It is a dry run by default; add `--apply` to write the 
 | panel → host | `{"type":"wake"}` | A touch woke the dimmed panel; it presses no key |
 | panel → host | `{"type":"screen","name":"deck","by":"touch"}` | A touch left the ambient screen (protocol 3) |
 
-Layout entries may also carry `hold` (the key has a long-press action) and `bg`, `text_color` and `border` colors.
+Layout entries may also carry `hold` and `double` (the key has a long-press or double-press action), `title` (size, position, bold), `bg`, `text_color` and `border` colors, and `gauge` (`p` percent, `t` text, `b` badge icon).
 A layout is limited to 8 KB and up to 18 keys; an image upload answers `AD_IMG_END OK <id>`, `INVALID` or `FULL`
-(the 8 MiB image cache cannot hold it). Protocol versions are listed in [`docs/RELEASING.md`](docs/RELEASING.md).
+(the 8 MiB image cache cannot hold it). A layout over 3,800 bytes works live but is not kept for use without the PC. Protocol versions are listed in [`docs/RELEASING.md`](docs/RELEASING.md).
 
 A pressed key stays highlighted until the host confirms it with `AD_FEEDBACK`. Without a host it flashes red at once.
 
@@ -276,6 +299,8 @@ host/            Windows host
   deckctl.py           Command line for the control API, adapters and hooks
   control_api.py       Local API with scoped tokens and the event stream
   action_runner.py     Bounded, killable command execution
+  system_stats.py      Gauge values             sensor_sources.py   Windows counters, Libre Hardware Monitor
+  gpu_sources.py       Graphics driver sensors  deck_assets.py      Icons and images
   live_state.py        Counters and timers      pc_state.py   Microphone, speakers, media
   ambient.py           Idle screen line and weather     adapters.py   AI tool adapters
   plugins.py           Plugin manifests and lifecycle   config_store.py   Versions and backups
@@ -286,11 +311,13 @@ host/            Windows host
 plugins/         Plugins (example-uptime is a working reference)
 docs/            Plugin guide, release process, SmartDeck comparison, images
 tests/           Unit, editor, native render and hardware smoke tests
-tools/           Packaging, icon refresh, sensor setup and icon font tooling
+tools/           Packaging, icon refresh, sensor setup, screen rendering and icon font tooling
 vendor/          Lucide icon pack (ISC) and ArduinoJson (MIT)
 ```
 
 ## Development
+
+The native build needs a C/C++ compiler, for example `scoop install mingw`.
 
 ```powershell
 host\.venv\Scripts\python.exe -m unittest discover -s tests -p test_*.py -v
@@ -317,7 +344,7 @@ tests, a lint and dependency audit, the firmware build and the native LVGL tests
 | The panel stays black but touch works | A touch wakes a dimmed panel; if it stays black, restart the host, which also wakes the backlight on connect |
 | The header says *NO PC* | The host is not running or does not own the port; start it from the tray |
 | `Another Tessera host is already running` | Only one host may own the port; stop it from the tray, then start again |
-| Gauges show `--` | Temperature, power and fan need Libre Hardware Monitor (`tools\setup_sensors.ps1`) |
+| Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`); FPS needs HWiNFO with PresentMon |
 | The editor looks out of date | Close the editor window and open it again from the tray |
 | Flashing fails with *port busy* | Stop the host first; it holds the COM port |
 
@@ -337,7 +364,7 @@ contacted, each only after you ask for it (update check, weather, online icons).
 
 Not done yet, in rough order of value:
 
-- Run the 0.5.0 firmware on the panel and fix what only hardware shows (see `VERIFICATION.md`)
+- Finish the hardware checks for the 0.5.0 firmware and fix what only hardware shows (see `VERIFICATION.md`)
 - A real A/B firmware layout with over-USB OTA and automatic rollback (see `docs/RELEASING.md`)
 - Counters and timers that tick on the panel itself, without the PC
 - Press-and-release (key-down / key-up) actions, for example push-to-talk; today a long press runs a second action
