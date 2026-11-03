@@ -33,7 +33,7 @@ against the 0.5.0 firmware on 3 November 2026 (protocol 3, 21 presses, brightnes
 **Not verified on hardware in the 0.5.0 work** (written and tested in simulation only):
 
 - the ambient screen, key colors and the offline layout stored in flash
-- the firmware installer writing to a real board
+- the firmware installer on a new, blank board (updating a running panel from a published release has been run)
 - long-press timing on the touchscreen and behaviour across USB unplug, panel reset and Windows sleep/resume
 - long-session memory use of the panel
 

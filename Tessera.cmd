@@ -8,12 +8,15 @@ setlocal
 set PYTHONUTF8=1
 cd /d "%~dp0"
 if not exist "host\.venv\Scripts\python.exe" (
-  py -3 -m venv "host\.venv"
+  echo Setting up Tessera. The first start takes about a minute.
+  call :create_environment
   if errorlevel 1 goto failed
+  set FIRST_RUN=1
 )
 if "%~1"=="--uninstall" goto uninstall
 "host\.venv\Scripts\python.exe" "host\setup_tool.py" ensure
 if errorlevel 1 goto failed
+if defined FIRST_RUN "host\.venv\Scripts\python.exe" "host\setup_tool.py" setup >nul
 if "%~1"=="" goto app
 if "%~1"=="--app" goto app
 if "%~1"=="--setup" goto setup
@@ -59,6 +62,20 @@ exit /b 0
 :console
 "host\.venv\Scripts\python.exe" "host\tessera_app.py" %*
 if errorlevel 1 goto failed
+exit /b 0
+:create_environment
+set "PYTHON="
+py -3 --version >nul 2>nul && set "PYTHON=py -3"
+if not defined PYTHON python -c "" >nul 2>nul && set "PYTHON=python"
+if not defined PYTHON call :install_python
+if not defined PYTHON exit /b 1
+%PYTHON% -m venv "host\.venv"
+exit /b %errorlevel%
+:install_python
+echo Python is not installed. Installing it for this user with winget ...
+winget install -e --id Python.Python.3.12 --scope user --silent --accept-package-agreements --accept-source-agreements
+if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set PYTHON="%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+if not defined PYTHON echo Install Python 3.11 or newer from https://www.python.org/downloads/ and start Tessera again.
 exit /b 0
 :failed
 echo Tessera could not start. See the error above.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Easier first start: `Tessera.cmd` installs Python with winget if it is missing and adds a Desktop shortcut, and the release zip includes the panel firmware.
+- *Download firmware* is offered even when you already have the latest version, so a new panel can get it.
+- The editor says when no panel answers.
+
 ## 0.5.0
 
 - Fixed: in large windows the right-click menu of a key and the drag label appeared far from the pointer, and dialogs could reach past the screen edge. Only the main view scales with the window now.

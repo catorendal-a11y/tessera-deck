@@ -22,7 +22,7 @@ Tessera is refused with a clear message instead of being damaged.
    test.
 2. Commit, then tag: `git tag v0.5.0 && git push origin v0.5.0`.
 3. The *Release* workflow builds the firmware in the ESP-IDF 6.1 container, runs `tools/package_firmware.py`, zips
-   the host sources and publishes `tessera-firmware-<version>.zip`, `tessera-host-<tag>.zip` and `SHA256SUMS`. It
+   the host sources with the firmware package inside and publishes `tessera-firmware-<version>.zip`, `tessera-host-<tag>.zip` and `SHA256SUMS`. It
    refuses a tag that does not match `VERSION`.
 
 A firmware package is a zip with `manifest.json` (board, chip, version, protocol, flash settings and the SHA-256

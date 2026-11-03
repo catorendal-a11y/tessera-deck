@@ -767,6 +767,7 @@ function renderStatus() {
   $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);
   const last=dashboard.device?.last_action;
   if(last?.at>lastActionAt){if(lastActionAt)toast(`${last.ok?'✓':'✕'} ${last.label}${last.error?' · '+last.error:''}`);lastActionAt=last.at;}
+  if(dashboard.running&&!connected&&!panelHintShown&&performance.now()>15000){panelHintShown=true;toast('No panel found. Check the USB cable; a new panel needs its firmware from ⋯ → Panel firmware.');}
   document.title=connected&&context?`Tessera · ${context}`:'Tessera';
   followDevice();
   const usesStats=visibleButtons().some(b=>[b,...(b.states||[])].some(v=>v.label?.includes('$(stat:')));
@@ -774,7 +775,7 @@ function renderStatus() {
   // Never rebuild keys under a finger: the press or drag would lose its key. The next poll catches up.
   if(live!==lastLive&&!drag){lastLive=live;renderGrid();}
 }
-let lastLive='';
+let lastLive='',panelHintShown=false;
 async function pollStatus() {try{dashboard=await api('status');renderStatus();}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}}
 document.addEventListener('keydown',event=>{
   if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}
@@ -1177,10 +1178,10 @@ async function checkUpdates() {
   const label = $('#firmware-latest');
   label.textContent = 'Checking GitHub …';
   const info = await api('command/update-check', {});
-  $('#firmware-download').hidden = !(info.newer && info.firmware && info.sums);
+  $('#firmware-download').hidden = !(info.firmware && info.sums);  // also for a new panel on the latest version
   label.textContent = info.newer
     ? `Version ${info.latest} is available (you have ${info.current}).${info.firmware ? '' : ' It has no firmware package.'}`
-    : `You have the latest version (${info.current}).`;
+    : `You have the latest version (${info.current}).${info.firmware ? ' Its firmware can still be downloaded for the panel.' : ''}`;
   if (info.newer) label.append(' ', element('a', {href: info.page, target: '_blank', rel: 'noopener', text: 'Release notes and the Windows program'}));
 }
 async function downloadFirmware() {
