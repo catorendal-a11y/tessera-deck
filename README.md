@@ -12,6 +12,7 @@
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
   <img alt="Tests" src="https://img.shields.io/badge/tests-400%2B%20passing-35D07F">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
 <p align="center">
@@ -382,5 +383,5 @@ affiliated with Elgato or Corsair; Stream Deck is a trademark of its owner.
 
 ## License
 
-No license has been chosen yet, so all rights are reserved by the author until one is added. Third-party
-components keep their own licenses (see `vendor/lucide/LICENSE` and the component directories).
+Tessera is released under the [MIT License](LICENSE). Third-party components keep their own licenses (see
+`vendor/lucide/LICENSE`, `vendor/arduinojson/LICENSE.txt` and the component directories).
