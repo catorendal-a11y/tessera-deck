@@ -21,8 +21,8 @@ jobs:
       matrix:
         python: ['3.12', '3.14']
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     container: espressif/idf:v6.1
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build firmware
         shell: bash
         run: |
@@ -55,7 +55,7 @@ jobs:
       - name: Package firmware
         shell: bash
         run: python3 tools/package_firmware.py build/idf6 dist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: tessera-firmware
           path: dist/
@@ -66,3 +66,11 @@ jobs:
           cmake -S tests/native -B build/native -DCMAKE_BUILD_TYPE=Release
           cmake --build build/native --parallel
           build/native/test_ui build/native/out
+          build/native/test_ui build/native/out-status tests/native/status-check.json MAIN STATUS pc
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: native-renders
+          path: |
+            build/native/out/*.ppm
+            build/native/out-status/*.ppm
