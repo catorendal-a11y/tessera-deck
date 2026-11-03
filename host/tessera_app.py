@@ -18,7 +18,7 @@ import webbrowser
 
 from deck_control import (ROOT, Controller, autostart_enabled, configure_upstream,
                           save_profiles, set_autostart)
-from tesserad import SUPPORTED_PROTOCOLS, DeviceRejected, PanelSerial, validate_config
+from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, validate_config
 from deck_assets import Assets
 import ambient
 import config_store
@@ -214,6 +214,8 @@ def shortcut_target(path):
 class Editor:
     def __init__(self, profiles=None, controller=None, dashboard=None):
         self.path = Path(profiles or ROOT / 'host/profiles.json')
+        if not self.path.exists():  # first run: the window may open before the host has created the file
+            Daemon.load_profiles(self.path)
         self.controller = controller or Controller()
         self.dashboard = dashboard
         self.lock = threading.RLock()

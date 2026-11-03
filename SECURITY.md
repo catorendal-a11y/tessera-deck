@@ -7,5 +7,6 @@ browser requests. Variable values are refused in shell commands when they contai
 and are percent-encoded in URLs. Keep API keys out of profiles: write `$(env:NAME)` in an HTTP header or body and
 set the variable in Windows; exports replace known credential headers with such references.
 Plugins run with your own rights and are not sandboxed; the limited tokens only restrict what they can ask
-Tessera to do. Only the project's own GitHub releases, `api.open-meteo.com` and `api.iconify.design` are ever
-contacted, each only after you ask for it (update check, weather, online icons).
+Tessera to do. While running, Tessera itself only contacts the project's own GitHub releases, `api.open-meteo.com` and
+`api.iconify.design`, each only after you ask for it (update check, weather, online icons), plus the addresses in your
+own HTTP actions. Setup installs Python packages from PyPI, and `tools\setup_sensors.ps1` downloads Libre Hardware Monitor.

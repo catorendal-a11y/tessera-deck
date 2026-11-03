@@ -44,6 +44,13 @@ class EditorTests(unittest.TestCase):
             data=None if data is None else json.dumps(data).encode())
         return self.client.open(request)
 
+    def test_the_first_start_creates_the_profiles_from_the_defaults(self):
+        folder = Path(self.temp.name) / 'fresh'
+        folder.mkdir()
+        (folder / 'profiles.default.json').write_text(json.dumps(self.config))
+        editor = Editor(folder / 'profiles.json', dashboard=lambda: {})
+        self.assertEqual(list(editor.read()['config']['profiles']), ['Main'])
+
     def login(self):
         with self.request('/api/session', {}, {'X-Deck-Token': 'test-session-only'}) as reply:
             self.assertIn('HttpOnly', reply.headers['Set-Cookie'])

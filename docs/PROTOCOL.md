@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-115200 baud over USB Serial/JTAG. Lines are UTF-8; the panel answers every command.
+115200 baud over USB Serial/JTAG. Lines are UTF-8; the panel answers every command except `AD_PING`.
 
 | Direction | Message | Purpose |
 |---|---|---|
@@ -12,6 +12,7 @@
 | host → panel | `AD_CONTEXT {…}` | Profile, page and back-arrow state for the header |
 | host → panel | `AD_FEEDBACK <ok or alert> <id>` | Flash a key green or red |
 | host → panel | `AD_BRIGHTNESS <1-100>`, `AD_DISPLAY_DIM <0-100>`, `AD_DISPLAY_WAKE` | Backlight control; the brightness is stored on the panel |
+| host → panel | `AD_PRESS <id>` | A synthetic key press, used by `tests/hardware_smoke.py`; answers `AD_PRESS OK` or `UNKNOWN` |
 | host → panel | `AD_PING` | Heartbeat every second; the header shows *NO PC* after 3.5 s without one |
 | host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | The PC's local time for the header and the ambient clock; the panel has no network clock |
 | host → panel | `AD_SCREEN deck` / `AD_SCREEN ambient` | Show the keys or the ambient clock (protocol 3) |

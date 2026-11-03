@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -49,7 +50,12 @@ def _check_host(url: str) -> None:
 
 def check(current: str, opener=urllib.request.urlopen) -> dict:
     """Compare `current` with the latest published release."""
-    raw, _ = _open(RELEASE_API, opener, 512 * 1024)
+    try:
+        raw, _ = _open(RELEASE_API, opener, 512 * 1024)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise ValueError('No firmware has been published on GitHub yet.') from exc
+        raise
     try:
         release = json.loads(raw)
         latest = release['tag_name']

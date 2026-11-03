@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 - Fixed: in large windows the right-click menu of a key and the drag label appeared far from the pointer, and dialogs could reach past the screen edge. Only the main view scales with the window now.
 - Fixed: on pages with live gauges a press or drag could lose its key when the editor refreshed the keys at that moment. The editor waits for the press to finish and leaves unchanged keys alone.
@@ -11,6 +11,7 @@
 - New FPS gauge (`fps`) from HWiNFO's PresentMon sensor.
 - Gauges say what they measure: `GHz`, `MHz`, `GB` and `rpm`. The size of a gauge's number now depends on the number alone, not on its unit.
 - `$(pc:track)` shows *No music* when nothing is playing, so the music key is no longer blank.
+- First-start fix: the editor creates `profiles.json` itself if it opens before the host. *Check for updates* says when nothing is published instead of blaming the network.
 - `tools/render_screens.py` draws every page of every profile with the real panel UI into `build/screens`, without touching the panel.
 - Faster status page: the host keeps one connection to Libre Hardware Monitor and lists the child processes of the window in front at most every 3 seconds, instead of both every second.
 
@@ -37,8 +38,6 @@
 - Variable substitution is a single pass: a value that looks like `$(other)` is no longer expanded a second time.
 - Fixed: the Desktop shortcut (setup) and shortcut targets in the editor failed because PowerShell ignores `$args` with `-Command`.
 - Panel: a layout that is too large for flash, or a failed flash write, is logged and retried instead of being marked as saved.
-
-## 0.5.0
 
 Firmware protocol 3, configuration version 2. Existing profiles load unchanged and are stamped with the new
 version on the next save; the old file is kept in `host/backups`.

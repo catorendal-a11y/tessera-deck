@@ -33,7 +33,7 @@
 ## Quick start
 
 1. **Start Tessera.** Run `Tessera.cmd`. The first run creates a Python environment (3.11 or newer).
-2. **Flash the panel.** Download `tessera-firmware-<version>.zip` from the Releases page and install it from **⋯ → Panel firmware …** in the editor. To build it yourself, see [Install](docs/INSTALL.md).
+2. **Flash the panel.** No release is published yet, so build the firmware with ESP-IDF 6.1 and flash it: see [Install](docs/INSTALL.md).
 3. **Add your apps.** Pick a program from **Installed programs** and drop it on a key. Changes are saved automatically.
 
 ## What it does

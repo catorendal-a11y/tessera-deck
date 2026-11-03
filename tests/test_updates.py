@@ -59,6 +59,12 @@ class VersionTests(unittest.TestCase):
 
 
 class CheckTests(unittest.TestCase):
+    def test_no_published_release_is_not_a_network_problem(self):
+        def missing(request, timeout):
+            raise updates.urllib.error.HTTPError(updates.RELEASE_API, 404, 'Not Found', {}, None)
+        with self.assertRaisesRegex(ValueError, 'No firmware has been published'):
+            updates.check('0.5.0', missing)
+
     def test_a_newer_release_is_reported_with_its_firmware_and_checksum_files(self):
         info = updates.check('0.5.0', router({updates.RELEASE_API: json.dumps(release())}))
         self.assertTrue(info['newer'])

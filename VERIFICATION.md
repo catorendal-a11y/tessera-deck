@@ -4,7 +4,7 @@ What is checked, how, and — just as important — what has **not** been checke
 
 ## Automatic checks (run by CI and locally)
 
-`python -m unittest discover -s tests` (Windows, 300+ tests, no hardware needed) covers:
+`python -m unittest discover -s tests` (Windows, 400+ tests, no hardware needed) covers:
 
 | Area | Tests |
 |---|---|
@@ -27,13 +27,12 @@ names and unused imports.
 ## Checks that need the physical panel
 
 `python tests/hardware_smoke.py` talks to a connected panel (identity, layout push, 21 synthetic presses, boot
-id stability, brightness) and **sends no hotkeys, shell commands or other actions to Windows**. It was last run
-against the firmware before the 0.5.0 changes.
+id stability, brightness) and **sends no hotkeys, shell commands or other actions to Windows**. It passed
+against the 0.5.0 firmware on 3 November 2026 (protocol 3, 21 presses, brightness, stable boot id).
 
 **Not verified on hardware in the 0.5.0 work** (written and tested in simulation only):
 
-- the firmware without Wi-Fi and the ESP-Hosted stack booting and keeping the display and touch working
-- the ambient screen, key colors, the offline layout stored in flash and the protocol-3 handshake
+- the ambient screen, key colors and the offline layout stored in flash
 - the firmware installer writing to a real board
 - long-press timing on the touchscreen and behaviour across USB unplug, panel reset and Windows sleep/resume
 - long-session memory use of the panel
