@@ -1,0 +1,30 @@
+# Serial protocol
+
+[Back to the README](../README.md)
+
+115200 baud over USB Serial/JTAG. Lines are UTF-8; the panel answers every command.
+
+| Direction | Message | Purpose |
+|---|---|---|
+| host → panel | `{"cmd":"get_info"}` | Board id (`tessera-p4`), firmware, boot id, memory |
+| host → panel | `AD_CFG_BEGIN` / `AD_CFG_DATA …` / `AD_CFG_END` | Push the button layout (JSON, chunked) |
+| host → panel | `AD_IMG_BEGIN` / `AD_IMG_DATA` / `AD_IMG_END` | Upload a button image (CRC-checked) |
+| host → panel | `AD_CONTEXT {…}` | Profile, page and back-arrow state for the header |
+| host → panel | `AD_FEEDBACK <ok or alert> <id>` | Flash a key green or red |
+| host → panel | `AD_BRIGHTNESS <1-100>`, `AD_DISPLAY_DIM <0-100>`, `AD_DISPLAY_WAKE` | Backlight control; the brightness is stored on the panel |
+| host → panel | `AD_PING` | Heartbeat every second; the header shows *NO PC* after 3.5 s without one |
+| host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | The PC's local time for the header and the ambient clock; the panel has no network clock |
+| host → panel | `AD_SCREEN deck` / `AD_SCREEN ambient` | Show the keys or the ambient clock (protocol 3) |
+| host → panel | `AD_AMBIENT <text>` | The line under the ambient clock, for example the weather (protocol 3) |
+| panel → host | `{"type":"info","boardId":"tessera-p4","firmwareVersion":…,"protocol":3,…}` | The answer to `get_info`; the host refuses another board or an unsupported protocol |
+| panel → host | `{"type":"deck_event","button":N,"label":"…","hold":true}` | A key was pressed (`hold` for a long press, protocol 2) |
+| panel → host | `{"type":"wake"}` | A touch woke the dimmed panel; it presses no key |
+| panel → host | `{"type":"screen","name":"deck","by":"touch"}` | A touch left the ambient screen (protocol 3) |
+
+Layout entries may also carry `hold` and `double` (the key has a long-press or double-press action), `title` (size, position, bold), `bg`, `text_color` and `border` colors, and `gauge` (`p` percent, `t` text, `b` badge icon).
+A layout is limited to 8 KB and up to 18 keys; an image upload answers `AD_IMG_END OK <id>`, `INVALID` or `FULL`
+(the 8 MiB image cache cannot hold it). A layout over 3,800 bytes works live but is not kept for use without the PC. Protocol versions are listed in [`docs/RELEASING.md`](RELEASING.md).
+
+A pressed key stays highlighted until the host confirms it with `AD_FEEDBACK`. Without a host it flashes red at once.
+
+The `AD_` prefix is the protocol's historical namespace and is kept for compatibility.
