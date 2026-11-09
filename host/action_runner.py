@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import subprocess
 import threading
+import time
 
 IS_WINDOWS = os.name == 'nt'
 POLL_SECONDS = 0.1
@@ -39,7 +40,7 @@ def run_command(command: str, timeout: float, stop: threading.Event, shell: bool
     flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if IS_WINDOWS else 0
     process = subprocess.Popen(command, shell=shell, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                stderr=subprocess.PIPE, creationflags=flags)
-    waited = 0.0
+    deadline = time.monotonic() + timeout
     stderr = b''
     try:
         while True:
@@ -47,10 +48,9 @@ def run_command(command: str, timeout: float, stop: threading.Event, shell: bool
                 _, stderr = process.communicate(timeout=POLL_SECONDS)
                 break
             except subprocess.TimeoutExpired:
-                waited += POLL_SECONDS
                 if stop.is_set():
                     raise CommandFailed('Stopped before the command finished') from None
-                if waited >= timeout:
+                if time.monotonic() >= deadline:
                     raise CommandFailed(f'The command did not finish within {timeout:g} seconds') from None
     finally:
         kill_tree(process)

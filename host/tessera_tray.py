@@ -6,6 +6,7 @@ and opens the editor on a click.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -17,6 +18,8 @@ from PIL import Image, ImageDraw
 
 from deck_control import ROOT, Controller, autostart_enabled, save_profiles, set_autostart
 from host_runtime import InstanceLock
+
+log = logging.getLogger(__name__)
 
 POLL_SECONDS = 2.0
 COMMAND_PATH = ROOT / 'host/deck-command.local.json'
@@ -215,7 +218,7 @@ class TrayApp:
             try:
                 self.refresh()
             except Exception:
-                continue
+                log.debug('tray refresh failed', exc_info=True)
 
     def run(self):
         self.background(self.controller.start)

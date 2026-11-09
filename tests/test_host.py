@@ -1,4 +1,5 @@
 import copy
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -529,6 +530,7 @@ class HostTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     deck.validate_config(daemon.config)
 
+    @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
     def test_tray_state_text_and_profile_commands(self):
         import tessera_tray as tray
         self.assertEqual(tray.tray_state({}), 'stopped')
@@ -540,6 +542,7 @@ class HostTests(unittest.TestCase):
         config = deck.Daemon.load_profiles(ROOT / 'host/profiles.default.json')
         self.assertEqual(tray.command_for_profile(config, 'coding'), {'profile': 'coding', 'page': 'main'})
 
+    @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
     def test_tray_writes_commands_atomically_and_persists_brightness(self):
         import tessera_tray as tray
         with tempfile.TemporaryDirectory() as directory:
@@ -552,6 +555,7 @@ class HostTests(unittest.TestCase):
             tray.set_brightness(40, profiles)
             self.assertEqual(json.loads(profiles.read_text(encoding='utf-8'))['display']['brightness'], 40)
 
+    @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
     def test_tray_icon_is_a_nine_tile_mosaic_whose_top_right_tile_shows_the_status(self):
         import tessera_tray as tray
         for size in (16, 20, 24, 32, 48, 64):

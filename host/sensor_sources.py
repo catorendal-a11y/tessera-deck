@@ -9,6 +9,7 @@ from __future__ import annotations
 import collections
 import http.client
 import json
+import logging
 import os
 import re
 import time
@@ -19,6 +20,7 @@ try:
 except ImportError:  # pywin32 is optional; the status screen degrades gracefully
     win32pdh = None
 
+log = logging.getLogger(__name__)
 ENGINE_PATH = r'\GPU Engine(*)\Utilization Percentage'
 MEMORY_PATH = r'\GPU Adapter Memory(*)\Dedicated Usage'
 PERFORMANCE_PATH = r'\Processor Information(_Total)\% Processor Performance'
@@ -109,6 +111,7 @@ class WindowsCounters:
             try:
                 paths = win32pdh.ExpandCounterPath(pattern)
             except Exception:
+                log.debug('counter pattern %s unavailable', pattern, exc_info=True)
                 paths = []
             for path in paths:
                 try:
@@ -118,6 +121,7 @@ class WindowsCounters:
         try:
             self._performance = win32pdh.AddEnglishCounter(self._query, PERFORMANCE_PATH)
         except Exception:
+            log.debug('CPU clock counter unavailable', exc_info=True)
             self._performance = None
         win32pdh.CollectQueryData(self._query)
         self._expanded_at = time.monotonic()

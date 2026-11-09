@@ -1,4 +1,5 @@
 """Local graphical editor for the standalone Tessera."""
+import logging
 import argparse
 import hashlib
 from functools import lru_cache
@@ -139,7 +140,7 @@ def open_window(url):
                           icon=str(ROOT / 'host/tessera.ico'))
             return True
         except Exception:
-            pass
+            logging.getLogger(__name__).warning('WebView2 window failed; using the browser', exc_info=True)
     webbrowser.open(url)
     return False
 

@@ -1,5 +1,6 @@
 """PC state binding: mic/speaker/media flags, label variables and the audio action; no audio hardware."""
 import copy
+import importlib.util
 import json
 from pathlib import Path
 import sys
@@ -79,6 +80,7 @@ class AudioControlTests(unittest.TestCase):
         pc_state.apply_operation(control, 'up', None, 50)
         self.assertEqual(state['volume'], 1.0, 'nor above 100')
 
+    @unittest.skipIf(importlib.util.find_spec('comtypes') is None, 'comtypes is not installed')
     def test_an_app_target_controls_every_session_of_that_program_and_explains_silence(self):
         first, first_state = self.fake()
         second, second_state = self.fake()
