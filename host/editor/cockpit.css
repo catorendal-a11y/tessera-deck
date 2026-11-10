@@ -210,3 +210,27 @@ html body #rail-dialog{width:min(760px,94vw);padding:22px 24px}
   html body #inspector .prop-preview{width:96px !important;height:96px !important}
   html body #inspector .prop-row{grid-template-columns:50px minmax(0,1fr)}
 }
+
+/* The key card: the preview sits beside the title and icon; every other setting gets the full width, its name above it. */
+html body #inspector .prop-card{grid-template-columns:96px minmax(0,1fr) !important;column-gap:16px;row-gap:14px}
+html body #inspector .prop-rows{display:contents}
+html body #inspector .prop-preview{grid-column:1 !important;grid-row:2 / span 2 !important;width:96px !important;height:96px !important;align-self:center}
+html body #inspector .prop-row{grid-template-columns:minmax(0,1fr) !important;row-gap:6px;min-height:0}
+html body #inspector .prop-row:nth-child(1){grid-column:2;grid-row:2}
+html body #inspector .prop-row:nth-child(2){grid-column:2;grid-row:3}
+html body #inspector .prop-row:nth-child(n+3){grid-column:1 / -1}
+html body #inspector .prop-name{text-align:left;font-size:12px;color:var(--muted)}
+html body #inspector .prop-value{flex-wrap:wrap}
+html body #inspector .prop-value select{flex:1 1 130px !important;width:auto}
+html body #inspector .prop-value>.prop-field{flex:1 1 100% !important}
+html body #inspector .prop-row-title .prop-value{flex-direction:column;align-items:stretch;gap:4px}
+html body #inspector .label-meter{font-size:11px;color:var(--dim)}
+html body #inspector .size-pick{display:flex;gap:8px;width:100%}
+html body #inspector .size-pick button{flex:1;height:44px !important;line-height:1.2 !important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px !important}
+html body #inspector .size-pick button i{display:flex;gap:2px}
+html body #inspector .size-pick button i b{width:12px;height:10px;border-radius:3px;background:currentColor;opacity:.7}
+html body #inspector .size-pick button small{font-size:11px}
+html body #inspector .size-pick button.on{border-color:var(--accent) !important;color:var(--accent) !important;background:var(--card2) !important}
+html body #inspector .prop-row:nth-child(2) .prop-value{flex-wrap:nowrap}
+html body #inspector .prop-row:nth-child(2) .prop-value>.prop-field{flex:1 1 auto !important;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html body #inspector .prop-row:nth-child(2) .prop-value>button:not(.prop-field){flex:none}

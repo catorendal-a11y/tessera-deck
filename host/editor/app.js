@@ -530,8 +530,13 @@ function setSpan(base, span) {
   renderGrid(); renderInspector();
 }
 function wideRows(base, row) {
-  const width = field('Width', String(base.span || 1), v => setSpan(base, Number(v)), {values: [['1', 'Normal (1 slot)'], ['2', 'Wide (2 slots)'], ['3', 'Extra wide (3 slots)']]});
-  const rows = [row('Width', width)];
+  const width = element('div', {class: 'size-pick', role: 'radiogroup', 'aria-label': 'Key width'}, ...[[1, 'Normal'], [2, 'Wide'], [3, 'Extra wide']].map(([span, name]) => {
+    const pick = element('button', {type: 'button', role: 'radio', 'aria-checked': String((base.span || 1) === span), class: 'outline' + ((base.span || 1) === span ? ' on' : ''), title: `${name}: ${span} slot${span > 1 ? 's' : ''}`, onclick: () => setSpan(base, span)});
+    const blocks = element('i', {}); for (let n = 0; n < span; n++) blocks.append(element('b', {}));
+    pick.append(blocks, text('small', name));
+    return pick;
+  }));
+  const rows = [row('Size', width)];
   if ((base.span || 1) > 1) {
     const kind = base.live === 'media' ? 'media' : String(base.live || '').startsWith('timer:') ? 'timer' : '';
     rows.push(row('Shows', field('Shows', kind, v => {
