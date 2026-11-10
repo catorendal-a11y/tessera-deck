@@ -1,0 +1,103 @@
+/* The editor in the panel's own style: the same colors, flat cards, round corners and accent line as the device.
+   Loaded last, so it overrides the older themes. */
+:root{
+  --bg:#0A0E10;--rail:#0F1518;--card:#12191D;--card2:#18232A;--line:#1E2A30;--line2:#26333A;
+  --text:#EAF2EF;--soft:#C4D0D4;--muted:#8D9AA0;--dim:#6F8088;
+  --accent:#58E09B;--cyan:#4DD0E1;--purple:#B388FF;--amber:#FFB74D;--red:#FF7070;
+  --panel:#12191D;--mint-dark:#16372A;--orange:#FFB74D;
+  --brand:linear-gradient(135deg,#58E09B,#4DD0E1 55%,#B388FF);
+  font-family:'DejaVu Sans',Verdana,'Segoe UI',system-ui,sans-serif;font-size:14px;color-scheme:dark;
+}
+html body{background:var(--bg);color:var(--text);font-family:inherit}
+html body *{scrollbar-width:thin;scrollbar-color:#2a3840 transparent}
+html body .hint,html body small{color:var(--muted)}
+
+/* Top bar */
+html body .appbar{height:64px;background:var(--rail);border-bottom:1px solid var(--line);backdrop-filter:none;box-shadow:none}
+html body .brand{font-weight:700;letter-spacing:.32em;font-size:15px;color:var(--text)}
+html body .brand small{letter-spacing:.2em;color:var(--dim);font-weight:400}
+html body .connection{background:#16372A;border:0;color:#A8F2CA;padding:7px 14px;border-radius:999px}
+html body #led{background:var(--accent)}html body #led.waiting{background:var(--amber)}
+html body .connection:has(#led:not(.connected):not(.waiting)){background:#3A2E1A;color:#FFD699}
+
+/* Buttons and fields */
+html body button{font-family:inherit}
+html body .primary{background:var(--accent);color:#06130C;border:0;border-radius:14px;font-weight:700}
+html body .primary:hover{background:#6df0aa}
+html body .outline{background:transparent;color:var(--soft);border:1px solid var(--line2);border-radius:12px}
+html body .outline:hover,html body .outline.active{background:var(--card2);color:var(--text);border-color:#3a4950}
+html body .quiet{color:var(--muted);background:transparent;border-radius:12px}
+html body .quiet:hover{background:var(--card2);color:var(--text)}
+html body input:not([type=checkbox]):not([type=radio]):not([type=color]),html body select,html body textarea,html body .prop-field{background:var(--card);color:var(--text);border:1px solid var(--line2);border-radius:12px}
+html body input:focus-visible,html body select:focus-visible,html body textarea:focus-visible,html body button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+html body input[type=checkbox]{accent-color:var(--accent)}
+html body .section-label{color:var(--dim);letter-spacing:.14em;font-size:11px}
+
+/* Left: the action library */
+html body .library{background:var(--rail);border-right:1px solid var(--line);border-left:0}
+html body .library h2{font-size:17px}
+html body .search{background:var(--card);border:1px solid var(--line2);border-radius:12px}
+html body .lib-cat{color:var(--soft);border-radius:12px}
+html body .lib-cat:hover{background:var(--card2)}
+html body .action-preset{background:var(--card);border:1px solid transparent;border-radius:12px;color:var(--soft)}
+html body .action-preset:hover{background:var(--card2);color:var(--text);border-color:var(--line2)}
+html body .library-bottom{color:var(--dim);border-top:1px solid var(--line)}
+html body .live-dot{background:var(--accent)}
+
+/* Middle: the deck */
+html body .workspace{background:var(--bg)}
+html body .device,html body .deck-card{background:transparent;border:0;box-shadow:none}
+html body .device-name{color:var(--text);font-size:22px;letter-spacing:0}
+html body .profile-select{color:var(--muted)}
+html body .deck-key{background:var(--card);border:1px solid transparent;border-radius:20px;box-shadow:none}
+html body .deck-key:hover{background:var(--card2)}
+html body .deck-key.selected{background:var(--card2);box-shadow:0 0 0 2px var(--accent)}
+html body .deck-key.empty{background:#0D1316;border:1px solid #131d22}
+html body .deck-key .slot-number{color:var(--dim)}
+html body .deck-key .key-label{color:var(--text)}
+html body .page-pill,html body .pages{background:transparent;border:0}
+html body .page-chip{background:transparent;color:var(--soft);border-radius:999px;border:0}
+html body .page-chip.active{background:var(--text);color:#0D1417;font-weight:700}
+html body .syncbar{color:var(--muted)}
+
+/* Right: the key's settings */
+html body .inspector{background:var(--rail);border-left:1px solid var(--line)}
+html body .prop-card,html body .inspector-section,html body .step{background:var(--card);border:1px solid var(--line);border-radius:18px}
+html body .step{border-left:4px solid var(--cyan)}
+html body .prop-head{border-bottom:1px solid var(--line)}
+html body .prop-name,html body .prop-label{color:var(--muted)}
+html body .triggers .outline.active{background:var(--card2);border-color:var(--accent);color:var(--text)}
+html body .memory-bar{background:var(--card2)}
+html body .memory-bar i{background:var(--accent)}
+
+/* Menus and dialogs */
+html body dialog{background:var(--card);color:var(--text);border:1px solid var(--line2);border-radius:22px;box-shadow:0 24px 70px #000a}
+html body dialog::backdrop{background:#050708cc}
+html body .context-menu,html body .more-menu{background:var(--card);border:1px solid var(--line2);border-radius:16px;box-shadow:0 18px 50px #000a}
+html body .context-menu button{border-radius:10px;color:var(--soft)}
+html body .context-menu button:hover{background:var(--card2);color:var(--text)}
+html body #toast{background:var(--card2);color:var(--text);border:1px solid var(--line2);border-radius:14px}
+html body .gallery-item[aria-selected=true],html body .rail-item.on{background:var(--card2)}
+html body .screen-card,html body .screen-fader,html body .screen-stat{background:var(--card);border-color:var(--line);border-radius:18px}
+
+/* The older themes set these with ids or !important; they have to be beaten explicitly. */
+html body #deck-view{background:var(--bg) !important}
+html body #deck-view .inspector,html body #inspector{background:var(--rail) !important;border:0 !important;border-left:1px solid var(--line) !important}
+html body #deck-grid .deck-key{background:var(--card) !important;border:1px solid transparent !important;border-radius:20px !important;box-shadow:none !important}
+html body #deck-grid .deck-key:hover{background:var(--card2) !important}
+html body #deck-grid .deck-key.selected{background:var(--card2) !important;border-color:var(--accent) !important;box-shadow:0 0 0 1px var(--accent) !important}
+html body #deck-grid .deck-key.empty{background:#0D1316 !important;border:1px solid #131d22 !important}
+html body .lib-cat{border:0 !important}
+html body .library .lib-cat[aria-expanded=true],html body .library .lib-cat.open{background:var(--card2) !important}
+html body .toolbar .device-name,html body .toolbar select{background:transparent}
+html body .page-chip{border:0 !important}
+html body .syncbar{border:0 !important}
+html body .lib-items{background:transparent !important;border:0 !important}
+html body .program-launcher{background:var(--card) !important;border:1px solid var(--line2) !important;border-radius:12px !important;color:var(--soft)}
+html body .program-launcher:hover{background:var(--card2) !important}
+html body .search{background:var(--card) !important;border:1px solid var(--line2) !important;border-radius:12px !important}
+html body .search input{background:transparent !important;border:0 !important}
+html body .lib-cat strong,html body .lib-cat span{color:inherit}
+html body .action-preset{border:0 !important}
+html body .more-menu hr{border-color:var(--line)}
+html body .history-buttons button,html body .icon-button{border-radius:12px}
