@@ -147,3 +147,22 @@ html body #inspector .prop-value select{width:100%;box-sizing:border-box;margin:
 html body #inspector{padding-bottom:56px !important}
 html body #inspector .hint.shortcuts{margin:6px 0 0}
 html body .rail-add{margin-top:auto;border:1px dashed var(--line2);color:var(--dim)}html body .rail-add:hover{color:var(--accent);border-color:var(--accent)}
+
+/* The key card: padded, with the preview on the left and the rows on the right, all inside the card. */
+html body #inspector .prop-card{display:grid !important;grid-template-columns:132px minmax(0,1fr);column-gap:24px;row-gap:0;padding:0 22px 22px !important;height:auto !important;min-height:0 !important;overflow:visible !important;align-items:start}
+html body #inspector .prop-head{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between;padding:14px 0 12px !important;margin:0 0 16px !important;border-bottom:1px solid var(--line);font-size:15px}
+html body #inspector .prop-preview{grid-column:1;grid-row:2;width:132px !important;height:132px !important;margin:0 !important;padding:0 !important;display:flex;align-items:center;justify-content:center;border-radius:22px;background:var(--bg)}
+html body #inspector .prop-rows{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:12px;min-width:0}
+html body #inspector .prop-row{display:grid !important;grid-template-columns:64px minmax(0,1fr);align-items:center;column-gap:14px;margin:0 !important;min-height:36px}
+html body #inspector .prop-name{text-align:right;color:var(--muted);font-size:13px}
+html body #inspector .prop-value{display:flex !important;align-items:center;gap:8px;min-width:0}
+html body #inspector .prop-value>input,html body #inspector .prop-value>.prop-field,html body #inspector .prop-value>.field{flex:1 1 auto;min-width:0}
+html body #inspector .prop-value input:not([type=color]):not([type=checkbox]),html body #inspector .prop-value select,html body #inspector .prop-value .prop-field,html body #inspector .prop-value button{height:36px !important;min-height:0 !important;padding-top:0 !important;padding-bottom:0 !important;box-sizing:border-box;line-height:34px}
+html body #inspector .prop-value select{width:auto;flex:0 1 150px}
+html body #inspector .prop-row:last-child .prop-value select,html body #inspector .prop-row:has(.label-meter) select{flex:1 1 auto}
+html body #inspector .prop-value input[type=color]{width:36px !important;height:36px !important;padding:3px !important;border-radius:12px !important;background:var(--card2) !important;border:1px solid var(--line2) !important;flex:none}
+html body #inspector .prop-clear{background:transparent !important;border:0 !important;color:var(--dim) !important;height:auto !important}
+html body #inspector .inspector-section{padding:0 !important}
+html body #inspector .inspector-section>summary{padding:15px 20px !important}
+html body #inspector .inspector-section[open]>summary{margin:0 !important;border-bottom:1px solid var(--line)}
+html body #inspector .inspector-section>*:not(summary){margin:16px 20px 20px}
