@@ -474,7 +474,7 @@ const RAIL = [
 ];
 let editorView = 'keys', hooksState = null;
 function panelChoice() {
-  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config.panel || {})};
+  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config?.panel || {})};
 }
 function savePanel(change) {
   mutate(() => { config.panel = {...panelChoice(), ...change}; });
@@ -483,10 +483,10 @@ function savePanel(change) {
 function renderRail() {
   const waiting = Object.values(dashboard.agent_states || {}).includes('waiting');
   const choice = panelChoice();
-  const shortcuts = (choice.shortcuts || []).filter(s => config.profiles[s.profile]?.pages[s.page]);
+  const shortcuts = (choice.shortcuts || []).filter(s => config?.profiles?.[s.profile]?.pages?.[s.page]);
   $('#rail').replaceChildren(
     element('span', {class: 'rail-logo', 'aria-hidden': 'true'}),
-    ...RAIL.filter(([id]) => id === 'keys' || (choice.screens || RAIL.map(r => r[0])).includes(id)).map(([id, name, path]) => {
+    ...((ids => (ids.includes('keys') ? ids : ['keys', ...ids]).map(id => RAIL.find(r => r[0] === id)).filter(Boolean))(choice.screens || RAIL.map(r => r[0]))).map(([id, name, path]) => {
       const item = element('button', {class: 'rail-item' + (editorView === id ? ' on' : ''), type: 'button', title: name, 'aria-label': name, 'aria-pressed': String(editorView === id), onclick: () => setEditorView(id)});
       item.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
       if (id === 'agents' && waiting && editorView !== 'agents') item.append(element('u', {class: 'rail-dot'}));
@@ -580,32 +580,63 @@ const SHORTCUT_ICONS = [
   {name: 'Home', code: 'lc:e0f5', path: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'},
   {name: 'Grid', code: 'lc:e0ff', path: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'}
 ];
-function railSettings() {
-  $('#more-menu').hidden = true;
-  const choice = panelChoice(), screens = choice.screens || RAIL.map(r => r[0]), shortcuts = choice.shortcuts || [];
-  const targets = [['', '— None —']];
-  for (const [profileName, item] of Object.entries(config.profiles)) for (const pageName of Object.keys(item.pages)) targets.push([profileName + '\u0001' + pageName, `${profileName} › ${pageName}`]);
-  const fields = [
-    {name: 'screen_agents', label: 'Rail: Agents', type: 'checkbox', value: screens.includes('agents')},
-    {name: 'screen_mixer', label: 'Rail: Mixer', type: 'checkbox', value: screens.includes('mixer')},
-    {name: 'screen_status', label: 'Rail: Status', type: 'checkbox', value: screens.includes('status'), note: 'Keys is always on the rail. Up to seven buttons fit on the panel.'}
-  ];
-  for (let i = 0; i < 3; i++) {
-    const shortcut = shortcuts[i];
-    fields.push({name: 'target' + i, label: `Shortcut ${i + 1}: page`, options: targets, value: shortcut ? shortcut.profile + '\u0001' + shortcut.page : '', note: i === 0 ? 'A shortcut jumps straight to a page of any profile.' : ''});
-    fields.push({name: 'icon' + i, label: `Shortcut ${i + 1}: icon`, options: SHORTCUT_ICONS.map(icon => [icon.code, icon.name]), value: shortcut?.icon || SHORTCUT_ICONS[i].code});
-  }
-  dialog('Rail', fields, values => {
-    const chosen = ['keys', ...['agents', 'mixer', 'status'].filter(id => values['screen_' + id])];
-    const list = [];
-    for (let i = 0; i < 3; i++) {
-      const [profileName, pageName] = String(values['target' + i]).split('\u0001');
-      if (profileName && pageName) list.push({profile: profileName, page: pageName, icon: values['icon' + i]});
-    }
-    if (chosen.length + list.length > 7) throw new Error('At most seven buttons fit on the panel.');
-    savePanel({screens: chosen, shortcuts: list});
-    renderRail();
-  }, 'Apply');
-}
 $('#rail-open').onclick = railSettings;
 renderRail();
+
+/* The rail dialog: a live preview of the rail beside the screens (on/off, order) and the shortcuts (page and icon). */
+const SCREEN_INFO = {keys: ['Keys', 'Your pages and keys'], agents: ['Agents', 'Claude Code, Codex and ZCode'], mixer: ['Mixer', 'Sound per program and the microphone'], status: ['Status', 'CPU, GPU, RAM, disk and network']};
+let railDraft = null;
+const railIcon = path => { const node = element('span', {class: 'rail-ic', 'aria-hidden': 'true'}); node.innerHTML = `<svg viewBox="0 0 24 24">${path}</svg>`; return node; };
+function railTotal() { return railDraft.order.filter(id => railDraft.on.has(id)).length + railDraft.shortcuts.length; }
+function railSettings() {
+  $('#more-menu').hidden = true;
+  const choice = panelChoice(), screens = choice.screens || RAIL.map(r => r[0]);
+  railDraft = {
+    order: [...new Set([...screens.filter(id => SCREEN_INFO[id]), ...RAIL.map(r => r[0])])],
+    on: new Set(['keys', ...screens]),
+    shortcuts: (choice.shortcuts || []).filter(s => config.profiles[s.profile]?.pages[s.page]).map(s => ({...s}))
+  };
+  drawRail();
+  $('#rail-dialog').showModal();
+}
+function drawRail() {
+  const d = railDraft, total = railTotal(), over = total > 7;
+  // preview: the rail as the panel draws it
+  $('#rail-preview').replaceChildren(
+    element('span', {class: 'rail-logo'}),
+    ...d.order.filter(id => d.on.has(id)).map(id => element('span', {class: 'rail-chip' + (id === 'keys' ? ' on' : '')}, railIcon(RAIL.find(r => r[0] === id)[2]))),
+    ...(d.shortcuts.length ? [element('span', {class: 'rail-sep'})] : []),
+    ...d.shortcuts.map(s => element('span', {class: 'rail-chip'}, railIcon((SHORTCUT_ICONS.find(i => i.code === s.icon) || SHORTCUT_ICONS[0]).path))));
+  // screens
+  $('#rail-screens').replaceChildren(...d.order.map((id, index) => {
+    const on = d.on.has(id), [name, note] = SCREEN_INFO[id];
+    const move = (delta, label) => element('button', {class: 'rail-move', type: 'button', title: label, 'aria-label': `${label}: ${name}`, disabled: index + delta < 0 || index + delta >= d.order.length, onclick: () => { [d.order[index], d.order[index + delta]] = [d.order[index + delta], d.order[index]]; drawRail(); }}, delta < 0 ? '▲' : '▼');
+    const toggle = element('button', {class: 'rail-switch' + (on ? ' on' : ''), type: 'button', role: 'switch', 'aria-checked': String(on), 'aria-label': `Show ${name} on the rail`, disabled: id === 'keys', onclick: () => { on ? d.on.delete(id) : d.on.add(id); drawRail(); }});
+    return element('div', {class: 'rail-row' + (on ? '' : ' off')}, railIcon(RAIL.find(r => r[0] === id)[2]), element('div', {class: 'rail-text'}, text('strong', name), text('small', id === 'keys' ? note + ' · always on' : note)), move(-1, 'Move up'), move(1, 'Move down'), toggle);
+  }));
+  // shortcuts
+  const targets = Object.entries(config.profiles).map(([profileName, item]) => element('optgroup', {label: profileName}, ...Object.keys(item.pages).map(pageName => element('option', {value: profileName + '\u0001' + pageName}, pageName))));
+  $('#rail-shortcuts').replaceChildren(...d.shortcuts.map((s, index) => {
+    const pick = element('select', {'aria-label': `Shortcut ${index + 1}: page`, onchange: event => { const [p, g] = event.target.value.split('\u0001'); s.profile = p; s.page = g; drawRail(); }}, ...targets.map(group => group.cloneNode(true)));
+    pick.value = s.profile + '\u0001' + s.page;
+    const icons = element('div', {class: 'rail-icons', role: 'radiogroup', 'aria-label': 'Icon'}, ...SHORTCUT_ICONS.map(icon => {
+      const choose = element('button', {class: 'rail-icon-pick' + (icon.code === s.icon ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': String(icon.code === s.icon), title: icon.name, onclick: () => { s.icon = icon.code; drawRail(); }}, railIcon(icon.path));
+      return choose;
+    }));
+    return element('div', {class: 'rail-short'}, element('div', {class: 'rail-short-top'}, pick, element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': 'Remove shortcut', onclick: () => { d.shortcuts.splice(index, 1); drawRail(); }}, '✕')), icons);
+  }), ...(d.shortcuts.length < 3 ? [element('button', {class: 'rail-add-short', type: 'button', onclick: () => {
+    const [firstProfile] = Object.keys(config.profiles), firstPage = Object.keys(config.profiles[firstProfile].pages)[0];
+    d.shortcuts.push({profile: firstProfile, page: firstPage, icon: SHORTCUT_ICONS[d.shortcuts.length % SHORTCUT_ICONS.length].code}); drawRail();
+  }}, '+ Add a shortcut')] : []));
+  $('#rail-count').textContent = over ? `${total} buttons: the panel fits 7. Turn something off.` : `${total} of 7 buttons`;
+  $('#rail-count').classList.toggle('over', over);
+  $('#rail-apply').disabled = over;
+}
+$('#rail-close').onclick = $('#rail-cancel').onclick = () => $('#rail-dialog').close();
+$('#rail-apply').onclick = () => {
+  const d = railDraft;
+  savePanel({screens: d.order.filter(id => d.on.has(id)), shortcuts: d.shortcuts.map(s => ({profile: s.profile, page: s.page, icon: s.icon}))});
+  renderRail();
+  $('#rail-dialog').close();
+  toast('The rail was updated.');
+};
