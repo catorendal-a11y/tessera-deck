@@ -408,6 +408,20 @@ function panelSettings() {
 }
 $('#panel-open').onclick = panelSettings;
 
+/* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
+async function claudeSettings() {
+  $('#more-menu').hidden = true;
+  const now = await api('command/claude-hooks', {});
+  dialog('Connect Claude Code', [
+    {name: 'events', label: 'Show what Claude Code is doing (working, waiting for you, idle)', type: 'checkbox', value: now.events, note: 'Adds Tessera’s hooks to your Claude settings file. Your other hooks and settings stay as they are, and a backup of the file is kept next to it.'},
+    {name: 'permission', label: 'Answer Claude’s permission questions on the panel', type: 'checkbox', value: now.permission, note: 'Allow and Deny on the agents screen decide. If the panel is not connected or nobody answers within 25 seconds, Claude shows its normal question. Restart Claude Code after changing this.'}
+  ], values => {
+    api('command/claude-hooks', {events: Boolean(values.events), permission: Boolean(values.permission)})
+      .then(() => toast('Saved. Restart Claude Code for the change to take effect.')).catch(showError);
+  }, 'Apply');
+}
+$('#claude-open').onclick = () => claudeSettings().catch(showError);
+
 // Everything is defined now: start the editor.
 start().catch(error=>{setSaveState('The editor could not start',error.message);toast(error.message);});
 

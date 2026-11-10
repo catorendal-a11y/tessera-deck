@@ -6,6 +6,7 @@ import time
 
 import psutil
 
+import agent_activity
 import cockpit
 from win_input import IS_WINDOWS, focus_existing_process
 
@@ -100,6 +101,14 @@ class BackgroundMixin:
         shown = bool(exe) and focus_existing_process(exe)
         self.log(f'Agent {agent_id}: {action}' + ('' if shown else ' (its window was not found)'))
 
+    def agent_view(self):
+        """The variables the agents screen is drawn from: hooks first, the tools' own session files for the rest."""
+        try:
+            activity = self.activity.read()
+        except OSError:
+            activity = {}
+        return agent_activity.merge(self.custom_vars, activity, self.agents)
+
     def panel_takes_questions(self):
         return self.panel is not None and not self.connection_failed.is_set() and self.uses_cockpit()
 
@@ -115,7 +124,7 @@ class BackgroundMixin:
         if asking:
             self.wake_display()
             self.panel.send_line('AD_VIEW agents')
-        payload = cockpit.agents_payload(self.custom_vars, self.agents, asking, self.config.get('panel', {}).get('agents'))
+        payload = cockpit.agents_payload(self.agent_view(), self.agents, asking, self.config.get('panel', {}).get('agents'))
         self.panel.send_line(f'AD_AGENTS {payload}')
         self.cockpit_sent['AD_AGENTS'] = payload
 
@@ -126,7 +135,7 @@ class BackgroundMixin:
             return
         self.cockpit_at = now
         choice = self.config.get('panel', {})
-        lines = {'AD_AGENTS': cockpit.agents_payload(self.custom_vars, self.agents, self.permissions.current(),
+        lines = {'AD_AGENTS': cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(),
                                                      choice.get('agents')),
                  'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}
         try:

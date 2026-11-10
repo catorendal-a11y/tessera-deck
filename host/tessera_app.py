@@ -428,6 +428,15 @@ class Editor:
             os.startfile(target.parent)
         return {'path': str(target), 'message': f'Saved {target.name} in the diagnostics folder. It contains no button contents.'}
 
+    def claude_hooks(self, data):
+        """Read (no `events`/`permission` in data) or change the Claude Code hooks that feed the agents screen."""
+        import claude_setup
+        if 'events' not in data and 'permission' not in data:
+            return claude_setup.state()
+        python = ROOT / 'host/.venv/Scripts/python.exe'
+        return claude_setup.update(data.get('events'), data.get('permission'), python if python.is_file() else Path(sys.executable),
+                                   ROOT / 'host/deckctl.py')
+
     def plugin_list(self):
         # Installed plugins with their configuration and, when the host runs, their live state.
         manifests, problems = plugins.discover(ROOT / 'plugins')
@@ -460,6 +469,8 @@ class Editor:
             return self.download_firmware()
         if command == 'diagnostics':
             return self.export_diagnostics()
+        if command == 'claude-hooks':
+            return self.claude_hooks(data)
         if command == 'plugins':
             return self.plugin_list()
         if command == 'backups':

@@ -17,6 +17,7 @@ from plugins import EventLog, PluginManager
 from live_state import LiveState
 from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
+import agent_activity
 import cockpit
 import permission
 from deck_assets import Assets
@@ -130,6 +131,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.plugins_checked = 0.0
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
         self.cockpit_sent, self.cockpit_at = {}, 0.0
+        self.activity = agent_activity.AgentActivity()
         self.permissions = permission.Desk(lambda: self.enqueue(('question',)))
         self.notices = collections.deque(maxlen=5)
         self.stats_scan_at = 0.0

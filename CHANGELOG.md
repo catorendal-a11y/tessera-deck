@@ -6,6 +6,7 @@
 - Agents: one lane per AI tool with its state and last message. Allow and Deny on the panel answer Claude Code's permission questions through a hook (`deckctl hooks claude-permission`); anything unclear falls back to Claude's own dialog.
 - Mixer: drag faders for the speakers, up to three programs and the microphone; mute with a tap.
 - Status: eight readings with bars, and the first one over its limit is named.
+- Agents screen works without any setup: working and idle, the project and the last tool come from the session files Claude Code and Codex already write. **Connect Claude Code** (⋯ menu) adds the hooks for "waiting for you" and for answering permission questions on the panel; it keeps your other hooks and makes a backup.
 - Editor: **Panel screens** chooses the agents, mixer programs and readings.
 - Editor: **Page templates** (⋯ menu) adds a ready-made page (Meetings, Coding, Media, Browser or empty) after showing how it will look.
 

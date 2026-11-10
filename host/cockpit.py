@@ -46,7 +46,7 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
             continue
         state = reported if reported in ('working', 'waiting') else 'idle'
         tool, message = str(variables.get(f'{key}.tool', '')), str(variables.get(f'{key}.message', ''))
-        text = message or (f'Using {tool}' if tool and state == 'working' else '')
+        text = message or (f'Using {tool}' if tool and state == 'working' else 'Working' if state == 'working' else '')
         lanes.append({'id': key, 'name': name, 'state': state, 'text': text[:70],
                       'sub': str(variables.get(f'{key}.project', ''))[:30]})
     line = _line({'agents': lanes})
