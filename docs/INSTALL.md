@@ -18,7 +18,7 @@
 
 | Part | Notes |
 |---|---|
-| Board | GUITION 7-inch ESP32-P4 display dev board (ESP32-P4 + ESP32-C6) |
+| Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C (ESP32-P4 + ESP32-C6) |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Connection | USB cable to the board's USB Serial/JTAG port — no Wi-Fi is needed |
 | PC | Windows 10/11, Python 3.11 or newer |

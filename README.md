@@ -36,7 +36,7 @@
 <sub>Panel images are drawn by the real firmware UI in a native build, not photographed. The agents and mixer screens show sample data.</sub>
 
 > [!IMPORTANT]
-> **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.
+> **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.
 
 ## Quick start
 
