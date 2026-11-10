@@ -161,7 +161,7 @@ function togglePin() {mutate(()=>{const b=current(),list=owner(),p=config.profil
 function uniqueName(base,names) {let name=`${base} copy`,number=2;while(names.includes(name))name=`${base} copy ${number++}`;return name;}
 function clearButton() {if(!current())return;mutate(()=>{const list=owner(),at=list.findIndex(x=>x.id===selected);if(at>=0)list.splice(at,1);});}
 function duplicateButton() {
-  const source=current(),slot=Array.from({length:18},(_,i)=>i+1).find(id=>!visibleButtons().some(b=>b.id===id));
+  const source=current(),slot=Array.from({length:18},(_,i)=>i+1).find(id=>spanFits(id,source?.span||1));
   if(!source)return;if(!slot)return toast('This page has no free slots.');
   mutate(()=>{buttons().push({...clone(source),id:slot});selected=slot;editState=0;});
   toast(`The button was duplicated to slot ${slot}.`);
@@ -229,9 +229,18 @@ function ensureSelection() {
   const selectedButton=current();if(!selectedButton?.states||editState>=selectedButton.states.length)editState=0;
 }
 function options(select,values,value) {select.replaceChildren(...values.map(v=>{const pair=Array.isArray(v)?v:[v,v];return element('option',{value:pair[0],text:pair[1]});}));select.value=value;}
+/* A key of `span` slots starting at `id` must sit on one row, inside the 18 slots, on slots no other key (apart from `skip`) uses. */
+function spanFits(id,span,skip=[]) {
+  if(id<1||id+span-1>18||Math.floor((id-1)/6)!==Math.floor((id+span-2)/6))return false;
+  return !visibleButtons().some(b=>!skip.includes(b)&&b.id<id+span&&id<b.id+(b.span||1));
+}
 function moveSlot(source,target) {
   if(source===target)return;
-  mutate(()=>{const from=visibleButtons().find(b=>b.id===source),to=visibleButtons().find(b=>b.id===target);if(!from)return;from.id=target;if(to)to.id=source;selected=target;});
+  const from=visibleButtons().find(b=>b.id===source),to=visibleButtons().find(b=>b.id===target);if(!from)return;
+  const fromSpan=from.span||1,toSpan=to?.span||1,skip=[from,to];
+  const separate=target+fromSpan-1<source||target>source+toSpan-1;  // the two keys do not overlap after the swap
+  if(!spanFits(target,fromSpan,skip)||(to&&!spanFits(source,toSpan,skip))||(to&&!separate))return toast('A wide key needs free slots on one row: it does not fit there.');
+  mutate(()=>{from.id=target;if(to)to.id=source;selected=target;});
 }
 function renderAll() {ensureSelection();options($('#profile'),Object.keys(config.profiles),profile);renderPages();renderGrid();renderInspector();updateHistory();renderStatus();}
 function renderPages() {

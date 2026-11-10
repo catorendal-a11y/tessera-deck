@@ -270,7 +270,7 @@ function renderTimerStep(step,action,index) {
     text('p',`Show the time in a button name with $(timer:${action.name||'name'}) or the ring above. The timer keeps running while Tessera is closed.`,'hint'));
 }
 function copyButton() {if(!current())return;clipboard=clone(current());toast('The button was copied. Choose a slot and press Ctrl+V.');}
-function pasteButton() {if(!clipboard)return toast('Copy a button first.');mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push({...clone(clipboard),id:selected});});}
+function pasteButton() {if(!clipboard)return toast('Copy a button first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&!spanFits(selected,copy.span,[old])){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
 function dialog(title,fields,onSave,saveLabel='Save') {
   const d=$('#form-dialog');dialogReturnFocus=document.activeElement;$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
   $('#dialog-fields').replaceChildren(...fields.map(f=>{const label=element('label',{class:'form-field'},text('span',f.label));const input=f.options?element('select',{name:f.name}):element(f.multiline?'textarea':'input',{name:f.name,type:f.type||'text',required:f.required?'required':undefined});if(f.options)options(input,f.options,f.value||f.options[0][0]);else if(f.type==='checkbox')input.checked=!!f.value;else input.value=f.value||'';label.append(input);if(f.note)label.append(text('small',f.note,'hint'));return label;}));
