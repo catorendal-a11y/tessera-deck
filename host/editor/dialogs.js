@@ -501,7 +501,12 @@ function renderRail() {
       }});
       item.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon.path}</svg>`;
       return item;
-    }));
+    }),
+    (() => {
+      const add = element('button', {class: 'rail-item rail-add', type: 'button', title: 'Customize the rail: screens and page shortcuts', 'aria-label': 'Customize the rail', onclick: () => railSettings()});
+      add.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>';
+      return add;
+    })());
 }
 function setEditorView(id) {
   editorView = id;
