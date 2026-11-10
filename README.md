@@ -34,10 +34,12 @@
 
 1. **Start Tessera.** Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets up everything, installs Python if it is missing and puts a shortcut on the Desktop.
 2. **Flash the panel.** Connect it with USB and open **⋯ → Panel firmware …** in the editor. Choose the included firmware and press *Install*. A new board needs *Everything* and *Install anyway*; see [Install](docs/INSTALL.md).
-3. **Add your apps.** Pick a program from **Installed programs** and drop it on a key. Changes are saved automatically.
+3. **Add your apps.** In the action list, open **Apps → Installed programs …** and drop a program on a key. Changes are saved automatically.
 
 ## What it does
 
+- **Four screens on the panel**: your keys, the AI agents (answer Claude Code's permission questions with Allow or Deny), a sound mixer and the PC's status, on a rail you arrange yourself
+- **Wide keys and widgets**: a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, the music that plays or a timer
 - **Real app icons** from Windows, 1,895 Lucide icons or your own images
 - **Live gauges** for CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan and FPS
 - **Smart profiles** that follow the program in front, with a lock key to stay put

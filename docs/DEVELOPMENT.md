@@ -30,6 +30,9 @@ host/            Windows host
   system_stats.py      Gauge values             sensor_sources.py   Windows counters, Libre Hardware Monitor
   gpu_sources.py       Graphics driver sensors  deck_assets.py      Icons and images
   live_state.py        Counters and timers      pc_state.py   Microphone, speakers, media
+  cockpit.py           Agents, mixer, status and rail payloads     widgets.py   Content of the wide-key widgets
+  permission.py        Claude Code permission prompts on the panel   agent_activity.py   What the AI tools are doing
+  claude_setup.py      Installs the Claude Code hooks
   ambient.py           Idle screen line and weather     adapters.py   AI tool adapters
   plugins.py           Plugin manifests and lifecycle   config_store.py   Versions and backups
   firmware_update.py   Firmware packages and installer  updates.py   Update check

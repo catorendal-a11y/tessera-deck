@@ -67,6 +67,6 @@ python -m esptool --chip esp32p4 -p COM4 -b 460800 write-flash 0x10000 build\idf
 
 ### 3. Make it yours
 
-Open the editor, pick a program from **Installed programs** and drop it on a key. Changes are saved
+Open the editor, open **Apps → Installed programs …** in the action list and drop a program on a key. Changes are saved
 automatically after validation to `host/profiles.json`, which is created from `host/profiles.default.json` on the
 first start.

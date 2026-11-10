@@ -30,6 +30,40 @@ In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`):
 A toggle button can follow the PC instead of the presses with `"bind": "mic_muted" | "speaker_muted" | "media_playing"` (state 1 = off, state 2 = on), and the `audio` action (`target`: `mic` or `speaker`, `op`: `toggle`, `mute` or `unmute`) mutes the real device. Profiles switch
 automatically with rules such as `chrome.exe`, `process:claude.exe` or `title:codex`.
 
+### The editor
+
+The editor is laid out like the panel. The rail on the left switches between the keys and the agents, mixer and status screens; the **+** at its foot opens the rail settings. In the middle are the profile (the large title), the page tabs and the keys. A click on a key opens its settings in three tabs:
+
+| Tab | What it holds |
+|---|---|
+| **Look** | Title, icon, text size and position, and the key's size (Normal, Wide, Extra wide) |
+| **Actions** | Normal or toggle key, and the steps for a press, a long press and a double press |
+| **Gauge** | A live gauge and what the key is bound to |
+
+The action list on the right has four tabs: **Basics** (hotkey, open, text and the other building blocks), **Widgets**, **Ready-made** (Windows, browser, meetings, media) and **Apps** (your installed programs and the app packs). The search looks in all of them. Drag an action to a key, or click it to add it to the selected key.
+
+To delete a page, open **⋯ → Page settings** and tick *Delete this page*. To delete a profile, open **⋯ → Profile settings** and tick *Delete the profile*. Ctrl+Z brings either back.
+
+### Wide keys and widgets
+
+A key can cover two or three slots on its row: choose **Wide** or **Extra wide** under *Size*. The slots to its right must be free, and a wide key cannot run past the end of the row. In `profiles.json` this is `"span": 2` or `3`.
+
+A wide key can show something live instead of its own title (`"live"` in `profiles.json`). Drag a widget from the **Widgets** tab, or pick it under *Shows* on a wide key:
+
+| `live` | Shows |
+|---|---|
+| `clock` | The time, the weekday and date, and how far the day is |
+| `date` | The date, the week number and the day of the year |
+| `cpu`, `gpu` | Load with a bar, temperature, clock speed or frames per second |
+| `ram` | How much memory is in use |
+| `network` | Download and upload speed |
+| `volume` | Speaker level, muted or not, and the microphone |
+| `agents` | Which AI tools are working and which wait for you |
+| `media` | The track that plays, the artist and how far it is |
+| `timer:NAME` | The time left of that timer, as a ring |
+
+A widget does nothing when pressed until you give it actions like any other key.
+
 ### Live gauges and sensors
 
 A key becomes a gauge with a `gauge` block; the host fills in the value, how far the icon is filled and the color:
@@ -105,6 +139,8 @@ the key's `open` action. It is a dry run by default; add `--apply` to write the 
 
 A rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**. Choose what the last three show under **⋯ → Panel screens …** in the editor (which agents, up to three programs for the mixer and whether the microphone is included, and which readings).
 
+The rail itself is yours to arrange: the **+** at the foot of the editor's rail (or **⋯ → Rail …**) turns the agents, mixer and status screens on or off, puts them in order and adds up to three shortcuts that jump straight to a page of any profile. The keys are always on the rail, and it holds seven buttons at most.
+
 To answer Claude Code's permission questions on the panel, add the hook that `python host\deckctl.py hooks claude-permission` prints to `~/.claude/settings.json`. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
 
 ## Troubleshooting
@@ -116,4 +152,5 @@ To answer Claude Code's permission questions on the panel, add the hook that `py
 | `Another Tessera host is already running` | Only one host may own the port; stop it from the tray, then start again |
 | Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`); FPS needs HWiNFO with PresentMon |
 | The editor looks out of date | Close the editor window and open it again from the tray |
+| A key only made a program's taskbar button flash | Fixed: the host now brings the window to the front. Restart the host if it still runs the old version |
 | Flashing fails with *port busy* | Stop the host first; it holds the COM port |

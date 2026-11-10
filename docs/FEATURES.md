@@ -24,6 +24,8 @@ same keys as the panel.
 ### On the panel
 
 - **Fast, flicker-free panel UI** — a fixed 6 × 3 grid rendered by LVGL. Live values and labels update in place, so a key is not rebuilt under your finger; the grid is only rebuilt when the page or its layout changes.
+- **Four screens on a rail** — keys, AI agents, a sound mixer and the PC's status. The agents screen shows what Claude Code, Codex and ZCode are doing and answers Claude Code's permission questions with **Allow** or **Deny**; the mixer has faders for the speakers, up to three programs and the microphone. You choose which screens the rail shows, their order and up to three shortcuts to your own pages.
+- **Wide keys and widgets** — a key can cover two or three slots. Ready-made widgets show the clock, the date, the processor, the graphics card, memory, network speed, volume and the AI agents; a wide key can also show the music that plays or a timer's countdown.
 - **Real app icons** — rendered by the Windows shell at 256 px (Store apps, shortcuts and aliases included) and scaled to the panel, plus 1,895 bundled [Lucide](https://lucide.dev) icons and your own PNG, JPEG, GIF and WebP images.
 - **Live gauges** — CPU, GPU, VRAM, RAM, disk, network, uptime, temperatures, power, fan speed and FPS. The icon fills from the bottom with the value, a small badge says what is measured, and amber and red mark the thresholds.
 - **Keys that follow the PC** — the microphone, speaker and media buttons show the real Windows state (muted, live, playing) and flip on their own, and labels can show the current track and volume.
@@ -32,7 +34,7 @@ same keys as the panel.
 
 ### In the editor
 
-- **A WYSIWYG editor** — keys on top, the settings of the selected key under them and the action list on the right, with drag and drop, undo/redo, copy/paste, folders, pinned buttons, toggle buttons with 2–8 states and multi-step actions. The editor follows the panel when the profile changes.
+- **A WYSIWYG editor** — the panel's rail on the left, the keys with their page tabs in the middle, the selected key's settings in three tabs (Look, Actions, Gauge) and the action list in four tabs (Basics, Widgets, Ready-made, Apps), with drag and drop, undo/redo, copy/paste, folders, pinned buttons, toggle buttons with 2–8 states and multi-step actions. The editor follows the panel when the profile changes.
 - **119 ready-made actions and 10 profile templates** for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
 - **Your own look** — background, label and outline colors per key, an image cropper, and optional online icon search (Iconify) next to the 1,895 offline icons.
 - **Test before you press** — *Test (dry run)* explains what a key would do, checks paths, hotkeys and web addresses, and runs nothing.
