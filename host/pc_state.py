@@ -13,7 +13,7 @@ from typing import Callable
 POLL_SECONDS = 1.0
 FLAG_SOURCES = ('speaker_muted', 'mic_muted', 'media_playing')
 EMPTY = {'volume': None, 'speaker_muted': False, 'mic_muted': False,
-         'title': '', 'artist': '', 'status': ''}
+         'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0}
 
 
 def _endpoints() -> dict:
@@ -157,11 +157,18 @@ class MediaReader:
             self._manager = await manager_type.request_async()
         session = self._manager.get_current_session()
         if session is None:
-            return {'title': '', 'artist': '', 'status': ''}
+            return {'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0}
         properties = await session.try_get_media_properties_async()
         status = session.get_playback_info().playback_status
+        position, duration = 0.0, 0.0
+        try:  # not every player reports a timeline; the bar is then left out
+            timeline = session.get_timeline_properties()
+            position, duration = timeline.position.total_seconds(), timeline.end_time.total_seconds() - timeline.start_time.total_seconds()
+        except (AttributeError, OSError, ValueError):
+            pass
         return {'title': properties.title or '', 'artist': properties.artist or '',
-                'status': {4: 'PLAYING', 5: 'PAUSED', 3: 'STOPPED'}.get(int(status), '')}
+                'status': {4: 'PLAYING', 5: 'PAUSED', 3: 'STOPPED'}.get(int(status), ''),
+                'position': position, 'duration': duration}
 
 
 class PcState:

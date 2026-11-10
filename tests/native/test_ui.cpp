@@ -64,6 +64,25 @@ deck_button_t live[18]{};int live_count=0;for(int n=0;n<deck_model_button_count(
 const uint32_t structure=deck_model_buttons_version();strcpy(live[0].label,"New tab 2");strcpy(live[6].gauge_text,"80%");
 assert(deck_model_replace_buttons(live,live_count)&&deck_model_buttons_version()==structure);updates();
 assert(visible("New tab 2")&&visible("80%")&&!find(lv_screen_active(),"45%"));}
+{/* Wide keys: a media key three slots wide and a timer ring two slots wide; the slots they cover stay free of tiles. */
+deck_button_t saved[18]{};int saved_count=0;for(int n=0;n<deck_model_button_count();++n)deck_model_get_button(n,&saved[saved_count++]);
+deck_button_t wide[18]{};int wide_count=0;
+assert(deck_model_buttons_from_json(R"({"buttons":[
+ {"id":1,"label":"Midnight City","sub":"M83","icon":"lc:e12e","color":"#B388FF","span":3,"progress":38},
+ {"id":4,"label":"04:56","sub":"Pomodoro","icon":"ok","color":"#FFB74D","span":2,"progress":80,"ring":true},
+ {"id":6,"label":"Home","icon":"lc:e0f5","color":"#64B5F6"}]})",wide,18,&wide_count));
+assert(wide_count==3&&wide[0].span==3&&!strcmp(wide[0].sub,"M83")&&wide[0].has_progress&&wide[0].progress==38&&wide[1].ring&&wide[2].span==1);
+{deck_button_t refused[1]{};int refused_count=0;assert(!deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"x","span":4}]})",refused,1,&refused_count));}
+const uint32_t before_wide=deck_model_buttons_version();
+assert(deck_model_replace_buttons(wide,3));updates();
+assert(visible("Midnight City")&&visible("M83")&&visible("04:56")&&visible("Pomodoro")&&visible("Home"));
+capture(output/"wide.ppm");
+{/* A new title, artist or progress updates in place: no rebuild while a finger may be on the key. */
+const uint32_t structure=deck_model_buttons_version();strcpy(wide[0].label,"Nightcall");strcpy(wide[0].sub,"Kavinsky");wide[0].progress=64;wide[1].progress=40;strcpy(wide[1].label,"02:00");
+assert(deck_model_replace_buttons(wide,3)&&deck_model_buttons_version()==structure);updates();
+assert(visible("Nightcall")&&visible("Kavinsky")&&visible("02:00")&&!find(lv_screen_active(),"Midnight City"));}
+(void)before_wide;
+deck_model_replace_buttons(saved,saved_count);deck_model_note_host();updates();}
 {/* Confirmations queue in order instead of overwriting each other. */
 int id=0;deck_feedback_t kind;deck_model_request_feedback(1,DECK_FEEDBACK_OK);deck_model_request_feedback(18,DECK_FEEDBACK_ALERT);
 const uint32_t first=deck_model_take_feedback(&id,&kind);assert(first&&id==1&&kind==DECK_FEEDBACK_OK);

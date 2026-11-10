@@ -16,6 +16,7 @@
 | host → panel | `AD_PING` | Heartbeat every second; the header shows *NO PC* after 3.5 s without one |
 | host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | The PC's local time for the header and the ambient clock; the panel has no network clock |
 | host → panel | `AD_SCREEN deck` / `AD_SCREEN ambient` | Show the keys or the ambient clock (protocol 3) |
+| host → panel | key fields `span` (1-3), `sub`, `progress` (0-100), `ring` | A wide key in the layout the host pushes: it covers `span` slots to the right and shows a title, a second line and a progress bar or ring (protocol 4) |
 | host → panel | `AD_AGENTS {"agents":[{id,name,state,text,sub}]}` | The agents screen: up to 3 lanes, `state` is idle, working or waiting (protocol 4) |
 | host → panel | `AD_MIXER {"faders":[{id,name,level,muted,mic,color}]}` | The mixer screen: up to 5 faders; `id` is the host's audio target (protocol 4) |
 | host → panel | `AD_STATS {"stats":[{name,value,unit,p,color,warn}]}` | The status screen: up to 8 readings (protocol 4) |

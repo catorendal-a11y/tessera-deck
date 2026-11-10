@@ -197,6 +197,19 @@ def _check_gauge(gauge):
         raise ValueError('gauge.badge must be a Lucide icon like lc:e186')
 
 
+LIVE_KINDS = re.compile(r'media|timer:[A-Za-z0-9_.-]{1,64}')
+
+
+def _check_wide(button):
+    """`span` makes a key 2-3 slots wide; `live` fills it with the music that plays or a timer's countdown."""
+    span = button.get('span', 1)
+    if type(span) is not int or not 1 <= span <= 3:
+        raise ValueError('span must be 1, 2 or 3')
+    live = button.get('live')
+    if live is not None and (not isinstance(live, str) or not LIVE_KINDS.fullmatch(live) or span < 2):
+        raise ValueError('live must be media or timer:NAME, on a key that is at least 2 slots wide')
+
+
 def _check_button(button, pages, profiles):
     if not isinstance(button.get('label'), str) or not button['label'].strip():
         raise ValueError('The button needs a name')
@@ -208,6 +221,7 @@ def _check_button(button, pages, profiles):
             _check_color(button[key], f'Invalid button {key.replace("_", " ")}')
     if 'gauge' in button:
         _check_gauge(button['gauge'])
+    _check_wide(button)
     if 'status' in button:
         _check_status(button['status'])
     _check_actions(button.get('actions', []), pages, profiles)
@@ -246,6 +260,10 @@ def _check_button_list(name, buttons, pages, profiles):
             raise ValueError(f'{name}: invalid or duplicate id')
         ids.add(bid)
         _check_button(button, pages, profiles)
+    for button in buttons:
+        span, bid = button.get('span', 1), button['id']
+        if span > 1 and ((bid - 1) % 6 + span > 6 or any(bid + extra in ids for extra in range(1, span))):
+            raise ValueError(f'{name}: a key {span} slots wide at slot {bid} needs free slots to its right on the same row')
 
 
 def _check_profile(name, profile, profiles):

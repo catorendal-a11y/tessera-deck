@@ -244,6 +244,25 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         """Icon the panel can show; 'app' and missing images come from the open action."""
         return self.assets.icon_for(button)
 
+    def live_content(self, live):
+        """What a wide key shows: the music that plays (title, artist, how far it is) or a timer (time left, ring)."""
+        if live == 'media':
+            media = self.pc.snapshot()
+            result = {'label': (media['title'] or 'No music')[:24], 'sub': (media['artist'] or media['status'].capitalize())[:40]}
+            if media.get('duration', 0) > 0:
+                result['progress'] = max(0, min(100, round(media['position'] / media['duration'] * 100)))
+            return result
+        if isinstance(live, str) and live.startswith('timer:'):
+            name = live[6:]
+            timer = self.live.timers.get(name)
+            left = self.live.remaining(name)
+            result = {'label': self.live.variables().get(f'timer:{name}', '--:--'), 'sub': name[:40], 'ring': True}
+            if timer and left is not None and timer['duration']:
+                result['progress'] = max(0, min(100, round(left / timer['duration'] * 100)))
+                result['sub'] = f'{name} · {timer["state"]}'[:40]
+            return result
+        return {}
+
     def current_buttons(self):
         result = []
         for button in map(self.resolved_button, self.effective_buttons()):
@@ -273,6 +292,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 entry['hold'] = True  # the panel reports long presses for this key
             if button.get('double_actions'):
                 entry['double'] = True  # the panel draws a mark; the host tells one tap from two
+            if button.get('span', 1) > 1:
+                entry['span'] = button['span']
+                entry.update(self.live_content(button.get('live')))
             entry.update(self.config.get('theme', {}))  # the theme is the default look; a key's own colors win
             entry.update({key: button[key] for key in ('bg', 'text_color', 'border') if key in button})
             if isinstance(button.get('gauge'), dict):

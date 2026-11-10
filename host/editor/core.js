@@ -285,6 +285,7 @@ function renderGrid() {
   const grid=$('#deck-grid');const focused=document.activeElement?.dataset.slot;
   const live=deviceShowsSelection()?(dashboard.device?.gauges||{}):{};
   const shown=[...grid.children];
+  const covered=new Set();for(const wide of visibleButtons())for(let extra=1;extra<(wide.span||1);extra++)covered.add(wide.id+extra);
   const next=Array.from({length:18},(_,index)=>{
     const id=index+1,base=visibleButtons().find(b=>b.id===id),b=base&&{...base,...(id===selected?appearance(base):base.states?.[0]||{})};
     const tile=element('button',{class:'deck-key'+(!b?' empty':'')+(id===selected?' selected':''),type:'button',draggable:'false',
@@ -293,6 +294,8 @@ function renderGrid() {
     tile.style.left=`${DEVICE.x+(index%6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.top=`${DEVICE.y+Math.floor(index/6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.setProperty('--key-color',b?.color||'#92edba');
+    if(b?.span>1){tile.style.width=`${b.span*DEVICE.cell+(b.span-1)*DEVICE.gap}px`;tile.style.zIndex='2';}
+    if(covered.has(id)){tile.style.visibility='hidden';tile.tabIndex=-1;tile.style.pointerEvents='none';}
     const look={...(b?config.theme:{})};
     for(const key of ['bg','text_color','border'])if(b?.[key])look[key]=b[key];
     if(look.bg)tile.style.background=look.bg;
@@ -316,6 +319,7 @@ function renderGrid() {
       label.style.top=geometry.labelTop+'px';label.style.fontSize=geometry.px+'px';
       if(b.title?.bold)label.style.fontWeight='700';label.hidden=geometry.hidden;tile.append(label);
       tile.append(...gestureMarks(base));
+      if(b.span>1&&b.live)tile.append(text('span',b.live==='media'?'♪ shows the music that plays':'◔ shows timer '+b.live.slice(6),'key-live'));
     }
     if(base&&config.profiles[profile].pinned?.includes(base))tile.append(text('span','◆','pin-badge'));
     tile.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});

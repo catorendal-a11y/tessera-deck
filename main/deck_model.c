@@ -131,6 +131,9 @@ static bool same_structure(const deck_button_t *a, const deck_button_t *b)
     memset(y.gauge_text, 0, sizeof(y.gauge_text));
     memset(x.label, 0, sizeof(x.label));
     memset(y.label, 0, sizeof(y.label));
+    memset(x.sub, 0, sizeof(x.sub));
+    memset(y.sub, 0, sizeof(y.sub));
+    x.progress = y.progress = 0;
     x.color = y.color = 0;
     return memcmp(&x, &y, sizeof(x)) == 0;
 }
@@ -384,6 +387,8 @@ bool deck_model_host_linked(int64_t timeout_ms)
     return seen >= 0 && now - seen <= timeout_ms;
 }
 
+static const char *text_of(const cJSON *item, const char *key);
+
 static bool parse_color_hex(const char *text, uint32_t *out)
 {
     if (!text) return false;
@@ -457,6 +462,21 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
             out[parsed].title_size=size->valueint;
         }
         out[parsed].title_bold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(title,"bold"));
+        {
+            const cJSON *span = cJSON_GetObjectItemCaseSensitive(item, "span");
+            out[parsed].span = 1;
+            if (span) {
+                if (!cJSON_IsNumber(span) || span->valuedouble < 1 || span->valuedouble > 3) {valid = false; break;}
+                out[parsed].span = (uint8_t)span->valueint;
+            }
+            copy_text(out[parsed].sub, sizeof(out[parsed].sub), text_of(item, "sub"));
+            const cJSON *progress = cJSON_GetObjectItemCaseSensitive(item, "progress");
+            if (cJSON_IsNumber(progress)) {
+                out[parsed].has_progress = true;
+                out[parsed].progress = (uint8_t)(progress->valuedouble < 0 ? 0 : progress->valuedouble > 100 ? 100 : progress->valuedouble);
+            }
+            out[parsed].ring = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item, "ring"));
+        }
         out[parsed].has_hold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"hold"));
         out[parsed].has_double=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"double"));
         {

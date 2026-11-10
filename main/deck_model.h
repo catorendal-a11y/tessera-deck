@@ -50,6 +50,12 @@ typedef struct {
     uint8_t gauge_percent;             /* 0..100 */
     char gauge_text[DECK_GAUGE_TEXT_MAX + 1];
     char gauge_badge[DECK_ICON_NAME_MAX + 1]; /* optional Lucide icon for what the gauge measures */
+    /* Wide key (protocol 4): covers `span` slots to the right; shows a title, a second line and a progress bar or ring. */
+    uint8_t span;                      /* 1..3; 0 from an older host counts as 1 */
+    char sub[41];                      /* second line, for example the artist */
+    bool has_progress;
+    uint8_t progress;                  /* 0..100 */
+    bool ring;                         /* draw the progress as a ring instead of a bar */
 } deck_button_t;
 
 typedef struct {

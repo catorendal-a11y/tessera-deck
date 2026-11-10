@@ -377,3 +377,5 @@ body{background:#2b2b2b}
 .screen-stat.off{opacity:.5}
 @media(max-width:900px){.rail{width:52px}.screen-stats{grid-template-columns:repeat(2,1fr)}}
 #deck-view[hidden],#screens-view[hidden]{display:none!important}
+
+.key-live{position:absolute;left:12px;right:12px;bottom:34px;font-size:11px;color:#9fb1b8;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

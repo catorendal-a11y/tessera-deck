@@ -117,7 +117,7 @@ function renderInspector() {
   const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('🗑',clearButton,'prop-clear','Clear button'));
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
     element('div',{class:'prop-rows'},titleRow,row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
-      textRow,row('Steps',actionButton),...(otherTriggerRows(base,row)))));
+      textRow,row('Steps',actionButton),...(otherTriggerRows(base,row)),...(wideRows(base,row)))));
   const typeStart=panel.children.length;
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
@@ -516,4 +516,32 @@ function otherTriggerRows(base, row) {
       const open = button(stepSummary(base[key]), () => { editList = key; renderInspector(); }, 'prop-field');
       return row(name, open);
     });
+}
+
+/* Width and live content: a key can cover 2 or 3 slots and show the music that plays or a timer. */
+function setSpan(base, span) {
+  const row = Math.floor((base.id - 1) / 6);
+  const taken = Array.from({length: span - 1}, (_, i) => base.id + 1 + i).filter(id => visibleButtons().some(b => b.id === id));
+  if (Math.floor((base.id - 1 + span - 1) / 6) !== row || taken.length) {
+    toast(taken.length ? `Slot ${taken[0]} is in use: move that key first.` : 'A wide key must fit on its row.');
+    return renderInspector();
+  }
+  mutate(() => { if (span === 1) { delete base.span; delete base.live; } else base.span = span; });
+  renderGrid(); renderInspector();
+}
+function wideRows(base, row) {
+  const width = field('Width', String(base.span || 1), v => setSpan(base, Number(v)), {values: [['1', 'Normal (1 slot)'], ['2', 'Wide (2 slots)'], ['3', 'Extra wide (3 slots)']]});
+  const rows = [row('Width', width)];
+  if ((base.span || 1) > 1) {
+    const kind = base.live === 'media' ? 'media' : String(base.live || '').startsWith('timer:') ? 'timer' : '';
+    rows.push(row('Shows', field('Shows', kind, v => {
+      if (v === 'timer') {
+        const name = (prompt('Name of the timer to show (the same name as in the timer action)', base.live?.slice(6) || 'timer') || '').trim();
+        if (!/^[A-Za-z0-9_.-]{1,64}$/.test(name)) { toast('Use letters, digits, dots, dashes or underscores.'); return renderInspector(); }
+        mutate(() => { base.live = 'timer:' + name; });
+      } else mutate(() => { if (v === 'media') base.live = 'media'; else delete base.live; });
+      renderGrid(); renderInspector();
+    }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['timer', 'A timer (time left, ring) …']]})));
+  }
+  return rows;
 }
