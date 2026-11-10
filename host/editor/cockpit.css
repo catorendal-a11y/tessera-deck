@@ -123,7 +123,7 @@ html body .prop-card{margin:0}
 @media(min-width:901px){
   html body #deck-view{overflow-y:auto !important;align-items:start}
   html body .workspace,html body #inspector{overflow:visible !important;height:auto !important}
-  html body .library{position:sticky;top:0;align-self:start;height:calc(100vh - 64px);overflow-y:auto}
+  html body .library{position:sticky;top:0;align-self:start;height:calc(100vh / var(--z) - 64px);overflow-y:auto}
 }
 
 html body .action-preset .action-symbol svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -132,7 +132,7 @@ html body .action-preset small{color:var(--dim)}
 html body .lib-cat > summary span::before{content:none !important;display:none !important}
 html body .lib-cat > summary{padding:9px 10px;font-weight:600}
 html body .program-launcher{text-align:left;padding:10px 12px;font-weight:600}
-@media(min-width:901px){html,html body{height:100vh;overflow:hidden}html body .shell{height:calc(100vh - 64px);min-height:0}html body #deck-view{height:calc(100vh - 64px) !important;min-height:0}html body .screens{height:calc(100vh - 64px)}html body .rail{height:calc(100vh - 64px);top:0}}
+@media(min-width:901px){html,html body{height:100vh;overflow:hidden}html body .shell{height:calc(100vh - 64px * var(--z));min-height:0}html body #deck-view{height:calc(100vh / var(--z) - 64px) !important;min-height:0}html body .screens{height:calc(100vh - 64px * var(--z))}html body .rail{height:calc(100vh - 64px * var(--z));top:0;box-sizing:border-box;padding-bottom:20px}}
 
 /* The key's settings sit below the deck in the same column: same background, no side border. */
 html body #deck-view .inspector,html body #inspector{background:transparent !important;border:0 !important}
@@ -201,10 +201,10 @@ html body #rail-dialog{width:min(760px,94vw);padding:22px 24px}
 /* Wide windows: the key's settings get their own column beside the deck, so nothing sits below the fold. */
 @media(min-width:1560px){
   :root{--col:100%}
-  html body #deck-view{grid-template-columns:minmax(0,1fr) 500px 318px !important;grid-template-areas:"work inspector library" !important;grid-template-rows:auto !important}
+  html body #deck-view{grid-template-columns:minmax(0,1fr) 440px 318px !important;grid-template-areas:"work inspector library" !important;grid-template-rows:auto !important}
   html body .workspace{max-width:940px;justify-self:center;width:100%;box-sizing:border-box}
   html body .toolbar,html body .deck-card,html body .syncbar{max-width:880px}
-  html body #inspector{position:sticky;top:0;align-self:start;height:calc(100vh - 64px) !important;overflow-y:auto !important;padding:18px 20px 56px !important;border-left:1px solid var(--line) !important;box-sizing:border-box}
+  html body #inspector{position:sticky;top:0;align-self:start;height:calc(100vh / var(--z) - 64px - 12px) !important;overflow-y:auto !important;padding:18px 20px 56px !important;border-left:1px solid var(--line) !important;box-sizing:border-box}
   html body #inspector>*{width:100% !important;max-width:none}
   html body #inspector .prop-card{grid-template-columns:96px minmax(0,1fr);column-gap:16px;padding:0 16px 18px !important}
   html body #inspector .prop-preview{width:96px !important;height:96px !important}
