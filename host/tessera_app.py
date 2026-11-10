@@ -19,7 +19,7 @@ import webbrowser
 
 from deck_control import (ROOT, Controller, autostart_enabled, configure_upstream,
                           save_profiles, set_autostart)
-from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, validate_config
+from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, bring_to_front, validate_config
 from deck_assets import Assets
 import ambient
 import config_store
@@ -73,8 +73,7 @@ def activate_window(pid):
         user32.EnumWindows(visit, 0)
         if not found:
             return False
-        user32.ShowWindow(found[0], 9)
-        user32.SetForegroundWindow(found[0])
+        bring_to_front(user32, found[0])
         return True
     except (AttributeError, OSError, ValueError):
         return False

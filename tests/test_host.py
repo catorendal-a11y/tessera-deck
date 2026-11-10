@@ -1137,6 +1137,16 @@ class HostTests(unittest.TestCase):
         daemon.push_page(force=True)  # triggers, timers and profile switches keep working while unplugged
         self.assertIsNone(daemon.last_push, 'the page is sent in full when a panel connects')
 
+    def test_focusing_a_maximized_window_does_not_shrink_it(self):
+        user32 = Mock()
+        user32.IsIconic.return_value = False  # maximized or normal: SW_RESTORE would un-maximize it
+        deck.bring_to_front(user32, 7)
+        user32.ShowWindow.assert_not_called()
+        user32.SetForegroundWindow.assert_called_once_with(7)
+        user32.IsIconic.return_value = True  # minimized: restore it first
+        deck.bring_to_front(user32, 7)
+        user32.ShowWindow.assert_called_once_with(7, 9)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -276,6 +276,13 @@ def foreground_exe():
     return foreground_context()['exe']
 
 
+def bring_to_front(user32, hwnd):
+    """Show a window in front. Only a minimized window is restored: SW_RESTORE on a maximized one would shrink it."""
+    if user32.IsIconic(hwnd):
+        user32.ShowWindow(hwnd, 9)
+    user32.SetForegroundWindow(hwnd)
+
+
 def focus_existing_process(process_name):
     """Restore the first visible window owned by process_name."""
     if not IS_WINDOWS or not process_name:
@@ -305,8 +312,7 @@ def focus_existing_process(process_name):
     user32.EnumWindows(visit, 0)
     if not found:
         return False
-    user32.ShowWindow(found[0], 9)
-    user32.SetForegroundWindow(found[0])
+    bring_to_front(user32, found[0])
     return True
 
 
