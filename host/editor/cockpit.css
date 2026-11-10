@@ -133,3 +133,16 @@ html body .lib-cat > summary span::before{content:none !important;display:none !
 html body .lib-cat > summary{padding:9px 10px;font-weight:600}
 html body .program-launcher{text-align:left;padding:10px 12px;font-weight:600}
 @media(min-width:901px){html,html body{height:100vh;overflow:hidden}html body .shell{height:calc(100vh - 64px);min-height:0}html body #deck-view{height:calc(100vh - 64px) !important;min-height:0}html body .screens{height:calc(100vh - 64px)}html body .rail{height:calc(100vh - 64px);top:0}}
+
+/* The key's settings sit below the deck in the same column: same background, no side border. */
+html body #deck-view .inspector,html body #inspector{background:transparent !important;border:0 !important}
+html body #inspector select,html body #inspector .form-field select,html body #inspector .prop-value select{background-color:var(--card) !important;color:var(--text) !important;border:1px solid var(--line2) !important;border-radius:12px !important;min-height:38px}
+html body #inspector .outline,html body #inspector .prop-value button{background:var(--card2) !important;color:var(--soft) !important;border:1px solid var(--line2) !important;border-radius:12px !important}
+html body #inspector .outline:hover{background:#20303a !important;color:var(--text) !important}
+html body #inspector .prop-value .prop-field{background:var(--card) !important;border:1px solid var(--line2) !important;border-radius:12px !important;color:var(--text)}
+html body #inspector input[type=text],html body #inspector input:not([type]),html body #inspector textarea{background:var(--card) !important;border:1px solid var(--line2) !important;border-radius:12px !important;color:var(--text)}
+html body .prop-preview,html body .prop-icon{border-radius:20px}
+html body #deck-view{scrollbar-width:thin}
+html body #inspector .prop-value select{width:100%;box-sizing:border-box;margin:0}
+html body #inspector{padding-bottom:56px !important}
+html body #inspector .hint.shortcuts{margin:6px 0 0}
