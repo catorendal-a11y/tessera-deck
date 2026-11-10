@@ -609,12 +609,24 @@ class HostRuntimeTests(HostCase):
     def test_focusing_a_maximized_window_does_not_shrink_it(self):
         user32 = Mock()
         user32.IsIconic.return_value = False  # maximized or normal: SW_RESTORE would un-maximize it
+        user32.GetForegroundWindow.return_value = 7  # Windows let it through
         deck.bring_to_front(user32, 7)
         user32.ShowWindow.assert_not_called()
         user32.SetForegroundWindow.assert_called_once_with(7)
         user32.IsIconic.return_value = True  # minimized: restore it first
         deck.bring_to_front(user32, 7)
         user32.ShowWindow.assert_called_once_with(7, 9)
+
+    def test_a_refused_focus_is_retried_instead_of_leaving_the_taskbar_flashing(self):
+        user32 = Mock()
+        user32.IsIconic.return_value = False
+        user32.GetForegroundWindow.return_value = 3  # another window stays in front: Windows refused
+        user32.GetWindowThreadProcessId.return_value = 55
+        deck.bring_to_front(user32, 7)
+        user32.BringWindowToTop.assert_called_once_with(7)
+        self.assertEqual(user32.AttachThreadInput.call_args_list[0].args[1:], (55, True))
+        self.assertEqual(user32.AttachThreadInput.call_args_list[-1].args[1:], (55, False), 'the threads are detached again')
+        self.assertEqual([call.args[0] for call in user32.keybd_event.call_args_list], [0x12, 0x12], 'Alt is pressed and released')
 
 
 if __name__ == '__main__':

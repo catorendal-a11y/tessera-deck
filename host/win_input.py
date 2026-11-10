@@ -252,6 +252,23 @@ def bring_to_front(user32, hwnd):
     if user32.IsIconic(hwnd):
         user32.ShowWindow(hwnd, 9)
     user32.SetForegroundWindow(hwnd)
+    if user32.GetForegroundWindow() == hwnd:
+        return
+    # Windows refuses a background program the foreground and flashes the taskbar button instead. A key press on
+    # the panel is the user's own request, so borrow the right from the thread that owns the window in front.
+    front = user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), None)
+    mine = kernel32.GetCurrentThreadId() if IS_WINDOWS else 0
+    attached = bool(front) and front != mine and bool(user32.AttachThreadInput(mine, front, True))
+    try:
+        user32.BringWindowToTop(hwnd)
+        user32.SetForegroundWindow(hwnd)
+    finally:
+        if attached:
+            user32.AttachThreadInput(mine, front, False)
+    if user32.GetForegroundWindow() != hwnd:  # last resort: a tap on Alt counts as the user's input
+        user32.keybd_event(0x12, 0, 0, 0)
+        user32.SetForegroundWindow(hwnd)
+        user32.keybd_event(0x12, 0, 2, 0)
 
 
 def focus_existing_process(process_name):

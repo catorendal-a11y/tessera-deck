@@ -12,6 +12,7 @@
 - Editor tidied: the profile is the title, the page tabs sit above a larger deck, and a key's settings are three tabs (Look, Actions, Gauge) instead of a stack of folded sections.
 - Editor: the action list is four tabs (Basics, Widgets, Ready-made, Apps) instead of eighteen groups in one column; a search still looks in all of them.
 - A host started outside the editor (a terminal, a script) is recognised from its runtime file, so the editor no longer says "The host has stopped" while one holds the USB port.
+- A key that opens a running program now brings its window to the front even when Windows refuses a background program the focus; before, the taskbar button only flashed.
 - Editor: everything is drawn 15% smaller.
 - Editor: the key card has room for everything (the preview beside the title and icon, every other setting full width), and the key's size is picked with three buttons: Normal, Wide, Extra wide.
 - Editor: moving, pasting or duplicating a wide key checks that it fits on its row without covering another key; otherwise it is refused (move) or pasted as a normal key. Heights follow the editor's zoom, so the rail's + and the bottom of every column stay in view; on wide windows the key's settings sit in their own column.
