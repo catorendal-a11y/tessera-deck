@@ -20,7 +20,7 @@ extern const lv_font_t fq_font_dejavu_bold_24;
 extern const lv_font_t fq_font_dejavu_bold_28;
 
 namespace {
-constexpr int W=1024,H=600,Rail=84,Pad=26,Top=22,ContentW=W-Rail-2*Pad,HeadH=50,RailTop=84;
+constexpr int W=1024,H=600,Rail=84,Pad=26,Top=22,ContentW=W-Rail-2*Pad,HeadH=50,RailTop=84,RailPitch=60;
 constexpr uint32_t Bg=0x0A0E10,RailBg=0x0F1518,Card=0x12191D,RailOn=0x18232A,Line=0x3A4950;
 constexpr uint32_t Text=0xEAF2EF,Soft=0xC4D0D4,Muted=0x8D9AA0,Dim=0x6F8088;
 constexpr uint32_t Accent=0x58E09B,Cyan=0x4DD0E1,Purple=0xB388FF,Amber=0xFFB74D,Red=0xFF7070;
@@ -35,7 +35,11 @@ constexpr uint32_t PendingMs=10000;
 enum View {ViewKeys=0,ViewAgents,ViewMixer,ViewStatus,ViewCount};
 const char *const ViewIcons[ViewCount]={"lc:e0ff","lc:e1bb","lc:e162","lc:e038"};
 const char *const ViewNames[ViewCount]={"keys","agents","mixer","status"};
-lv_obj_t *screen=nullptr,*views[ViewCount]{},*rail_button[ViewCount]{},*rail_glyph[ViewCount]{};
+lv_obj_t *screen=nullptr,*views[ViewCount]{},*rail_items=nullptr,*rail_btn[DECK_RAIL_MAX]{},*rail_gl[DECK_RAIL_MAX]{};
+deck_rail_item_t rail_list[DECK_RAIL_MAX]{};
+int rail_count=0,rail_agents=-1;uint32_t rail_version=0;
+void refresh_rail();
+void build_rail();
 lv_obj_t *rail_marker=nullptr,*rail_dot=nullptr,*clock_label=nullptr,*link_label=nullptr;
 int view=ViewKeys,link_shown=-1;
 
@@ -256,6 +260,7 @@ void update_context() {
     title_case(context.page,name,sizeof(name));title_case(context.profile,profile,sizeof(profile));
     snprintf(page,sizeof(page),"%s%s",context.can_go_back?"<  ":"",name);
     lv_label_set_text(page_label,page);lv_label_set_text(profile_label,profile);context_version=deck_model_context_version();
+    refresh_rail();
 }
 
 /* ---- Agents -------------------------------------------------------------------------------------- */
@@ -283,7 +288,7 @@ void update_rail_dot() {
     deck_agent_t list[DECK_AGENTS_MAX];bool waiting=false;
     const int count=deck_model_agents(list,DECK_AGENTS_MAX);
     for(int i=0;i<count;++i)waiting=waiting||list[i].state==DECK_AGENT_WAITING;
-    lv_obj_set_hidden(rail_dot,!waiting||view==ViewAgents);
+    if(rail_dot)lv_obj_set_hidden(rail_dot,!waiting||view==ViewAgents||rail_agents<0);
 }
 void build_agents() {
     lv_obj_clean(agents_area);
@@ -439,18 +444,58 @@ void sync_stats() {
 }
 
 /* ---- Rail and frame ------------------------------------------------------------------------------ */
+/* The rail: one button per entry the host chose (screens and shortcuts to a page), at most seven. */
+void refresh_rail() {
+    if(!rail_items)return;
+    const auto context=deck_model_context();
+    int active=-1;
+    for(int i=0;i<rail_count&&active<0;++i)
+        if(rail_list[i].kind==4&&view==ViewKeys&&!strcmp(rail_list[i].profile,context.profile)&&!strcmp(rail_list[i].page,context.page))active=i;
+    for(int i=0;i<rail_count&&active<0;++i)if(rail_list[i].kind<4&&rail_list[i].kind==view)active=i;
+    for(int i=0;i<rail_count;++i) {
+        lv_obj_set_style_bg_opa(rail_btn[i],i==active?LV_OPA_COVER:LV_OPA_TRANSP,0);
+        if(rail_gl[i])lv_obj_set_style_text_color(rail_gl[i],lv_color_hex(i==active?Text:Dim),0);
+    }
+    if(rail_marker){lv_obj_set_hidden(rail_marker,active<0);if(active>=0)lv_obj_set_y(rail_marker,RailTop+active*RailPitch+9);}
+    update_rail_dot();
+}
 void set_view(int next) {
     if(next<0||next>=ViewCount)return;
     view=next;
-    for(int i=0;i<ViewCount;++i) {
-        lv_obj_set_hidden(views[i],i!=view);
-        lv_obj_set_style_bg_opa(rail_button[i],i==view?LV_OPA_COVER:LV_OPA_TRANSP,0);
-        if(rail_glyph[i])lv_obj_set_style_text_color(rail_glyph[i],lv_color_hex(i==view?Text:Dim),0);
-    }
-    lv_obj_set_y(rail_marker,RailTop+view*70+12);
-    update_rail_dot();
+    for(int i=0;i<ViewCount;++i)lv_obj_set_hidden(views[i],i!=view);
+    refresh_rail();
 }
-void rail_pressed(lv_event_t *event) {set_view(slot_of(event));}
+void rail_pressed(lv_event_t *event) {
+    const int index=slot_of(event);
+    if(index<0||index>=rail_count)return;
+    if(rail_list[index].kind<4){set_view(rail_list[index].kind);return;}
+    char line[40];
+    snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",index);
+    deck_model_queue_line(line);
+    set_view(ViewKeys);
+}
+void build_rail() {
+    deck_rail_item_t latest[DECK_RAIL_MAX]{};
+    int count=deck_model_rail(latest,DECK_RAIL_MAX);
+    rail_version=deck_model_rail_version();
+    if(count==0)for(int k=0;k<4;++k)latest[count++].kind=static_cast<uint8_t>(k);  /* an older host: the four screens */
+    bool has_keys=false;for(int i=0;i<count;++i)has_keys=has_keys||latest[i].kind==0;
+    if(!has_keys&&count<DECK_RAIL_MAX){memmove(&latest[1],&latest[0],sizeof(latest[0])*static_cast<size_t>(count));latest[0]=deck_rail_item_t{};++count;}
+    memcpy(rail_list,latest,sizeof(rail_list));rail_count=count;rail_agents=-1;
+    lv_obj_clean(rail_items);memset(rail_btn,0,sizeof(rail_btn));memset(rail_gl,0,sizeof(rail_gl));
+    rail_marker=box(rail_items,0,RailTop+9,4,36,2,Accent);
+    for(int i=0;i<count;++i) {
+        auto *button=rail_btn[i]=lv_button_create(rail_items);flat(button,RailOn);
+        lv_obj_set_pos(button,15,RailTop+i*RailPitch);lv_obj_set_size(button,54,54);lv_obj_set_style_radius(button,16,0);
+        const char *icon=rail_list[i].kind<4?ViewIcons[rail_list[i].kind]:rail_list[i].icon;
+        rail_gl[i]=glyph(button,icon,27,27,28,Dim);
+        if(!rail_gl[i])rail_gl[i]=glyph(button,ViewIcons[0],27,27,28,Dim);
+        lv_obj_add_event_cb(button,rail_pressed,LV_EVENT_CLICKED,slot_data(i));
+        if(rail_list[i].kind==ViewAgents)rail_agents=i;
+    }
+    rail_dot=rail_agents>=0?box(rail_items,15+54-13,RailTop+rail_agents*RailPitch+3,12,12,6,Amber):nullptr;
+    refresh_rail();
+}
 void update_link() {
     const int linked=deck_model_host_linked(HostTimeoutMs)?1:0;
     if(linked==link_shown)return;
@@ -534,6 +579,7 @@ void update(lv_timer_t*) {
     if(button_version!=deck_model_buttons_version())build_keys();
     else if(live_version!=deck_model_live_version())update_live();
     if(context_version!=deck_model_context_version())update_context();
+    if(rail_version!=deck_model_rail_version())build_rail();
     if(agents_version!=deck_model_agents_version())build_agents();
     const int wanted=deck_model_take_view_request();
     if(wanted>=0)set_view(wanted);
@@ -569,19 +615,12 @@ extern "C" void ui_init(void) {
     /* Rail */
     auto *rail=box(screen,0,0,Rail,H,0,RailBg);
     make_logo(rail,19,20);
-    rail_marker=box(rail,0,RailTop+12,4,36,2,Accent);
-    for(int i=0;i<ViewCount;++i) {
-        auto *button=rail_button[i]=lv_button_create(rail);flat(button,RailOn);
-        lv_obj_set_pos(button,12,RailTop+i*70);lv_obj_set_size(button,60,60);lv_obj_set_style_radius(button,16,0);
-        rail_glyph[i]=glyph(button,ViewIcons[i],30,30,30,Dim);
-        lv_obj_add_event_cb(button,rail_pressed,LV_EVENT_CLICKED,slot_data(i));
-    }
-    rail_dot=box(rail,12+60-14,RailTop+ViewAgents*70+2,12,12,6,Amber);
+    rail_items=clear_box(rail,0,0,Rail,H);
     link_label=label(rail,"NO PC",0,H-70,Rail,&fq_font_dejavu_16,Amber);lv_obj_set_style_text_align(link_label,LV_TEXT_ALIGN_CENTER,0);
     clock_label=label(rail,"--:--",0,H-42,Rail,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_CENTER,0);
     for(lv_indev_t *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_add_event_cb(indev,wake_touch,LV_EVENT_PRESSED,nullptr);
     build_ambient();
-    build_keys();update_context();build_agents();sync_faders();sync_stats();set_view(ViewKeys);link_shown=-1;update_link();
+    build_keys();build_rail();update_context();build_agents();sync_faders();sync_stats();set_view(ViewKeys);link_shown=-1;update_link();
     lv_screen_load(screen);update(nullptr);lv_timer_create(update,40,nullptr);
 }
 /* Names are user text: a quote or backslash must not break the JSON of the status line. */

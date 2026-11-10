@@ -379,3 +379,5 @@ body{background:#2b2b2b}
 #deck-view[hidden],#screens-view[hidden]{display:none!important}
 
 .key-live{position:absolute;left:12px;right:12px;bottom:34px;font-size:11px;color:#9fb1b8;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.rail-sep{display:block;width:26px;height:1px;background:#1e2a30;margin:2px 0}

@@ -169,6 +169,17 @@ int deck_model_stats(deck_stat_t *out, int max_out);
 uint32_t deck_model_agents_version(void);
 uint32_t deck_model_faders_version(void);
 uint32_t deck_model_stats_version(void);
+/* The rail (protocol 4): which screens have a button, and the shortcuts to a page of a profile. */
+#define DECK_RAIL_MAX 7
+typedef struct {
+    uint8_t kind;                      /* 0 keys, 1 agents, 2 mixer, 3 status, 4 page shortcut */
+    char icon[DECK_ICON_NAME_MAX + 1]; /* shortcut icon, a Lucide name like lc:e0e8 */
+    char profile[DECK_CONTEXT_TEXT_MAX + 1];
+    char page[DECK_CONTEXT_TEXT_MAX + 1];
+} deck_rail_item_t;
+bool deck_model_rail_from_json(const char *json_text);  /* {"rail":[{"k":"keys"},{"k":"page","i":"lc:e0e8","p":"Chrome","g":"main"}]} */
+int deck_model_rail(deck_rail_item_t *out, int max_out);
+uint32_t deck_model_rail_version(void);
 /* The host can bring one of the four screens to the front (a permission prompt opens the agents screen). */
 void deck_model_request_view(int view);
 int deck_model_take_view_request(void); /* -1 when nothing is pending */

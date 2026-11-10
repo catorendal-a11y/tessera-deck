@@ -132,6 +132,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
         self.cockpit_sent, self.cockpit_at = {}, 0.0
         self.cockpit_mixer = []
+        self.rail_items = []
         self.activity = agent_activity.AgentActivity()
         self.agent_seen, self.agent_started = {}, {}  # what each agent was doing a second ago, and since when
         self.permissions = permission.Desk(lambda: self.enqueue(('question',)))
@@ -534,6 +535,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('screen-deck',))
                         elif message.get('type') == 'fader' and isinstance(message.get('id'), str) and type(message.get('level')) is int:
                             self.enqueue(('fader', message['id'][:80], max(0, min(100, message['level']))))
+                        elif message.get('type') == 'rail' and type(message.get('i')) is int:
+                            self.enqueue(('rail', message['i']))
                         elif message.get('type') == 'mute' and isinstance(message.get('id'), str):
                             self.enqueue(('mute', message['id'][:80]))
                         elif message.get('type') == 'agent' and message.get('do') in cockpit.AGENT_ACTIONS and cockpit.agent_exe(message.get('id')):
@@ -610,6 +613,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.ambient_active = self.ambient_requested = False
         elif kind == 'question':
             self.show_question()
+        elif kind == 'rail':
+            self.last_activity = time.monotonic()
+            self.use_rail_shortcut(job[1])
         elif kind in ('fader', 'mute', 'agent'):
             self.last_activity = time.monotonic()
             if kind == 'fader':

@@ -332,8 +332,19 @@ def _check_display(display):
 def _check_panel(panel):
     """The `panel` block: which agents, programs and readings the cockpit screens show."""
     import cockpit
-    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats'}:
-        raise ValueError('panel may only set agents, apps, mic and stats')
+    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts'}:
+        raise ValueError('panel may only set agents, apps, mic, stats, screens and shortcuts')
+    screens = panel.get('screens', list(cockpit.SCREENS))
+    if not isinstance(screens, list) or len(set(screens)) != len(screens) or any(item not in cockpit.SCREENS for item in screens):
+        raise ValueError('panel.screens must list keys, agents, mixer or status once each')
+    shortcuts = panel.get('shortcuts', [])
+    if not isinstance(shortcuts, list) or len(shortcuts) > cockpit.MAX_SHORTCUTS:
+        raise ValueError(f'panel.shortcuts holds at most {cockpit.MAX_SHORTCUTS} shortcuts')
+    for shortcut in shortcuts:
+        if (not isinstance(shortcut, dict) or set(shortcut) - {'profile', 'page', 'icon'}
+                or any(not isinstance(shortcut.get(key), str) or not 0 < len(shortcut[key]) <= 100 for key in ('profile', 'page'))
+                or not re.fullmatch(r'lc:[0-9a-f]{4}', shortcut.get('icon', 'lc:e0ff'))):
+            raise ValueError('a shortcut needs a profile, a page and an icon like lc:e0ff')
     agents = panel.get('agents', [])
     if not isinstance(agents, list) or any(item not in [key for key, _, _ in cockpit.AGENTS] for item in agents):
         raise ValueError('panel.agents must list claude, codex or zcode')

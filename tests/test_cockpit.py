@@ -64,6 +64,40 @@ class PanelChoiceTests(unittest.TestCase):
 
 
 
+class RailTests(HostCase):
+    def test_the_rail_has_the_chosen_screens_keys_always_and_only_shortcuts_that_exist(self):
+        profiles = {'main': {'pages': {'main': [], 'tools': []}}, 'Chrome': {'pages': {'main': []}}}
+        items = cockpit.rail_items({'screens': ['status', 'agents'],
+                                    'shortcuts': [{'profile': 'Chrome', 'page': 'main', 'icon': 'lc:e0e8'},
+                                                  {'profile': 'gone', 'page': 'main'}, {'profile': 'main', 'page': 'nope'}]}, profiles)
+        self.assertEqual([item['k'] for item in items], ['keys', 'status', 'agents', 'page'])
+        self.assertEqual((items[3]['p'], items[3]['g'], items[3]['i']), ('Chrome', 'main', 'lc:e0e8'))
+        self.assertEqual([item['k'] for item in cockpit.rail_items({}, profiles)], ['keys', 'agents', 'mixer', 'status'])
+        self.assertLessEqual(len(cockpit.rail_payload(items)), cockpit.MAX_LINE)
+
+    def test_the_panel_block_checks_screens_and_shortcuts(self):
+        config = json.loads((Path(__file__).resolve().parents[1] / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        deck.validate_config(dict(config, panel={'screens': ['keys', 'mixer'], 'shortcuts': [{'profile': 'main', 'page': 'main', 'icon': 'lc:e0e8'}]}))
+        for bad in ({'screens': ['keys', 'keys']}, {'screens': ['weather']}, {'shortcuts': [{'profile': 'a', 'page': 'b'}] * 4},
+                    {'shortcuts': [{'profile': 'a'}]}, {'shortcuts': [{'profile': 'a', 'page': 'b', 'icon': 'globe'}]}, {'shortcuts': 'x'}):
+            with self.assertRaises(ValueError, msg=bad):
+                deck.validate_config(dict(config, panel=bad))
+
+    def test_a_shortcut_on_the_panel_goes_to_that_page_and_nonsense_does_nothing(self):
+        daemon = self.daemon()
+        daemon.device_info = {'protocol': 4}
+        daemon.config['panel'] = {'shortcuts': [{'profile': 'main', 'page': 'system', 'icon': 'lc:e0ff'}]}
+        daemon.cockpit_tick(100.0)
+        index = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'page')
+        daemon.handle_job(('rail', index))
+        self.assertEqual((daemon.profile, daemon.page), ('main', 'system'))
+        daemon.page = 'main'
+        for nothing in (0, 99, -1):
+            daemon.handle_job(('rail', nothing))
+        self.assertEqual(daemon.page, 'main')
+
+
+
 class CockpitDaemonTests(HostCase):
     def cockpit_daemon(self):
         daemon = self.daemon()
@@ -82,7 +116,7 @@ class CockpitDaemonTests(HostCase):
         with patch.object(cockpit, 'read_mixer', return_value=faders):
             daemon.cockpit_tick(100.0)
             sent = [call.args[0].split(' ', 1)[0] for call in daemon.panel.send_line.call_args_list]
-            self.assertEqual(sorted(sent), ['AD_AGENTS', 'AD_MIXER', 'AD_STATS'])
+            self.assertEqual(sorted(sent), ['AD_AGENTS', 'AD_MIXER', 'AD_RAIL', 'AD_STATS'])
             daemon.panel.send_line.reset_mock()
             daemon.cockpit_tick(100.5)  # less than a second later: nothing is read
             daemon.cockpit_tick(102.0)  # nothing changed: nothing is sent
@@ -96,7 +130,7 @@ class CockpitDaemonTests(HostCase):
         with patch.object(cockpit, 'read_mixer', side_effect=OSError('no audio device')):
             daemon.cockpit_tick(100.0)
         sent = [call.args[0].split(' ', 1)[0] for call in daemon.panel.send_line.call_args_list]
-        self.assertEqual(sorted(sent), ['AD_AGENTS', 'AD_STATS'])
+        self.assertEqual(sorted(sent), ['AD_AGENTS', 'AD_RAIL', 'AD_STATS'])
 
     def test_a_fader_and_a_mute_touch_reach_the_sound_of_that_program(self):
         daemon = self.cockpit_daemon()

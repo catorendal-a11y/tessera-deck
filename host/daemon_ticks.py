@@ -128,6 +128,19 @@ class BackgroundMixin:
     def notify(self, title, message):
         self.notices.append({'id': int(time.time() * 1000), 'title': title, 'message': message[:120]})
 
+    def use_rail_shortcut(self, index):
+        """A shortcut button on the panel's rail: go to that page of that profile (the panel already shows the keys)."""
+        items = getattr(self, 'rail_items', [])
+        if not 0 <= index < len(items) or items[index].get('k') != 'page':
+            return
+        profile, page = items[index]['p'], items[index]['g']
+        if profile in self.config['profiles'] and page in self.config['profiles'][profile]['pages']:
+            self.switch_profile(profile)
+            if self.page != page:
+                self.switch_page(page)
+            else:
+                self.push_page(force=True)
+
     def panel_takes_questions(self):
         return self.panel is not None and not self.connection_failed.is_set() and self.uses_cockpit()
 
@@ -154,7 +167,8 @@ class BackgroundMixin:
             return
         self.cockpit_at = now
         choice = self.config.get('panel', {})
-        lines = {'AD_AGENTS': cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(),
+        self.rail_items = cockpit.rail_items(choice, {name: item for name, item in self.config['profiles'].items()})
+        lines = {'AD_RAIL': cockpit.rail_payload(self.rail_items), 'AD_AGENTS': cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(),
                                                      choice.get('agents')),
                  'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}
         try:

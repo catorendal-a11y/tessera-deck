@@ -728,3 +728,56 @@ bool deck_model_take_line(char *out, size_t size)
     model_unlock();
     return found;
 }
+
+/* ---- The rail ----------------------------------------------------------------------------------- */
+static deck_rail_item_t s_rail[DECK_RAIL_MAX];
+static int s_rail_count;
+static uint32_t s_rail_version = 1;
+
+bool deck_model_rail_from_json(const char *json_text)
+{
+    const cJSON *list = NULL;
+    cJSON *json = list_from_json(json_text, "rail", DECK_RAIL_MAX, &list);
+    if (!json) return false;
+    deck_rail_item_t parsed[DECK_RAIL_MAX];
+    memset(parsed, 0, sizeof(parsed));
+    static const char *const kinds[] = {"keys", "agents", "mixer", "status", "page"};
+    int count = 0;
+    bool valid = true;
+    for (const cJSON *item = list->child; item; item = item->next) {
+        const char *kind = text_of(item, "k");
+        int found = -1;
+        for (int i = 0; i < 5; ++i) if (!strcmp(kind, kinds[i])) found = i;
+        if (found < 0) { valid = false; break; }
+        parsed[count].kind = (uint8_t)found;
+        if (found == 4) {
+            if (!text_of(item, "p")[0] || !text_of(item, "g")[0]) { valid = false; break; }
+            copy_text(parsed[count].icon, sizeof(parsed[count].icon), text_of(item, "i"));
+            copy_text(parsed[count].profile, sizeof(parsed[count].profile), text_of(item, "p"));
+            copy_text(parsed[count].page, sizeof(parsed[count].page), text_of(item, "g"));
+        }
+        ++count;
+    }
+    cJSON_Delete(json);
+    if (!valid) return false;
+    model_lock();
+    if (count != s_rail_count || memcmp(parsed, s_rail, sizeof(parsed)) != 0) {
+        memcpy(s_rail, parsed, sizeof(parsed));
+        s_rail_count = count;
+        ++s_rail_version;
+    }
+    model_unlock();
+    return true;
+}
+
+int deck_model_rail(deck_rail_item_t *out, int max_out)
+{
+    if (!out) return 0;
+    model_lock();
+    int count = s_rail_count < max_out ? s_rail_count : max_out;
+    if (count > 0) memcpy(out, s_rail, sizeof(deck_rail_item_t) * (size_t)count);
+    model_unlock();
+    return count;
+}
+
+uint32_t deck_model_rail_version(void) { return s_rail_version; }

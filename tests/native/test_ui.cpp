@@ -96,7 +96,7 @@ assert(deck_model_agents_from_json(R"({"agents":[
  {"id":"claude","name":"Claude Code","state":"waiting","text":"Wants to run: npm run build","sub":"tessera-deck-main"},
  {"id":"codex","name":"Codex","state":"working","text":"Editing host/win_input.py","sub":"tessera-deck-main"},
  {"id":"zcode","name":"ZCode","state":"idle","text":"Finished 14:05"}]})"));
-tap(42,184);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
+tap(42,171);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
 assert(visible("Claude Code")&&visible("waiting for you")&&visible("Allow")&&visible("Deny")&&visible("Stop")&&visible("Open")&&visible("One needs you"));
 assert(!visible("New tab 2"));
 capture(output/"agents.ppm");
@@ -125,6 +125,17 @@ assert(!visible("62 %"));
 tap(191,523);assert(taken()==R"({"type":"mute","id":"speaker"})");
 assert(!deck_model_faders_from_json(R"({"faders":[{"id":"x","name":"x","color":"red"}]})"));}
 
+{/* The rail: the host chooses the screens and adds shortcuts to a page; a shortcut tells the host and shows the keys. */
+assert(deck_model_rail_from_json(R"({"rail":[{"k":"keys"},{"k":"agents"},{"k":"status"},{"k":"page","i":"lc:e0e8","p":"Chrome","g":"main"},{"k":"page","i":"lc:e093","p":"coding","g":"main"}]})"));
+assert(!deck_model_rail_from_json(R"({"rail":[{"k":"weather"}]})")&&!deck_model_rail_from_json(R"({"rail":[{"k":"page","i":"lc:e0e8"}]})"));
+ui_show_view(1);updates();capture(output/"rail.ppm");
+tap(42,84+3*60+27);
+assert(taken()==R"({"type":"rail","i":3})"&&taken().empty());
+assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"keys\""));
+tap(42,84+2*60+27);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"status\""));
+assert(deck_model_rail_from_json(R"({"rail":[{"k":"agents"}]})"));updates();
+tap(42,84+1*60+27);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
+assert(deck_model_rail_from_json(R"({"rail":[{"k":"keys"},{"k":"agents"},{"k":"mixer"},{"k":"status"}]})"));updates();ui_show_view(0);updates();}
 {/* Status: the PC's readings, and the first one over its limit is named in the heading. */
 assert(deck_model_stats_from_json(R"({"stats":[
  {"name":"CPU load","value":"3","unit":"%","p":3,"color":"#58E09B"},{"name":"CPU temp","value":"50","unit":"C","p":50,"color":"#58E09B"},

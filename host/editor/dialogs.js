@@ -399,6 +399,7 @@ function panelSettings() {
     if (apps.some(item => !/^[A-Za-z0-9_.-]{1,35}\.exe$/.test(item))) throw new Error('Program names must end in .exe, like spotify.exe.');
     mutate(() => {
       config.panel = {
+        ...(config.panel || {}),
         agents: PANEL_AGENTS.map(a => a[0]).filter(id => values['agent_' + id]),
         apps, mic: Boolean(values.mic),
         stats: PANEL_STATS.map(s => s[0]).filter(id => values['stat_' + id])
@@ -481,12 +482,24 @@ function savePanel(change) {
 }
 function renderRail() {
   const waiting = Object.values(dashboard.agent_states || {}).includes('waiting');
+  const choice = panelChoice();
+  const shortcuts = (choice.shortcuts || []).filter(s => config.profiles[s.profile]?.pages[s.page]);
   $('#rail').replaceChildren(
     element('span', {class: 'rail-logo', 'aria-hidden': 'true'}),
-    ...RAIL.map(([id, name, path]) => {
+    ...RAIL.filter(([id]) => id === 'keys' || (choice.screens || RAIL.map(r => r[0])).includes(id)).map(([id, name, path]) => {
       const item = element('button', {class: 'rail-item' + (editorView === id ? ' on' : ''), type: 'button', title: name, 'aria-label': name, 'aria-pressed': String(editorView === id), onclick: () => setEditorView(id)});
       item.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
       if (id === 'agents' && waiting && editorView !== 'agents') item.append(element('u', {class: 'rail-dot'}));
+      return item;
+    }),
+    ...(shortcuts.length ? [element('span', {class: 'rail-sep'})] : []),
+    ...shortcuts.map(shortcut => {
+      const icon = SHORTCUT_ICONS.find(i => i.code === shortcut.icon) || SHORTCUT_ICONS[0];
+      const label = `${shortcut.profile} › ${shortcut.page}`;
+      const item = element('button', {class: 'rail-item', type: 'button', title: label, 'aria-label': label, onclick: () => {
+        profile = shortcut.profile; page = shortcut.page; selected = 1; editState = 0; setEditorView('keys'); renderAll();
+      }});
+      item.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon.path}</svg>`;
       return item;
     }));
 }
@@ -549,4 +562,45 @@ function renderScreen() {
   }
   area.replaceChildren(element('div', {class: 'screens-inner'}, ...body));
 }
+/* Rail: which screens get a button, and up to three shortcuts to a page of any profile. */
+const SHORTCUT_ICONS = [
+  {name: 'Globe', code: 'lc:e0e8', path: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>'},
+  {name: 'Code', code: 'lc:e093', path: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>'},
+  {name: 'Video', code: 'lc:e1a5', path: '<path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11"/><rect x="2" y="6" width="14" height="12" rx="2"/>'},
+  {name: 'Music', code: 'lc:e122', path: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>'},
+  {name: 'Star', code: 'lc:e176', path: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'},
+  {name: 'Bolt', code: 'lc:e1b4', path: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'},
+  {name: 'Bookmark', code: 'lc:e060', path: '<path d="m19 21-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>'},
+  {name: 'Folder', code: 'lc:e0d7', path: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>'},
+  {name: 'Home', code: 'lc:e0f5', path: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'},
+  {name: 'Grid', code: 'lc:e0ff', path: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'}
+];
+function railSettings() {
+  $('#more-menu').hidden = true;
+  const choice = panelChoice(), screens = choice.screens || RAIL.map(r => r[0]), shortcuts = choice.shortcuts || [];
+  const targets = [['', '— None —']];
+  for (const [profileName, item] of Object.entries(config.profiles)) for (const pageName of Object.keys(item.pages)) targets.push([profileName + '\u0001' + pageName, `${profileName} › ${pageName}`]);
+  const fields = [
+    {name: 'screen_agents', label: 'Rail: Agents', type: 'checkbox', value: screens.includes('agents')},
+    {name: 'screen_mixer', label: 'Rail: Mixer', type: 'checkbox', value: screens.includes('mixer')},
+    {name: 'screen_status', label: 'Rail: Status', type: 'checkbox', value: screens.includes('status'), note: 'Keys is always on the rail. Up to seven buttons fit on the panel.'}
+  ];
+  for (let i = 0; i < 3; i++) {
+    const shortcut = shortcuts[i];
+    fields.push({name: 'target' + i, label: `Shortcut ${i + 1}: page`, options: targets, value: shortcut ? shortcut.profile + '\u0001' + shortcut.page : '', note: i === 0 ? 'A shortcut jumps straight to a page of any profile.' : ''});
+    fields.push({name: 'icon' + i, label: `Shortcut ${i + 1}: icon`, options: SHORTCUT_ICONS.map(icon => [icon.code, icon.name]), value: shortcut?.icon || SHORTCUT_ICONS[i].code});
+  }
+  dialog('Rail', fields, values => {
+    const chosen = ['keys', ...['agents', 'mixer', 'status'].filter(id => values['screen_' + id])];
+    const list = [];
+    for (let i = 0; i < 3; i++) {
+      const [profileName, pageName] = String(values['target' + i]).split('\u0001');
+      if (profileName && pageName) list.push({profile: profileName, page: pageName, icon: values['icon' + i]});
+    }
+    if (chosen.length + list.length > 7) throw new Error('At most seven buttons fit on the panel.');
+    savePanel({screens: chosen, shortcuts: list});
+    renderRail();
+  }, 'Apply');
+}
+$('#rail-open').onclick = railSettings;
 renderRail();

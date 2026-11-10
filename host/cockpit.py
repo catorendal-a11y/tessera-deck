@@ -31,6 +31,28 @@ def agent_exe(agent_id: str) -> str:
     return next((exe for key, _, exe in AGENTS if key == agent_id), '')
 
 
+SCREENS = ('keys', 'agents', 'mixer', 'status')
+MAX_SHORTCUTS = 3
+MAX_RAIL = 7
+
+
+def rail_items(choice: dict, profiles: dict) -> list[dict]:
+    """The rail's buttons: the chosen screens (Keys is always there) and shortcuts to pages that still exist."""
+    screens = [name for name in choice.get('screens', SCREENS) if name in SCREENS]
+    if 'keys' not in screens:
+        screens.insert(0, 'keys')
+    items = [{'k': name} for name in screens]
+    for shortcut in choice.get('shortcuts', [])[:MAX_SHORTCUTS]:
+        profile = profiles.get(shortcut.get('profile'))
+        if profile and shortcut.get('page') in profile.get('pages', {}):
+            items.append({'k': 'page', 'i': shortcut.get('icon') or 'lc:e0ff', 'p': shortcut['profile'], 'g': shortcut['page']})
+    return items[:MAX_RAIL]
+
+
+def rail_payload(items: list[dict]) -> str:
+    return _line({'rail': items})
+
+
 def agents_payload(variables: dict, running: dict, asking: dict | None = None, shown: list | None = None) -> str:
     """One lane per AI tool that runs or has reported a state through its adapter (deckctl adapter ...)."""
     lanes = []

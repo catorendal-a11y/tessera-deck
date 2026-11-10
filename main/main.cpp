@@ -226,6 +226,10 @@ static void usb_console_task(void *)
             printf("AD_AGENTS %s\n", deck_model_agents_from_json(line + 10) ? "OK" : "INVALID");
             fflush(stdout);
         }
+        if (!overflow && strncmp(line, "AD_RAIL ", 8) == 0) {
+            printf("AD_RAIL %s\n", deck_model_rail_from_json(line + 8) ? "OK" : "INVALID");
+            fflush(stdout);
+        }
         if (!overflow && strncmp(line, "AD_VIEW ", 8) == 0) {
             static const char *const names[] = {"keys", "agents", "mixer", "status"};
             int view = -1;
