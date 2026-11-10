@@ -4,7 +4,7 @@
 
 `VERSION` holds one number (for example `0.5.0`) used by the firmware (`PROJECT_VER`), the host, the firmware
 packages and the release tag. The firmware's USB protocol has its own number in `main/protocol_version.h`; the host
-accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/tesserad.py` and refuses a panel outside that range
+accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py` and refuses a panel outside that range
 with a message that says which side to update.
 
 | Protocol | Added |

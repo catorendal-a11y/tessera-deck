@@ -38,8 +38,9 @@ def editor_build_id():
     """Fingerprint every file cached or imported by the long-lived editor."""
     digest = hashlib.sha256()
     files = [Path(__file__), ROOT / 'host/deck_control.py', ROOT / 'host/deck_assets.py',
-             ROOT / 'host/tesserad.py', ROOT / 'host/action_packs.json',
-             WEB / 'index.html', WEB / 'style.css', WEB / 'app.js']
+             ROOT / 'host/tesserad.py', ROOT / 'host/config_check.py', ROOT / 'host/panel_serial.py',
+             ROOT / 'host/win_input.py', ROOT / 'host/action_packs.json',
+             WEB / 'index.html', WEB / 'style.css', WEB / 'core.js', WEB / 'app.js', WEB / 'dialogs.js']
     for path in files:
         digest.update(path.name.encode('utf-8'))
         digest.update(path.read_bytes())
@@ -615,7 +616,8 @@ def make_server(editor, port=0, token=None):
                     return self.json(editor.read() if self.path == '/api/config' else dict(icon_catalog(), preferences=editor.icon_preferences()) if self.path == '/api/icons' else editor.status())
                 except (ValueError, OSError, TypeError):
                     return self.json({'error': 'Could not read the local configuration'}, 400)
-            files = {'/': 'index.html', '/app.js': 'app.js', '/style.css': 'style.css',
+            files = {'/': 'index.html', '/core.js': 'core.js', '/app.js': 'app.js', '/dialogs.js': 'dialogs.js',
+                     '/style.css': 'style.css',
                      '/streamdeck.css': 'streamdeck.css', '/logo-mark.svg': 'logo-mark.svg'}
             if self.path not in files:
                 return self.json({'error': 'Not found'}, 404)

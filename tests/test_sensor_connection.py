@@ -9,7 +9,9 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+import psutil
 import tesserad as deck
+import win_input
 from sensor_sources import LibreHardwareMonitorReader
 
 TREE = {'Text': 'root', 'Children': [{'Text': 'pc', 'Children': [{'Text': 'CPU', 'Children': [
@@ -76,12 +78,12 @@ class SensorConnectionTests(unittest.TestCase):
 
 class ChildNameTests(unittest.TestCase):
     def setUp(self):
-        patcher = patch.object(deck, '_child_names', (None, 0.0, []))
+        patcher = patch.object(win_input, '_child_names', (None, 0.0, []))
         patcher.start()
         self.addCleanup(patcher.stop)
         child = Mock()
         child.name.return_value = 'Claude.exe'
-        self.process = patch.object(deck.psutil, 'Process', return_value=Mock(children=Mock(return_value=[child])))
+        self.process = patch.object(psutil, 'Process', return_value=Mock(children=Mock(return_value=[child])))
         self.listed = self.process.start()
         self.addCleanup(self.process.stop)
 

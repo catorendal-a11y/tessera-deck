@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+import win_input
 from action_runner import Busy, CommandFailed, run_command
 from host_runtime import SuspendableRLock
 
@@ -204,7 +205,7 @@ class MouseTests(unittest.TestCase):
 class TypingTests(unittest.TestCase):
     def test_a_pause_between_characters_is_applied_between_them_only(self):
         waits, keys = [], Mock()
-        with patch.object(deck, '_key', keys):
+        with patch.object(win_input, '_key', keys):
             deck.send_text('abc', 0.05, wait=waits.append)
             self.assertEqual(waits, [0.05, 0.05])
             self.assertEqual(keys.call_count, 6)

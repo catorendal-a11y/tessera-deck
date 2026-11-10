@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+import panel_serial
 import tesserad as deck
 from host_runtime import candidate_ports
 
@@ -56,14 +57,14 @@ class FakeSerial:
 
 def panel(port, script):
     FakeSerial.script = script
-    with patch.object(deck, 'serial', types.SimpleNamespace(Serial=FakeSerial)):
+    with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=FakeSerial)):
         return deck.PanelSerial(port, Mock())
 
 
 class HandshakeTests(unittest.TestCase):
     def setUp(self):
         FakeSerial.opened = []
-        patcher = patch.object(deck, 'HANDSHAKE_SECONDS', 0.3)
+        patcher = patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.3)
         patcher.start()
         self.addCleanup(patcher.stop)
 

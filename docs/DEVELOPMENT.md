@@ -14,7 +14,13 @@ green or red flash on the key. Everything is local: the editor and the control A
 main/            ESP32-P4 firmware: USB console, button model, LVGL UI, fonts, image decoder
 components/      Board support package for the ESP32-P4 Function EV Board
 host/            Windows host
-  tesserad.py          USB daemon: actions, profiles, sensors, dimming, control API
+  tesserad.py          USB daemon: the engine that owns the panel, the job queue and the actions
+  daemon_presses.py    Key presses: fast lane, slow lane, double taps
+  daemon_display.py    Backlight, dimming, quiet hours, ambient screen
+  daemon_ticks.py      Triggers, timers, plugins, sensors, configuration reload
+  config_check.py      Validation of profiles.json
+  panel_serial.py      USB link: handshake, layout and image transfer
+  win_input.py         Keys, mouse, foreground window and focus on Windows
   tessera_app.py       Local editor server and WebView2 window
   tessera_terminal.py  Terminal UI
   tessera_tray.py      Tray app

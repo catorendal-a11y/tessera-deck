@@ -318,7 +318,10 @@ class DaemonTests(unittest.TestCase):
     def test_presses_and_navigation_are_published_as_events(self):
         daemon = self.daemon()
         daemon.profile, daemon.page = 'main', 'main'
-        daemon.dispatch_press(1)
+        # Key 1 opens Chrome: the test must not bring the real browser to the front or start it.
+        with patch.object(deck, 'focus_existing_process', return_value=True), \
+                patch.object(deck.os, 'startfile', create=True):
+            daemon.dispatch_press(1)
         daemon.switch_page('system')
         kinds = [event['type'] for event in daemon.events.since(0, None)]
         self.assertIn('press', kinds)
