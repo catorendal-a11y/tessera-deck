@@ -12,19 +12,27 @@ function category(name,items,tone,searching) {
     try{localStorage.setItem('tessera-folded',JSON.stringify([...foldedCategories]));}catch{}});
   return box;
 }
+/* The action list is four tabs, so a tab holds a handful of groups instead of eighteen. A search looks in all of them. */
+const LIBRARY_TABS=[['basics','Basics'],['widgets','Widgets'],['ready','Ready-made'],['apps','Apps']];
+const GENERAL_GROUPS=new Set(['Windows','Browser','Meetings','Media','Editing','Productivity','Window management','Ready to use']);
+let libraryTab=(()=>{try{const stored=localStorage.getItem('tessera-library-tab');return LIBRARY_TABS.some(tab=>tab[0]===stored)?stored:'basics';}catch{return 'basics';}})();
 function renderLibrary() {
   const search=$('#action-search').value.toLocaleLowerCase();const list=$('#actions-library');list.replaceChildren();categoryOrder=0;
   const make=(name,icon,sub,key)=>{if(!(name+' '+sub).toLocaleLowerCase().includes(search))return null;
     const item=button('',()=>addAction(key),'action-preset');item.draggable=false;item.dataset.action=key;item.title=name;item.setAttribute('aria-label','Add '+name);
     item.append(actionSymbol(icon),element('span',{},text('span',name),text('small',sub)));
     item.addEventListener('dragstart',e=>{e.dataTransfer.setData('application/x-deck-action',key);e.dataTransfer.effectAllowed='copy';});return item;};
-  if(('installed programs app launcher'.includes(search)||!search))list.append(button('Installed programs',openProgramPicker,'program-launcher'));
+  const searching=!!search,put=(tab,node)=>{if(searching||tab===libraryTab)list.append(node);};
+  $('#library-tabs').replaceChildren(...LIBRARY_TABS.map(([id,name])=>{
+    const on=!searching&&libraryTab===id,tab=button(name,()=>{libraryTab=id;try{localStorage.setItem('tessera-library-tab',id);}catch{}$('#action-search').value='';renderLibrary();},'library-tab'+(on?' on':''));
+    tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(on));return tab;}));
+  if(('installed programs app launcher'.includes(search)||!search))put('apps',button('Installed programs …',openProgramPicker,'program-launcher'));
   const ready=WIDGETS.map(w=>{const item=make(w.name,'widget',w.sub,'widget:'+w.kind);if(item)item.querySelector('.action-symbol').innerHTML=`<svg viewBox="0 0 24 24">${w.path}</svg>`;return item;}).filter(Boolean);
-  if(ready.length)list.append(category('Widgets',ready,0,!!search));
+  if(ready.length){if(searching)list.append(category('Widgets',ready,0,true));else if(libraryTab==='widgets')list.append(text('p','A widget is a wide key that shows something live. Drag one to a key with a free slot to its right.','hint library-note'),element('div',{class:'lib-items lib-flat'},...ready));}
   const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='page'?'Folders and subpages':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
-  [...groups].forEach(([group,items],index)=>list.append(category(group,items,index%4,!!search)));
-  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)list.append(category(group,items,tone++%4,!!search));}
-  else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)list.append(category('Ready to use',ready,0,!!search));}
+  [...groups].forEach(([group,items],index)=>put('basics',category(group,items,index%4,searching)));
+  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
+  else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)put('ready',category('Ready to use',ready,0,searching));}
   if(!list.children.length)list.append(element('div',{class:'library-empty'},text('strong','No matches'),text('span','Try another search term.')));
 }
 function applyProgramDetails(result,index=0) {

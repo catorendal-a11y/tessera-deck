@@ -278,3 +278,12 @@ html body .deck-key.wide .key-live{text-align:center;bottom:auto;top:10px;color:
 html body .page-chip{font-size:13px !important;padding:7px 14px !important}
 html body #new-page{margin-left:0;background:var(--card);border-radius:999px;width:32px;height:32px}
 html body .deck-key.wide .key-live{text-align:left;top:9px;left:12px;font-size:10px}
+
+/* The action list: four tabs, then a few groups. */
+html body .library-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:4px;margin:10px 0 8px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+html body .library-tab{height:32px;padding:0 2px;border:0 !important;border-radius:10px;background:transparent !important;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+html body .library-tab:hover{color:var(--text)}
+html body .library-tab.on{background:var(--card2) !important;color:var(--text)}
+html body .library .lib-flat{display:flex;flex-direction:column;gap:2px}
+html body .library .library-note{margin:4px 4px 10px;color:var(--muted);font-size:12px;line-height:1.45}
+html body .library .program-launcher{width:100%;margin-bottom:8px}

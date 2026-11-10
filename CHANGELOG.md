@@ -10,6 +10,7 @@
 - A Windows notice when an agent starts waiting for you or finishes more than a minute of work; the tray says who is waiting.
 - Widgets: ready-made wide keys (2 or 3 slots) for the clock, the date, the processor, the graphics card, memory, network speed, volume and the AI agents. Drag one from **Widgets** in the action list, or pick it under **Shows** on a wide key. No new firmware is needed.
 - Editor tidied: the profile is the title, the page tabs sit above a larger deck, and a key's settings are three tabs (Look, Actions, Gauge) instead of a stack of folded sections.
+- Editor: the action list is four tabs (Basics, Widgets, Ready-made, Apps) instead of eighteen groups in one column; a search still looks in all of them.
 - Editor: everything is drawn 15% smaller.
 - Editor: the key card has room for everything (the preview beside the title and icon, every other setting full width), and the key's size is picked with three buttons: Normal, Wide, Extra wide.
 - Editor: moving, pasting or duplicating a wide key checks that it fits on its row without covering another key; otherwise it is refused (move) or pasted as a normal key. Heights follow the editor's zoom, so the rail's + and the bottom of every column stay in view; on wide windows the key's settings sit in their own column.
