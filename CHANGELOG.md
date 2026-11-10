@@ -8,6 +8,7 @@
 - Status: eight readings with bars, and the first one over its limit is named.
 - Agents screen works without any setup: working and idle, the project and the last tool come from the session files Claude Code and Codex already write. **Connect Claude Code** (⋯ menu) adds the hooks for "waiting for you" and for answering permission questions on the panel; it keeps your other hooks and makes a backup.
 - A Windows notice when an agent starts waiting for you or finishes more than a minute of work; the tray says who is waiting.
+- Editor: everything is drawn 15% smaller.
 - Editor: the key card has room for everything (the preview beside the title and icon, every other setting full width), and the key's size is picked with three buttons: Normal, Wide, Extra wide.
 - Editor: moving, pasting or duplicating a wide key checks that it fits on its row without covering another key; otherwise it is refused (move) or pasted as a normal key. Heights follow the editor's zoom, so the rail's + and the bottom of every column stay in view; on wide windows the key's settings sit in their own column.
 - The editor's status line shows the panel's firmware version and says when an update is available.

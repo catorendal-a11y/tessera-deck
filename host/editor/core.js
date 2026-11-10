@@ -351,7 +351,7 @@ function renderGrid() {
 }
 /* The editor is designed for about 1450x900; larger windows scale everything up so the proportions stay the same. */
 function applyZoom() {
-  const zoom=Math.max(.85,Math.min(1.7,innerHeight/990,innerWidth/1450));
+  const zoom=Math.max(.72,Math.min(1.45,.85*innerHeight/990,.85*innerWidth/1450));  // 15% smaller than the design size
   document.documentElement.style.setProperty('--z',zoom.toFixed(3));
 }
 function fitDevice() {
