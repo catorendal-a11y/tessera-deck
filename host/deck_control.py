@@ -103,6 +103,7 @@ class Controller:
                                       'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol', 'layout_bytes', 'sensor_hint')})
             result['agents'] = runtime.get('agents', {})
             result['agent_states'] = runtime.get('agent_states', {})
+            result['mixer'] = runtime.get('mixer', [])
             result['notices'] = runtime.get('notices', [])
             result['variables'] = runtime.get('variables', {})
             result['plugins'] = runtime.get('plugins', [])

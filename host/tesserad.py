@@ -131,6 +131,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.plugins_checked = 0.0
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
         self.cockpit_sent, self.cockpit_at = {}, 0.0
+        self.cockpit_mixer = []
         self.activity = agent_activity.AgentActivity()
         self.agent_seen, self.agent_started = {}, {}  # what each agent was doing a second ago, and since when
         self.permissions = permission.Desk(lambda: self.enqueue(('question',)))
@@ -176,7 +177,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
-                 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
+                 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}

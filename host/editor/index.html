@@ -3,6 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tessera</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/streamdeck.css"><script defer src="/core.js"></script><script defer src="/app.js"></script><script defer src="/dialogs.js"></script></head>
 <body>
 <header class="appbar"><div class="brand"><img class="brandmark" src="/logo-mark.svg" alt=""><div>TESSERA<small>CONTROL CENTER</small></div></div><div class="connection" role="status" aria-live="polite"><span id="led"></span><span id="connection">Connecting …</span></div><button id="host-toggle" class="outline" hidden>Start host</button><button id="app-settings" class="quiet">⚙ Settings</button></header>
+<div class="shell"><nav id="rail" class="rail" aria-label="Panel screens"></nav><div class="views">
 <main id="deck-view">
 <aside class="library"><div class="section-label">ACTIONS</div><h2>Add an action</h2><label class="search"><span>⌕</span><input id="action-search" type="search" placeholder="Search actions" aria-label="Search for an action"></label><p class="hint">Drag to a key, or click to add.</p><div id="actions-library"></div><div class="library-bottom"><span class="live-dot"></span> Safe editing mode · actions are not run</div></aside>
 <section class="workspace">
@@ -29,6 +30,8 @@
 </section>
 <aside id="inspector" class="inspector" aria-label="Button settings"></aside>
 </main>
+<section id="screens-view" class="screens" hidden aria-live="polite"></section>
+</div></div>
 <div id="toast" role="status" hidden></div>
 <div id="key-menu" class="context-menu" role="menu" aria-label="Button options" hidden><button role="menuitem" data-menu="rename">✎ Rename</button><button role="menuitem" data-menu="test">▷ Test (dry run)</button><button role="menuitem" data-menu="duplicate">⧉ Duplicate to free slot</button><button role="menuitem" data-menu="copy">Copy button</button><button role="menuitem" data-menu="pin">Pin to all pages</button><button role="menuitem" data-menu="clear" class="danger">Clear button</button></div>
 <dialog id="form-dialog" aria-labelledby="dialog-title"><form method="dialog"><div class="section-label">TESSERA</div><h2 id="dialog-title"></h2><div id="dialog-fields"></div><p id="dialog-error" class="error" role="alert"></p><div class="dialog-buttons"><button value="cancel" class="outline">Cancel</button><button id="dialog-submit" value="save" class="primary">Save</button></div></form></dialog>

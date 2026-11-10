@@ -158,7 +158,8 @@ class BackgroundMixin:
                                                      choice.get('agents')),
                  'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}
         try:
-            lines['AD_MIXER'] = cockpit.mixer_payload(cockpit.read_mixer(choice.get('apps'), choice.get('mic', True)))
+            self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True))
+            lines['AD_MIXER'] = cockpit.mixer_payload(self.cockpit_mixer)
         except (OSError, ImportError):
             pass  # no sound device or no audio library: the mixer screen keeps what it had
         for command, payload in lines.items():

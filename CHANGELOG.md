@@ -11,6 +11,7 @@
 - The editor's status line shows the panel's firmware version and says when an update is available.
 - Editor: a key's steps are listed in order ("1 Open program → 2 Hotkey"), hold and double-press steps show under it, the profile rules are explained in plain words, and a meter shows how much of the panel's offline memory the page uses.
 - Fixed: a changed VERSION did not reach the firmware build, so a rebuilt panel could keep reporting the old version.
+- Editor: a rail on the left with the panel's four screens. Keys is the editor you know; Agents, Mixer and Status show what the panel shows right now and let you choose what goes on them, with the Claude Code connection on the Agents screen.
 - Editor: **Panel screens** chooses the agents, mixer programs and readings.
 - Editor: **Page templates** (⋯ menu) adds a ready-made page (Meetings, Coding, Media, Browser or empty) after showing how it will look.
 

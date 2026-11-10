@@ -462,3 +462,91 @@ function addGalleryPage() {
 $('#gallery-open').onclick = openGallery;
 $('#gallery-close').onclick = () => $('#gallery-dialog').close();
 $('#gallery-add').onclick = addGalleryPage;
+
+/* The rail: the same four screens as the panel. Keys is the editor you know; the other three show what the panel
+   shows, live, and let you choose what goes on them. */
+const RAIL = [
+  ['keys', 'Keys', '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>'],
+  ['agents', 'Agents', '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'],
+  ['mixer', 'Mixer', '<line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/>'],
+  ['status', 'Status', '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>']
+];
+let editorView = 'keys', hooksState = null;
+function panelChoice() {
+  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config.panel || {})};
+}
+function savePanel(change) {
+  mutate(() => { config.panel = {...panelChoice(), ...change}; });
+  renderScreen();
+}
+function renderRail() {
+  const waiting = Object.values(dashboard.agent_states || {}).includes('waiting');
+  $('#rail').replaceChildren(
+    element('span', {class: 'rail-logo', 'aria-hidden': 'true'}),
+    ...RAIL.map(([id, name, path]) => {
+      const item = element('button', {class: 'rail-item' + (editorView === id ? ' on' : ''), type: 'button', title: name, 'aria-label': name, 'aria-pressed': String(editorView === id), onclick: () => setEditorView(id)});
+      item.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${path}</svg>`;
+      if (id === 'agents' && waiting && editorView !== 'agents') item.append(element('u', {class: 'rail-dot'}));
+      return item;
+    }));
+}
+function setEditorView(id) {
+  editorView = id;
+  $('#deck-view').hidden = id !== 'keys';
+  $('#screens-view').hidden = id === 'keys';
+  renderRail();
+  if (id === 'agents') loadHooks();
+  renderScreen();
+}
+async function loadHooks() {
+  try { hooksState = await api('command/claude-hooks', {}); } catch (error) { hooksState = null; }
+  if (editorView === 'agents') renderScreen();
+}
+const AGENT_STATE_TEXT = {working: 'Working', waiting: 'Waiting for you', idle: 'Idle'};
+function renderScreen() {
+  const area = $('#screens-view');
+  if (editorView === 'keys') return;
+  const choice = panelChoice(), vars = dashboard.variables || {}, running = dashboard.agents || {};
+  const head = (title, note) => [text('h2', title), text('p', note, 'hint')];
+  let body;
+  if (editorView === 'agents') {
+    const lanes = PANEL_AGENTS.map(([id, name]) => {
+      const state = (dashboard.agent_states || {})[id] || (running[id] ? 'idle' : '');
+      const used = choice.agents.includes(id);
+      const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name} on the panel`, onchange: event => savePanel({agents: PANEL_AGENTS.map(a => a[0]).filter(key => key === id ? event.target.checked : choice.agents.includes(key))})});
+      box.checked = used;
+      return element('div', {class: 'screen-card lane-' + (state || 'off')},
+        element('div', {}, text('strong', name), text('small', state ? AGENT_STATE_TEXT[state] + (vars[id + '.project'] ? ' · ' + vars[id + '.project'] : '') : 'Not running')),
+        element('label', {class: 'screen-check'}, box, text('span', 'Show on the panel')));
+    });
+    const connected = hooksState && hooksState.events;
+    const claude = element('div', {class: 'screen-card'},
+      element('div', {}, text('strong', 'Claude Code connection'), text('small', hooksState === null ? 'Checking …' : connected ? 'Connected: the panel shows “waiting for you”' + (hooksState.permission ? ' and Allow / Deny answer permission questions.' : '.') : 'Not connected: the panel only sees working and idle.')),
+      button(connected ? 'Change …' : 'Connect …', () => claudeSettings().catch(showError), 'outline'));
+    body = [...head('Agents', 'What the panel’s agents screen shows. Working and idle come from the tools’ own session files.'), ...lanes, claude];
+  } else if (editorView === 'mixer') {
+    const faders = (dashboard.mixer || []).map(f => element('div', {class: 'screen-fader' + (f.muted ? ' muted' : '')},
+      text('b', f.muted ? 'Muted' : f.level + ' %'), element('span', {class: 'fader-track'}, element('i', {style: `height:${f.level}%;background:${f.muted ? '#3a4950' : f.color}`})), text('small', f.name)));
+    const apps = element('input', {type: 'text', value: choice.apps.join(', '), placeholder: 'e.g. spotify.exe, chrome.exe', 'aria-label': 'Programs in the mixer', onchange: event => {
+      const list = event.target.value.split(',').map(item => item.trim()).filter(Boolean);
+      if (list.length > 3 || list.some(item => !/^[A-Za-z0-9_.-]{1,35}\.exe$/.test(item))) { toast('Use up to three program names ending in .exe, like spotify.exe.'); event.target.value = choice.apps.join(', '); return; }
+      savePanel({apps: list});
+    }});
+    const mic = element('input', {type: 'checkbox', onchange: event => savePanel({mic: event.target.checked})});
+    mic.checked = choice.mic;
+    body = [...head('Mixer', 'The faders on the panel’s mixer screen, as the PC has them right now.'),
+      element('div', {class: 'screen-faders'}, ...(faders.length ? faders : [text('p', 'The host has not read the sound yet.', 'hint')])),
+      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Programs'), text('small', 'Up to three. Leave empty to use the ones that are playing sound.')), apps),
+      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Microphone'), text('small', 'Include a microphone fader.')), element('label', {class: 'screen-check'}, mic, text('span', 'Show'))) ];
+  } else {
+    const stats = dashboard.stats || {};
+    const cards = PANEL_STATS.map(([id, name]) => {
+      const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: PANEL_STATS.map(s => s[0]).filter(key => key === id ? event.target.checked : choice.stats.includes(key))})});
+      box.checked = choice.stats.includes(id);
+      return element('label', {class: 'screen-stat' + (box.checked ? '' : ' off')}, text('small', name), text('strong', stats[id] === undefined ? '--' : String(stats[id])), element('span', {class: 'screen-check'}, box, text('span', 'Show')));
+    });
+    body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), element('div', {class: 'screen-stats'}, ...cards)];
+  }
+  area.replaceChildren(element('div', {class: 'screens-inner'}, ...body));
+}
+renderRail();

@@ -404,7 +404,7 @@ function renderStatus() {
   if(live!==lastLive&&!drag){lastLive=live;renderGrid();}
 }
 let lastLive='',panelHintShown=false;
-async function pollStatus() {try{dashboard=await api('status');renderStatus();}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}}
+async function pollStatus() {try{dashboard=await api('status');renderStatus();if(typeof renderRail==='function'){renderRail();if(editorView!=='keys'&&!document.activeElement?.closest('#screens-view'))renderScreen();}}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}}
 document.addEventListener('keydown',event=>{
   if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}
     if(['Control','Shift','Alt','Meta'].includes(event.key))return;
