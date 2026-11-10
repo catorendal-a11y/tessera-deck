@@ -131,16 +131,33 @@ def brand_taskbar_identity():
         pass
 
 
+def fit_to_work_area(window):
+    """Fill the screen without covering the taskbar: a maximized WebView2 window can end up under it."""
+    try:
+        import ctypes
+        from ctypes import wintypes
+        window.events.shown.wait(15)
+        user32 = ctypes.WinDLL('user32', use_last_error=True)
+        area = wintypes.RECT()
+        if not user32.SystemParametersInfoW(0x30, 0, ctypes.byref(area), 0):  # SPI_GETWORKAREA: the screen minus the taskbar
+            return
+        handle = user32.FindWindowW(None, 'Tessera')
+        if handle:
+            user32.ShowWindow(handle, 9)  # SW_RESTORE, so the size below applies
+            user32.SetWindowPos(handle, 0, area.left, area.top, area.right - area.left, area.bottom - area.top, 0x0044)  # no z-order change, show
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
 def open_window(url):
     """Open the editor in a native WebView2 window; return False on fallback."""
     if os.name == 'nt':
         brand_taskbar_identity()
         try:
             import webview
-            webview.create_window('Tessera', url, width=1500, height=980,
-                                           min_size=(1050, 720), maximized=True,
-                                           background_color='#101719', text_select=True)
-            webview.start(private_mode=True, storage_path=str(ROOT / 'host/.webview-data'),
+            window = webview.create_window('Tessera', url, width=1500, height=980,
+                                           min_size=(1050, 720), background_color='#0A0E10', text_select=True)
+            webview.start(fit_to_work_area, (window,), private_mode=True, storage_path=str(ROOT / 'host/.webview-data'),
                           icon=str(ROOT / 'host/tessera.ico'))
             return True
         except Exception:
