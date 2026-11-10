@@ -388,5 +388,32 @@ class EndToEndTests(unittest.TestCase):
                          {'name': 'a', 'value': 'b'})
 
 
+@unittest.skipUnless(os.name == 'nt', 'a process tree is ended with taskkill on Windows')
+class ProcessTreeTests(unittest.TestCase):
+    def test_stopping_a_plugin_also_ends_the_programs_it_started(self):
+        import psutil
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            folder = write_plugin(root / 'plugins', 'tree')
+            (folder / 'main.py').write_text(
+                "import subprocess, sys, time\n"
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+                "open('child.pid', 'w').write(str(child.pid))\n"
+                "time.sleep(60)\n", encoding='utf-8')
+            manager = plugins.PluginManager(root / 'plugins', root / 'logs', lambda: 'http://127.0.0.1:1',
+                                            lambda *_: 'token', lambda _: None, log=lambda _: None)
+            manager.sync({'tree': {'enabled': True}})
+            try:
+                deadline = time.monotonic() + 15
+                while not (folder / 'child.pid').exists() and time.monotonic() < deadline:
+                    time.sleep(0.05)
+                time.sleep(0.2)  # the plugin has finished writing the number
+                child = psutil.Process(int((folder / 'child.pid').read_text()))
+            finally:
+                manager.stop('tree')
+            _, alive = psutil.wait_procs([child], timeout=5)
+            self.assertEqual(alive, [], 'the program the plugin started is still running')
+
+
 if __name__ == '__main__':
     unittest.main()

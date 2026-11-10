@@ -10,6 +10,7 @@ import json
 import os
 import re
 import secrets
+import subprocess
 import threading
 from action_runner import Busy
 from dataclasses import dataclass
@@ -38,6 +39,25 @@ class Grant:
     prefix: str | None = None
     events: bool = True
     read: bool = True
+
+
+def make_private(path) -> None:
+    """Let only the owner read the token file: other accounts on a shared PC must not be able to drive the panel."""
+    try:
+        if os.name != 'nt':
+            os.chmod(path, 0o600)
+            return
+        # *S-1-3-4 is "owner rights": no user name to look up, and it follows the file's owner.
+        flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+        subprocess.run(['icacls', str(path), '/inheritance:r', '/grant:r', '*S-1-3-4:F'], check=True, timeout=10,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+        try:
+            Path(path).read_bytes()
+        except OSError:  # never leave a file its own user cannot read
+            subprocess.run(['icacls', str(path), '/reset'], check=False, timeout=10, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, creationflags=flags)
+    except (OSError, subprocess.SubprocessError):
+        pass  # the file then keeps the folder's permissions, as before
 
 
 def _button(data) -> int:
@@ -235,6 +255,7 @@ class ControlServer:
         info = {'pid': os.getpid(), 'port': self.server.server_port, 'token': self.token}
         temporary = self.info_path.with_suffix('.tmp')
         temporary.write_text(json.dumps(info), encoding='utf-8')
+        make_private(temporary)
         os.replace(temporary, self.info_path)
 
     def stop(self):

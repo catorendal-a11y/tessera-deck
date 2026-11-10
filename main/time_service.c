@@ -30,7 +30,10 @@ static bool manual_time_is_valid(int year, int month, int day, int hour, int min
 
 esp_err_t time_service_init(void)
 {
-    setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1);
+    /* The panel has no network: its only clock source is the PC, which sends its own local time (AD_TIME) every
+     * few minutes. Keeping the panel in UTC shows exactly that time in every country; a fixed zone would apply
+     * its own daylight-saving switch on top of the PC's. */
+    setenv("TZ", "UTC0", 1);
     tzset();
 
     esp_err_t err = esp_event_loop_create_default();
@@ -39,7 +42,7 @@ esp_err_t time_service_init(void)
         return err;
     }
 
-    ESP_LOGI(TAG, "Time service ready with Oslo timezone");
+    ESP_LOGI(TAG, "Time service ready; the clock follows the PC");
     return ESP_OK;
 }
 

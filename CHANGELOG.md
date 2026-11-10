@@ -1,7 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.5.2
 
+- Fixed: a key that brings a running program to the front (for example Chrome) shrank a maximized window. Only a minimized window is restored now.
+- The panel clock follows the PC in every time zone; it no longer applies Central European daylight-saving time on its own.
+- The control API token file can only be read by the Windows account that runs Tessera.
 - Triggers, timers, plugins and configuration reloads keep running while no panel is connected.
 - Fixed: the host could stop when the USB cable dropped out at the moment the panel was dimmed (for example after sleep).
 - Fixed: saving the configuration ran today's daily triggers a second time.

@@ -372,10 +372,18 @@ extern "C" void ui_init(void) {
     build_ambient();
     rebuild();update_context();lv_screen_load(screen);update(nullptr);lv_timer_create(update,40,nullptr);
 }
+/* Names are user text: a quote or backslash must not break the JSON of the status line. */
+static void json_escape(const char *in,char *out,size_t size) {
+    size_t n=0;
+    for(;*in&&n+2<size;++in){if(*in=='"'||*in=='\\')out[n++]='\\';out[n++]=*in;}
+    out[n]='\0';
+}
 extern "C" int ui_debug_visible_text(char *out,size_t size) {
     if(!out||!size)return -1;
     const auto context=deck_model_context();
+    char profile[2*sizeof(context.profile)],page[2*sizeof(context.page)];
+    json_escape(context.profile,profile,sizeof(profile));json_escape(context.page,page,sizeof(page));
     const int n=snprintf(out,size,"{\"screen\":\"%s\",\"buttons\":%d,\"profile\":\"%s\",\"page\":\"%s\",\"canBack\":%s,\"pc\":%s}",
-                         deck_model_screen()==DECK_SCREEN_AMBIENT?"ambient":"deck",deck_model_button_count(),context.profile,context.page,context.can_go_back?"true":"false",link_shown==1?"true":"false");
+                         deck_model_screen()==DECK_SCREEN_AMBIENT?"ambient":"deck",deck_model_button_count(),profile,page,context.can_go_back?"true":"false",link_shown==1?"true":"false");
     return n>0&&n<static_cast<int>(size)?0:-1;
 }
