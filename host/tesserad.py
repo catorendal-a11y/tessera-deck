@@ -1152,6 +1152,9 @@ class Daemon:
         self.dim_display(f'after {settings["dim_after"]} s without a press')
 
     def push_page(self, force=False):
+        if self.panel is None or self.connection_failed.is_set():
+            self.last_push = None  # nothing to draw on; the page is pushed in full when a panel connects
+            return
         buttons = self.current_buttons()
         payload = json.dumps(buttons, sort_keys=True)
         if force or payload != self.last_push:
@@ -1760,6 +1763,7 @@ class Daemon:
         self.pc.start()
         # Standalone Deck host: the USB owner only handles buttons and assets.
         startup_fired = False
+        retry_at, connect_error = 0.0, None  # triggers, timers and plugins keep running while no panel is connected
         try:
             while not self.stop.is_set():
                 stop_path = Path(__file__).with_name('deck-stop.local.json')
@@ -1770,7 +1774,7 @@ class Daemon:
                             continue
                     except (ValueError, OSError, AttributeError):
                         pass
-                if self.panel is None or self.connection_failed.is_set():
+                if (self.panel is None or self.connection_failed.is_set()) and time.monotonic() >= retry_at:
                     if self.panel:
                         self.panel.close()
                     self.panel = None
@@ -1779,6 +1783,7 @@ class Daemon:
                         self.device_info = getattr(self.panel, 'info', {}) or {}
                         remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
+                        connect_error = None
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
                         self.clock_sent_at = float('-inf')
                         threading.Thread(target=self.heartbeat_loop, args=(self.panel,), daemon=True).start()
@@ -1802,8 +1807,7 @@ class Daemon:
                             self.log(f'USB: {exc}; retrying in {wait} seconds')
                         self.publish_runtime(False, exc, force=True)
                         self.connection_failed.set()
-                        self.stop.wait(wait)
-                        continue
+                        retry_at, connect_error = time.monotonic() + wait, exc
                 now = time.monotonic()
                 for tick, arguments in ((self.agent_tick, (now,)), (self.stats_tick, (now,)), (self.ambient_tick, (now,)),
                                         (self.plugin_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
@@ -1831,8 +1835,10 @@ class Daemon:
                         self.idle_tick(time.monotonic())
                 except Exception as exc:  # e.g. the cable was pulled while dimming: the reader loop reconnects
                     self.log(f'Background task failed: {exc!r}')
-                self.publish_runtime(self.panel is not None and not self.connection_failed.is_set())
-                self.enqueue(('push',))
+                online = self.panel is not None and not self.connection_failed.is_set()
+                self.publish_runtime(online, None if online else connect_error)
+                if online:
+                    self.enqueue(('push',))
                 self.stop.wait(1)
         except KeyboardInterrupt:
             pass

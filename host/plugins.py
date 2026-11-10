@@ -33,6 +33,7 @@ MAX_WAIT_SECONDS = 25
 BACKOFF_SECONDS = (1, 2, 4, 8, 16, 32, 60)
 MAX_QUICK_CRASHES = 5
 STABLE_SECONDS = 60
+MAX_LOG_BYTES = 1024 * 1024
 ENV_KEEP = ('PATH', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA',
             'PROGRAMDATA', 'HOMEDRIVE', 'HOMEPATH')
 
@@ -227,7 +228,13 @@ class PluginManager:
         environment = {key: os.environ[key] for key in ENV_KEEP if key in os.environ}
         environment.update({'PYTHONUTF8': '1', 'TESSERA_API': self._api_url(), 'TESSERA_TOKEN': token,
                             'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(settings)})
-        log = open(self.log_dir / f'{manifest.id}.log', 'ab')
+        log_path = self.log_dir / f'{manifest.id}.log'
+        try:  # keep one previous file instead of letting a chatty plugin fill the disk
+            if log_path.stat().st_size > MAX_LOG_BYTES:
+                os.replace(log_path, log_path.with_name(log_path.name + '.1'))
+        except OSError:
+            pass
+        log = open(log_path, 'ab')
         try:
             process = self._spawn(resolve_command(manifest, self._python), cwd=manifest.path, env=environment,
                                   stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
@@ -268,11 +275,14 @@ class PluginManager:
         process = current['process']
         if process.poll() is None:
             from action_runner import kill_tree
-            process.terminate()
-            try:
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                kill_tree(process)
+            if os.name == 'nt' and isinstance(process, subprocess.Popen):
+                kill_tree(process)  # terminate() ends only the plugin itself and would leave its child processes running
+            else:
+                process.terminate()
+                try:
+                    process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    kill_tree(process)
         self.history[plugin_id] = dict(_blank(), state='stopped')
         self._log(f'Plugin {plugin_id} stopped')
 

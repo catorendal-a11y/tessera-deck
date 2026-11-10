@@ -1130,6 +1130,13 @@ class HostTests(unittest.TestCase):
             time.sleep(.02)
         self.assertFalse(daemon.slow_running)
 
+    def test_without_a_panel_a_page_change_is_remembered_instead_of_failing(self):
+        daemon = self.daemon()
+        daemon.panel = None
+        daemon.last_push = 'old'
+        daemon.push_page(force=True)  # triggers, timers and profile switches keep working while unplugged
+        self.assertIsNone(daemon.last_push, 'the page is sent in full when a panel connects')
+
 
 if __name__ == '__main__':
     unittest.main()

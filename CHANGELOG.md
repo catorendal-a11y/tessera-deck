@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Triggers, timers, plugins and configuration reloads keep running while no panel is connected.
+- Fixed: the host could stop when the USB cable dropped out at the moment the panel was dimmed (for example after sleep).
+- Fixed: saving the configuration ran today's daily triggers a second time.
+- Fixed: a trigger with a slow command, HTTP call or delay made the keys unresponsive until it finished. It now runs beside the keys; a trigger that is still running is skipped.
+- Fixed: a firmware installation that hit an unexpected error stayed "running" forever.
+- Fixed: stopping a plugin left the programs it had started running.
+- The host log and plugin logs are rotated instead of growing without limit.
+
 ## 0.5.1
 
 - Easier first start: `Tessera.cmd` installs Python with winget if it is missing and adds a Desktop shortcut, and the release zip includes the panel firmware.

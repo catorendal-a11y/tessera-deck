@@ -346,7 +346,9 @@ void update(lv_timer_t*) {
     for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){fill(i,base_top[i],base_bottom[i]);flash_until[i]=0;}
     update_link();
     update_ambient();
-    lv_label_set_text(clock_label,time_service_time_text());
+    /* Runs every 40 ms: only touch the label when the minute changed, or the header is redrawn 25 times a second. */
+    const char *clock_now=time_service_time_text();
+    if(strcmp(lv_label_get_text(clock_label),clock_now))lv_label_set_text(clock_label,clock_now);
 }
 }
 
