@@ -19,6 +19,8 @@ function renderLibrary() {
     item.append(actionSymbol(icon),element('span',{},text('span',name),text('small',sub)));
     item.addEventListener('dragstart',e=>{e.dataTransfer.setData('application/x-deck-action',key);e.dataTransfer.effectAllowed='copy';});return item;};
   if(('installed programs app launcher'.includes(search)||!search))list.append(button('Installed programs',openProgramPicker,'program-launcher'));
+  const ready=WIDGETS.map(w=>{const item=make(w.name,'widget',w.sub,'widget:'+w.kind);if(item)item.querySelector('.action-symbol').innerHTML=`<svg viewBox="0 0 24 24">${w.path}</svg>`;return item;}).filter(Boolean);
+  if(ready.length)list.append(category('Widgets',ready,0,!!search));
   const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='page'?'Folders and subpages':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
   [...groups].forEach(([group,items],index)=>list.append(category(group,items,index%4,!!search)));
   if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)list.append(category(group,items,tone++%4,!!search));}
@@ -538,15 +540,15 @@ function wideRows(base, row) {
   }));
   const rows = [row('Size', width)];
   if ((base.span || 1) > 1) {
-    const kind = base.live === 'media' ? 'media' : String(base.live || '').startsWith('timer:') ? 'timer' : '';
+    const kind = String(base.live || '').startsWith('timer:') ? 'timer' : base.live || '';
     rows.push(row('Shows', field('Shows', kind, v => {
       if (v === 'timer') {
         const name = (prompt('Name of the timer to show (the same name as in the timer action)', base.live?.slice(6) || 'timer') || '').trim();
         if (!/^[A-Za-z0-9_.-]{1,64}$/.test(name)) { toast('Use letters, digits, dots, dashes or underscores.'); return renderInspector(); }
         mutate(() => { base.live = 'timer:' + name; });
-      } else mutate(() => { if (v === 'media') base.live = 'media'; else delete base.live; });
+      } else mutate(() => { if (v === 'media' || WIDGETS.some(w => w.kind === v)) base.live = v; else delete base.live; });
       renderGrid(); renderInspector();
-    }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['timer', 'A timer (time left, ring) …']]})));
+    }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['timer', 'A timer (time left, ring) …'], ...WIDGETS.map(w => [w.kind, `${w.name}: ${w.sub}`])]})));
   }
   return rows;
 }

@@ -328,7 +328,7 @@ function renderGrid() {
       label.style.top=geometry.labelTop+'px';label.style.fontSize=geometry.px+'px';
       if(b.title?.bold)label.style.fontWeight='700';label.hidden=geometry.hidden;tile.append(label);
       tile.append(...gestureMarks(base));
-      if(b.span>1&&b.live)tile.append(text('span',b.live==='media'?'♪ shows the music that plays':'◔ shows timer '+b.live.slice(6),'key-live'));
+      if(b.span>1&&b.live)tile.append(text('span',b.live==='media'?'♪ shows the music that plays':b.live.startsWith('timer:')?'◔ shows timer '+b.live.slice(6):'▣ '+(WIDGETS.find(w=>w.kind===b.live)?.name||b.live)+' widget','key-live'));
     }
     if(base&&config.profiles[profile].pinned?.includes(base))tile.append(text('span','◆','pin-badge'));
     tile.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});
@@ -390,6 +390,7 @@ function actionTemplate(key) {
   return {label,icon:k.icon,actions:[action]};
 }
 function addAction(key,id=selected) {
+  if(key.startsWith('widget:'))return addWidget(key.slice(7),id);
   const item=actionTemplate(key);if(!item)return;
   mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
   toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust its settings under the keys.');
@@ -433,4 +434,27 @@ function actionSymbol(name) {
   const node = element('span', {class: 'action-symbol', 'aria-hidden': 'true'});
   if (ACTION_SVG[name]) node.innerHTML = `<svg viewBox="0 0 24 24">${ACTION_SVG[name]}</svg>`; else node.textContent = icons[name] || '';
   return node;
+}
+
+/* Ready-made widgets: a wide key that shows something live. The host fills in the text; the list matches host/widgets.py. */
+const WIDGETS = [
+  {kind: 'clock', name: 'Clock', sub: 'The time, the date and how far the day is', icon: 'lc:e087', span: 2, color: '#4DD0E1', path: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'},
+  {kind: 'date', name: 'Date', sub: 'The day, the week and the day of the year', icon: 'lc:e063', span: 2, color: '#B388FF', path: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>'},
+  {kind: 'cpu', name: 'Processor', sub: 'Load, temperature and clock speed', icon: 'lc:e0a9', span: 2, color: '#58E09B', path: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>'},
+  {kind: 'gpu', name: 'Graphics card', sub: 'Load, temperature and frames per second', icon: 'lc:e11d', span: 2, color: '#FFB74D', path: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>'},
+  {kind: 'ram', name: 'Memory', sub: 'How much memory is in use', icon: 'lc:e445', span: 2, color: '#64B5F6', path: '<rect x="2" y="6" width="20" height="10" rx="2"/><path d="M6 18v-2M10 18v-2M14 18v-2M18 18v-2"/>'},
+  {kind: 'network', name: 'Network', sub: 'Download and upload speed', icon: 'lc:e046', span: 2, color: '#4DD0E1', path: '<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>'},
+  {kind: 'volume', name: 'Volume', sub: 'Speaker level and the microphone', icon: 'lc:e1ab', span: 2, color: '#B388FF', path: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>'},
+  {kind: 'agents', name: 'AI agents', sub: 'Who works and who waits for you', icon: 'lc:e1bb', span: 3, color: '#58E09B', path: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'}
+];
+/* Put a widget on a slot: an empty slot gets a new wide key, a key that is already there starts showing the widget. */
+function addWidget(kind,id=selected) {
+  const widget=WIDGETS.find(w=>w.kind===kind);if(!widget)return;
+  const there=visibleButtons().find(b=>b.id===id);
+  const span=[widget.span,2].find(size=>spanFits(id,Math.max(size,there?.span||1),there?[there]:[]));
+  if(!span)return toast(`${widget.name} needs ${widget.span} free slots side by side on one row. Free the slot to the right first.`);
+  mutate(()=>{selected=id;
+    if(there){there.span=Math.max(span,there.span||1);there.live=kind;}
+    else buttons().push({id,label:widget.name,icon:widget.icon,color:widget.color,span,live:kind,actions:[]});});
+  toast(`${widget.name} widget added. The panel fills in the text.`);
 }

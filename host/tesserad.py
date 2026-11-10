@@ -15,9 +15,11 @@ from ambient import Weather
 from config_store import migrate
 from plugins import EventLog, PluginManager
 from live_state import LiveState
+import widgets
 from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 import agent_activity
+from datetime import datetime
 import cockpit
 import permission
 from deck_assets import Assets
@@ -262,6 +264,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 result['progress'] = max(0, min(100, round(left / timer['duration'] * 100)))
                 result['sub'] = f'{name} · {timer["state"]}'[:40]
             return result
+        if live in widgets.WIDGETS:
+            return widgets.content(live, datetime.now(), self.stats.raw, self.pc.snapshot(),
+                                   {name: self.agent_seen.get(key, '') for key, name, _ in cockpit.AGENTS})
         return {}
 
     def current_buttons(self):

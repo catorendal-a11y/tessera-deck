@@ -6,7 +6,9 @@ import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
+from datetime import datetime
 import tesserad as deck
+import widgets
 from host_support import HostCase
 
 CONFIG = json.loads((Path(__file__).resolve().parents[1] / 'host/profiles.default.json').read_text(encoding='utf-8'))
@@ -61,6 +63,37 @@ class ContentTests(HostCase):
         daemon.profile, daemon.page = 'main', 'wide'
         entry = daemon.current_buttons()[0]
         self.assertFalse({'span', 'sub', 'progress', 'ring'} & set(entry))
+
+
+class WidgetTests(HostCase):
+    def test_every_widget_is_a_valid_live_kind(self):
+        for kind in widgets.WIDGETS:
+            deck.validate_config(page({'id': 1, 'span': 2, 'live': kind}))
+
+    def test_the_clock_shows_the_time_the_date_and_how_far_the_day_is(self):
+        entry = widgets.content('clock', datetime(2026, 11, 10, 12, 0, 0), {}, {}, {})
+        self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('12:00', 'Tuesday 10 November', 50))
+
+    def test_readings_fill_the_bar_and_a_missing_reading_says_so(self):
+        entry = widgets.content('cpu', datetime.now(), {'cpu_load': 41.6, 'cpu_temp': 63.2, 'cpu_clock': 4200}, {}, {})
+        self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('CPU 42%', '63 °C · 4.2 GHz', 42))
+        self.assertEqual(widgets.content('gpu', datetime.now(), {}, {}, {}), {'label': 'GPU', 'sub': 'No reading'})
+        self.assertEqual(widgets.content('network', datetime.now(), {'net_down': 3 * 1024 * 1024, 'net_up': 512}, {}, {}),
+                         {'label': '↓ 3.0 MB/s', 'sub': '↑ 512 B/s'})
+
+    def test_volume_and_agents(self):
+        entry = widgets.content('volume', datetime.now(), {}, {'volume': 40, 'speaker_muted': True, 'mic_muted': False}, {})
+        self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('Muted', 'Microphone on', 40))
+        agents = {'Claude Code': 'waiting', 'Codex': 'working', 'ZCode': 'idle'}
+        self.assertEqual(widgets.content('agents', datetime.now(), {}, {}, agents), {'label': '1 waiting for you', 'sub': 'Claude Code'})
+        self.assertEqual(widgets.content('agents', datetime.now(), {}, {}, {})['label'], 'Agents idle')
+
+    def test_a_widget_key_reaches_the_panel_with_its_text(self):
+        daemon = self.daemon(page({'id': 1, 'span': 2, 'live': 'ram'}))
+        daemon.profile, daemon.page = 'main', 'wide'
+        daemon.stats.raw = {'ram': 61.0}
+        entry = daemon.current_buttons()[0]
+        self.assertEqual((entry['span'], entry['label'], entry['progress']), (2, 'Memory 61%', 61))
 
 
 if __name__ == '__main__':

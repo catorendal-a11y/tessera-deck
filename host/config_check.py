@@ -5,6 +5,7 @@ import re
 from ambient import check_ambient
 from config_store import CONFIG_VERSION, version_of
 from live_state import NAME as LIVE_NAME, check_counter, check_timer
+import widgets
 from pc_state import FLAG_SOURCES, check_audio
 from plugins import PLUGIN_ID, check_plugin_config
 from substitution import check_web_url
@@ -197,7 +198,7 @@ def _check_gauge(gauge):
         raise ValueError('gauge.badge must be a Lucide icon like lc:e186')
 
 
-LIVE_KINDS = re.compile(r'media|timer:[A-Za-z0-9_.-]{1,64}')
+LIVE_KINDS = re.compile(r'media|timer:[A-Za-z0-9_.-]{1,64}|' + '|'.join(widgets.WIDGETS))
 
 
 def _check_wide(button):
@@ -207,7 +208,7 @@ def _check_wide(button):
         raise ValueError('span must be 1, 2 or 3')
     live = button.get('live')
     if live is not None and (not isinstance(live, str) or not LIVE_KINDS.fullmatch(live) or span < 2):
-        raise ValueError('live must be media or timer:NAME, on a key that is at least 2 slots wide')
+        raise ValueError('live must be media, timer:NAME or a widget (' + ', '.join(widgets.WIDGETS) + '), on a key that is at least 2 slots wide')
 
 
 def _check_button(button, pages, profiles):
