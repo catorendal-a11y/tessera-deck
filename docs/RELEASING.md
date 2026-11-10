@@ -2,7 +2,7 @@
 
 ## Versions
 
-`VERSION` holds one number (for example `0.5.0`) used by the firmware (`PROJECT_VER`), the host, the firmware
+`VERSION` holds one number (for example `0.6.0`) used by the firmware (`PROJECT_VER`), the host, the firmware
 packages and the release tag. The firmware's USB protocol has its own number in `main/protocol_version.h`; the host
 accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py` and refuses a panel outside that range
 with a message that says which side to update.
@@ -12,7 +12,7 @@ with a message that says which side to update.
 | 1 | Original firmware |
 | 2 | `protocol` field in `get_info`, long-press (`hold`) events |
 | 3 | Per-key colors, the ambient screen (`AD_SCREEN ambient`, `AD_AMBIENT`), the offline layout |
-| 4 | The cockpit: a rail of four screens (keys, agents, mixer, status) with `AD_AGENTS`, `AD_MIXER`, `AD_STATS`, `AD_VIEW` and touch lines back |
+| 4 | The cockpit: a rail of four screens (keys, agents, mixer, status) with `AD_AGENTS`, `AD_MIXER`, `AD_STATS`, `AD_VIEW`, `AD_RAIL`, wide keys and touch lines back |
 
 The configuration file has its own `version` (currently 2). Opening an older file migrates it; a file from a newer
 Tessera is refused with a clear message instead of being damaged.
@@ -21,7 +21,7 @@ Tessera is refused with a clear message instead of being damaged.
 
 1. Update `VERSION` and `CHANGELOG.md`; run the tests (`python -m unittest discover -s tests`) and the native render
    test.
-2. Commit, then tag: `git tag v0.5.0 && git push origin v0.5.0`.
+2. Commit, then tag: `git tag v0.6.0 && git push origin v0.6.0`.
 3. The *Release* workflow builds the firmware in the ESP-IDF 6.1 container, runs `tools/package_firmware.py`, zips
    the host sources with the firmware package inside and publishes `tessera-firmware-<version>.zip`, `tessera-host-<tag>.zip` and `SHA256SUMS`. It
    refuses a tag that does not match `VERSION`.

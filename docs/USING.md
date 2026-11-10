@@ -141,7 +141,7 @@ A rail on the left of the panel switches between your keys, the AI **agents**, a
 
 The rail itself is yours to arrange: the **+** at the foot of the editor's rail (or **⋯ → Rail …**) turns the agents, mixer and status screens on or off, puts them in order and adds up to three shortcuts that jump straight to a page of any profile. The keys are always on the rail, and it holds seven buttons at most.
 
-To answer Claude Code's permission questions on the panel, add the hook that `python host\deckctl.py hooks claude-permission` prints to `~/.claude/settings.json`. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
+To answer Claude Code's permission questions on the panel, open **⋯ → Connect Claude Code …** in the editor: it adds the hooks to `~/.claude/settings.json`, keeps the hooks you already have and makes a backup of the file first. To do it by hand, add the hook that `python host\deckctl.py hooks claude-permission` prints. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
 
 ## Troubleshooting
 
@@ -152,5 +152,6 @@ To answer Claude Code's permission questions on the panel, add the hook that `py
 | `Another Tessera host is already running` | Only one host may own the port; stop it from the tray, then start again |
 | Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`); FPS needs HWiNFO with PresentMon |
 | The editor looks out of date | Close the editor window and open it again from the tray |
-| A key only made a program's taskbar button flash | Fixed: the host now brings the window to the front. Restart the host if it still runs the old version |
+| A key only makes a program's taskbar button flash | Update to 0.6.0 or later and restart the host; it then brings the window to the front |
+| The editor says *The host has stopped* while the panel works | Update to 0.6.0 or later; the editor then recognises a host that was started from a terminal or a script |
 | Flashing fails with *port busy* | Stop the host first; it holds the COM port |

@@ -10,3 +10,5 @@ Plugins run with your own rights and are not sandboxed; the limited tokens only 
 Tessera to do. While running, Tessera itself only contacts the project's own GitHub releases, `api.open-meteo.com` and
 `api.iconify.design`, each only after you ask for it (update check, weather, online icons), plus the addresses in your
 own HTTP actions. Setup installs Python packages from PyPI, and `tools\setup_sensors.ps1` downloads Libre Hardware Monitor.
+
+**Claude Code's permission questions.** *Connect Claude Code* adds hooks to `~/.claude/settings.json` (after a backup, keeping your other hooks). A question is then shown on the panel's agents screen and only a touch on **Allow** or **Deny** answers it. Tessera never allows anything on its own: with no panel, no answer within 25 seconds or a request too long to show in full, Claude Code falls back to its own dialog.

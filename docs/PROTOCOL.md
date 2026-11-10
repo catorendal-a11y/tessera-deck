@@ -23,8 +23,10 @@
 | host → panel | `AD_VIEW keys\|agents\|mixer\|status` | Bring one of the four screens forward, for example for a permission question (protocol 4) |
 | panel → host | `{"type":"agent","id":"claude","do":"allow\|deny\|stop\|open"}` | A lane button was touched (protocol 4) |
 | panel → host | `{"type":"fader","id":"…","level":0-100}` / `{"type":"mute","id":"…"}` | A fader was dragged or a mute button touched (protocol 4) |
+| host → panel | `AD_RAIL {"rail":[{"k":"keys"},{"k":"page","i":"lc:e0e8","p":"Chrome","g":"main"}]}` | The rail's buttons, at most 7: `k` is keys, agents, mixer, status or page; a page shortcut carries its icon, profile and page (protocol 4) |
+| panel → host | `{"type":"rail","i":N}` | Rail button N, a page shortcut, was touched; the host switches to that page (protocol 4) |
 | host → panel | `AD_AMBIENT <text>` | The line under the ambient clock, for example the weather (protocol 3) |
-| panel → host | `{"type":"info","boardId":"tessera-p4","firmwareVersion":…,"protocol":3,…}` | The answer to `get_info`; the host refuses another board or an unsupported protocol |
+| panel → host | `{"type":"info","boardId":"tessera-p4","firmwareVersion":…,"protocol":4,…}` | The answer to `get_info`; the host refuses another board or an unsupported protocol |
 | panel → host | `{"type":"deck_event","button":N,"label":"…","hold":true}` | A key was pressed (`hold` for a long press, protocol 2) |
 | panel → host | `{"type":"wake"}` | A touch woke the dimmed panel; it presses no key |
 | panel → host | `{"type":"screen","name":"deck","by":"touch"}` | A touch left the ambient screen (protocol 3) |
