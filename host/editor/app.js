@@ -82,6 +82,7 @@ function field(label,value,handler,{type='text',placeholder='',values=null,multi
 }
 function editAction(index,key,value) {mutate(()=>activeActions()[index][key]=value,false,editKey('action',index,key));}
 /* Groups a run of inspector rows under a collapsible heading. Wrapped last-first so the earlier indexes stay valid. */
+let inspectorTab='look';  // which group of key settings shows: look, actions or more
 function wrapSection(panel,from,to,title,open,cls='') {
   const nodes=[...panel.children].slice(from,to);if(!nodes.length)return;
   const section=element('details',{class:'inspector-section '+cls});section.open=open;
@@ -116,10 +117,10 @@ function renderInspector() {
   const row=(name,...nodes)=>element('div',{class:'prop-row'},text('span',name,'prop-name'),element('div',{class:'prop-value'},...nodes));
   const titleRow=row('Title',nameInput,meter);titleRow.classList.add('prop-row-title');
   const textRow=row('Text',sizeField,positionField,boldButton,pinButton);textRow.classList.add('prop-row-text');
-  const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('🗑',clearButton,'prop-clear','Clear button'));
+  const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('Clear',clearButton,'prop-clear','Clear this key'));
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
     element('div',{class:'prop-rows'},titleRow,row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
-      textRow,row('Steps',actionButton),...(otherTriggerRows(base,row)),...(wideRows(base,row)))));
+      textRow,...(wideRows(base,row)))));
   const typeStart=panel.children.length;
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
@@ -139,9 +140,16 @@ function renderInspector() {
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
   wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');
-  wrapSection(panel,bindStart,actionsStart,'Gauge and binding',false);
-  wrapSection(panel,typeStart,bindStart,'Button type',false);
-  panel.append(text('p','Shortcuts: Ctrl+Z / Ctrl+Y undo and redo · Ctrl+C / Ctrl+V copy and paste · Ctrl+D duplicate · Delete clears the key · Ctrl+S saves now','hint shortcuts'));
+  wrapSection(panel,bindStart,actionsStart,'Gauge and binding',false,'extras');
+  wrapSection(panel,typeStart,bindStart,'Button type',false,'kind');
+  // Tabs: one group of settings at a time instead of a stack of folded sections.
+  const steps=activeActions()?.length||0,others=otherTriggerRows(base,row);
+  const groups={look:[panel.querySelector('.prop-card')],actions:[...panel.querySelectorAll(':scope>.kind,:scope>.handling')],more:[...panel.querySelectorAll(':scope>.extras')]};
+  if(others.length)panel.querySelector('.handling .section-body')?.prepend(element('div',{class:'other-triggers'},...others));
+  const tabs=element('div',{class:'inspector-tabs',role:'tablist','aria-label':'Key settings'},...[['look','Look'],['actions',steps?`Actions · ${steps}`:'Actions'],['more','Gauge']].map(([id,name])=>{
+    const tab=button(name,()=>{inspectorTab=id;renderInspector();},'inspector-tab'+(inspectorTab===id?' on':''));tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(inspectorTab===id));return tab;}));
+  panel.insertBefore(tabs,panel.children[firstField]);
+  for(const [id,nodes] of Object.entries(groups))for(const node of nodes){if(!node)continue;node.hidden=id!==inspectorTab;if(node.tagName==='DETAILS'){node.open=true;node.classList.add('tabbed');}}
 }
 /* The same corner marks as the panel: a ring for a long press, two dots for a double press (150 px key, positions in %). */
 function gestureMarks(base) {

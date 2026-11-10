@@ -234,3 +234,47 @@ html body #inspector .size-pick button.on{border-color:var(--accent) !important;
 html body #inspector .prop-row:nth-child(2) .prop-value{flex-wrap:nowrap}
 html body #inspector .prop-row:nth-child(2) .prop-value>.prop-field{flex:1 1 auto !important;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html body #inspector .prop-row:nth-child(2) .prop-value>button:not(.prop-field){flex:none}
+
+/* Tidy pass: profile as the title, page tabs above the deck, a larger deck, and key settings in three tabs. */
+html body .appbar{justify-content:flex-start}
+html body .appbar .brand{position:static;transform:none;margin:0 auto 0 0}
+html body .workspace{display:flex !important;flex-direction:column;align-items:center}
+html body .toolbar{order:0}html body .page-pill{order:1}html body .deck-card{order:2}html body .syncbar{order:3}
+html body .who{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
+html body .toolbar .device-name{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+html body .toolbar .device-name::after{content:none}
+html body .profile-select>span{display:none}
+html body .toolbar .profile-select select{font-size:24px;font-weight:700;color:var(--text);padding:0 28px 0 0;height:auto;min-height:0;border:0;cursor:pointer}
+html body .page-pill{display:flex;align-items:center;gap:8px;width:min(100%,var(--col));max-width:var(--col);margin:10px auto 12px;padding:0;box-sizing:border-box}
+html body .page-tabs{display:flex;flex-wrap:wrap;gap:6px}
+html body .page-chip{font-size:13px;padding:7px 14px;background:var(--card) !important;color:var(--soft)}
+html body .page-chip:hover{color:var(--text)}
+html body .page-chip.active{background:var(--text) !important;color:#0D1417}
+html body .syncbar{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted)}
+@media(min-width:1560px){
+  html body .workspace{max-width:1120px}
+  html body .toolbar,html body .deck-card,html body .syncbar,html body .page-pill{max-width:1040px;width:100%}
+}
+html body #inspector>[hidden]{display:none !important}
+html body #inspector .inspector-tabs{display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-sizing:border-box}
+html body #inspector .inspector-tab{flex:1;height:36px;border:0 !important;border-radius:10px;background:transparent !important;color:var(--muted);font-weight:600;cursor:pointer}
+html body #inspector .inspector-tab:hover{color:var(--text)}
+html body #inspector .inspector-tab.on{background:var(--card2) !important;color:var(--text)}
+html body #inspector .tabbed.handling>summary{display:none}
+html body #inspector .tabbed>summary{pointer-events:none;border-bottom:1px solid var(--line)}
+html body #inspector .tabbed>summary::after,html body #inspector .tabbed>summary::marker{content:none;display:none}
+html body #inspector .tabbed.handling>.section-body{margin-top:18px}
+html body #inspector .other-triggers{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+html body #inspector .prop-card{padding-bottom:22px !important}
+html body #inspector .prop-clear{font-size:12px;color:var(--muted) !important;cursor:pointer}
+html body #inspector .prop-clear:hover{color:var(--amber) !important}
+html body .deck-card{display:flex !important;flex-direction:column}
+html body .deck-card .page-pill{order:-1;margin:0 0 12px;width:100%;max-width:none}
+html body .deck-card .syncbar{width:100%;max-width:none}
+html body .toolbar .profile-select select{font-size:24px !important;font-weight:700 !important;color:var(--text) !important;height:auto !important;min-height:0 !important;padding:0 30px 0 0 !important;border:0 !important;line-height:1.2 !important}
+html body .toolbar{margin-bottom:10px}
+html body .deck-key.wide .key-label{left:9px;right:9px;width:auto}
+html body .deck-key.wide .key-live{text-align:center;bottom:auto;top:10px;color:var(--muted)}
+html body .page-chip{font-size:13px !important;padding:7px 14px !important}
+html body #new-page{margin-left:0;background:var(--card);border-radius:999px;width:32px;height:32px}
+html body .deck-key.wide .key-live{text-align:left;top:9px;left:12px;font-size:10px}

@@ -303,7 +303,7 @@ function renderGrid() {
     tile.style.left=`${DEVICE.x+(index%6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.top=`${DEVICE.y+Math.floor(index/6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.setProperty('--key-color',b?.color||'#92edba');
-    if(b?.span>1){tile.style.width=`${b.span*DEVICE.cell+(b.span-1)*DEVICE.gap}px`;tile.style.zIndex='2';}
+    if(b?.span>1){tile.classList.add('wide');tile.style.width=`${b.span*DEVICE.cell+(b.span-1)*DEVICE.gap}px`;tile.style.zIndex='2';}
     if(covered.has(id)){tile.style.visibility='hidden';tile.tabIndex=-1;tile.style.pointerEvents='none';}
     const look={...(b?config.theme:{})};
     for(const key of ['bg','text_color','border'])if(b?.[key])look[key]=b[key];
@@ -392,6 +392,7 @@ function actionTemplate(key) {
 function addAction(key,id=selected) {
   if(key.startsWith('widget:'))return addWidget(key.slice(7),id);
   const item=actionTemplate(key);if(!item)return;
+  inspectorTab='actions';
   mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
   toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust its settings under the keys.');
 }
