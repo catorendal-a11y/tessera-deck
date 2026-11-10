@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into an 18-key control surface with
+Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into a DIY Stream Deck-style control surface with 18 keys and
 four screens: launch apps, fire hotkeys, drive Codex and Claude Code, mix the sound, watch live system gauges and run multi-step macros.
 A small Windows host owns the USB connection, runs the actions and serves a drag-and-drop editor that shows the
 same keys as the panel.

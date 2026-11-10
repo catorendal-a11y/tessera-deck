@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- README: a short animated tour of the panel, drawn by the firmware UI (`tools/make_demo_gif.py`); a contributing guide and issue templates.
+
 ## 0.6.0
 
 - New panel layout (firmware protocol 4): a rail with four screens. The keys keep their six-by-three deck; the agents, mixer and status screens are new.
