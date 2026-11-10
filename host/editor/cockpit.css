@@ -197,3 +197,16 @@ html body #rail-dialog{width:min(760px,94vw);padding:22px 24px}
 .rail-foot{display:flex;align-items:center;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
 .rail-foot span{flex:1;color:var(--muted)}.rail-foot span.over{color:var(--amber)}
 .rail-foot button:disabled{opacity:.4;cursor:default}
+
+/* Wide windows: the key's settings get their own column beside the deck, so nothing sits below the fold. */
+@media(min-width:1560px){
+  :root{--col:100%}
+  html body #deck-view{grid-template-columns:minmax(0,1fr) 500px 318px !important;grid-template-areas:"work inspector library" !important;grid-template-rows:auto !important}
+  html body .workspace{max-width:940px;justify-self:center;width:100%;box-sizing:border-box}
+  html body .toolbar,html body .deck-card,html body .syncbar{max-width:880px}
+  html body #inspector{position:sticky;top:0;align-self:start;height:calc(100vh - 64px) !important;overflow-y:auto !important;padding:18px 20px 56px !important;border-left:1px solid var(--line) !important;box-sizing:border-box}
+  html body #inspector>*{width:100% !important;max-width:none}
+  html body #inspector .prop-card{grid-template-columns:96px minmax(0,1fr);column-gap:16px;padding:0 16px 18px !important}
+  html body #inspector .prop-preview{width:96px !important;height:96px !important}
+  html body #inspector .prop-row{grid-template-columns:50px minmax(0,1fr)}
+}
