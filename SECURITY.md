@@ -12,3 +12,7 @@ Tessera to do. While running, Tessera itself only contacts the project's own Git
 own HTTP actions. Setup installs Python packages from PyPI, and `tools\setup_sensors.ps1` downloads Libre Hardware Monitor.
 
 **Claude Code's permission questions.** *Connect Claude Code* adds hooks to `~/.claude/settings.json` (after a backup, keeping your other hooks). A question is then shown on the panel's agents screen and only a touch on **Allow** or **Deny** answers it. Tessera never allows anything on its own: with no panel, no answer within 25 seconds or a request too long to show in full, Claude Code falls back to its own dialog.
+
+## Reporting a security problem
+
+Please do not open a public issue. Contact [@catorendal-a11y](https://github.com/catorendal-a11y) privately through GitHub, or use **Security → Report a vulnerability** on the repository page where it is offered. Say which version you run and how to reproduce the problem.

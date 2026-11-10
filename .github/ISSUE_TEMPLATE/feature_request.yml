@@ -1,0 +1,23 @@
+name: Idea or feature request
+description: A widget, an action, a board or anything else you miss
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What do you want to do?
+      description: Describe the situation, not only the solution. "I want to see my calendar on the panel" beats "add a calendar widget".
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How could it work?
+      description: Optional. A sketch, a similar product, or how you get by today.
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Would you help?
+      options:
+        - label: I can test it on my panel
+        - label: I can write the code

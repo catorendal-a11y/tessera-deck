@@ -1,0 +1,42 @@
+name: Bug report
+description: Something does not work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Tessera version
+      description: The editor's status line shows the firmware version; the host version is in the VERSION file.
+      placeholder: "0.6.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where is the problem?
+      options:
+        - The panel (firmware)
+        - The editor
+        - The host (actions, profiles, sensors)
+        - Installing or flashing
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      description: Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). Say so if yours is different.
+      placeholder: GUITION JC1060P470C
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: In the editor, open ⋯ → Export diagnostics and attach the file. It leaves out the contents of your keys and redacts secrets. The host log (⋯ → Host log …) also helps.

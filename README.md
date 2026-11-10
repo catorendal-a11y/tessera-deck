@@ -11,7 +11,8 @@
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-400%2B%20passing-35D07F">
+  <a href="https://github.com/catorendal-a11y/tessera-deck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/catorendal-a11y/tessera-deck?color=35D07F"></a>
+  <a href="https://github.com/catorendal-a11y/tessera-deck/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/catorendal-a11y/tessera-deck/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
 </p>
 
@@ -37,6 +38,13 @@
 
 > [!IMPORTANT]
 > **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.
+
+## Why Tessera
+
+- **It answers your AI agent.** When Claude Code asks for permission, the question shows on the panel and a touch on *Allow* or *Deny* answers it. The agents screen also shows what Claude Code, Codex and ZCode are doing.
+- **Everything stays on your PC.** No account, no cloud and no subscription: the panel talks to a small Windows host over USB.
+- **It is yours to change.** Firmware, host and editor are open source (MIT), with 480+ tests, a documented serial protocol and a plugin API.
+- **One off-the-shelf board.** A 7-inch ESP32-P4 touchscreen (GUITION JC1060P470C), flashed from the editor. No soldering.
 
 ## Quick start
 
@@ -84,6 +92,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [Plugins](docs/PLUGINS.md) | Write your own integration |
 | [Serial protocol](docs/PROTOCOL.md) | What the host and the panel say to each other |
 | [Development](docs/DEVELOPMENT.md) | Project layout, tests and tools |
+| [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 
