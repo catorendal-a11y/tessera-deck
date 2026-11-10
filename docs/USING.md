@@ -101,6 +101,12 @@ values, reads key presses and receives commands from a key.
 the key's `open` action. It is a dry run by default; add `--apply` to write the changes (the old file is kept as
 `profiles.backup.local.json`) or `--freeze` to store the images instead.
 
+## The panel's four screens
+
+A rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**. Choose what the last three show under **⋯ → Panel screens …** in the editor (which agents, up to three programs for the mixer and whether the microphone is included, and which readings).
+
+To answer Claude Code's permission questions on the panel, add the hook that `python host\deckctl.py hooks claude-permission` prints to `~/.claude/settings.json`. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
+
 ## Troubleshooting
 
 | Symptom | Fix |

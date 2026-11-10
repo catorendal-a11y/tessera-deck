@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tessera panel prototype</title>
+<!-- A clickable sketch of the panel at its real size (1024 x 600). Nothing here talks to the host or the panel:
+     the values are made up so the layout and the touch behaviour can be tried before any firmware is written. -->
+<style>
+:root{--bg:#0A0E10;--rail:#0F1518;--card:#12191D;--line:#1A2327;--text:#EAF2EF;--soft:#C4D0D4;--muted:#8D9AA0;--dim:#6F8088;
+  --go:#58E09B;--info:#4DD0E1;--media:#B388FF;--wait:#FFB74D;--bad:#FF7070}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:#050708;color:var(--text);font-family:"DejaVu Sans",Verdana,system-ui,sans-serif;overflow:hidden}
+#fit{position:absolute;left:50%;top:14px;transform-origin:50% 0}
+#panel{width:1024px;height:600px;background:var(--bg);display:flex;border-radius:10px;overflow:hidden;box-shadow:0 0 0 10px #15191B,0 30px 60px rgba(0,0,0,.7);user-select:none;touch-action:none}
+svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible{outline:3px solid var(--info);outline-offset:3px}
+
+/* Rail: the four screens */
+#rail{width:84px;background:var(--rail);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:10px;border-right:1px solid var(--line)}
+#rail button{width:60px;height:60px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:var(--dim);position:relative}
+#rail button[aria-pressed=true]{color:var(--text);background:#18232A}
+#rail button[aria-pressed=true]::before{content:"";position:absolute;left:-12px;top:12px;bottom:12px;width:4px;border-radius:2px;background:linear-gradient(var(--go),var(--info),var(--media))}
+#rail svg{width:30px;height:30px}
+#rail .dot{position:absolute;right:6px;top:6px;width:12px;height:12px;border-radius:6px;background:var(--wait);border:2px solid var(--rail)}
+#clock{margin-top:auto;font-size:18px;color:var(--muted)}
+
+#main{flex:1;padding:22px 26px;position:relative;min-width:0}
+.head{font-size:17px;color:var(--muted);margin:0 0 16px;height:34px}
+.head b{color:var(--text);font-size:28px;margin-right:12px}
+
+/* Agents */
+.lane{display:flex;align-items:center;gap:18px;background:var(--card);border-radius:20px;padding:0 20px 0 26px;height:146px;margin-bottom:14px;position:relative;overflow:hidden}
+.lane::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:var(--c)}
+.lane .t{flex:1;min-width:0}
+.lane .t b{font-size:28px}
+.lane .t i{font-style:normal;font-size:17px;color:var(--c);margin-left:12px}
+.lane .t p{margin:8px 0 0;font-size:19px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lane .t small{display:block;margin-top:6px;font-size:15px;color:var(--dim)}
+.btn{height:96px;min-width:132px;padding:0 20px;border-radius:18px;font-size:22px;font-weight:700}
+.btn.go{background:var(--go);color:#06130C}
+.btn.plain{border:2px solid #3A4950;color:var(--soft)}
+.btn.no{border:2px solid #7A3A42;color:#FF8A8A}
+.btn:active{transform:scale(.96)}
+
+/* Mixer */
+.mix{display:flex;gap:18px;height:506px}
+.fader{flex:1;background:var(--card);border-radius:20px;display:flex;flex-direction:column;align-items:center;padding:16px 0 14px}
+.fader em{font-style:normal;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums}
+.track{flex:1;width:110px;margin:14px 0;position:relative;cursor:ns-resize}
+.track::before{content:"";position:absolute;left:44px;width:22px;top:0;bottom:0;border-radius:11px;background:var(--bg)}
+.track i{position:absolute;left:44px;width:22px;bottom:0;border-radius:11px;background:var(--c)}
+.track b{position:absolute;left:21px;width:68px;height:30px;border-radius:10px;background:var(--text);margin-bottom:-15px;box-shadow:0 3px 10px rgba(0,0,0,.6)}
+.fader span{font-size:17px;color:var(--soft);margin-bottom:10px}
+.mute{width:62px;height:62px;border-radius:31px;border:2px solid #3A4950;display:flex;align-items:center;justify-content:center;color:var(--muted)}
+.mute[aria-pressed=true]{background:#3A1D24;border-color:var(--bad);color:#FF8A8A}
+.mute svg{width:28px;height:28px}
+
+/* Keys sized by use */
+.big{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+.big button{height:210px;border-radius:24px;background:var(--card);padding:24px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;color:var(--app)}
+.big svg{width:64px;height:64px}
+.big b{font-size:26px;color:var(--text)}
+.big small{display:block;font-size:15px;color:var(--dim);font-weight:400;margin-top:4px}
+.small{display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
+.small button{height:96px;border-radius:16px;background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:14px;color:var(--soft)}
+.small svg{width:30px;height:30px;color:var(--muted)}
+.big button.hit,.small button.hit{background:#254E3B}
+
+/* Status */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.stat{background:var(--card);border-radius:20px;padding:18px 20px;height:156px;display:flex;flex-direction:column;justify-content:space-between}
+.stat span{font-size:16px;color:var(--muted)}
+.stat em{font-style:normal;font-size:44px;font-weight:700;color:var(--c);font-variant-numeric:tabular-nums}
+.stat em small{font-size:18px;font-weight:400;margin-left:4px;opacity:.75}
+.stat .bar{height:6px;border-radius:3px;background:var(--bg);overflow:hidden}
+.stat .bar i{display:block;height:100%;border-radius:3px;background:var(--c)}
+.stat.warn{background:#2B2314}
+
+/* Test controls below the panel; not part of the panel itself */
+#bench{position:absolute;left:0;right:0;bottom:0;padding:10px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#0B0E0F;border-top:1px solid #1B2124;font:13px system-ui,"Segoe UI",sans-serif;color:#9AA5AA}
+#bench button{border:1px solid #2C363B;border-radius:8px;padding:6px 12px;color:#D5DEE1}
+#bench button:hover{background:#151B1E}
+#log{margin-left:auto;color:#6F8088}
+@media (prefers-reduced-motion:reduce){.btn:active{transform:none}}
+</style>
+</head>
+<body>
+<div id="fit"><div id="panel">
+  <nav id="rail" aria-label="Screens"></nav>
+  <main id="main"></main>
+</div></div>
+<div id="bench">
+  <span>Test:</span>
+  <button id="askClaude">Claude asks for permission</button>
+  <button id="finishCodex">Codex finishes</button>
+  <button id="switchApp">Switch program in front</button>
+  <span id="log"></span>
+</div>
+<script>
+'use strict';
+const ICON={
+  grid:'<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  spark:'<path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/>',
+  sliders:'<line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/>',
+  activity:'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  volume:'<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>',
+  mic:'<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/>',
+  plus:'<path d="M5 12h14"/><path d="M12 5v14"/>',
+  undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/>',
+  code:'<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>',
+  x:'<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  back:'<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  forward:'<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  reload:'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  play:'<polygon points="6 3 20 12 6 21 6 3"/>',
+  check:'<path d="M20 6 9 17l-5-5"/>',
+  terminal:'<polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/>',
+  save:'<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/>',
+  split:'<rect width="18" height="18" x="3" y="3" rx="2"/><line x1="12" x2="12" y1="3" y2="21"/>',
+};
+const svg = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[name]}</svg>`;
+
+// --- made-up state ---------------------------------------------------------------------------------
+const state = {
+  screen: 'agents',
+  agents: [
+    {id:'claude', name:'Claude Code', status:'waiting', text:'Wants to run: npm run build', project:'tessera-deck-main'},
+    {id:'codex', name:'Codex', status:'working', text:'Editing host/win_input.py', project:'tessera-deck-main', since:'2 min'},
+    {id:'zcode', name:'ZCode', status:'idle', text:'Finished 14:05', project:''},
+  ],
+  faders: [
+    {name:'Master', level:62, color:'var(--go)', icon:'volume', muted:false},
+    {name:'Spotify', level:38, color:'var(--media)', icon:'volume', muted:false},
+    {name:'Chrome', level:80, color:'#F2B94B', icon:'volume', muted:false},
+    {name:'Discord', level:45, color:'#7C8CF8', icon:'volume', muted:true},
+    {name:'Mic', level:70, color:'var(--info)', icon:'mic', muted:false},
+  ],
+  apps: [
+    {name:'Chrome', color:'#F2B94B', keys:[['plus','New tab',41],['undo','Reopen tab',12],['code','DevTools',9],['x','Close tab',7],['back','Back',6],['forward','Forward',2],['reload','Reload',5],['search','Find',3],['star','Bookmark',1]]},
+    {name:'VS Code', color:'#5BB3F5', keys:[['play','Run',18],['check','Test',15],['terminal','Terminal',11],['save','Save all',9],['search','Find in files',8],['code','Format',6],['split','Split editor',4],['x','Close file',3],['undo','Undo',2]]},
+  ],
+  app: 0,
+  stats: [['CPU load',3,'%',3,'var(--go)'],['CPU temp',50,'°C',50,'var(--go)'],['RAM',55,'%',55,'#64B5F6'],['Disk',90,'%',90,'var(--wait)',true],
+          ['GPU load',0,'%',0,'var(--media)'],['GPU temp',31,'°C',31,'var(--media)'],['VRAM',2.2,'GB',14,'var(--media)'],['Network',244,'KB/s',20,'#A3B2BC']],
+};
+const $ = selector => document.querySelector(selector);
+const log = text => { $('#log').textContent = text; };
+
+// --- screens ---------------------------------------------------------------------------------------
+const STATUS = {waiting:['var(--wait)','waiting for you'], working:['var(--info)','working'], idle:['#3A4950','idle']};
+
+function agentsScreen(){
+  const waiting = state.agents.filter(agent => agent.status === 'waiting').length;
+  const summary = waiting ? (waiting === 1 ? 'One needs you' : waiting + ' need you') : 'Nobody is waiting';
+  return `<p class="head"><b>Agents</b>${summary}</p>` + state.agents.map(agent => {
+    const [color, label] = STATUS[agent.status];
+    const buttons = agent.status === 'waiting'
+      ? `<button class="btn no" data-agent="${agent.id}" data-do="deny">Deny</button><button class="btn go" data-agent="${agent.id}" data-do="allow">Allow</button>`
+      : agent.status === 'working'
+        ? `<button class="btn plain" data-agent="${agent.id}" data-do="stop">Stop</button>`
+        : `<button class="btn plain" data-agent="${agent.id}" data-do="open">Open</button>`;
+    const since = agent.status === 'working' && agent.since ? ', ' + agent.since : '';
+    return `<div class="lane" style="--c:${color}"><div class="t"><b>${agent.name}</b><i${agent.status === 'idle' ? ' style="color:var(--muted)"' : ''}>${label}${since}</i>
+      <p${agent.status === 'idle' ? ' style="color:var(--dim)"' : ''}>${agent.text}</p><small>${agent.project}</small></div>${buttons}</div>`;
+  }).join('');
+}
+
+function mixerScreen(){
+  return '<div class="mix">' + state.faders.map((fader, index) => `
+    <div class="fader" style="--c:${fader.muted ? '#3A4950' : fader.color}">
+      <em>${fader.muted ? 'Muted' : fader.level + ' %'}</em>
+      <div class="track" data-fader="${index}" role="slider" tabindex="0" aria-label="${fader.name} volume" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${fader.level}">
+        <i style="height:${fader.level}%"></i><b style="bottom:${fader.level}%"></b></div>
+      <span>${fader.name}</span>
+      <button class="mute" data-mute="${index}" aria-pressed="${fader.muted}" aria-label="Mute ${fader.name}">${svg(fader.icon)}</button>
+    </div>`).join('') + '</div>';
+}
+
+function keysScreen(){
+  const app = state.apps[state.app];
+  const keys = app.keys.map((key, index) => ({icon:key[0], label:key[1], used:key[2], index})).sort((a, b) => b.used - a.used);
+  const big = keys.slice(0, 3).map(key => `<button data-key="${key.index}">${svg(key.icon)}<b>${key.label}<small>used ${key.used} times today</small></b></button>`).join('');
+  const small = keys.slice(3, 9).map(key => `<button data-key="${key.index}">${svg(key.icon)}${key.label}</button>`).join('');
+  return `<p class="head"><b>${app.name}</b>is in front</p><div class="big" style="--app:${app.color}">${big}</div><div class="small">${small}</div>`;
+}
+
+function statusScreen(){
+  return '<p class="head"><b>This PC</b>Disk is nearly full</p><div class="stats">' + state.stats.map(stat => `
+    <div class="stat${stat[5] ? ' warn' : ''}" style="--c:${stat[4]}"><span>${stat[0]}</span><em>${stat[1]}<small>${stat[2]}</small></em>
+    <div class="bar"><i style="width:${stat[3]}%"></i></div></div>`).join('') + '</div>';
+}
+
+const SCREENS = {keys:['grid','Keys',keysScreen], agents:['spark','Agents',agentsScreen], mixer:['sliders','Mixer',mixerScreen], status:['activity','Status',statusScreen]};
+
+function render(){
+  const waiting = state.agents.some(agent => agent.status === 'waiting');
+  $('#rail').innerHTML = Object.entries(SCREENS).map(([id, [icon, label]]) =>
+    `<button data-screen="${id}" aria-pressed="${id === state.screen}" aria-label="${label}">${svg(icon)}${id === 'agents' && waiting && state.screen !== 'agents' ? '<span class="dot"></span>' : ''}</button>`
+  ).join('') + `<span id="clock">${new Date().toTimeString().slice(0, 5)}</span>`;
+  $('#main').innerHTML = SCREENS[state.screen][2]();
+}
+
+// --- touch -----------------------------------------------------------------------------------------
+$('#panel').addEventListener('click', event => {
+  const target = event.target.closest('button');
+  if (!target) return;
+  if (target.dataset.screen) { state.screen = target.dataset.screen; return render(); }
+  if (target.dataset.agent) {
+    const agent = state.agents.find(item => item.id === target.dataset.agent);
+    const action = target.dataset.do;
+    if (action === 'allow') Object.assign(agent, {status:'working', text:'Running: npm run build', since:'just now'});
+    if (action === 'deny') Object.assign(agent, {status:'working', text:'Told no; choosing another way', since:'just now'});
+    if (action === 'stop') Object.assign(agent, {status:'idle', text:'Stopped ' + new Date().toTimeString().slice(0, 5)});
+    log(`${agent.name}: ${action}`);
+    return render();
+  }
+  if (target.dataset.mute) {
+    const fader = state.faders[target.dataset.mute];
+    fader.muted = !fader.muted;
+    log(`${fader.name} ${fader.muted ? 'muted' : 'on'}`);
+    return render();
+  }
+  if (target.dataset.key) {
+    const key = state.apps[state.app].keys[target.dataset.key];
+    key[2] += 1;
+    log(`${key[1]} pressed (${key[2]} today)`);
+    target.classList.add('hit');
+    return setTimeout(render, 220);  // the order follows the use: a key that overtakes another moves up
+  }
+});
+
+let dragging = null;
+function setFader(track, clientY){
+  const box = track.getBoundingClientRect();
+  const level = Math.round(Math.max(0, Math.min(1, (box.bottom - clientY) / box.height)) * 100);
+  const fader = state.faders[track.dataset.fader];
+  fader.level = level;
+  track.querySelector('i').style.height = level + '%';
+  track.querySelector('b').style.bottom = level + '%';
+  track.setAttribute('aria-valuenow', level);
+  if (!fader.muted) track.parentElement.querySelector('em').textContent = level + ' %';
+  log(`${fader.name} ${level} %`);
+}
+$('#panel').addEventListener('pointerdown', event => {
+  const track = event.target.closest('.track');
+  if (!track) return;
+  dragging = track;
+  track.setPointerCapture(event.pointerId);
+  setFader(track, event.clientY);
+});
+$('#panel').addEventListener('pointermove', event => { if (dragging) setFader(dragging, event.clientY); });
+$('#panel').addEventListener('pointerup', () => { dragging = null; });
+$('#panel').addEventListener('keydown', event => {
+  const track = event.target.closest('.track');
+  if (!track || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  const fader = state.faders[track.dataset.fader];
+  fader.level = Math.max(0, Math.min(100, fader.level + (event.key === 'ArrowUp' ? 5 : -5)));
+  render();
+  document.querySelector(`.track[data-fader="${track.dataset.fader}"]`).focus();
+});
+
+// --- test controls ---------------------------------------------------------------------------------
+$('#askClaude').onclick = () => {
+  Object.assign(state.agents[0], {status:'waiting', text:'Wants to edit: host/tesserad.py'});
+  log('Claude Code is waiting; look at the rail');
+  render();
+};
+$('#finishCodex').onclick = () => {
+  Object.assign(state.agents[1], {status:'idle', text:'Finished ' + new Date().toTimeString().slice(0, 5)});
+  render();
+};
+$('#switchApp').onclick = () => {
+  state.app = (state.app + 1) % state.apps.length;
+  state.screen = 'keys';
+  render();
+};
+
+function fit(){
+  const scale = Math.min(1, (innerWidth - 40) / 1024, (innerHeight - 90) / 600);
+  $('#fit').style.transform = `translateX(-50%) scale(${scale})`;
+}
+addEventListener('resize', fit);
+fit();
+render();
+setInterval(() => { const clock = $('#clock'); if (clock) clock.textContent = new Date().toTimeString().slice(0, 5); }, 20000);
+</script>
+</body>
+</html>

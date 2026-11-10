@@ -16,6 +16,12 @@
 | host → panel | `AD_PING` | Heartbeat every second; the header shows *NO PC* after 3.5 s without one |
 | host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | The PC's local time for the header and the ambient clock; the panel has no network clock |
 | host → panel | `AD_SCREEN deck` / `AD_SCREEN ambient` | Show the keys or the ambient clock (protocol 3) |
+| host → panel | `AD_AGENTS {"agents":[{id,name,state,text,sub}]}` | The agents screen: up to 3 lanes, `state` is idle, working or waiting (protocol 4) |
+| host → panel | `AD_MIXER {"faders":[{id,name,level,muted,mic,color}]}` | The mixer screen: up to 5 faders; `id` is the host's audio target (protocol 4) |
+| host → panel | `AD_STATS {"stats":[{name,value,unit,p,color,warn}]}` | The status screen: up to 8 readings (protocol 4) |
+| host → panel | `AD_VIEW keys\|agents\|mixer\|status` | Bring one of the four screens forward, for example for a permission question (protocol 4) |
+| panel → host | `{"type":"agent","id":"claude","do":"allow\|deny\|stop\|open"}` | A lane button was touched (protocol 4) |
+| panel → host | `{"type":"fader","id":"…","level":0-100}` / `{"type":"mute","id":"…"}` | A fader was dragged or a mute button touched (protocol 4) |
 | host → panel | `AD_AMBIENT <text>` | The line under the ambient clock, for example the weather (protocol 3) |
 | panel → host | `{"type":"info","boardId":"tessera-p4","firmwareVersion":…,"protocol":3,…}` | The answer to `get_info`; the host refuses another board or an unsupported protocol |
 | panel → host | `{"type":"deck_event","button":N,"label":"…","hold":true}` | A key was pressed (`hold` for a long press, protocol 2) |

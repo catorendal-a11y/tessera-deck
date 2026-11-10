@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- New panel layout (firmware protocol 4): a rail with four screens. The keys keep their six-by-three deck; the agents, mixer and status screens are new.
+- Agents: one lane per AI tool with its state and last message. Allow and Deny on the panel answer Claude Code's permission questions through a hook (`deckctl hooks claude-permission`); anything unclear falls back to Claude's own dialog.
+- Mixer: drag faders for the speakers, up to three programs and the microphone; mute with a tap.
+- Status: eight readings with bars, and the first one over its limit is named.
+- Editor: **Panel screens** chooses the agents, mixer programs and readings.
+
 ## 0.5.2
 
 - Fixed: a key that brings a running program to the front (for example Chrome) shrank a maximized window. Only a minimized window is restored now.

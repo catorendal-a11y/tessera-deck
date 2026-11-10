@@ -311,6 +311,25 @@ def _check_display(display):
             raise ValueError(f'display.{key} must be a whole number from {low} to {high}')
 
 
+def _check_panel(panel):
+    """The `panel` block: which agents, programs and readings the cockpit screens show."""
+    import cockpit
+    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats'}:
+        raise ValueError('panel may only set agents, apps, mic and stats')
+    agents = panel.get('agents', [])
+    if not isinstance(agents, list) or any(item not in [key for key, _, _ in cockpit.AGENTS] for item in agents):
+        raise ValueError('panel.agents must list claude, codex or zcode')
+    apps = panel.get('apps', [])
+    if (not isinstance(apps, list) or len(apps) > cockpit.MAX_APPS
+            or any(not isinstance(item, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,35}\.exe', item) for item in apps)):
+        raise ValueError(f'panel.apps must list at most {cockpit.MAX_APPS} program names ending in .exe')
+    if type(panel.get('mic', True)) is not bool:
+        raise ValueError('panel.mic must be true or false')
+    stats = panel.get('stats', [])
+    if not isinstance(stats, list) or any(item not in cockpit.STAT_IDS for item in stats):
+        raise ValueError('panel.stats must list readings the panel knows')
+
+
 def _validate_config(config):
     profiles = config.get('profiles') if isinstance(config, dict) else None
     if isinstance(config, dict) and version_of(config) > CONFIG_VERSION:
@@ -333,6 +352,8 @@ def _validate_config(config):
         raise ValueError('theme may only set bg, text_color and border')
     for key, value in theme.items():
         _check_color(value, f'Invalid theme {key.replace("_", " ")}')
+    if 'panel' in config:
+        _check_panel(config['panel'])
     if 'plugins' in config:
         check_plugin_config(config['plugins'])
     triggers = config.get('triggers', [])

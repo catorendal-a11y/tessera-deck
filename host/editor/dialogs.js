@@ -381,5 +381,32 @@ $('#test-close').onclick = () => $('#test-dialog').close();
 $('#iconify-search').onclick = () => iconifySearch().catch(showError);
 $('#iconify-query').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); iconifySearch().catch(showError); } });
 
+/* Panel screens: which agents, programs and readings the panel's agents, mixer and status screens show. */
+const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', 'ZCode']];
+const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed']];
+function panelSettings() {
+  $('#more-menu').hidden = true;
+  const panel = {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config.panel || {})};
+  const fields = [
+    ...PANEL_AGENTS.map(([id, name]) => ({name: 'agent_' + id, label: `Agents: ${name}`, type: 'checkbox', value: panel.agents.includes(id), note: id === 'claude' ? 'Allow and Deny on the panel answer Claude Code’s permission questions once the hook is installed (deckctl hooks claude-permission).' : ''})),
+    {name: 'apps', label: 'Mixer: programs (up to 3, e.g. spotify.exe, chrome.exe)', value: panel.apps.join(', '), note: 'Leave empty to show the programs that are playing sound right now.'},
+    {name: 'mic', label: 'Mixer: show the microphone', type: 'checkbox', value: panel.mic},
+    ...PANEL_STATS.map(([id, name]) => ({name: 'stat_' + id, label: `Status: ${name}`, type: 'checkbox', value: panel.stats.includes(id)}))
+  ];
+  dialog('Panel screens', fields, values => {
+    const apps = values.apps.split(',').map(item => item.trim()).filter(Boolean);
+    if (apps.length > 3) throw new Error('Choose at most three programs for the mixer.');
+    if (apps.some(item => !/^[A-Za-z0-9_.-]{1,35}\.exe$/.test(item))) throw new Error('Program names must end in .exe, like spotify.exe.');
+    mutate(() => {
+      config.panel = {
+        agents: PANEL_AGENTS.map(a => a[0]).filter(id => values['agent_' + id]),
+        apps, mic: Boolean(values.mic),
+        stats: PANEL_STATS.map(s => s[0]).filter(id => values['stat_' + id])
+      };
+    });
+  }, 'Apply');
+}
+$('#panel-open').onclick = panelSettings;
+
 // Everything is defined now: start the editor.
 start().catch(error=>{setSaveState('The editor could not start',error.message);toast(error.message);});

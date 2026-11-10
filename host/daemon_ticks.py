@@ -6,7 +6,8 @@ import time
 
 import psutil
 
-from win_input import IS_WINDOWS
+import cockpit
+from win_input import IS_WINDOWS, focus_existing_process
 
 
 class BackgroundMixin:
@@ -81,6 +82,61 @@ class BackgroundMixin:
             return
         self.plugins_checked = now
         self.plugins.sync(self.config.get('plugins'))
+
+    def uses_cockpit(self):
+        return (self.device_info.get('protocol') or 1) >= cockpit.PROTOCOL
+
+    def agent_action(self, agent_id, action):
+        """A lane button on the agents screen.
+
+        Allow and Deny answer the permission prompt the panel is showing (see permission.py). Without an open
+        prompt a button brings the tool's window to the front. Plugins are told either way.
+        """
+        self.events.add('agent', agent=agent_id, action=action)
+        if self.permissions.answer(agent_id, action):
+            self.log(f'Agent {agent_id}: {action}, answered from the panel')
+            return
+        exe = cockpit.agent_exe(agent_id)
+        shown = bool(exe) and focus_existing_process(exe)
+        self.log(f'Agent {agent_id}: {action}' + ('' if shown else ' (its window was not found)'))
+
+    def panel_takes_questions(self):
+        return self.panel is not None and not self.connection_failed.is_set() and self.uses_cockpit()
+
+    def ask_permission(self, agent, text):
+        """Called by the control API: blocks until Allow or Deny is touched, or returns None."""
+        return self.permissions.ask(agent, text, self.panel_takes_questions)
+
+    def show_question(self):
+        """A permission prompt opened or closed: wake the panel, bring up the agents screen and redraw the lanes."""
+        if not self.panel_takes_questions():
+            return
+        asking = self.permissions.current()
+        if asking:
+            self.wake_display()
+            self.panel.send_line('AD_VIEW agents')
+        payload = cockpit.agents_payload(self.custom_vars, self.agents, asking, self.config.get('panel', {}).get('agents'))
+        self.panel.send_line(f'AD_AGENTS {payload}')
+        self.cockpit_sent['AD_AGENTS'] = payload
+
+    def cockpit_tick(self, now):
+        """Keep the agents, mixer and status screens of a cockpit panel current: once a second, only what changed."""
+        if (self.panel is None or self.connection_failed.is_set() or not self.uses_cockpit()
+                or now - self.cockpit_at < 1):
+            return
+        self.cockpit_at = now
+        choice = self.config.get('panel', {})
+        lines = {'AD_AGENTS': cockpit.agents_payload(self.custom_vars, self.agents, self.permissions.current(),
+                                                     choice.get('agents')),
+                 'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}
+        try:
+            lines['AD_MIXER'] = cockpit.mixer_payload(cockpit.read_mixer(choice.get('apps'), choice.get('mic', True)))
+        except (OSError, ImportError):
+            pass  # no sound device or no audio library: the mixer screen keeps what it had
+        for command, payload in lines.items():
+            if self.cockpit_sent.get(command) != payload:
+                self.panel.send_line(f'{command} {payload}')
+                self.cockpit_sent[command] = payload
 
     def stats_tick(self, now):
         if now < self.stats_scan_at:

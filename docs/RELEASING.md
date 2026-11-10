@@ -12,6 +12,7 @@ with a message that says which side to update.
 | 1 | Original firmware |
 | 2 | `protocol` field in `get_info`, long-press (`hold`) events |
 | 3 | Per-key colors, the ambient screen (`AD_SCREEN ambient`, `AD_AMBIENT`), the offline layout |
+| 4 | The cockpit: a rail of four screens (keys, agents, mixer, status) with `AD_AGENTS`, `AD_MIXER`, `AD_STATS`, `AD_VIEW` and touch lines back |
 
 The configuration file has its own `version` (currently 2). Opening an older file migrates it; a file from a newer
 Tessera is refused with a clear message instead of being damaged.

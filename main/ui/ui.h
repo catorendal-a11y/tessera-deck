@@ -9,6 +9,8 @@ extern "C" {
 void ui_init(void);
 /* Compatibility entry point; the standalone product has one full-screen Deck. */
 void ui_show_destination(int unused);
+/* Shows one of the four screens: 0 keys, 1 agents, 2 mixer, 3 status. */
+void ui_show_view(int index);
 
 /* Read-only USB diagnostics: writes a JSON-ish summary of the current
  * screen and its main labels. Caller must hold the LVGL display lock.

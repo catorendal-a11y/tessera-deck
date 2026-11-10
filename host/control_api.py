@@ -13,6 +13,7 @@ import secrets
 import subprocess
 import threading
 from action_runner import Busy
+import permission
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -76,7 +77,8 @@ class ControlServer:
         self.grant_lock = threading.Lock()
         self.server: ThreadingHTTPServer | None = None
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
-                       'state': self.set_state, 'feedback': self.feedback, 'display': self.display}
+                       'state': self.set_state, 'feedback': self.feedback, 'display': self.display,
+                       'permission': self.ask_permission}
 
     # --- scoped tokens for plugins -----------------------------------------------------
     def add_grant(self, name, routes, prefix=None, events=False, read=False) -> str:
@@ -169,6 +171,14 @@ class ControlServer:
             raise ApiError("action must be 'wake' or 'dim'")
         self.daemon.submit((action,))
 
+    def ask_permission(self, data):
+        # Unlike the other routes this one waits: the answer is a touch on the panel (or nobody answers).
+        agent, text = data.get('agent'), data.get('text')
+        if (agent not in permission.AGENT_IDS or not isinstance(text, str) or not 1 <= len(text) <= permission.MAX_TEXT
+                or not permission.printable(text)):
+            raise ApiError('permission needs a known agent and a short, printable text')
+        return {'ok': True, 'decision': self.daemon.ask_permission(agent, text)}
+
     def snapshot(self):
         daemon = self.daemon
         return {'profile': daemon.profile, 'page': daemon.page, 'connected': daemon.panel is not None
@@ -236,14 +246,14 @@ class ControlServer:
                     if not isinstance(data, dict):
                         raise ApiError('The body must be a JSON object')
                     api.check_scope(grant, route, data)
-                    handler(data)
+                    result = handler(data)
                 except Busy as exc:
                     return self.reply(503, {'error': str(exc), 'retry': True})
                 except Forbidden as exc:
                     return self.reply(403, {'error': str(exc)})
                 except (ValueError, TypeError) as exc:
                     return self.reply(400, {'error': str(exc)})
-                self.reply(200, {'ok': True, 'queued': True})
+                self.reply(200, result if isinstance(result, dict) else {'ok': True, 'queued': True})
 
         return Handler
 

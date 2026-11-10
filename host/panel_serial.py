@@ -10,7 +10,8 @@ except ImportError:
     serial = None
 
 BOARD_ID = 'tessera-p4'
-SUPPORTED_PROTOCOLS = (1, 2, 3)  # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen
+# 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status)
+SUPPORTED_PROTOCOLS = (1, 2, 3, 4)
 HANDSHAKE_SECONDS = 2.5
 OFFLINE_LAYOUT_BYTES = 3800  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
 

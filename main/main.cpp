@@ -157,6 +157,12 @@ static void usb_console_task(void *)
             printf("{\"type\":\"screen\",\"name\":\"deck\",\"by\":\"touch\"}\n");
             fflush(stdout);
         }
+        /* Touches on the agents and mixer screens: the UI wrote each one as a finished JSON line. */
+        char touched[128];
+        while (deck_model_take_line(touched, sizeof(touched))) {
+            printf("%s\n", touched);
+            fflush(stdout);
+        }
         /* Stream Deck behaviour: every physical key press is pushed to the
          * connected host immediately as a JSON line on this console, so no
          * network path is needed for the deck to act. */
@@ -214,6 +220,27 @@ static void usb_console_task(void *)
             used = 0;
             overflow = false;
             continue;
+        }
+        /* Cockpit screens (protocol 4): one JSON line each for the agents, the mixer and the PC's readings. */
+        if (!overflow && strncmp(line, "AD_AGENTS ", 10) == 0) {
+            printf("AD_AGENTS %s\n", deck_model_agents_from_json(line + 10) ? "OK" : "INVALID");
+            fflush(stdout);
+        }
+        if (!overflow && strncmp(line, "AD_VIEW ", 8) == 0) {
+            static const char *const names[] = {"keys", "agents", "mixer", "status"};
+            int view = -1;
+            for (int i = 0; i < 4; ++i) if (!strcmp(line + 8, names[i])) view = i;
+            if (view >= 0) deck_model_request_view(view);
+            printf("AD_VIEW %s\n", view >= 0 ? "OK" : "INVALID");
+            fflush(stdout);
+        }
+        if (!overflow && strncmp(line, "AD_MIXER ", 9) == 0) {
+            printf("AD_MIXER %s\n", deck_model_faders_from_json(line + 9) ? "OK" : "INVALID");
+            fflush(stdout);
+        }
+        if (!overflow && strncmp(line, "AD_STATS ", 9) == 0) {
+            printf("AD_STATS %s\n", deck_model_stats_from_json(line + 9) ? "OK" : "INVALID");
+            fflush(stdout);
         }
         if (!overflow && strcmp(line, "FQ_UI_STATUS") == 0) {
             char *labels = static_cast<char *>(heap_caps_malloc(4096, MALLOC_CAP_SPIRAM));

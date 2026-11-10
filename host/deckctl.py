@@ -22,6 +22,7 @@ import urllib.request
 from pathlib import Path
 
 import adapters
+import permission
 
 INFO_PATH = Path(__file__).with_name('deck-api.local.json')
 TIMEOUT = 3.0
@@ -39,13 +40,13 @@ def load_info(path: Path = INFO_PATH) -> dict:
         raise DeckctlError('The Tessera host is not running (no control API found).') from exc
 
 
-def call(info: dict, method: str, path: str, data: dict | None = None):
+def call(info: dict, method: str, path: str, data: dict | None = None, timeout: float = TIMEOUT):
     url = f'http://127.0.0.1:{info["port"]}{path}'
     body = None if data is None else json.dumps(data).encode('utf-8')
     request = urllib.request.Request(url, data=body, method=method,
                                      headers={'X-Deck-Token': info['token'], 'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT) as reply:
+        with urllib.request.urlopen(request, timeout=timeout) as reply:
             return json.loads(reply.read())
     except urllib.error.HTTPError as exc:
         try:
@@ -87,7 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
     adapter.add_argument('name', choices=[*adapters.ADAPTERS, 'generic'])
     adapter.add_argument('rest', nargs='*', help='generic: NAME STATE [MESSAGE]; codex: the event JSON')
     hooks = commands.add_parser('hooks', help='print the settings block that connects a tool')
-    hooks.add_argument('tool', choices=['claude'])
+    hooks.add_argument('tool', choices=['claude', 'claude-permission'])
+    commands.add_parser('permission', help='Claude Code PermissionRequest hook: answer the prompt on the panel')
     return parser
 
 
@@ -126,14 +128,34 @@ def adapter_updates(arguments: argparse.Namespace, stdin) -> dict:
     return adapters.ADAPTERS[arguments.name](adapters.parse_event(text))
 
 
+def permission_hook(stdin, info_path: Path, out) -> int:
+    """Print allow or deny when the panel answered; print nothing otherwise, so the tool shows its own dialog."""
+    try:
+        raw = stdin.read(adapters.MAX_INPUT + 1)
+        text = permission.request_text(json.loads(raw) if len(raw) <= adapters.MAX_INPUT else None)
+        reply = call(load_info(info_path), 'POST', '/v1/permission', {'agent': 'claude', 'text': text},
+                     timeout=permission.WAIT_SECONDS + 3)
+        out.write(json.dumps(permission.hook_output(reply.get('decision')), separators=(',', ':')) + '\n')
+    except (DeckctlError, ValueError, TypeError, AttributeError, RecursionError):
+        pass  # never an answer the panel did not give
+    return 0
+
+
 def hooks_block(tool: str) -> dict:
     python = Path(__file__).resolve().parents[1] / 'host/.venv/Scripts/python.exe'
+    if tool == 'claude-permission':
+        command = adapters.deckctl_command(python if python.is_file() else Path(sys.executable), Path(__file__).resolve())
+        command = command.removesuffix('adapter claude') + 'permission'
+        return {'hooks': {'PermissionRequest': [{'matcher': '', 'hooks': [{'type': 'command', 'command': command,
+                                                                              'timeout': permission.WAIT_SECONDS + 5}]}]}}
     return adapters.claude_hooks(adapters.deckctl_command(python if python.is_file() else Path(sys.executable),
                                                           Path(__file__).resolve()))
 
 
 def main(argv=None, info_path: Path = INFO_PATH) -> int:
     arguments = build_parser().parse_args(argv)
+    if arguments.command == 'permission':
+        return permission_hook(sys.stdin, info_path, sys.stdout)
     if arguments.command == 'hooks':
         print(json.dumps(hooks_block(arguments.tool), indent=2))
         return 0

@@ -124,6 +124,52 @@ uint32_t deck_model_ambient_version(void);
 void deck_model_note_host(void);
 bool deck_model_host_linked(int64_t timeout_ms);
 
+/* Cockpit screens (protocol 4): beside the keys the panel shows the AI agents, a sound mixer and the PC's
+ * vital signs. The host sends each as one JSON line; the UI redraws when the version changes. */
+#define DECK_AGENTS_MAX 3
+#define DECK_FADERS_MAX 5
+#define DECK_STATS_MAX 8
+#define DECK_ID_MAX 39
+typedef enum { DECK_AGENT_IDLE = 0, DECK_AGENT_WORKING = 1, DECK_AGENT_WAITING = 2 } deck_agent_state_t;
+typedef struct {
+    char id[DECK_ID_MAX + 1];
+    char name[24];
+    uint8_t state;   /* deck_agent_state_t */
+    char text[160];  /* what it is doing or asking; a permission prompt is shown in full */
+    char sub[32];    /* project */
+} deck_agent_t;
+typedef struct {
+    char id[DECK_ID_MAX + 1]; /* the host's audio target: speaker, mic or app:NAME.exe */
+    char name[16];
+    uint8_t level;            /* 0..100 */
+    bool muted;
+    bool mic;
+    uint32_t color;
+} deck_fader_t;
+typedef struct {
+    char name[16];
+    char value[8];
+    char unit[6];
+    uint8_t percent;
+    uint32_t color;
+    bool warn;
+} deck_stat_t;
+bool deck_model_agents_from_json(const char *json_text);  /* {"agents":[{id,name,state,text,sub}]} */
+bool deck_model_faders_from_json(const char *json_text);  /* {"faders":[{id,name,level,muted,mic,color}]} */
+bool deck_model_stats_from_json(const char *json_text);   /* {"stats":[{name,value,unit,p,color,warn}]} */
+int deck_model_agents(deck_agent_t *out, int max_out);
+int deck_model_faders(deck_fader_t *out, int max_out);
+int deck_model_stats(deck_stat_t *out, int max_out);
+uint32_t deck_model_agents_version(void);
+uint32_t deck_model_faders_version(void);
+uint32_t deck_model_stats_version(void);
+/* The host can bring one of the four screens to the front (a permission prompt opens the agents screen). */
+void deck_model_request_view(int view);
+int deck_model_take_view_request(void); /* -1 when nothing is pending */
+/* A touch the host must hear about (an agent button, a fader): one ready JSON line, sent by the USB console. */
+void deck_model_queue_line(const char *line);
+bool deck_model_take_line(char *out, size_t size);
+
 /* Shared parser for both the HTTP API and the USB console config push.
  * Accepts {"buttons":[...]} text; returns false (count untouched) on any
  * invalid entry. */

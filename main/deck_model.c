@@ -485,3 +485,226 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
     return true;
 }
 
+
+/* ---- Cockpit screens: agents, mixer, PC status -------------------------------------------------- */
+static deck_agent_t s_agents[DECK_AGENTS_MAX];
+static deck_fader_t s_faders[DECK_FADERS_MAX];
+static deck_stat_t s_stats[DECK_STATS_MAX];
+static int s_agent_count, s_fader_count, s_stat_count;
+static uint32_t s_agents_version = 1, s_faders_version = 1, s_stats_version = 1;
+
+#define DECK_LINE_QUEUE 8
+#define DECK_LINE_MAX 96
+static char s_lines[DECK_LINE_QUEUE][DECK_LINE_MAX];
+static int s_line_head, s_line_count;
+
+/* An id travels back to the host inside a JSON string, so it may not contain what would end that string. */
+static bool id_is_safe(const char *id)
+{
+    if (!id || !id[0] || strlen(id) > DECK_ID_MAX) return false;
+    for (const char *c = id; *c; ++c) {
+        if ((unsigned char)*c < 0x20 || *c == '"' || *c == '\\') return false;
+    }
+    return true;
+}
+
+static const char *text_of(const cJSON *item, const char *key)
+{
+    const cJSON *value = cJSON_GetObjectItemCaseSensitive(item, key);
+    return cJSON_IsString(value) ? value->valuestring : "";
+}
+
+static uint8_t percent_of(const cJSON *item, const char *key)
+{
+    const cJSON *value = cJSON_GetObjectItemCaseSensitive(item, key);
+    if (!cJSON_IsNumber(value) || value->valuedouble < 0) return 0;
+    return (uint8_t)(value->valuedouble > 100 ? 100 : value->valuedouble);
+}
+
+/* Parses {"<key>":[...]} with at most `max` entries; NULL when the text is not that. */
+static cJSON *list_from_json(const char *json_text, const char *key, int max, const cJSON **list)
+{
+    cJSON *json = json_text ? cJSON_Parse(json_text) : NULL;
+    *list = json ? cJSON_GetObjectItemCaseSensitive(json, key) : NULL;
+    if (!cJSON_IsArray(*list) || cJSON_GetArraySize(*list) > max) {
+        cJSON_Delete(json);
+        return NULL;
+    }
+    return json;
+}
+
+bool deck_model_agents_from_json(const char *json_text)
+{
+    const cJSON *list = NULL;
+    cJSON *json = list_from_json(json_text, "agents", DECK_AGENTS_MAX, &list);
+    if (!json) return false;
+    deck_agent_t parsed[DECK_AGENTS_MAX];
+    memset(parsed, 0, sizeof(parsed));
+    int count = 0;
+    bool valid = true;
+    for (const cJSON *item = list->child; item; item = item->next) {
+        const char *id = text_of(item, "id"), *state = text_of(item, "state");
+        if (!id_is_safe(id) || !text_of(item, "name")[0]) { valid = false; break; }
+        copy_text(parsed[count].id, sizeof(parsed[count].id), id);
+        copy_text(parsed[count].name, sizeof(parsed[count].name), text_of(item, "name"));
+        copy_text(parsed[count].text, sizeof(parsed[count].text), text_of(item, "text"));
+        copy_text(parsed[count].sub, sizeof(parsed[count].sub), text_of(item, "sub"));
+        parsed[count].state = !strcmp(state, "waiting") ? DECK_AGENT_WAITING :
+                              !strcmp(state, "working") ? DECK_AGENT_WORKING : DECK_AGENT_IDLE;
+        ++count;
+    }
+    cJSON_Delete(json);
+    if (!valid) return false;
+    model_lock();
+    if (count != s_agent_count || memcmp(parsed, s_agents, sizeof(parsed)) != 0) {
+        memcpy(s_agents, parsed, sizeof(parsed));
+        s_agent_count = count;
+        ++s_agents_version;
+    }
+    model_unlock();
+    return true;
+}
+
+bool deck_model_faders_from_json(const char *json_text)
+{
+    const cJSON *list = NULL;
+    cJSON *json = list_from_json(json_text, "faders", DECK_FADERS_MAX, &list);
+    if (!json) return false;
+    deck_fader_t parsed[DECK_FADERS_MAX];
+    memset(parsed, 0, sizeof(parsed));
+    int count = 0;
+    bool valid = true;
+    for (const cJSON *item = list->child; item; item = item->next) {
+        const char *id = text_of(item, "id");
+        uint32_t color = 0x58E09B;
+        const cJSON *shade = cJSON_GetObjectItemCaseSensitive(item, "color");
+        if (!id_is_safe(id) || (shade && (!cJSON_IsString(shade) || !parse_color_hex(shade->valuestring, &color)))) {
+            valid = false;
+            break;
+        }
+        copy_text(parsed[count].id, sizeof(parsed[count].id), id);
+        copy_text(parsed[count].name, sizeof(parsed[count].name), text_of(item, "name"));
+        parsed[count].level = percent_of(item, "level");
+        parsed[count].muted = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item, "muted"));
+        parsed[count].mic = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item, "mic"));
+        parsed[count].color = color;
+        ++count;
+    }
+    cJSON_Delete(json);
+    if (!valid) return false;
+    model_lock();
+    if (count != s_fader_count || memcmp(parsed, s_faders, sizeof(parsed)) != 0) {
+        memcpy(s_faders, parsed, sizeof(parsed));
+        s_fader_count = count;
+        ++s_faders_version;
+    }
+    model_unlock();
+    return true;
+}
+
+bool deck_model_stats_from_json(const char *json_text)
+{
+    const cJSON *list = NULL;
+    cJSON *json = list_from_json(json_text, "stats", DECK_STATS_MAX, &list);
+    if (!json) return false;
+    deck_stat_t parsed[DECK_STATS_MAX];
+    memset(parsed, 0, sizeof(parsed));
+    int count = 0;
+    bool valid = true;
+    for (const cJSON *item = list->child; item; item = item->next) {
+        uint32_t color = 0x58E09B;
+        const cJSON *shade = cJSON_GetObjectItemCaseSensitive(item, "color");
+        if (shade && (!cJSON_IsString(shade) || !parse_color_hex(shade->valuestring, &color))) { valid = false; break; }
+        copy_text(parsed[count].name, sizeof(parsed[count].name), text_of(item, "name"));
+        copy_text(parsed[count].value, sizeof(parsed[count].value), text_of(item, "value"));
+        copy_text(parsed[count].unit, sizeof(parsed[count].unit), text_of(item, "unit"));
+        parsed[count].percent = percent_of(item, "p");
+        parsed[count].warn = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item, "warn"));
+        parsed[count].color = color;
+        ++count;
+    }
+    cJSON_Delete(json);
+    if (!valid) return false;
+    model_lock();
+    if (count != s_stat_count || memcmp(parsed, s_stats, sizeof(parsed)) != 0) {
+        memcpy(s_stats, parsed, sizeof(parsed));
+        s_stat_count = count;
+        ++s_stats_version;
+    }
+    model_unlock();
+    return true;
+}
+
+int deck_model_agents(deck_agent_t *out, int max_out)
+{
+    if (!out) return 0;
+    model_lock();
+    int count = s_agent_count < max_out ? s_agent_count : max_out;
+    if (count > 0) memcpy(out, s_agents, sizeof(deck_agent_t) * (size_t)count);
+    model_unlock();
+    return count;
+}
+
+int deck_model_faders(deck_fader_t *out, int max_out)
+{
+    if (!out) return 0;
+    model_lock();
+    int count = s_fader_count < max_out ? s_fader_count : max_out;
+    if (count > 0) memcpy(out, s_faders, sizeof(deck_fader_t) * (size_t)count);
+    model_unlock();
+    return count;
+}
+
+int deck_model_stats(deck_stat_t *out, int max_out)
+{
+    if (!out) return 0;
+    model_lock();
+    int count = s_stat_count < max_out ? s_stat_count : max_out;
+    if (count > 0) memcpy(out, s_stats, sizeof(deck_stat_t) * (size_t)count);
+    model_unlock();
+    return count;
+}
+
+uint32_t deck_model_agents_version(void) { return s_agents_version; }
+uint32_t deck_model_faders_version(void) { return s_faders_version; }
+uint32_t deck_model_stats_version(void) { return s_stats_version; }
+
+static int s_view_request = -1;
+
+void deck_model_request_view(int view)
+{
+    model_lock(); s_view_request = view; model_unlock();
+}
+
+int deck_model_take_view_request(void)
+{
+    model_lock(); int request = s_view_request; s_view_request = -1; model_unlock();
+    return request;
+}
+
+void deck_model_queue_line(const char *line)
+{
+    if (!line || strlen(line) >= DECK_LINE_MAX) return;
+    model_lock();
+    if (s_line_count == DECK_LINE_QUEUE) { /* drop the oldest: the newest touch matters most */
+        s_line_head = (s_line_head + 1) % DECK_LINE_QUEUE;
+        --s_line_count;
+    }
+    strcpy(s_lines[(s_line_head + s_line_count) % DECK_LINE_QUEUE], line);
+    ++s_line_count;
+    model_unlock();
+}
+
+bool deck_model_take_line(char *out, size_t size)
+{
+    bool found = false;
+    model_lock();
+    if (s_line_count && out && size >= DECK_LINE_MAX) {
+        strcpy(out, s_lines[s_line_head]);
+        s_line_head = (s_line_head + 1) % DECK_LINE_QUEUE;
+        --s_line_count;
+        found = true;
+    }
+    model_unlock();
+    return found;
+}

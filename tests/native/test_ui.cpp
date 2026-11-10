@@ -26,10 +26,96 @@ static bool touching=false;static lv_point_t touch_at{};
 static void touch_read(lv_indev_t*,lv_indev_data_t* data){data->point=touch_at;data->state=touching?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y){touch_at={x,y};touching=true;updates();touching=false;updates();}
 static lv_obj_t* find(lv_obj_t* root,const char* text){if(lv_obj_check_type(root,&lv_label_class)&&!strcmp(lv_label_get_text(root),text))return root;for(uint32_t i=0;i<lv_obj_get_child_count(root);++i)if(auto* result=find(lv_obj_get_child(root,i),text))return result;return nullptr;}
-int main(int argc,char** argv){const std::filesystem::path output=argc>1?argv[1]:".";std::filesystem::create_directories(output);lv_init();lv_tick_set_cb(millis);pixels.resize(1024*600*3);auto* display=lv_display_create(1024,600);lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);alignas(64)static uint32_t buffer[1024*600];lv_display_set_buffers(display,buffer,nullptr,sizeof(buffer),LV_DISPLAY_RENDER_MODE_FULL);lv_display_set_flush_cb(display,flush);lv_tick_inc(tick);deck_model_init();
+static bool shown(lv_obj_t* object){for(;object;object=lv_obj_get_parent(object))if(lv_obj_has_flag(object,LV_OBJ_FLAG_HIDDEN))return false;return true;}
+static bool visible(const char* text){auto* found=find(lv_screen_active(),text);return found&&shown(found);}
+static std::string taken(){char line[128]="";return deck_model_take_line(line,sizeof(line))?std::string(line):std::string();}
+int main(int argc,char** argv){
+const std::filesystem::path output=argc>1?argv[1]:".";std::filesystem::create_directories(output);
+lv_init();lv_tick_set_cb(millis);pixels.resize(1024*600*3);auto* display=lv_display_create(1024,600);
+lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);alignas(64)static uint32_t buffer[1024*600];
+lv_display_set_buffers(display,buffer,nullptr,sizeof(buffer),LV_DISPLAY_RENDER_MODE_FULL);lv_display_set_flush_cb(display,flush);lv_tick_inc(tick);deck_model_init();
 auto* touch=lv_indev_create();lv_indev_set_type(touch,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(touch,touch_read);deck_model_note_host();
-deck_button_t parsed[18]{};int count=0;assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Build","icon":"lc:e064","color":"#35D07F","hold":true,"title":{"size":20,"position":"bottom","bold":true}},{"id":18,"label":"Folder","icon":"folder","color":"#FFA868"}]})",parsed,18,&count));assert(count==2);assert(parsed[0].has_hold&&!parsed[1].has_hold&&!parsed[0].has_double);{deck_button_t twice[1]{};int twice_count=0;assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Tap","double":true}]})",twice,1,&twice_count)&&twice[0].has_double&&!twice[0].has_hold);}assert(deck_model_replace_buttons(parsed,count));deck_model_set_context("CODING","PROJECT",true);ui_init();updates();assert(find(lv_screen_active(),"TESSERA"));assert(find(lv_screen_active(),"CODING"));assert(find(lv_screen_active(),"<  PROJECT"));assert(find(lv_screen_active(),"Build"));char status[256];assert(ui_debug_visible_text(status,sizeof(status))==0);assert(strstr(status,"\"screen\":\"deck\""));
-assert(find(lv_screen_active(),"PC CONNECTED")&&strstr(status,"\"pc\":true"));
+
+/* Keys: an even six-by-three deck; every key sits in the slot its id names, whatever order the host sends. */
+deck_button_t parsed[18]{};int count=0;
+assert(deck_model_buttons_from_json(R"({"buttons":[
+ {"id":4,"label":"New tab","icon":"lc:e13d","color":"#F2B94B","hold":true},{"id":2,"label":"Reopen tab","icon":"lc:e2a6","color":"#F2B94B"},
+ {"id":9,"label":"DevTools","icon":"lc:e09b","color":"#F2B94B"},{"id":1,"label":"Close tab","icon":"lc:e1b2","color":"#A3B2BC"},
+ {"id":3,"label":"Back","icon":"lc:e04a","color":"#64B5F6"},{"id":5,"label":"Reload","icon":"lc:e145","color":"#64B5F6"},
+ {"id":6,"label":"CPU","icon":"ok","color":"#58E09B","gauge":{"p":45,"t":"45%"}},{"id":7,"label":"Folder","icon":"folder","color":"#FFA868"},
+ {"id":18,"label":"Home","icon":"lc:e0f5","color":"#64B5F6"}]})",parsed,18,&count));
+assert(count==9&&parsed[0].has_hold&&!parsed[1].has_hold);
+{deck_button_t twice[1]{};int twice_count=0;assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Tap","double":true}]})",twice,1,&twice_count)&&twice[0].has_double&&!twice[0].has_hold);}
+assert(deck_model_replace_buttons(parsed,count));deck_model_set_context("chrome","main",true);ui_init();updates();
+assert(visible("<  Main")&&visible("Chrome")&&visible("New tab")&&visible("Home")&&visible("45%"));
+char status[256];assert(ui_debug_visible_text(status,sizeof(status))==0);
+assert(strstr(status,"\"screen\":\"deck\"")&&strstr(status,"\"view\":\"keys\"")&&strstr(status,"\"pc\":true"));
+capture(output/"keys.ppm");
+{/* A tap lands on the key in that slot: id 4 is the fourth tile of the first row, id 1 the first. */
+int before=deck_model_last_event_id();tap(629,150);deck_event_t event{};
+assert(deck_model_events_since(before,&event,1)==1&&event.button_id==4&&!event.hold&&!strcmp(event.label,"New tab"));
+before=deck_model_last_event_id();tap(180,150);assert(deck_model_events_since(before,&event,1)==1&&event.button_id==1);}
+{/* A touch on a dimmed panel only wakes it, even on a key; the next touch presses. */
+const int before=deck_model_last_event_id();const uint32_t wake=deck_model_wake_sequence();deck_model_set_dimmed(true);
+tap(180,150);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1&&deck_model_last_event_id()==before);
+tap(180,150);assert(deck_model_last_event_id()==before+1&&deck_model_wake_sequence()==wake+1);}
+{/* A new label or gauge value updates the key in place: a rebuild would drop a touch in progress. */
+deck_button_t live[18]{};int live_count=0;for(int n=0;n<deck_model_button_count();++n)deck_model_get_button(n,&live[live_count++]);
+const uint32_t structure=deck_model_buttons_version();strcpy(live[0].label,"New tab 2");strcpy(live[6].gauge_text,"80%");
+assert(deck_model_replace_buttons(live,live_count)&&deck_model_buttons_version()==structure);updates();
+assert(visible("New tab 2")&&visible("80%")&&!find(lv_screen_active(),"45%"));}
+{/* Confirmations queue in order instead of overwriting each other. */
+int id=0;deck_feedback_t kind;deck_model_request_feedback(1,DECK_FEEDBACK_OK);deck_model_request_feedback(18,DECK_FEEDBACK_ALERT);
+const uint32_t first=deck_model_take_feedback(&id,&kind);assert(first&&id==1&&kind==DECK_FEEDBACK_OK);
+assert(deck_model_take_feedback(&id,&kind)==first+1&&id==18&&kind==DECK_FEEDBACK_ALERT);assert(!deck_model_take_feedback(&id,&kind));}
+{/* Without host pings the rail says so. */
+assert(!visible("NO PC"));tick+=4000;lv_tick_inc(4000);updates();assert(visible("NO PC"));
+deck_model_note_host();updates();assert(!visible("NO PC"));}
+
+{/* Agents: one lane each; a waiting agent offers Allow and Deny, and the answer goes to the host as one line. */
+assert(deck_model_agents_from_json(R"({"agents":[
+ {"id":"claude","name":"Claude Code","state":"waiting","text":"Wants to run: npm run build","sub":"tessera-deck-main"},
+ {"id":"codex","name":"Codex","state":"working","text":"Editing host/win_input.py","sub":"tessera-deck-main"},
+ {"id":"zcode","name":"ZCode","state":"idle","text":"Finished 14:05"}]})"));
+tap(42,116);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
+assert(visible("Claude Code")&&visible("waiting for you")&&visible("Allow")&&visible("Deny")&&visible("Stop")&&visible("Open")&&visible("One needs you"));
+assert(!visible("New tab 2"));
+capture(output/"agents.ppm");
+tap(912,145);assert(taken()==R"({"type":"agent","id":"claude","do":"allow"})"&&taken().empty());
+/* A permission prompt is shown in full on up to three lines, and the host can bring the agents screen forward. */
+assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"waiting","text":"Bash: python -m unittest discover -s tests && git status --short && git diff --stat HEAD~1 && echo finished-all-of-it-now-please-read","sub":"tessera-deck-main"}]})"));
+ui_show_view(0);deck_model_request_view(1);updates();assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
+capture(output/"question.ppm");
+assert(deck_model_agents_from_json(R"({"agents":[
+ {"id":"claude","name":"Claude Code","state":"waiting","text":"Wants to run: npm run build","sub":"tessera-deck-main"},
+ {"id":"codex","name":"Codex","state":"working","text":"Editing host/win_input.py","sub":"tessera-deck-main"},
+ {"id":"zcode","name":"ZCode","state":"idle","text":"Finished 14:05"}]})"));updates();
+assert(!deck_model_agents_from_json(R"({"agents":[{"id":"a\"b","name":"x"}]})"));
+assert(!deck_model_agents_from_json(R"({"agents":[{"id":"a","name":"x"},{"id":"b","name":"x"},{"id":"c","name":"x"},{"id":"d","name":"x"}]})"));}
+
+{/* Mixer: dragging a fader and tapping mute both tell the host which sound and what to do. */
+assert(deck_model_faders_from_json(R"({"faders":[
+ {"id":"speaker","name":"Master","level":62,"color":"#58E09B"},{"id":"app:Spotify.exe","name":"Spotify","level":38,"color":"#B388FF"},
+ {"id":"app:chrome.exe","name":"Chrome","level":80,"color":"#F2B94B"},{"id":"app:Discord.exe","name":"Discord","level":45,"muted":true,"color":"#7C8CF8"},
+ {"id":"mic","name":"Mic","level":70,"mic":true,"color":"#4DD0E1"}]})"));
+ui_show_view(2);updates();assert(visible("Master")&&visible("62 %")&&visible("Muted")&&visible("Mic"));
+capture(output/"mixer.ppm");
+tap(190,171);const std::string moved=taken();
+assert(moved.rfind(R"({"type":"fader","id":"speaker","level":7)",0)==0);while(!taken().empty()){}
+assert(!visible("62 %"));
+tap(191,523);assert(taken()==R"({"type":"mute","id":"speaker"})");
+assert(!deck_model_faders_from_json(R"({"faders":[{"id":"x","name":"x","color":"red"}]})"));}
+
+{/* Status: the PC's readings, and the first one over its limit is named in the heading. */
+assert(deck_model_stats_from_json(R"({"stats":[
+ {"name":"CPU load","value":"3","unit":"%","p":3,"color":"#58E09B"},{"name":"CPU temp","value":"50","unit":"C","p":50,"color":"#58E09B"},
+ {"name":"RAM","value":"55","unit":"%","p":55,"color":"#64B5F6"},{"name":"Disk","value":"90","unit":"%","p":90,"color":"#FFB74D","warn":true},
+ {"name":"GPU load","value":"0","unit":"%","p":0,"color":"#B388FF"},{"name":"GPU temp","value":"31","unit":"C","p":31,"color":"#B388FF"},
+ {"name":"VRAM","value":"14","unit":"%","p":14,"color":"#B388FF"},{"name":"Network","value":"244","unit":"KB/s","p":20,"color":"#A3B2BC"}]})"));
+ui_show_view(3);updates();assert(visible("CPU load")&&visible("Disk is high")&&visible("244")&&visible("KB/s"));
+capture(output/"status.ppm");
+assert(deck_model_stats_from_json(R"({"stats":[{"name":"CPU load","value":"9","unit":"%","p":9}]})"));updates();assert(visible("9")&&visible("All good"));
+ui_show_view(0);updates();assert(visible("New tab 2"));}
 {/* Image cache: animated frames are counted, the 8 MiB limit holds, least recently used images go first, referenced ones stay. */
 auto upload=[&](unsigned n,int frames)->std::string{
 std::vector<uint8_t> blob={'A','D','I','1',72,72,static_cast<uint8_t>(frames)};
@@ -59,50 +145,4 @@ assert(deck_model_screen()==DECK_SCREEN_AMBIENT);capture(output/"ambient.ppm");
 char shown[256];assert(ui_debug_visible_text(shown,sizeof(shown))==0&&strstr(shown,"\"screen\":\"ambient\""));
 tap(512,300);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return()&&!deck_model_take_touch_return());
 assert(ui_debug_visible_text(shown,sizeof(shown))==0&&strstr(shown,"\"screen\":\"deck\""));}
-{const int before=deck_model_last_event_id();assert(deck_model_record_hold(1));deck_event_t held[1];assert(deck_model_events_since(before,held,1)==1&&held[0].hold&&held[0].button_id==1);}
-{/* A touch on a dimmed panel only wakes it, even on a key; the next touch presses. */
-const int before=deck_model_last_event_id();const uint32_t wake=deck_model_wake_sequence();deck_model_set_dimmed(true);
-tap(94,168);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1&&deck_model_last_event_id()==before);
-tap(94,168);assert(deck_model_last_event_id()==before+1&&deck_model_wake_sequence()==wake+1);
-deck_model_set_dimmed(true);tap(600,40);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+2&&deck_model_last_event_id()==before+1);
-tap(600,40);assert(deck_model_wake_sequence()==wake+2);}
-{/* A new label or status color updates the key in place: a rebuild would drop a touch in progress. */
-deck_button_t live[18]{};int live_count=0;for(int n=0;n<deck_model_button_count();++n)deck_model_get_button(n,&live[live_count++]);
-lv_obj_t* tile=find(lv_screen_active(),"Build");assert(tile);tile=lv_obj_get_parent(tile);
-const uint32_t structure=deck_model_buttons_version();strcpy(live[0].label,"Build 14:33");live[0].color=0xFFB74D;
-assert(deck_model_replace_buttons(live,live_count)&&deck_model_buttons_version()==structure);updates();
-lv_obj_t* renamed=find(lv_screen_active(),"Build 14:33");assert(renamed&&lv_obj_get_parent(renamed)==tile&&!find(lv_screen_active(),"Build"));
-const int before=deck_model_last_event_id();tap(94,168);deck_event_t event{};
-assert(deck_model_events_since(before,&event,1)==1&&!strcmp(event.label,"Build 14:33"));
-strcpy(live[0].label,"Build");live[0].color=0x35D07F;assert(deck_model_replace_buttons(live,live_count));updates();assert(find(lv_screen_active(),"Build"));}
-{/* Confirmations queue in order instead of overwriting each other. */
-int id=0;deck_feedback_t kind;deck_model_request_feedback(1,DECK_FEEDBACK_OK);deck_model_request_feedback(18,DECK_FEEDBACK_ALERT);
-const uint32_t first=deck_model_take_feedback(&id,&kind);assert(first&&id==1&&kind==DECK_FEEDBACK_OK);
-assert(deck_model_take_feedback(&id,&kind)==first+1&&id==18&&kind==DECK_FEEDBACK_ALERT);assert(!deck_model_take_feedback(&id,&kind));}
-{/* Without host pings the header says so, and a press flashes red at once. */
-tick+=4000;lv_tick_inc(4000);updates();assert(find(lv_screen_active(),"NO PC")&&!find(lv_screen_active(),"PC CONNECTED"));
-const int before=deck_model_last_event_id();tap(94,168);assert(deck_model_last_event_id()==before+1);
-deck_model_note_host();updates();assert(find(lv_screen_active(),"PC CONNECTED"));}
-{deck_button_t g[3]{};int gc=0;
-assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"CPU","icon":"ok","color":"#35D07F","gauge":{"p":45,"t":"45%"}},{"id":2,"label":"RAM","icon":"ok","color":"#35D07F","gauge":{"p":150,"t":"69%"}}]})",g,3,&gc));
-assert(gc==2&&g[0].has_gauge&&g[0].gauge_percent==45&&g[1].gauge_percent==100);
-/* A gauge key shows the number and the unit as two labels: "45" and "%". */
-assert(deck_model_replace_buttons(g,gc));updates();assert(find(lv_screen_active(),"45")&&find(lv_screen_active(),"%"));
-const uint32_t structure=deck_model_buttons_version(),live=deck_model_live_version();
-g[0].gauge_percent=80;strcpy(g[0].gauge_text,"80%");g[0].color=0xFF7070;
-assert(deck_model_replace_buttons(g,gc));
-assert(deck_model_buttons_version()==structure&&deck_model_live_version()==live+1);
-updates();assert(find(lv_screen_active(),"80")&&!find(lv_screen_active(),"45"));
-assert(deck_model_replace_buttons(g,gc));assert(deck_model_live_version()==live+1);
-g[0].has_gauge=false;assert(deck_model_replace_buttons(g,gc));assert(deck_model_buttons_version()==structure+1);
-assert(!deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"X","gauge":{"p":"no","t":"1"}}]})",g,3,&gc));
-assert(deck_model_replace_buttons(parsed,count));updates();}
-{deck_button_t s[18]{};const char* names[]={"CPU TEMP","CPU LOAD","CPU POWER","CPU CLOCK","RAM","DISK","GPU TEMP","GPU LOAD","GPU POWER","GPU CLOCK","VRAM","FAN","DOWN","UP","UPTIME","SENSORS","--"};
-const char* texts[]={"58C","11%","72W","4.2G","69%","79%","81C","97%","301W","2.5G","12.1G","1450","8K","4K","4d","LIVE","--"};
-const int pct[]={58,11,40,84,69,79,81,97,86,95,75,48,8,4,22,100,0};const uint32_t cols[]={0x35D07F,0x35D07F,0x35D07F,0x4DD0E1,0xFFB74D,0xFFB74D,0xFF7070,0xFF7070,0xFFB74D,0x4DD0E1,0xFFB74D,0x35D07F,0x64B5F6,0x64B5F6,0x90A4AE,0x35D07F,0x4A5A63};
-for(int i=0;i<17;++i){s[i].id=i+1;snprintf(s[i].label,sizeof(s[i].label),"%s",names[i]);snprintf(s[i].icon,sizeof(s[i].icon),"ok");s[i].color=cols[i];s[i].has_gauge=true;s[i].gauge_percent=pct[i];snprintf(s[i].gauge_text,sizeof(s[i].gauge_text),"%s",texts[i]);}
-s[17].id=18;snprintf(s[17].label,sizeof(s[17].label),"Home");snprintf(s[17].icon,sizeof(s[17].icon),"lc:e0f5");s[17].color=0x64B5F6;
-assert(deck_model_replace_buttons(s,18));deck_model_set_context("MAIN","STATUS",true);capture(output/"gauges.ppm");}
-if(argc>4){std::ifstream in(argv[2],std::ios::binary);std::string text((std::istreambuf_iterator<char>(in)),std::istreambuf_iterator<char>());deck_button_t custom[18]{};int custom_count=0;
-assert(deck_model_buttons_from_json(text.c_str(),custom,18,&custom_count));assert(deck_model_replace_buttons(custom,custom_count));deck_model_set_context(argv[3],argv[4],argc>5);capture(output/"custom.ppm");}
 char glyph[5];unsigned resolved=0;for(uint32_t code=DECK_LUCIDE_FIRST;code<=DECK_LUCIDE_LAST;++code){char name[16];snprintf(name,sizeof(name),"lc:%04x",code);if(deck_lucide_glyph(name,glyph))++resolved;}assert(resolved==DECK_LUCIDE_COUNT);capture(output/"deck.ppm");puts("Standalone Deck model, context and render checks passed.");}

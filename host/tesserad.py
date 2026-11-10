@@ -17,6 +17,8 @@ from plugins import EventLog, PluginManager
 from live_state import LiveState
 from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
+import cockpit
+import permission
 from deck_assets import Assets
 from program_locator import locate
 from substitution import check_web_url, expand_environment, substitute
@@ -127,6 +129,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.plugins = None
         self.plugins_checked = 0.0
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
+        self.cockpit_sent, self.cockpit_at = {}, 0.0
+        self.permissions = permission.Desk(lambda: self.enqueue(('question',)))
         self.notices = collections.deque(maxlen=5)
         self.stats_scan_at = 0.0
         self.assets = Assets(args.profiles)
@@ -502,6 +506,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('panel-woke',))
                         elif message.get('type') == 'screen' and message.get('by') == 'touch':
                             self.enqueue(('screen-deck',))
+                        elif message.get('type') == 'fader' and isinstance(message.get('id'), str) and type(message.get('level')) is int:
+                            self.enqueue(('fader', message['id'][:80], max(0, min(100, message['level']))))
+                        elif message.get('type') == 'mute' and isinstance(message.get('id'), str):
+                            self.enqueue(('mute', message['id'][:80]))
+                        elif message.get('type') == 'agent' and message.get('do') in cockpit.AGENT_ACTIONS and cockpit.agent_exe(message.get('id')):
+                            self.enqueue(('agent', message['id'], message['do']))
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
         except (OSError, ValueError, TypeError, AttributeError) as exc:
@@ -572,6 +582,17 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             # A touch on the ambient screen already returned the panel to the deck.
             self.last_activity = time.monotonic()
             self.ambient_active = self.ambient_requested = False
+        elif kind == 'question':
+            self.show_question()
+        elif kind in ('fader', 'mute', 'agent'):
+            self.last_activity = time.monotonic()
+            if kind == 'fader':
+                control_audio(job[1], 'volume', job[2])
+            elif kind == 'mute':
+                control_audio(job[1], 'toggle')
+                self.cockpit_at = 0.0  # show the new state on the panel at once
+            else:
+                self.agent_action(job[1], job[2])
         elif kind == 'panel-woke':
             # The panel already restored its backlight after a touch.
             self.last_activity = time.monotonic()
@@ -666,6 +687,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     try:
                         self.panel, self.port = self.open_panel()
                         self.device_info = getattr(self.panel, 'info', {}) or {}
+                        self.cockpit_sent = {}
                         remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
                         connect_error = None
@@ -695,7 +717,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         retry_at, connect_error = time.monotonic() + wait, exc
                 now = time.monotonic()
                 for tick, arguments in ((self.agent_tick, (now,)), (self.stats_tick, (now,)), (self.ambient_tick, (now,)),
-                                        (self.plugin_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
+                                        (self.plugin_tick, (now,)), (self.cockpit_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
                                         (self.reload_profiles, ())):
                     try:
                         tick(*arguments)
