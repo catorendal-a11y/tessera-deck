@@ -16,9 +16,9 @@ function renderLibrary() {
   const search=$('#action-search').value.toLocaleLowerCase();const list=$('#actions-library');list.replaceChildren();categoryOrder=0;
   const make=(name,icon,sub,key)=>{if(!(name+' '+sub).toLocaleLowerCase().includes(search))return null;
     const item=button('',()=>addAction(key),'action-preset');item.draggable=false;item.dataset.action=key;item.title=name;item.setAttribute('aria-label','Add '+name);
-    item.append(text('span',icons[icon],'action-symbol'),element('span',{},text('span',name),text('small',sub)));
+    item.append(actionSymbol(icon),element('span',{},text('span',name),text('small',sub)));
     item.addEventListener('dragstart',e=>{e.dataTransfer.setData('application/x-deck-action',key);e.dataTransfer.effectAllowed='copy';});return item;};
-  if(('installed programs app launcher'.includes(search)||!search))list.append(button('▦ Installed programs',openProgramPicker,'program-launcher'));
+  if(('installed programs app launcher'.includes(search)||!search))list.append(button('Installed programs',openProgramPicker,'program-launcher'));
   const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='page'?'Folders and subpages':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
   [...groups].forEach(([group,items],index)=>list.append(category(group,items,index%4,!!search)));
   if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)list.append(category(group,items,tone++%4,!!search));}
