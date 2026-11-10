@@ -85,6 +85,22 @@ class Controller:
                 return [actual]
         except (OSError, ValueError, KeyError, psutil.Error):
             pass
+        return self.adopted()
+
+    def adopted(self):
+        """A host that was not started from here (a terminal, a script) still counts: it writes the runtime file.
+
+        Without this the editor says "The host has stopped" while a host holds the USB port, and Start host
+        launches a second one that exits at once.
+        """
+        try:
+            process = psutil.Process(json.loads(self.runtime_path.read_text(encoding='utf-8'))['pid'])
+            command = process.cmdline()
+            if len(command) > 1 and Path(command[1]).resolve() == ROOT / 'host/tesserad.py':
+                self.pid_path.write_text(json.dumps({'pid': process.pid, 'created': process.create_time()}))
+                return [process]
+        except (OSError, ValueError, KeyError, TypeError, psutil.Error):
+            pass
         return []
 
     def status(self):

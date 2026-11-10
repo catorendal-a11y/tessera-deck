@@ -488,9 +488,28 @@ class HostRuntimeTests(HostCase):
             controller = Controller()
             controller.pid_path = Path(directory) / 'owner.json'
             controller.pid_path.write_text(json.dumps({'pid': 10, 'created': 100}))
+            controller.runtime_path = Path(directory) / 'runtime.json'  # no host reports from here
             process = Mock()
             process.create_time.return_value = 200
             process.cmdline.return_value = ['python.exe', str(ROOT / 'host/tesserad.py')]
+            with patch('deck_control.psutil.Process', return_value=process):
+                self.assertEqual(controller.processes(), [])
+
+    def test_a_host_started_elsewhere_is_adopted_from_its_runtime_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            controller = Controller()
+            controller.pid_path = Path(directory) / 'owner.json'
+            controller.runtime_path = Path(directory) / 'runtime.json'
+            controller.runtime_path.write_text(json.dumps({'pid': 42}))
+            process = Mock()
+            process.pid = 42
+            process.create_time.return_value = 300
+            process.cmdline.return_value = ['python.exe', str(ROOT / 'host/tesserad.py')]
+            with patch('deck_control.psutil.Process', return_value=process):
+                self.assertEqual(controller.processes(), [process])
+            self.assertEqual(json.loads(controller.pid_path.read_text()), {'pid': 42, 'created': 300})
+            process.cmdline.return_value = ['python.exe', 'something_else.py']  # the pid now belongs to another program
+            controller.pid_path.unlink()
             with patch('deck_control.psutil.Process', return_value=process):
                 self.assertEqual(controller.processes(), [])
 
