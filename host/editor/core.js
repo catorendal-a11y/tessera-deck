@@ -125,12 +125,14 @@ function renderIconResults() {
   $('#icon-results').scrollTop=0;
 }
 
+const BOOLEAN_ATTRIBUTES=new Set(['disabled','hidden','checked','selected','required','readonly','open','multiple']);
 function element(tag, attrs={}, ...children) {
   const node=document.createElement(tag);
   for(const [key,value] of Object.entries(attrs)) {
     if(key==='text') node.textContent=value;
     else if(key==='class') node.className=value;
     else if(key.startsWith('on')) node.addEventListener(key.slice(2),value);
+    else if(BOOLEAN_ATTRIBUTES.has(key)&&typeof value==='boolean'){if(value)node.setAttribute(key,'');}  // disabled:false must not disable
     else if(value!==undefined && value!==null) node.setAttribute(key,String(value));
   }
   for(const child of children.flat()) if(child) node.append(child);
