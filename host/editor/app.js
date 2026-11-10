@@ -382,6 +382,10 @@ function renderStatus() {
   const layoutBytes=dashboard.device?.layout_bytes||0,offlineLimit=3800;
   $('#connection').title=dashboard.device?.error||(connected&&dashboard.device?.sensor_hint?dashboard.device.sensor_hint:connected&&layoutBytes>offlineLimit?`This page is ${layoutBytes} bytes. The panel keeps at most ${offlineLimit} for use without the PC, so it will show the older saved layout offline.`:'');
   if(connected&&layoutBytes>offlineLimit)$('#connection').textContent+=' · too big to keep offline';
+  const firmware=dashboard.device?.firmware,hostVersion=dashboard.host_version;
+  if(connected&&firmware){const parse=v=>String(v||'').split('.').map(Number),a=parse(firmware),b=parse(hostVersion);let older=false;
+    for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0)){older=(a[i]||0)<(b[i]||0);break;}
+    $('#connection').textContent+=` · firmware ${firmware}${older?' (update available)':''}`;}
   $('#host-toggle').hidden=!!dashboard.running;
   $('#screen-profile').textContent=profile.toUpperCase();$('#screen-page').textContent=titleCase(page);
   $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);

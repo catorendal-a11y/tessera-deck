@@ -109,6 +109,25 @@ class BackgroundMixin:
             activity = {}
         return agent_activity.merge(self.custom_vars, activity, self.agents)
 
+    def agent_notice_tick(self, now):
+        """A Windows notice (shown by the tray) the moment an agent starts waiting for you, or finishes long work."""
+        view = self.agent_view()
+        states = {key: str(view.get(key, '')) for key, _, _ in cockpit.AGENTS}
+        names = {key: name for key, name, _ in cockpit.AGENTS}
+        for key, state in states.items():
+            before = self.agent_seen.get(key)
+            if state == 'working' and before != 'working':
+                self.agent_started[key] = now
+            if before is not None and before != state:
+                if state == 'waiting':
+                    self.notify(names[key], str(view.get(f'{key}.message') or 'Waiting for you'))
+                elif before == 'working' and state == 'idle' and now - self.agent_started.get(key, now) >= 60:
+                    self.notify(names[key], 'Finished' + (f' in {view[f"{key}.project"]}' if view.get(f'{key}.project') else ''))
+        self.agent_seen = states
+
+    def notify(self, title, message):
+        self.notices.append({'id': int(time.time() * 1000), 'title': title, 'message': message[:120]})
+
     def panel_takes_questions(self):
         return self.panel is not None and not self.connection_failed.is_set() and self.uses_cockpit()
 

@@ -102,6 +102,7 @@ class Controller:
                                      ('connected', 'port', 'profile', 'page', 'buttons', 'error',
                                       'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol', 'layout_bytes', 'sensor_hint')})
             result['agents'] = runtime.get('agents', {})
+            result['agent_states'] = runtime.get('agent_states', {})
             result['notices'] = runtime.get('notices', [])
             result['variables'] = runtime.get('variables', {})
             result['plugins'] = runtime.get('plugins', [])

@@ -37,8 +37,11 @@ def tray_state(status: dict) -> str:
 def status_text(status: dict) -> str:
     state = tray_state(status)
     device = status.get('device', {})
+    waiting = [name for name, agent in (('Claude', 'claude'), ('Codex', 'codex'), ('ZCode', 'zcode'))
+               if status.get('agent_states', {}).get(agent) == 'waiting']
+    suffix = f' · {", ".join(waiting)} waiting for you' if waiting else ''
     if state == 'connected':
-        return f'Connected · {device.get("port")} · {device.get("profile")} / {device.get("page")}'
+        return f'Connected · {device.get("port")} · {device.get("profile")} / {device.get("page")}{suffix}'
     if state == 'waiting':
         return 'Waiting for the panel …'
     return 'Host stopped'

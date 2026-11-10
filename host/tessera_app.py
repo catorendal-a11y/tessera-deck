@@ -267,7 +267,7 @@ class Editor:
 
     def status(self):
         result = self.dashboard() if self.dashboard else self.controller.status()
-        return dict(result, autostart=autostart_enabled())
+        return dict(result, autostart=autostart_enabled(), host_version=self.version())
 
     def programs(self):
         return {'programs': installed_programs()}

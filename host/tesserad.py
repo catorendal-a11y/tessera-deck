@@ -132,6 +132,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
         self.cockpit_sent, self.cockpit_at = {}, 0.0
         self.activity = agent_activity.AgentActivity()
+        self.agent_seen, self.agent_started = {}, {}  # what each agent was doing a second ago, and since when
         self.permissions = permission.Desk(lambda: self.enqueue(('question',)))
         self.notices = collections.deque(maxlen=5)
         self.stats_scan_at = 0.0
@@ -175,7 +176,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
-                 'agents': self.agents, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
+                 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}
@@ -719,7 +720,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         retry_at, connect_error = time.monotonic() + wait, exc
                 now = time.monotonic()
                 for tick, arguments in ((self.agent_tick, (now,)), (self.stats_tick, (now,)), (self.ambient_tick, (now,)),
-                                        (self.plugin_tick, (now,)), (self.cockpit_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
+                                        (self.plugin_tick, (now,)), (self.cockpit_tick, (now,)), (self.agent_notice_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
                                         (self.reload_profiles, ())):
                     try:
                         tick(*arguments)
