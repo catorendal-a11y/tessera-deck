@@ -9,6 +9,8 @@
 - Agents screen works without any setup: working and idle, the project and the last tool come from the session files Claude Code and Codex already write. **Connect Claude Code** (⋯ menu) adds the hooks for "waiting for you" and for answering permission questions on the panel; it keeps your other hooks and makes a backup.
 - A Windows notice when an agent starts waiting for you or finishes more than a minute of work; the tray says who is waiting.
 - The editor's status line shows the panel's firmware version and says when an update is available.
+- Editor: a key's steps are listed in order ("1 Open program → 2 Hotkey"), hold and double-press steps show under it, the profile rules are explained in plain words, and a meter shows how much of the panel's offline memory the page uses.
+- Fixed: a changed VERSION did not reach the firmware build, so a rebuilt panel could keep reporting the old version.
 - Editor: **Panel screens** chooses the agents, mixer programs and readings.
 - Editor: **Page templates** (⋯ menu) adds a ready-made page (Meetings, Coding, Media, Browser or empty) after showing how it will look.
 

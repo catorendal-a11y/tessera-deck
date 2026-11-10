@@ -108,8 +108,8 @@ function renderInspector() {
   const positionField=field('Position',base.title?.position||'bottom',v=>mutate(()=>{base.title??={};base.title.position=v;}),{values:[['bottom','Bottom'],['top','Top'],['middle','Middle'],['hidden','Hide text']]});
   const boldButton=button(base.title?.bold?'Bold ✓':'Bold',()=>mutate(()=>{base.title??={};base.title.bold=!base.title.bold;}),'outline');
   const pinButton=button(config.profiles[profile].pinned?.includes(base)?'◆ Unpin':'◇ Pin',togglePin,'outline');
-  const first=activeActions()?.[0],detail=first&&['target','path','keys','text','url','command','name'].map(key=>first[key]).find(value=>typeof value==='string'&&value);
-  const actionButton=button(first?`${(kinds[first.type]||kinds.hotkey).name}${detail?': '+detail:''}${activeActions().length>1?`  (+${activeActions().length-1})`:''}`:'No action yet · Add one below',
+  const first=activeActions()?.[0];
+  const actionButton=button(first?stepSummary(activeActions()):'No action yet · Add one below',
     ()=>{const target=panel.querySelector('.handling');if(target){target.open=true;target.scrollIntoView({block:'nearest',behavior:'smooth'});}},'prop-field');
   const row=(name,...nodes)=>element('div',{class:'prop-row'},text('span',name,'prop-name'),element('div',{class:'prop-value'},...nodes));
   const titleRow=row('Title',nameInput,meter);titleRow.classList.add('prop-row-title');
@@ -117,7 +117,7 @@ function renderInspector() {
   const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('🗑',clearButton,'prop-clear','Clear button'));
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
     element('div',{class:'prop-rows'},titleRow,row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
-      textRow,row('Action',actionButton))));
+      textRow,row('Steps',actionButton),...(otherTriggerRows(base,row)))));
   const typeStart=panel.children.length;
   panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
@@ -305,7 +305,7 @@ async function profileSettings() {
   dialog('Profile settings',[
   {name:'name',label:'Profile name',value:profile,required:true},
   {name:'program',label:'Add a running program',options:processChoices,value:'',note:'Choose the program that activates the profile.'},
-  {name:'match',label:'Automatic profile switching rules',value:(config.profiles[profile].match||[]).join(', '),note:'Separate multiple rules with commas. Use process:claude.exe for a terminal process or title:codex for a window title.'},
+  {name:'match',label:'Automatic profile switching rules',value:(config.profiles[profile].match||[]).join(', '),note:(config.profiles[profile].match||[]).length?'This profile shows '+(config.profiles[profile].match||[]).map(describeRule).join(', or ')+'. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.':'No rules yet: this profile is only used when you choose it. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.'},
   {name:'default',label:'Use as default profile',type:'checkbox',value:profile===config.default_profile},
   {name:'remove',label:'Delete the profile and remove actions that point to it',type:'checkbox'}],values=>{
     if(values.remove){
@@ -382,6 +382,10 @@ function renderStatus() {
   const layoutBytes=dashboard.device?.layout_bytes||0,offlineLimit=3800;
   $('#connection').title=dashboard.device?.error||(connected&&dashboard.device?.sensor_hint?dashboard.device.sensor_hint:connected&&layoutBytes>offlineLimit?`This page is ${layoutBytes} bytes. The panel keeps at most ${offlineLimit} for use without the PC, so it will show the older saved layout offline.`:'');
   if(connected&&layoutBytes>offlineLimit)$('#connection').textContent+=' · too big to keep offline';
+  const memory=$('#memory');
+  memory.hidden=!(connected&&layoutBytes);
+  if(connected&&layoutBytes){const share=Math.min(100,Math.round(layoutBytes/offlineLimit*100));$('#memory-fill').style.width=share+'%';memory.classList.toggle('full',layoutBytes>offlineLimit);
+    $('#memory-text').textContent=layoutBytes>offlineLimit?`This page is ${layoutBytes} of ${offlineLimit} bytes: too big to keep for use without the PC`:`${layoutBytes} of ${offlineLimit} bytes kept for use without the PC`;}
   const firmware=dashboard.device?.firmware,hostVersion=dashboard.host_version;
   if(connected&&firmware){const parse=v=>String(v||'').split('.').map(Number),a=parse(firmware),b=parse(hostVersion);let older=false;
     for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0)){older=(a[i]||0)<(b[i]||0);break;}
@@ -504,4 +508,12 @@ async function start() {
   setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);
   $('#sync').onchange=()=>{if($('#sync').checked)syncPanel();};
   pollStatus();setInterval(pollStatus,1500);
+}
+
+function otherTriggerRows(base, row) {
+  return [['hold_actions', 'Held'], ['double_actions', 'Double']].filter(([key]) => (base[key] || []).length)
+    .map(([key, name]) => {
+      const open = button(stepSummary(base[key]), () => { editList = key; renderInspector(); }, 'prop-field');
+      return row(name, open);
+    });
 }

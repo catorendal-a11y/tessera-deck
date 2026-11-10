@@ -343,3 +343,9 @@ body{background:#2b2b2b}
 .gallery-foot{display:flex;align-items:center;gap:10px;margin-top:12px}
 .gallery-foot span{flex:1;color:var(--muted)}
 #gallery-dialog{width:min(780px,92vw)}.gallery-main{min-width:0}
+
+.memory{display:flex;align-items:center;gap:8px;margin-top:4px}
+.memory-bar{width:90px;height:5px;border-radius:3px;background:#1c272c;overflow:hidden;flex:none}
+.memory-bar i{display:block;height:100%;width:0;border-radius:3px;background:#58e09b}
+.memory.full .memory-bar i{background:#ffb74d}
+.memory small{margin:0}

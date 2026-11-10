@@ -381,3 +381,20 @@ function addAction(key,id=selected) {
   mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
   toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust its settings under the keys.');
 }
+
+/* The steps of a key as one readable line: "1 Open program: chrome.exe → 2 Hotkey: ctrl+t". */
+function stepDetail(action) {
+  const value = ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op'].map(key => action[key]).find(item => typeof item === 'string' && item);
+  return value ? `${(kinds[action.type] || kinds.hotkey).name}: ${value.length > 28 ? value.slice(0, 27) + '…' : value}` : (kinds[action.type] || kinds.hotkey).name;
+}
+function stepSummary(actions) {
+  const shown = actions.slice(0, 3).map((action, index) => `${actions.length > 1 ? index + 1 + ' ' : ''}${stepDetail(action)}`);
+  return shown.join(' → ') + (actions.length > 3 ? `  (+${actions.length - 3} more)` : '');
+}
+/* What a rule like "process:claude.exe" means, in plain words. */
+function describeRule(rule) {
+  const text = String(rule).trim();
+  if (text.startsWith('title:')) return `when the window title has “${text.slice(6).trim()}”`;
+  if (text.startsWith('process:')) return `when ${text.slice(8).trim()} runs in the window in front`;
+  return `when ${text} is in front`;
+}
