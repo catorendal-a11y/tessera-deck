@@ -397,7 +397,7 @@ def _check_page(action, pages, profiles):
         raise ValueError(f'Unknown page: {action["page"]}')
 
 
-def _check_profile(action, pages, profiles):
+def _check_profile_action(action, pages, profiles):
     if action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
 
@@ -471,7 +471,7 @@ def _check_state_kind(action, pages, profiles):
 
 
 ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _check_hotkey, 'open': _check_open,
-                 'page': _check_page, 'folder': _check_page, 'profile': _check_profile, 'text': _check_text,
+                 'page': _check_page, 'folder': _check_page, 'profile': _check_profile_action, 'text': _check_text,
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
                  'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
                  'shell': _check_shell, 'http': _check_http_action}
@@ -629,7 +629,8 @@ def _check_trigger(trigger, pages, profiles):
     at = spec.get('at', '')
     if kind == 'daily' and not (isinstance(at, str) and TIME_PATTERN.fullmatch(at)):
         raise ValueError('daily needs at as HH:MM')
-    if kind in ('file', 'variable') and not spec.get('path' if kind == 'file' else 'name'):
+    target = spec.get('path' if kind == 'file' else 'name')
+    if kind in ('file', 'variable') and (not isinstance(target, str) or not target.strip() or chr(0) in target):
         raise ValueError('Trigger is missing a path or variable name')
     _check_actions(trigger.get('actions', []), pages, profiles)
 
@@ -1332,6 +1333,39 @@ class Daemon:
                 self.slow_running.discard(identity)
             self.slow_slots.release()
 
+    def start_actions(self, actions):
+        """Trigger and timer actions: a list that waits (shell, HTTP, delay) runs on the slow lane, like a slow key.
+
+        Otherwise one slow trigger would hold up every key press behind it. A list that is still running is skipped.
+        """
+        if not any(action.get('type') in BLOCKING_ACTIONS for action in actions):
+            for action in actions:
+                self.run_action(action)
+            return
+        identity = ('actions', json.dumps(actions, sort_keys=True))
+        with self.slow_lock:
+            claimed = identity not in self.slow_running and self.slow_slots.acquire(blocking=False)
+            if claimed:
+                self.slow_running.add(identity)
+        if not claimed:
+            self.log('A trigger is still running or the slow lane is full; this run was skipped')
+            return
+        threading.Thread(target=self.run_slow_actions, args=(actions, identity), name='slow-actions', daemon=True).start()
+
+    def run_slow_actions(self, actions, identity):
+        try:
+            with self.state_lock:
+                for action in actions:
+                    if self.stop.is_set():
+                        break
+                    self.run_action(action)
+        except Exception as exc:
+            self.log(f'Action failed: {exc}')
+        finally:
+            with self.slow_lock:
+                self.slow_running.discard(identity)
+            self.slow_slots.release()
+
     def dispatch_press(self, button_id, hold=False, double=False):
         identity = (self.profile, self.page, button_id)
         if identity in self.active_press or len(self.active_press) >= 16:
@@ -1515,8 +1549,7 @@ class Daemon:
         elif kind == 'page':
             self.switch_page(job[1])
         elif kind == 'actions':
-            for action in job[1]:
-                self.run_action(action)
+            self.start_actions(job[1])
         elif kind == 'push':
             self.push_page()
         elif kind == 'force-push':
@@ -1591,7 +1624,7 @@ class Daemon:
             elif kind == 'file':
                 try:
                     value = os.stat(spec['path']).st_mtime_ns
-                except OSError:
+                except (OSError, ValueError):
                     continue
                 fire = before is not None and before != value
             elif kind == 'variable':
@@ -1689,12 +1722,17 @@ class Daemon:
             self.log(f'The configuration was rejected; keeping the previous one: {exc}')
             return
         with self.state_lock:
+            # A trigger that did not change keeps its state, so saving the configuration does not
+            # run today's daily triggers (or an unchanged variable trigger) a second time.
+            before = self.config.get('triggers', [])
+            kept = {index: self.trigger_state[index] for index, trigger in enumerate(config.get('triggers', []))
+                    if index in self.trigger_state and index < len(before) and before[index].get('when') == trigger.get('when')}
             self.config = config
             if self.profile not in config['profiles']:
                 self.profile = config.get('default_profile', next(iter(config['profiles'])))
             if self.page not in config['profiles'][self.profile]['pages']:
                 self.page = next(iter(config['profiles'][self.profile]['pages']))
-            self.trigger_state.clear()
+            self.trigger_state = kept
             self.folder_stack.clear()
             self.button_states.clear()
             self.enqueue(('force-push',))
@@ -1730,7 +1768,7 @@ class Daemon:
                         if json.loads(stop_path.read_text(encoding='utf-8')).get('pid') == os.getpid():
                             self.stop.set()
                             continue
-                    except (ValueError, OSError):
+                    except (ValueError, OSError, AttributeError):
                         pass
                 if self.panel is None or self.connection_failed.is_set():
                     if self.panel:
@@ -1784,12 +1822,15 @@ class Daemon:
                             if command.get('page') in self.config['profiles'][command['profile']]['pages']:
                                 self.enqueue(('page', command['page']))
                         command_path.unlink()
-                    except (OSError, ValueError):
-                        pass
-                with self.state_lock:
-                    self.trigger_tick(time.monotonic())
-                    self.lock_tick(session_locked())
-                    self.idle_tick(time.monotonic())
+                    except (OSError, ValueError, AttributeError, TypeError, KeyError):
+                        command_path.unlink(missing_ok=True)  # an unreadable command is dropped, not retried forever
+                try:
+                    with self.state_lock:
+                        self.trigger_tick(time.monotonic())
+                        self.lock_tick(session_locked())
+                        self.idle_tick(time.monotonic())
+                except Exception as exc:  # e.g. the cable was pulled while dimming: the reader loop reconnects
+                    self.log(f'Background task failed: {exc!r}')
                 self.publish_runtime(self.panel is not None and not self.connection_failed.is_set())
                 self.enqueue(('push',))
                 self.stop.wait(1)

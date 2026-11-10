@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 from io import BytesIO
@@ -1081,6 +1082,53 @@ class HostTests(unittest.TestCase):
                 self.assertIn('pythonw.exe', path.read_text(encoding='utf-8'))
                 set_autostart(False, directory)
                 self.assertFalse(autostart_enabled(directory))
+
+    def test_trigger_targets_must_be_text_so_a_bad_one_cannot_stop_the_host(self):
+        config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        for when in ({'type': 'file', 'path': ['x']}, {'type': 'file', 'path': 5},
+                     {'type': 'file', 'path': 'a' + chr(0) + 'b'}, {'type': 'variable', 'name': ['x']}):
+            config['triggers'] = [{'when': when, 'actions': []}]
+            with self.assertRaises(ValueError, msg=when):
+                deck.validate_config(config)
+
+    def test_saving_the_configuration_does_not_rerun_a_daily_trigger(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+            config['triggers'] = [{'when': {'type': 'daily', 'at': '00:00'}, 'actions': [{'type': 'back'}]}]
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon = deck.Daemon(args(path))
+            daemon.log = Mock()
+            daemon.trigger_tick(1)
+            self.assertEqual(daemon.jobs.get_nowait()[0], 'actions')
+            config['display'] = {'brightness': 50}  # an unrelated change
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon.profile_stamp = 0
+            daemon.reload_profiles()
+            while not daemon.jobs.empty():
+                daemon.jobs.get_nowait()
+            daemon.trigger_tick(2)
+            self.assertTrue(daemon.jobs.empty(), 'the trigger already ran today')
+
+    def test_a_slow_trigger_runs_beside_the_key_queue_and_never_twice_at_once(self):
+        daemon = self.daemon()
+        started, release = threading.Event(), threading.Event()
+
+        def run_action(action):
+            started.set()
+            release.wait(5)
+        daemon.run_action = run_action
+        actions = [{'type': 'delay', 'ms': 1}]
+        daemon.handle_job(('actions', actions))  # returns at once: the wait happens on the slow lane
+        self.assertTrue(started.wait(5))
+        daemon.handle_job(('actions', actions))
+        self.assertIn('skipped', daemon.log.call_args[0][0])
+        release.set()
+        for _ in range(100):
+            if not daemon.slow_running:
+                break
+            time.sleep(.02)
+        self.assertFalse(daemon.slow_running)
 
 
 if __name__ == '__main__':

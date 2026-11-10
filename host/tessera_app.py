@@ -378,8 +378,8 @@ class Editor:
 
             result = firmware_update.install(package, self.firmware_port(), self.identify_panel, mode, force, progress)
             self.firmware_job = dict(self.firmware_job, state='done', stage='done', percent=100, result=result)
-        except (firmware_update.InstallError, firmware_update.PackageError, OSError, RuntimeError, ValueError) as exc:
-            self.firmware_job = dict(self.firmware_job, state='failed', error=str(exc))
+        except Exception as exc:  # whatever went wrong, the job must not stay "running" forever
+            self.firmware_job = dict(self.firmware_job, state='failed', error=str(exc) or type(exc).__name__)
         finally:
             try:
                 if was_running:

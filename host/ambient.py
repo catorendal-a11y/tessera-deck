@@ -8,7 +8,6 @@ from __future__ import annotations
 import json
 import threading
 import time
-import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -119,7 +118,7 @@ class Weather:
         try:
             current = _get_json(forecast_url(latitude, longitude, unit), self._opener).get('current') or {}
             line = describe(current, name, unit)
-        except (OSError, ValueError, urllib.error.URLError, KeyError):
+        except Exception:  # any failure must clear _busy below, or the weather would never refresh again
             line = None
         with self._lock:
             if line is not None and key == self._key:

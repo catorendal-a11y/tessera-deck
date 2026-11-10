@@ -109,7 +109,9 @@ def load_package(path: Path, supported_protocols: tuple[int, ...]) -> Package:
                                f'{supported_protocols[0]}-{supported_protocols[-1]}. Update Tessera first.')
         version = manifest.get('version')
         flash = manifest.get('flash')
-        if not isinstance(version, str) or not version or not isinstance(flash, dict):
+        if (not isinstance(version, str) or not version or not isinstance(flash, dict)
+                or any(not isinstance(flash.get(key), str) for key in ('flash_mode', 'flash_size', 'flash_freq'))
+                or not isinstance(manifest.get('files', []), list)):
             raise PackageError('The manifest is incomplete')
         images = []
         for entry in manifest.get('files', []):
@@ -117,7 +119,7 @@ def load_package(path: Path, supported_protocols: tuple[int, ...]) -> Package:
                 offset, name, expected = int(entry['offset'], 16), entry['file'], entry['sha256']
             except (KeyError, TypeError, ValueError) as exc:
                 raise PackageError('The manifest lists an unreadable file') from exc
-            if Path(name).name != name or name == MANIFEST:
+            if not isinstance(name, str) or Path(name).name != name or name == MANIFEST:
                 raise PackageError(f'Unsafe file name in the package: {name!r}')
             try:
                 info = archive.getinfo(name)

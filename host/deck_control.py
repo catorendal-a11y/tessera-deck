@@ -8,6 +8,7 @@ import time
 import psutil
 
 ROOT = Path(__file__).resolve().parents[1]
+MAX_LOG_BYTES = 5 * 1024 * 1024
 
 
 def startup_script_path(appdata=None):
@@ -121,7 +122,13 @@ class Controller:
         port = os.environ.get('TESSERA_PORT', 'COM4')
         from tesserad import Daemon
         Daemon.load_profiles(ROOT / 'host/profiles.json')
-        log = (ROOT / 'host/deck.local.log').open('ab')
+        log_path = ROOT / 'host/deck.local.log'
+        try:  # the log is appended to on every start: keep one previous file instead of growing forever
+            if log_path.stat().st_size > MAX_LOG_BYTES:
+                os.replace(log_path, log_path.with_name('deck.local.log.1'))
+        except OSError:
+            pass
+        log = log_path.open('ab')
         try:
             process = subprocess.Popen([sys.executable, str(ROOT / 'host/tesserad.py'), '--port', port],
                 cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
