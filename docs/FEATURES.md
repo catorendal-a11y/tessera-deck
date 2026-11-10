@@ -2,8 +2,8 @@
 
 [Back to the README](../README.md)
 
-Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into an 18-key control surface:
-launch apps, fire hotkeys, drive Codex and Claude Code, watch live system gauges and run multi-step macros.
+Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into an 18-key control surface with
+four screens: launch apps, fire hotkeys, drive Codex and Claude Code, mix the sound, watch live system gauges and run multi-step macros.
 A small Windows host owns the USB connection, runs the actions and serves a drag-and-drop editor that shows the
 same keys as the panel.
 
@@ -11,15 +11,23 @@ same keys as the panel.
   <img src="images/editor-main.png" alt="The Tessera editor: the keys of the panel, the settings of the selected key and the action list" width="900">
 </p>
 
-| Editor — status page with live gauges | Editor — system page |
+| Editor — a page of widgets | Editor — status page with live gauges |
 |---|---|
-| <img src="images/editor-status.png" alt="Status page with live gauges in the editor"> | <img src="images/editor-system.png" alt="System page in the editor"> |
+| <img src="images/editor-widgets.png" alt="A page of widgets in the editor, with the key settings in tabs"> | <img src="images/editor-status.png" alt="Status page with live gauges in the editor"> |
 
-| Panel — status page | Panel — main page |
+| Panel — main page | Panel — widgets on wide keys |
 |---|---|
-| <img src="images/panel-status.png" alt="Status page drawn by the panel firmware UI"> | <img src="images/panel-main.png" alt="Main page drawn by the panel firmware UI"> |
+| <img src="images/panel-main.png" alt="Main page drawn by the panel firmware UI"> | <img src="images/panel-widgets.png" alt="Clock, date, volume, processor, graphics card, memory, network and AI agents widgets"> |
 
-*The editor images show the real editor with this PC's sensor values. The panel images are drawn by the real firmware UI (LVGL) in a native build with `tools/render_screens.py`, not photographed.*
+| Panel — agents screen | Panel — mixer screen |
+|---|---|
+| <img src="images/panel-agents.png" alt="Claude Code asks for permission; Deny and Allow answer it"> | <img src="images/panel-mixer.png" alt="Faders for the speakers, three programs and the microphone"> |
+
+| Panel — status page |  |
+|---|---|
+| <img src="images/panel-status.png" alt="Status page drawn by the panel firmware UI"> |  |
+
+*The editor images show the real editor with this PC's sensor values. The panel images are drawn by the real firmware UI (LVGL) in a native build, not photographed: the key pages with `tools/render_screens.py`, the agents and mixer screens by the native UI test with sample data.*
 
 ### On the panel
 

@@ -19,13 +19,21 @@
   <img src="docs/images/panel-main.png" alt="The main page on the panel, with real app icons" width="760">
 </p>
 
-18 touch keys for your apps, hotkeys and macros, with live PC gauges and a drag-and-drop editor. Everything runs locally over USB.
+18 touch keys for your apps, hotkeys and macros, with widgets, live PC gauges, an AI agents screen, a sound mixer and a drag-and-drop editor. Everything runs locally over USB.
 
-| Live status page | The editor |
+| Widgets on wide keys | Answer Claude Code from the panel |
 |---|---|
-| <img src="docs/images/panel-status.png" alt="Status page with live gauges, drawn by the panel firmware UI"> | <img src="docs/images/editor-status.png" alt="The editor: keys on top, settings under them, actions on the right"> |
+| <img src="docs/images/panel-widgets.png" alt="Widgets on wide keys: clock, date, volume, processor, graphics card, memory, network and AI agents"> | <img src="docs/images/panel-agents.png" alt="The agents screen: Claude Code asks for permission, with Deny and Allow"> |
 
-<sub>Panel images are drawn by the real firmware UI in a native build, not photographed.</sub>
+| Sound mixer | Live status page |
+|---|---|
+| <img src="docs/images/panel-mixer.png" alt="The mixer screen: faders for the speakers, three programs and the microphone"> | <img src="docs/images/panel-status.png" alt="Status page with live gauges"> |
+
+<p align="center">
+  <img src="docs/images/editor-widgets.png" alt="The editor: the rail, the keys with their page tabs, the selected key's settings and the action list" width="900">
+</p>
+
+<sub>Panel images are drawn by the real firmware UI in a native build, not photographed. The agents and mixer screens show sample data.</sub>
 
 > [!IMPORTANT]
 > **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.

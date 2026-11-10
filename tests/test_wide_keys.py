@@ -72,14 +72,14 @@ class WidgetTests(HostCase):
 
     def test_the_clock_shows_the_time_the_date_and_how_far_the_day_is(self):
         entry = widgets.content('clock', datetime(2026, 11, 10, 12, 0, 0), {}, {}, {})
-        self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('12:00', 'Tuesday 10 November', 50))
+        self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('12:00', 'Tuesday 10 Nov', 50))
 
     def test_readings_fill_the_bar_and_a_missing_reading_says_so(self):
         entry = widgets.content('cpu', datetime.now(), {'cpu_load': 41.6, 'cpu_temp': 63.2, 'cpu_clock': 4200}, {}, {})
         self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('CPU 42%', '63 °C · 4.2 GHz', 42))
         self.assertEqual(widgets.content('gpu', datetime.now(), {}, {}, {}), {'label': 'GPU', 'sub': 'No reading'})
         self.assertEqual(widgets.content('network', datetime.now(), {'net_down': 3 * 1024 * 1024, 'net_up': 512}, {}, {}),
-                         {'label': '↓ 3.0 MB/s', 'sub': '↑ 512 B/s'})
+                         {'label': '3.0 MB/s', 'sub': 'Down · up 512 B/s'})
 
     def test_volume_and_agents(self):
         entry = widgets.content('volume', datetime.now(), {}, {'volume': 40, 'speaker_muted': True, 'mic_muted': False}, {})
@@ -93,7 +93,7 @@ class WidgetTests(HostCase):
         daemon.profile, daemon.page = 'main', 'wide'
         daemon.stats.raw = {'ram': 61.0}
         entry = daemon.current_buttons()[0]
-        self.assertEqual((entry['span'], entry['label'], entry['progress']), (2, 'Memory 61%', 61))
+        self.assertEqual((entry['span'], entry['label'], entry['progress']), (2, 'RAM 61%', 61))
 
 
 if __name__ == '__main__':

@@ -44,7 +44,7 @@ def content(kind: str, now: datetime, raw: dict, audio: dict, agents: dict) -> d
     """The fields a wide key gets for this widget; an unknown kind gives nothing."""
     if kind == 'clock':
         day = (now.hour * 3600 + now.minute * 60 + now.second) / 864
-        return {'label': now.strftime('%H:%M'), 'sub': now.strftime('%A %d %B').replace(' 0', ' '), 'progress': _percent(day)}
+        return {'label': now.strftime('%H:%M'), 'sub': now.strftime('%A %d %b').replace(' 0', ' '), 'progress': _percent(day)}
     if kind == 'date':
         return {'label': now.strftime('%a %d %b').replace(' 0', ' '), 'sub': f'Week {now.isocalendar()[1]} · day {now.timetuple().tm_yday}'}
     if kind == 'cpu':
@@ -54,9 +54,9 @@ def content(kind: str, now: datetime, raw: dict, audio: dict, agents: dict) -> d
         return _load('GPU', raw, 'gpu_load', 'gpu_temp', f'{raw["fps"]:.0f} fps' if raw.get('fps') else '')
     if kind == 'ram':
         value = raw.get('ram')
-        return {'label': 'Memory', 'sub': 'No reading'} if value is None else {'label': f'Memory {value:.0f}%', 'sub': 'In use', 'progress': _percent(value)}
+        return {'label': 'RAM', 'sub': 'No reading'} if value is None else {'label': f'RAM {value:.0f}%', 'sub': 'Memory in use', 'progress': _percent(value)}
     if kind == 'network':
-        return {'label': '↓ ' + _rate(raw.get('net_down') or 0), 'sub': '↑ ' + _rate(raw.get('net_up') or 0)}
+        return {'label': _rate(raw.get('net_down') or 0), 'sub': 'Down · up ' + _rate(raw.get('net_up') or 0)}  # the panel font has no arrows
     if kind == 'volume':
         level = audio.get('volume')
         if level is None:

@@ -290,3 +290,4 @@ html body .library .program-launcher{width:100%;margin-bottom:8px}
 /* Drop-down lists: dark, readable options everywhere (the big profile title used light text on a white list). */
 html body select{color-scheme:dark}
 html body select option,html body select optgroup{background:#12191D !important;color:#EAF2EF !important;font-size:14px;font-weight:400}
+html body #inspector .size-pick{margin-bottom:8px}
