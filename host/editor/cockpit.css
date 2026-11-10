@@ -287,3 +287,6 @@ html body .library-tab.on{background:var(--card2) !important;color:var(--text)}
 html body .library .lib-flat{display:flex;flex-direction:column;gap:2px}
 html body .library .library-note{margin:4px 4px 10px;color:var(--muted);font-size:12px;line-height:1.45}
 html body .library .program-launcher{width:100%;margin-bottom:8px}
+/* Drop-down lists: dark, readable options everywhere (the big profile title used light text on a white list). */
+html body select{color-scheme:dark}
+html body select option,html body select optgroup{background:#12191D !important;color:#EAF2EF !important;font-size:14px;font-weight:400}
