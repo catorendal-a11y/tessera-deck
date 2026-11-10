@@ -20,7 +20,7 @@ extern const lv_font_t fq_font_dejavu_bold_24;
 extern const lv_font_t fq_font_dejavu_bold_28;
 
 namespace {
-constexpr int W=1024,H=600,Rail=84,Pad=26,Top=22,ContentW=W-Rail-2*Pad,HeadH=50;
+constexpr int W=1024,H=600,Rail=84,Pad=26,Top=22,ContentW=W-Rail-2*Pad,HeadH=50,RailTop=84;
 constexpr uint32_t Bg=0x0A0E10,RailBg=0x0F1518,Card=0x12191D,RailOn=0x18232A,Line=0x3A4950;
 constexpr uint32_t Text=0xEAF2EF,Soft=0xC4D0D4,Muted=0x8D9AA0,Dim=0x6F8088;
 constexpr uint32_t Accent=0x58E09B,Cyan=0x4DD0E1,Purple=0xB388FF,Amber=0xFFB74D,Red=0xFF7070;
@@ -415,7 +415,7 @@ void set_view(int next) {
         lv_obj_set_style_bg_opa(rail_button[i],i==view?LV_OPA_COVER:LV_OPA_TRANSP,0);
         if(rail_glyph[i])lv_obj_set_style_text_color(rail_glyph[i],lv_color_hex(i==view?Text:Dim),0);
     }
-    lv_obj_set_y(rail_marker,16+view*70+12);
+    lv_obj_set_y(rail_marker,RailTop+view*70+12);
     update_rail_dot();
 }
 void rail_pressed(lv_event_t *event) {set_view(slot_of(event));}
@@ -437,6 +437,16 @@ uint32_t mix(uint32_t from,uint32_t to,float t) {
 }
 /* The brand gradient: mint -> cyan -> purple, t in 0..1. */
 uint32_t sweep(float t) {return t<.5f?mix(Accent,Cyan,t*2):mix(Cyan,Purple,(t-.5f)*2);}
+
+/* The Tessera mark: a 3x3 mosaic on the brand gradient; the top-right tile has broken loose. */
+void make_logo(lv_obj_t *parent,int x,int y) {
+    constexpr int Tile=13,Space=3;
+    for(int row=0;row<3;++row)for(int col=0;col<3;++col) {
+        if(row==0&&col==2)continue;
+        box(parent,x+col*(Tile+Space),y+4+row*(Tile+Space),Tile,Tile,4,sweep((row+col)/4.f));
+    }
+    box(parent,x+34,y,12,12,4,Amber);
+}
 
 /* ---- Ambient clock: a big clock built from brand-gradient tiles, the date and a host-supplied line. ---- */
 lv_obj_t *ambient,*ambient_clock,*ambient_date,*ambient_line;
@@ -526,14 +536,15 @@ extern "C" void ui_init(void) {
     stats_area=clear_box(views[ViewStatus],Pad,Top+HeadH,ContentW,H-Top-HeadH);
     /* Rail */
     auto *rail=box(screen,0,0,Rail,H,0,RailBg);
-    rail_marker=box(rail,0,28,4,36,2,Accent);
+    make_logo(rail,19,20);
+    rail_marker=box(rail,0,RailTop+12,4,36,2,Accent);
     for(int i=0;i<ViewCount;++i) {
         auto *button=rail_button[i]=lv_button_create(rail);flat(button,RailOn);
-        lv_obj_set_pos(button,12,16+i*70);lv_obj_set_size(button,60,60);lv_obj_set_style_radius(button,16,0);
+        lv_obj_set_pos(button,12,RailTop+i*70);lv_obj_set_size(button,60,60);lv_obj_set_style_radius(button,16,0);
         rail_glyph[i]=glyph(button,ViewIcons[i],30,30,30,Dim);
         lv_obj_add_event_cb(button,rail_pressed,LV_EVENT_CLICKED,slot_data(i));
     }
-    rail_dot=box(rail,12+60-14,16+ViewAgents*70+2,12,12,6,Amber);
+    rail_dot=box(rail,12+60-14,RailTop+ViewAgents*70+2,12,12,6,Amber);
     link_label=label(rail,"NO PC",0,H-70,Rail,&fq_font_dejavu_16,Amber);lv_obj_set_style_text_align(link_label,LV_TEXT_ALIGN_CENTER,0);
     clock_label=label(rail,"--:--",0,H-42,Rail,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_CENTER,0);
     for(lv_indev_t *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_add_event_cb(indev,wake_touch,LV_EVENT_PRESSED,nullptr);

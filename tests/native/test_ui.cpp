@@ -77,7 +77,7 @@ assert(deck_model_agents_from_json(R"({"agents":[
  {"id":"claude","name":"Claude Code","state":"waiting","text":"Wants to run: npm run build","sub":"tessera-deck-main"},
  {"id":"codex","name":"Codex","state":"working","text":"Editing host/win_input.py","sub":"tessera-deck-main"},
  {"id":"zcode","name":"ZCode","state":"idle","text":"Finished 14:05"}]})"));
-tap(42,116);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
+tap(42,184);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
 assert(visible("Claude Code")&&visible("waiting for you")&&visible("Allow")&&visible("Deny")&&visible("Stop")&&visible("Open")&&visible("One needs you"));
 assert(!visible("New tab 2"));
 capture(output/"agents.ppm");
