@@ -410,3 +410,41 @@ $('#panel-open').onclick = panelSettings;
 
 // Everything is defined now: start the editor.
 start().catch(error=>{setSaveState('The editor could not start',error.message);toast(error.message);});
+
+/* Page templates: a ready-made page (Meetings, Coding, Media, Browser) is shown as it will look, then added. */
+let galleryChoice = 0;
+function galleryTemplates() {
+  return [...(actionCatalog.page_templates || []), {name: 'Empty page', description: 'Start with nothing', page: []}];
+}
+function showGallery(index) {
+  galleryChoice = index;
+  const template = galleryTemplates()[index], keys = new Map(template.page.map(key => [key.id, key]));
+  $('#gallery-name').textContent = template.name;
+  $('#gallery-desc').textContent = template.description;
+  $('#gallery-grid').replaceChildren(...Array.from({length: 18}, (_, slot) => {
+    const key = keys.get(slot + 1);
+    return element('div', {class: 'gallery-key' + (key ? '' : ' empty'), style: key ? `--c:${key.color}` : ''}, key ? text('span', key.label) : '');
+  }));
+  const used = template.page.length;
+  $('#gallery-info').textContent = used ? `${used} keys, ${18 - used} free.` : '18 free keys.';
+  [...$('#gallery-list').children].forEach((item, i) => item.setAttribute('aria-selected', String(i === index)));
+}
+function openGallery() {
+  $('#more-menu').hidden = true;
+  $('#gallery-list').replaceChildren(...galleryTemplates().map((template, index) =>
+    element('button', {class: 'gallery-item', role: 'option', type: 'button', onclick: () => showGallery(index)}, text('strong', template.name), text('small', template.description))));
+  showGallery(0);
+  $('#gallery-dialog').showModal();
+}
+function addGalleryPage() {
+  const template = galleryTemplates()[galleryChoice], pages = config.profiles[profile].pages;
+  let name = template.name, suffix = 2;
+  while (pages[name]) name = `${template.name} ${suffix++}`;
+  mutate(() => { pages[name] = clone(template.page); page = name; selected = template.page[0]?.id || 1; });
+  $('#gallery-dialog').close();
+  renderAll();
+  toast(`Page “${name}” was added.`);
+}
+$('#gallery-open').onclick = openGallery;
+$('#gallery-close').onclick = () => $('#gallery-dialog').close();
+$('#gallery-add').onclick = addGalleryPage;

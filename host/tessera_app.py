@@ -106,6 +106,10 @@ def action_pack_catalog():
             raise ValueError('The profile template needs a description')
         validate_config({'default_profile': template.get('name'),
                          'profiles': {template.get('name'): template.get('profile')}})
+    for template in catalog.get('page_templates', []):
+        if not isinstance(template.get('name'), str) or not isinstance(template.get('description'), str):
+            raise ValueError('The page template needs a name and a description')
+        validate_config({'default_profile': 'mal', 'profiles': {'mal': {'match': [], 'pages': {'side': template.get('page')}}}})
     return catalog
 
 

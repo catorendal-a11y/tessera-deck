@@ -4427,5 +4427,447 @@
         }
       }
     }
+  ],
+  "page_templates": [
+    {
+      "name": "Meetings",
+      "description": "Teams: mute, camera, share, hand, leave",
+      "page": [
+        {
+          "id": 1,
+          "label": "Mute",
+          "icon": "lc:e119",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+m"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Camera",
+          "icon": "lc:e1a5",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+o"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Share",
+          "icon": "lc:e14f",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+e"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Hand",
+          "icon": "lc:e1d7",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+k"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Leave",
+          "icon": "lc:e138",
+          "color": "#FF7070",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+h"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Volume +",
+          "icon": "lc:e1ab",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "volumeup"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "Volume -",
+          "icon": "lc:e1aa",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "volumedown"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "label": "System mute",
+          "icon": "lc:e1ac",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "volumemute"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Coding",
+      "description": "VS Code: run, build, terminal, search, format",
+      "page": [
+        {
+          "id": 1,
+          "label": "Run",
+          "icon": "lc:e13c",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "f5"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Stop",
+          "icon": "lc:e167",
+          "color": "#FF7070",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "shift+f5"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Build",
+          "icon": "lc:e0ec",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+b"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Terminal",
+          "icon": "lc:e181",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+grave"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Find in files",
+          "icon": "lc:e0cb",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+f"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Format",
+          "icon": "lc:e357",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "shift+alt+f"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "Commands",
+          "icon": "lc:e09a",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+p"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "label": "Open file",
+          "icon": "lc:e151",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+p"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Media",
+      "description": "Play, skip, volume and mute",
+      "page": [
+        {
+          "id": 1,
+          "label": "Previous",
+          "icon": "lc:e15f",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "mediaprev"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Play / pause",
+          "icon": "lc:e13c",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "playpause"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Next",
+          "icon": "lc:e160",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "medianext"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Stop",
+          "icon": "lc:e167",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "mediastop"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Volume +",
+          "icon": "lc:e1ab",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "volumeup"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Volume -",
+          "icon": "lc:e1aa",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "volumedown"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "Mute",
+          "icon": "lc:e1ac",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "volumemute"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Browser",
+      "description": "Chrome and Edge: tabs, navigation, reload",
+      "page": [
+        {
+          "id": 1,
+          "label": "New tab",
+          "icon": "lc:e13d",
+          "color": "#F2B94B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+t"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Close tab",
+          "icon": "lc:e1b2",
+          "color": "#F2B94B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+w"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Reopen tab",
+          "icon": "lc:e148",
+          "color": "#F2B94B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+shift+t"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "alt+left"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Forward",
+          "icon": "lc:e049",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "alt+right"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Reload",
+          "icon": "lc:e149",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "f5"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "Bookmark",
+          "icon": "lc:e060",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+d"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "label": "Find",
+          "icon": "lc:e151",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "ctrl+f"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        }
+      ]
+    }
   ]
 }

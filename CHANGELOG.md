@@ -7,6 +7,7 @@
 - Mixer: drag faders for the speakers, up to three programs and the microphone; mute with a tap.
 - Status: eight readings with bars, and the first one over its limit is named.
 - Editor: **Panel screens** chooses the agents, mixer programs and readings.
+- Editor: **Page templates** (⋯ menu) adds a ready-made page (Meetings, Coding, Media, Browser or empty) after showing how it will look.
 
 ## 0.5.2
 
