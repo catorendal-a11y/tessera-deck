@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- One editor window: a double click on the tray icon, or a click while the editor was still starting, opened two or three. A second start now waits for the first and brings its window forward.
+- Tray: the menu follows the status (it kept the old status line, ticks and greyed-out items), a second click on Start or Restart no longer starts a second host, and the icon shows the real state at once.
 - README: a short animated tour of the panel, drawn by the firmware UI (`tools/make_demo_gif.py`); a contributing guide and issue templates.
 
 ## 0.6.0

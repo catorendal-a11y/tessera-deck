@@ -13,6 +13,7 @@ import secrets
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 import urllib.parse
 import webbrowser
@@ -28,6 +29,7 @@ import firmware_update
 import iconify
 import plugins
 import updates
+from host_runtime import InstanceLock
 from action_preview import preview
 from import_review import redact_secrets, review, strip_executable
 
@@ -705,6 +707,42 @@ def make_server(editor, port=0, token=None):
     return server
 
 
+def show_running_editor(record, build, open_if_hidden=False):
+    """Bring the running editor to the front. False when there is none yet; an editor of another build is stopped.
+
+    The editor's server answers a moment before its window is on screen. Opening a window of our own then (the
+    old behaviour) is how a double click made two; the caller waits and asks again instead.
+    """
+    import psutil
+    try:
+        previous = json.loads(record.read_text())
+        process = psutil.Process(previous['pid'])
+        command = process.cmdline()
+        address = urllib.parse.urlsplit(previous['url'])
+        own_process = len(command) > 1 and Path(command[1]).resolve() == Path(__file__).resolve()
+        local_address = address.scheme == 'http' and address.hostname == '127.0.0.1' and address.port and address.path == '/'
+        if not (own_process and local_address and abs(process.create_time() - previous['created']) < .01):
+            return False
+        request = urllib.request.Request(previous['url'] + 'api/session', data=b'{}',
+                                         headers={'Content-Type': 'application/json', 'X-Deck-Token': previous['token']})
+        with urllib.request.urlopen(request, timeout=2) as response:
+            if response.status != 200:
+                return False
+        if previous.get('build') == build:
+            if activate_window(previous['pid']):
+                return True
+            if open_if_hidden:
+                open_window(previous['url'] + '#' + previous['token'])
+                return True
+            return False
+        # A launcher reopening an updated editor must not reuse a stale API server. The independent USB host stays up.
+        process.terminate()
+        process.wait(timeout=3)
+    except (OSError, ValueError, KeyError, psutil.Error):
+        pass
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--terminal', action='store_true')
@@ -722,30 +760,18 @@ def main():
     controller.install_adapters()
     record = ROOT / 'host/editor.local.json'
     build = editor_build_id()
+    # One editor window: a second start (a double click on the tray icon, a click while the first is still
+    # starting) waits for the first one and brings its window to the front instead of opening another.
+    lock = InstanceLock(ROOT / 'host/editor.local.lock')
     if not args.profiles and not args.no_browser:
-        try:
-            import psutil
-            previous = json.loads(record.read_text())
-            process = psutil.Process(previous['pid'])
-            command = process.cmdline()
-            address = urllib.parse.urlsplit(previous['url'])
-            own_process = len(command) > 1 and Path(command[1]).resolve() == Path(__file__).resolve()
-            local_address = address.scheme == 'http' and address.hostname == '127.0.0.1' and address.port and address.path == '/'
-            if own_process and local_address and abs(process.create_time() - previous['created']) < .01:
-                request = urllib.request.Request(previous['url'] + 'api/session', data=b'{}',
-                    headers={'Content-Type': 'application/json', 'X-Deck-Token': previous['token']})
-                with urllib.request.urlopen(request, timeout=1) as response:
-                    if response.status == 200:
-                        if previous.get('build') == build:
-                            if not activate_window(previous['pid']):
-                                open_window(previous['url'] + '#' + previous['token'])
-                            return
-                        # A launcher reopening an updated editor must not reuse
-                        # a stale API server. The independent USB host stays up.
-                        process.terminate()
-                        process.wait(timeout=3)
-        except (OSError, ValueError, KeyError, psutil.Error):
-            pass
+        deadline = time.monotonic() + 20
+        while not lock.acquire():
+            if show_running_editor(record, build) or time.monotonic() > deadline:
+                return
+            time.sleep(.3)
+        if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
+            lock.release()
+            return
     server = make_server(Editor(args.profiles, controller), args.port)
     url = f'http://127.0.0.1:{server.server_port}/'
     if not args.profiles:
@@ -770,6 +796,7 @@ def main():
         pass
     finally:
         server.server_close()
+        lock.release()
         if not args.profiles:
             try:
                 if json.loads(record.read_text()).get('pid') == os.getpid():

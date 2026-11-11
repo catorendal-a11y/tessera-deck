@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pystray
@@ -103,6 +104,8 @@ class TrayApp:
         self.state: str | None = None
         self.stop = threading.Event()
         self.last_notice = None  # newest notice already shown; the first poll only catches up
+        self.host_work = threading.Lock()  # start, stop and restart of the host run one at a time
+        self.menu_shows = None  # what the open menu was built from; it is rebuilt when this changes
         self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
                                  menu=pystray.Menu(self.menu_items))
 
@@ -117,19 +120,36 @@ class TrayApp:
             self.icon.notify(str(exc)[:200], 'Tessera')
 
     def open_editor(self, *_):
+        now = time.monotonic()
+        if now - getattr(self, 'editor_asked', -10.0) < 2.0:  # a double click is one request
+            return
+        self.editor_asked = now
         pythonw = ROOT / 'host/.venv/Scripts/pythonw.exe'
         executable = str(pythonw if pythonw.is_file() else sys.executable)
         flags = (subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS) if os.name == 'nt' else 0
         subprocess.Popen([executable, str(ROOT / 'host/tessera_app.py'), '--editor'], cwd=ROOT, creationflags=flags)
 
+    def host(self, *steps):
+        """Run host steps one at a time. A second click while one runs is dropped: two starts made two hosts,
+        and the second one died with 'Another Tessera host is already running'."""
+        def work():
+            if not self.host_work.acquire(blocking=False):
+                return
+            try:
+                for step in steps:
+                    step()
+            finally:
+                self.host_work.release()
+        self.background(work)
+
     def start_host(self, *_):
-        self.background(self.controller.start)
+        self.host(self.controller.start)
 
     def stop_host(self, *_):
-        self.background(self.controller.stop)
+        self.host(self.controller.stop)
 
     def restart_host(self, *_):
-        self.background(lambda: (self.controller.stop(), self.controller.start()))
+        self.host(self.controller.stop, self.controller.start)
 
     def switch_profile(self, name):
         def action(*_):
@@ -152,7 +172,8 @@ class TrayApp:
         self.background(self._stop_then_quit)
 
     def _stop_then_quit(self):
-        self.controller.stop()
+        with self.host_work:
+            self.controller.stop()
         self.quit()
 
     # --- menu -----------------------------------------------------------------
@@ -196,7 +217,11 @@ class TrayApp:
     def refresh(self):
         self.status = self.controller.status()
         state = tray_state(self.status)
-        self.icon.title = f'Tessera — {status_text(self.status)}'
+        self.icon.title = f'Tessera — {status_text(self.status)}'[:120]  # Windows allows 127 characters in a tooltip
+        shown = (status_text(self.status), bool(self.status.get('running')), self.status.get('device', {}).get('profile'))
+        if shown != self.menu_shows:  # the menu is built once; without this it keeps the old status and ticks
+            self.menu_shows = shown
+            self.icon.update_menu()
         self.show_notices(self.status.get('notices', []))
         if state != self.state:
             previous, self.state = self.state, state
@@ -217,14 +242,16 @@ class TrayApp:
         self.last_notice = max([self.last_notice, *ids])
 
     def poll(self):
-        while not self.stop.wait(POLL_SECONDS):
+        wait = 0.3  # the first look comes at once, so the icon does not start as 'stopped'
+        while not self.stop.wait(wait):
+            wait = POLL_SECONDS
             try:
                 self.refresh()
             except Exception:
                 log.debug('tray refresh failed', exc_info=True)
 
     def run(self):
-        self.background(self.controller.start)
+        self.start_host()
         threading.Thread(target=self.poll, daemon=True).start()
         self.icon.run()
 

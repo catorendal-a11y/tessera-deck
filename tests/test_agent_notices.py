@@ -3,6 +3,7 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+import unittest.mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 from host_support import HostCase
@@ -38,6 +39,42 @@ class NoticeTests(HostCase):
         status['agent_states'] = {}
         self.assertFalse(tessera_tray.status_text(status).endswith('waiting for you'))
 
+
+    @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
+    def test_the_tray_menu_follows_the_status_and_starts_one_host(self):
+        import threading
+        import time
+        from unittest.mock import Mock
+        import tessera_tray
+        controller = Mock()
+        controller.status.return_value = {'running': False}
+        app = tessera_tray.TrayApp(controller)
+        app.icon = Mock()
+        app.refresh()
+        app.refresh()
+        self.assertEqual(app.icon.update_menu.call_count, 1, 'an unchanged status does not rebuild the menu')
+        controller.status.return_value = {'running': True, 'device': {'connected': True, 'port': 'COM4', 'profile': 'main', 'page': 'main'}}
+        app.refresh()
+        self.assertEqual(app.icon.update_menu.call_count, 2, 'a new status rebuilds it')
+        self.assertLessEqual(len(app.icon.title), 120)
+
+        release, running = threading.Event(), threading.Event()
+        controller.start.side_effect = lambda: (running.set(), release.wait(5))
+        app.start_host()
+        self.assertTrue(running.wait(5))
+        app.start_host()                      # a second click while the first start is still running
+        app.restart_host()
+        time.sleep(0.2)
+        release.set()
+        time.sleep(0.2)
+        self.assertEqual(controller.start.call_count, 1)
+        controller.stop.assert_not_called()
+
+        app.open_editor = tessera_tray.TrayApp.open_editor.__get__(app)
+        with unittest.mock.patch.object(tessera_tray.subprocess, 'Popen') as popen:
+            app.open_editor()
+            app.open_editor()                 # the second half of a double click
+        self.assertEqual(popen.call_count, 1)
 
 if __name__ == '__main__':
     unittest.main()
