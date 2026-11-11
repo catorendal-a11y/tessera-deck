@@ -31,10 +31,24 @@ jobs:
           git archive --format=zip --prefix="tessera-${GITHUB_REF_NAME}/" -o "dist/tessera-host-${GITHUB_REF_NAME}.zip" HEAD
           python3 -c "import glob,os,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'a'); f=glob.glob('dist/tessera-firmware-*.zip')[0]; z.write(f,'tessera-'+sys.argv[2]+'/firmware/'+os.path.basename(f)); z.close()" "dist/tessera-host-${GITHUB_REF_NAME}.zip" "${GITHUB_REF_NAME}"
           (cd dist && sha256sum *.zip > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  # A job of its own on the plain runner, where gh is already installed. Installing it with apt inside the ESP-IDF
+  # container failed the 0.6.1 release twice when the Ubuntu archive could not be reached.
+  publish:
+    name: Publish the release
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
       - name: Publish the release
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          apt-get update -qq && apt-get install -y -qq gh >/dev/null 2>&1 || true
-          gh release create "${GITHUB_REF_NAME}" dist/* --title "Tessera ${GITHUB_REF_NAME}" --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "Tessera ${GITHUB_REF_NAME}" --generate-notes
