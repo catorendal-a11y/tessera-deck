@@ -21,6 +21,13 @@ target_include_directories(test_ui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT
   "${ROOT}/managed_components/espressif__cjson/cJSON")
 target_link_libraries(test_ui PRIVATE lvgl_native)
 target_compile_options(test_ui PRIVATE -UNDEBUG)
+# cJSON gets the firmware's nesting limit, so test_ui checks the depth the panel really accepts.
+file(STRINGS "${ROOT}/sdkconfig.defaults" CJSON_LIMIT_LINE REGEX "^CONFIG_CJSON_NESTING_LIMIT=")
+if(NOT CJSON_LIMIT_LINE)
+  message(FATAL_ERROR "sdkconfig.defaults must set CONFIG_CJSON_NESTING_LIMIT")
+endif()
+string(REGEX REPLACE "^CONFIG_CJSON_NESTING_LIMIT=" "" CJSON_LIMIT "${CJSON_LIMIT_LINE}")
+target_compile_definitions(test_ui PRIVATE CJSON_NESTING_LIMIT=${CJSON_LIMIT})
 
 # Draws screens for tools/render_screens.py; not part of the tests.
 get_target_property(UI_SOURCES test_ui SOURCES)

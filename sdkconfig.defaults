@@ -19,6 +19,10 @@ CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
 # CONFIG_ESP_SYSTEM_HW_STACK_GUARD is not set
 CONFIG_FREERTOS_ISR_STACKSIZE=4096
 CONFIG_FREERTOS_CHECK_STACKOVERFLOW_CANARY=y
+# The protocol nests 4 levels at most. cJSON recurses per level, and the default 1000 lets one serial line or a
+# saved layout overflow the 24 KB console or 10 KB main stack (no hardware guard, see above) and boot-loop.
+# tests/native reads this value, so the parser tests run with the same limit.
+CONFIG_CJSON_NESTING_LIMIT=16
 CONFIG_LIBC_NEWLIB=y
 CONFIG_FREERTOS_IDLE_TASK_STACKSIZE=4096
 CONFIG_FREERTOS_HZ=1000
