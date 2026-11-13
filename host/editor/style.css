@@ -80,8 +80,6 @@ body{background:linear-gradient(140deg,#0b0f11 0%,#101719 60%,#0b0f11 100%)}
 .deck-grid{position:absolute;left:0;top:76px;width:1024px;height:524px;display:block;padding:0;gap:0;background:none;border:0;border-radius:0}
 .deck-key{position:absolute;width:150px;height:150px;aspect-ratio:auto;display:block;padding:0;margin:0;gap:0;border-radius:20px;background:#172329;border:1px solid #31444d;box-shadow:none;transform:none;transition:border-color .12s,background .12s;overflow:hidden;font-family:inherit}
 .deck-key:hover{transform:none;border-color:#58e09b88;background:#1b2a31}
-.deck-key.selected{border:2px solid #58e09b;box-shadow:0 0 0 3px #58e09b30;background:#1b2a31}
-.deck-key.empty{background:#0e171b;border-color:#1b2a30;box-shadow:none}
 .deck-key.drag-over{outline:3px dashed #58e09b;outline-offset:-3px}
 .empty-plus{position:absolute;left:0;top:51px;width:100%;text-align:center;font-size:28px;color:#263940}
 .key-symbol{position:absolute;left:45px;top:17px;width:60px;height:60px;object-fit:contain;font-size:48px;line-height:60px;text-align:center;color:var(--key-color)}
@@ -150,8 +148,6 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 .screen-wordmark{left:80px;top:26px;width:auto;height:auto;font-size:24px;line-height:28px;letter-spacing:6px;font-weight:700;color:#e8f4ef}
 .screen-header{background:linear-gradient(#171f25,#101a1f)}
 .device-screen{background:linear-gradient(#091014,#05090b)}
-.deck-key:not(.empty){background:linear-gradient(#232e34,#11191d);border-color:color-mix(in srgb,var(--key-color,#31444d) 38%,#31444d);box-shadow:0 5px 18px #0008;border-radius:22px}
-.deck-key.selected{box-shadow:0 0 0 3px #58e09b30,0 5px 18px #0008;border-color:#58e09b}
 
 .triggers{margin:14px 0 10px}.triggers .option-buttons{display:flex;gap:5px;flex-wrap:wrap}.triggers .outline.active{border-color:var(--accent);color:var(--accent);background:var(--mint-dark)}.triggers .hint{margin-top:8px}
 /* Narrow windows: the three columns shrink, then the inspector moves under the deck, so the page never scrolls sideways. */
@@ -185,7 +181,6 @@ body{height:100vh !important;overflow:hidden}
 .deck-card{background:#0f0f11;border:1px solid #2c2c30;border-radius:18px;padding:22px 22px 10px}
 .device-frame{width:min(100%,660px);max-width:none;margin:0 auto}
 .device-screen{box-shadow:0 0 0 1px #2c2c30,0 10px 28px #0008}
-.deck-key.selected{border-color:#3b82f6 !important;box-shadow:0 0 0 3px #3b82f666 !important}
 .syncbar{max-width:none;margin:14px 0 0;background:none;border:0;border-top:1px solid #222226;border-radius:0;padding:8px 2px 0;font-size:13px}
 #save-note{display:none}
 #save-state{display:inline-flex;align-items:center;gap:7px;font-weight:600;color:#7ee0a8}
@@ -267,9 +262,6 @@ body{background:#2b2b2b}
 .device-screen{background:none !important;box-shadow:none !important;border-radius:0 !important;height:524px !important;top:0 !important}
 .screen-header{display:none !important}
 .deck-grid{top:0 !important;height:524px !important}
-.deck-key{background:#1f1f1f !important;border:3px solid #3a3a3a !important;border-radius:18px !important;box-shadow:none !important}
-.deck-key.empty{background:transparent !important;border:3px solid #424242 !important}
-.deck-key.selected{border-color:#1e90ff !important;box-shadow:0 0 0 2px #1e90ff55 !important}
 /* Page pill under the keys */
 .page-pill{display:flex;justify-content:center;align-items:center;gap:6px;margin:10px auto 0;width:max-content;max-width:100%;background:#3a3a3a;border-radius:999px;padding:4px 8px}
 .page-pill .page-tabs{display:flex;gap:2px;flex-wrap:nowrap;overflow:hidden}

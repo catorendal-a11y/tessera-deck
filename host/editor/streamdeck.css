@@ -179,26 +179,6 @@ body {
 }
 .screen-header { display: none !important; }
 .deck-grid { top: 0 !important; height: 524px !important; }
-.deck-key {
-  background: var(--sd-key) !important;
-  border: 3px solid var(--sd-key-edge) !important;
-  border-radius: 20px !important;
-  box-shadow: inset 0 0 0 1px #050505, 0 2px 3px #0006 !important;
-}
-.deck-key:hover {
-  transform: none;
-  border-color: #626262 !important;
-  background: #151515 !important;
-}
-.deck-key.empty {
-  background: transparent !important;
-  border-color: #444 !important;
-  box-shadow: inset 0 0 0 1px #222 !important;
-}
-.deck-key.selected {
-  border-color: #aeb4ba !important;
-  box-shadow: 0 0 0 2px #70777d, inset 0 0 0 1px #050505 !important;
-}
 .deck-key .key-symbol {
   left: 50% !important;
   transform: translateX(-50%);

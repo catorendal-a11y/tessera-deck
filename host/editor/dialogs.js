@@ -589,7 +589,7 @@ function renderScreen() {
       box.checked = used;
       return element('div', {class: 'screen-card lane-' + (state || 'off')},
         element('div', {}, text('strong', name), text('small', state ? AGENT_STATE_TEXT[state] + (vars[id + '.project'] ? ' · ' + vars[id + '.project'] : '') : 'Not running')),
-        element('label', {class: 'screen-check'}, box, text('span', 'Show on the panel')));
+        element('label', {class: 'screen-check'}, box, text('span', 'Show on panel')));
     });
     const connected = hooksState && hooksState.events;
     const claude = element('div', {class: 'screen-card'},
