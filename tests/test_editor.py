@@ -233,5 +233,20 @@ class MarkupTests(unittest.TestCase):
         Walk().feed((Path(__file__).resolve().parents[1] / 'host/editor/index.html').read_text(encoding='utf-8'))
         self.assertEqual(found.get('inside'), [])
 
+    def test_keyboard_and_screen_reader_basics_are_in_the_markup(self):
+        editor = Path(__file__).resolve().parents[1] / 'host/editor'
+        html = (editor / 'index.html').read_text(encoding='utf-8')
+        self.assertIn('id="shortcuts-bar"', html.split('</header>')[0], 'the shortcuts are visible in the app bar')
+        self.assertIn('Ctrl+Y or Ctrl+Shift+Z', html, 'the redo tooltip names both shortcuts')
+        self.assertIn('data-menu="move"', html, 'the key menu can move a key')
+        screens = html[html.index('id="screens-view"'):].split('>')[0]
+        self.assertNotIn('aria-live', screens, 'the screens view redraws every poll and must not be read out')
+        css = (editor / 'cockpit.css').read_text(encoding='utf-8')
+        before_media = css.split('@media')[0]  # a wide window may still change a token inside its media query
+        self.assertEqual(before_media.count(':root{'), 1, 'one token block in cockpit.css')
+        app = (editor / 'app.js').read_text(encoding='utf-8')
+        for selector in ("'#library-tabs'", "'#inspector .inspector-tabs'"):
+            self.assertIn(f'rovingTabs({selector}', app)
+
 if __name__ == '__main__':
     unittest.main()

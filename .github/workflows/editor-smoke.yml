@@ -1,0 +1,44 @@
+name: Editor smoke test
+
+on:
+  push:
+    branches: [main]
+    paths: ['host/**', 'tests/editor_smoke/**', '.github/workflows/editor-smoke.yml']
+  pull_request:
+    paths: ['host/**', 'tests/editor_smoke/**', '.github/workflows/editor-smoke.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: editor-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Editor in a real browser (deck, dialogs, focus, axe)
+    runs-on: windows-latest  # the host is a Windows program
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: host/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install host dependencies
+        run: python -m pip install -r host/requirements.txt
+      - name: Install Playwright and axe (exact versions from package.json)
+        working-directory: tests/editor_smoke
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install chromium
+      - name: Start the editor and check it
+        working-directory: tests/editor_smoke
+        env:
+          PYTHON: python
+          EDITOR_PORT: '8765'
+        run: node smoke.mjs

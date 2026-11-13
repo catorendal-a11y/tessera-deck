@@ -908,6 +908,8 @@ def main():
             os.replace(temporary, record)
         write_record()
     print('The Tessera editor is open. Keep this window open.', flush=True)
+    if args.no_browser:  # no window opens: this address (with the session key) is the way in, for you or a test
+        print(f'Open {url}#{server.token}', flush=True)
     server_thread = None
     try:
         if not args.no_browser:

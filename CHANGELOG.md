@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Editor keyboard: the action tabs, the key-settings tabs and the page chips are one Tab stop each (the arrow keys, Home and End move along them); every dialog gives the focus back to what opened it; every control shows where the focus is; the panel screens are no longer read out on each update.
+- Editor: **Alt+arrow** moves the selected key to the next slot (a key there changes places with it), and the key menu has **Move to slot …**; while dragging, the label says what the drop does (move, swap, add as the next step, replace).
+- Editor wording: *Test (nothing runs)* everywhere, *Show on panel* instead of *Mirror on panel*, **Program settings** in the app bar, a visible **Keyboard shortcuts** button, and the Redo tooltip names Ctrl+Y and Ctrl+Shift+Z.
+- CI: a smoke test opens the editor in a real browser and checks the deck, two dialogs, the focus and axe accessibility rules. `--no-browser` prints the editor's address.
 - Docs: new panel and editor images, and a longer demo animation (17 scenes: folders, window and meeting keys, pages that follow the app, the idle clock and the editor). In the editor a long widget description no longer runs past the settings panel.
 - Long runs: the panel tells the host which screen shows, so the sound mixer is read every second only on its screen (otherwise every 5 s). Plugin folders are read again only when they change, the AI session history is walked every 10 s instead of 2 s, an unchanged status file is not rewritten, and the host log is kept under 5 MB while the host runs.
 - Performance: images reach the panel about 4 times faster, and the panel reads USB in 2 KB blocks instead of locking per byte. Hidden screens, a dark screen and the clock no longer redraw or animate keys. The host stops refreshing keys under a dark screen, skips nvidia-smi when a sensor tool has the GPU, and caches the program list. The editor stops polling in a hidden tab and redraws the rail only when it changes.

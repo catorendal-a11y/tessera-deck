@@ -52,7 +52,15 @@ let iconPack=null, packIcons=new Map(), iconPage=0, iconPreferences={favorites:[
 let actionCatalog={packs:[],templates:[]};
 let installedPrograms=[];
 let lastActionAt=0;
-let dialogReturnFocus=null,iconReturnFocus=null,keyMenuReturnFocus=null;
+let keyMenuReturnFocus=null;
+/* Every dialog gives the focus back to what opened it. A menu entry is hidden by then, so its menu button gets it;
+   a button that was drawn again gets the selected key instead, or the dialog that is still open. */
+for(const name of ['show','showModal']){const open=HTMLDialogElement.prototype[name];
+  HTMLDialogElement.prototype[name]=function(){if(!this.open){const opener=document.activeElement;this.addEventListener('close',()=>returnFocus(opener),{once:true});}return open.call(this);};}
+function returnFocus(opener) {
+  const modal=document.querySelector('dialog:modal'),usable=node=>node&&node!==document.body&&node.isConnected&&node.checkVisibility()&&(!modal||modal.contains(node));
+  [opener,opener?.closest?.('.more')?.querySelector('[aria-haspopup=menu]'),$(`[data-slot="${selected}"]`),modal?.querySelector('button,input,select')].find(usable)?.focus();
+}
 const iconPageSize=72;
 const iconGroups={
   'Audio and video':/audio|sound|volume|microphone|\bmic\b|music|speaker|headphone|video|camera|film|podcast|radio|play|pause/,
@@ -91,7 +99,7 @@ let iconPick = null;  // when set, a chosen icon goes here instead of to the sel
 document.getElementById('icon-dialog')?.addEventListener('close',()=>{iconPick=null;});  // closed without a choice
 async function openIcons() {
   try {
-    await loadIconPack();iconReturnFocus=document.activeElement;iconPage=0;
+    await loadIconPack();iconPage=0;
     // Online icons become images, which only keys can show: a rail shortcut (iconPick) gets the library alone.
     document.querySelector('.icon-online').hidden=!!iconPick;if(iconPick){$('#iconify-results').hidden=true;$('#iconify-note').hidden=true;}$('#icon-search').value='';renderIconResults();$('#icon-dialog').showModal();$('#icon-search').focus();
   }catch(error){iconPick=null;showError(error);}
@@ -274,7 +282,7 @@ async function save() {
     const sent=clone(config);saveInFlight=api('config',{config:sent,revision});
     const result=await saveInFlight;revision=result.revision;savedBase=sent;
     if(version===sentVersion){dirty=false;const same=dashboard.device?.profile===profile&&dashboard.device?.page===page;
-      setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Turn on Mirror on panel to show this page.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
+      setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Turn on Show on panel to show this page.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
   } catch(error){
     if(error.status===409&&savedBase&&await mergeFromDisk().catch(()=>false)){saving=false;saveInFlight=null;return save();}
     setSaveState('Not saved · '+error.message);throw error;
@@ -305,12 +313,19 @@ function moveSlot(source,target) {
   if((isPinned(from)&&!freeOnAllPages(target,fromSpan,skip))||(to&&isPinned(to)&&!freeOnAllPages(source,toSpan,skip)))return toast('A pinned key shows on every page, and another page has a key there.');
   mutate(()=>{from.id=target;if(to)to.id=source;selected=target;});
 }
+/* Alt+arrow: the key moves one slot; a key already there changes places with it (a covered slot means its wide key). */
+function moveKey(id,delta) {
+  let target=id+delta;if(!visibleButtons().some(b=>b.id===id)||target<1||target>18)return;
+  const wide=visibleButtons().find(b=>b.id!==id&&b.id<target&&target<b.id+(b.span||1));if(wide)target=wide.id;
+  moveSlot(id,target);$(`[data-slot="${selected}"]`)?.focus();
+}
 function renderAll() {ensureSelection();options($('#profile'),Object.keys(config.profiles),profile);renderPages();renderGrid();renderInspector();updateHistory();renderStatus();}
 function renderPages() {
   $('#page-list').replaceChildren(...Object.keys(config.profiles[profile].pages).map(name=>{
     const item=button(name,()=>{page=name;selected=1;editState=0;renderAll();syncPanel();},'page-chip'+(page===name?' active':''));
     item.setAttribute('aria-current',page===name?'page':'false');return item;
   }));
+  rovingTabs('#page-list',false);
 }
 const DEVICE={cell:150,gap:17,x:19,y:17};
 function tileGeometry(b) {
@@ -404,7 +419,7 @@ function renderGrid() {
       if(source&&source!==id)moveSlot(source,id);
       else {const key=event.dataTransfer.getData('application/x-deck-action');if(key)addAction(key,id);}
     });
-    tile.addEventListener('keydown',event=>{const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:6,ArrowUp:-6}[event.key];if(delta){event.preventDefault();let target=Math.max(1,Math.min(18,id+delta));const wide=visibleButtons().find(b=>b.id<target&&target<b.id+(b.span||1));if(wide)target=delta===1?wide.id+wide.span:wide.id;selected=target>18?id:target;renderGrid();renderInspector();$(`[data-slot="${selected}"]`).focus();}});
+    tile.addEventListener('keydown',event=>{const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:6,ArrowUp:-6}[event.key];if(delta&&event.altKey){event.preventDefault();moveKey(id,delta);}else if(delta){event.preventDefault();let target=Math.max(1,Math.min(18,id+delta));const wide=visibleButtons().find(b=>b.id<target&&target<b.id+(b.span||1));if(wide)target=delta===1?wide.id+wide.span:wide.id;selected=target>18?id:target;renderGrid();renderInspector();$(`[data-slot="${selected}"]`).focus();}});
     if(b)tile.addEventListener('dblclick',event=>{event.preventDefault();renameButton(id);});
     return tile;
   });

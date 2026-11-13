@@ -26,6 +26,7 @@ function renderLibrary() {
   $('#library-tabs').replaceChildren(...LIBRARY_TABS.map(([id,name])=>{
     const on=!searching&&libraryTab===id,tab=button(name,()=>{libraryTab=id;try{localStorage.setItem('tessera-library-tab',id);}catch{}$('#action-search').value='';renderLibrary();},'library-tab'+(on?' on':''));
     tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(on));return tab;}));
+  rovingTabs('#library-tabs');
   if(('installed programs app launcher'.includes(search)||!search))put('apps',button('Installed programs …',openProgramPicker,'program-launcher'));
   const ready=WIDGETS.map(w=>{const item=make(w.name,'widget',w.sub,'widget:'+w.kind);if(item)item.querySelector('.action-symbol').innerHTML=`<svg viewBox="0 0 24 24">${w.path}</svg>`;return item;}).filter(Boolean);
   if(ready.length){if(searching)list.append(category('Widgets',ready,0,true));else if(libraryTab==='widgets')list.append(text('p','A widget is a wide key that shows something live. Drag one to a key with a free slot to its right.','hint library-note'),element('div',{class:'lib-items lib-flat'},...ready));}
@@ -34,6 +35,19 @@ function renderLibrary() {
   if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
   else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)put('ready',category('Ready to use',ready,0,searching));}
   if(!list.children.length)list.append(element('div',{class:'library-empty'},text('strong','No matches'),text('span','Try another search term.')));
+}
+/* A tab list (and the page chips) is one Tab stop: the left and right arrows, Home and End move along it.
+   Tabs open as the focus reaches them; a page chip only takes the focus, Enter opens the page. */
+function rovingTabs(selector,follow=true) {
+  const box=$(selector),items=[...box.querySelectorAll(':scope>button')];
+  const on=items.find(n=>n.getAttribute('aria-selected')==='true'||n.getAttribute('aria-current')==='page')||items[0];
+  for(const item of items)item.tabIndex=item===on?0:-1;
+  box.onkeydown=event=>{
+    const at=items.indexOf(event.target),next={ArrowRight:at+1,ArrowLeft:at-1,Home:0,End:items.length-1}[event.key];
+    if(at<0||next===undefined)return;event.preventDefault();const index=(next+items.length)%items.length;
+    if(!follow){items[at].tabIndex=-1;items[index].tabIndex=0;items[index].focus();return;}
+    items[index].click();$(selector)?.querySelectorAll(':scope>button')[index]?.focus();  // the click drew the tabs again
+  };
 }
 function applyProgramDetails(result,index=0) {
   if(!result?.target)return;
@@ -75,7 +89,7 @@ function renderProgramResults() {
   $('#program-count').textContent=`${matches.length} of ${installedPrograms.length} programs`;
 }
 async function openProgramPicker() {
-  const dialog=$('#program-dialog');dialogReturnFocus=document.activeElement;
+  const dialog=$('#program-dialog');
   dialog.show();$('#program-results').replaceChildren(text('p','Reading the Start menu …','hint program-loading'));
   try {
     if(!installedPrograms.length)installedPrograms=(await api('programs')).programs||[];
@@ -145,7 +159,7 @@ function renderInspector() {
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+(activeActions()?.length===1?' STEP':' STEPS'),'section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
   const addSelect=element('select',{'aria-label':'Add a new action step'});addSelect.append(element('option',{value:'',text:'＋ Add action …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));addSelect.addEventListener('change',()=>{if(addSelect.value)addAction(addSelect.value);});panel.append(addSelect);
-  panel.append(element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear key',clearButton,'quiet danger')));
+  panel.append(element('div',{class:'inspector-tools'},button('Test (nothing runs)',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear key',clearButton,'quiet danger')));
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The key action runs only when you press the panel.','hint'));
   wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');
@@ -157,7 +171,7 @@ function renderInspector() {
   if(others.length)panel.querySelector('.handling .section-body')?.prepend(element('div',{class:'other-triggers'},...others));
   const tabs=element('div',{class:'inspector-tabs',role:'tablist','aria-label':'Key settings'},...[['look','Look'],['actions',steps?`Actions · ${steps}`:'Actions'],['more','Gauge']].map(([id,name])=>{
     const tab=button(name,()=>{inspectorTab=id;renderInspector();},'inspector-tab'+(inspectorTab===id?' on':''));tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(inspectorTab===id));return tab;}));
-  panel.insertBefore(tabs,panel.children[firstField]);
+  panel.insertBefore(tabs,panel.children[firstField]);rovingTabs('#inspector .inspector-tabs');
   for(const [id,nodes] of Object.entries(groups))for(const node of nodes){if(!node)continue;node.hidden=id!==inspectorTab;if(node.classList.contains('inspector-section')){node.open=true;node.classList.add('tabbed');}}
   if(focusAt>=0)panel.querySelectorAll(controls)[focusAt]?.focus();
 }
@@ -292,7 +306,7 @@ function renderTimerStep(step,action,index) {
 function copyButton() {if(!current())return;clipboard=clone(current());toast('The key was copied. Choose a slot and press Ctrl+V.');}
 function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&(!spanFits(selected,copy.span,[old])||(old&&isPinned(old)&&!freeOnAllPages(selected,copy.span,[old])))){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
 function dialog(title,fields,onSave,saveLabel='Save') {
-  const d=$('#form-dialog');dialogReturnFocus=document.activeElement;$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
+  const d=$('#form-dialog');$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
   $('#dialog-fields').replaceChildren(...fields.map(f=>{const label=element('label',{class:'form-field'},text('span',f.label));const input=f.options?element('select',{name:f.name}):element(f.multiline?'textarea':'input',{name:f.name,type:f.type||'text',required:f.required?'required':undefined,placeholder:f.placeholder});if(f.options)options(input,f.options,f.value||f.options[0][0]);else if(f.type==='checkbox')input.checked=!!f.value;else input.value=f.value||'';label.append(input);if(f.note)label.append(text('small',f.note,'hint'));return label;}));
   d.querySelector('form').onsubmit=event=>{event.preventDefault();const form=new FormData(event.target);const values={};for(const f of fields)values[f.name]=f.type==='checkbox'?form.has(f.name):form.get(f.name);try{onSave(values);d.close();}catch(error){$('#dialog-error').textContent=error.message;}};
   d.showModal();setTimeout(()=>d.querySelector('input,textarea')?.focus(),30);
@@ -472,6 +486,12 @@ function renameButton(id=selected) {
   selected=id;editState=0;renderGrid();renderInspector();
   const input=$('#inspector input[aria-label="Key name"]');input?.scrollIntoView({block:'nearest'});input?.focus();input?.select();
 }
+/* The key menu's Move to slot: any slot; a key that is there changes places with this one. */
+function moveToSlot(id=selected) {
+  const slots=Array.from({length:18},(_,i)=>{const n=i+1,b=visibleButtons().find(v=>v.id<=n&&n<v.id+(v.span||1));
+    return [String(n),!b?`${n} · free`:b.id===n?`${n} · ${resolveLabel(b.label)||'key'}`:`${n} · part of ${resolveLabel(b.label)||'key '+b.id}`];});
+  dialog(`Move key ${id}`,[{name:'slot',label:'Move to slot',options:slots,value:String(id),note:'A key already on that slot changes places with this one.'}],values=>moveSlot(id,Number(values.slot)),'Move');
+}
 function openKeyMenu(id,x,y) {
   let tile=$(`[data-slot="${id}"]`);if(!tile||!visibleButtons().some(b=>b.id===id))return;
   selected=id;editState=0;renderGrid();renderInspector();tile=$(`[data-slot="${id}"]`);keyMenuReturnFocus=tile;
@@ -499,11 +519,20 @@ document.addEventListener('pointerdown',event=>{
 document.addEventListener('pointermove',event=>{
   if(!drag||drag.id!==event.pointerId)return;
   if(!drag.active&&Math.hypot(event.clientX-drag.x,event.clientY-drag.y)<7)return;
-  if(!drag.active){drag.active=true;drag.ghost=text('div',drag.source.dataset.slot?'Move key '+drag.source.dataset.slot:drag.source.dataset.label||drag.source.innerText.split('\n')[0],'drag-ghost');document.body.append(drag.ghost);document.body.classList.add('dragging');if(drag.source.dataset.program!==undefined)$('#program-dialog').classList.add('drag-through');}
+  if(!drag.active){drag.active=true;drag.label=drag.source.dataset.slot?'Move key '+drag.source.dataset.slot:drag.source.dataset.label||drag.source.innerText.split('\n')[0];drag.ghost=text('div',drag.label,'drag-ghost');document.body.append(drag.ghost);document.body.classList.add('dragging');if(drag.source.dataset.program!==undefined)$('#program-dialog').classList.add('drag-through');}
   drag.ghost.style.left=(event.clientX+15)+'px';drag.ghost.style.top=(event.clientY+15)+'px';
   document.querySelectorAll('.drag-over').forEach(n=>n.classList.remove('drag-over'));
-  document.elementFromPoint(event.clientX,event.clientY)?.closest(drag.source.dataset.step!==undefined?'[data-step]':'[data-slot]')?.classList.add('drag-over');
+  const over=document.elementFromPoint(event.clientX,event.clientY)?.closest(drag.source.dataset.step!==undefined?'[data-step]':'[data-slot]');over?.classList.add('drag-over');
+  if(drag.source.dataset.step===undefined)drag.ghost.textContent=over?dropHint(drag.source,Number(over.dataset.slot)):drag.label;
 });
+/* What a drop on `slot` does, shown in the ghost: a taken key is swapped, gets the action as its next step, or is replaced. */
+function dropHint(source,slot) {
+  const there=visibleButtons().find(b=>b.id<=slot&&slot<b.id+(b.span||1)),name=there&&`key ${there.id} “${resolveLabel(there.label)}”`;
+  if(source.dataset.slot)return there&&there.id!==Number(source.dataset.slot)?`Swap with ${name}`:`Move to slot ${slot}`;
+  if(source.dataset.program!==undefined)return there?`Replace ${name}`:`Put on slot ${slot}`;
+  if(source.dataset.action?.startsWith('widget:'))return there?`Show the widget on ${name}`:`Add the widget on slot ${slot}`;
+  return there?`Add as the next step of ${name}`:`New key on slot ${slot}`;
+}
 function endDrag(event,cancel=false) {
   if(!drag||drag.id!==event.pointerId)return;
   const value=drag;drag=null;value.ghost?.remove();document.body.classList.remove('dragging');$('#program-dialog').classList.remove('drag-through');document.querySelectorAll('.drag-over').forEach(n=>n.classList.remove('drag-over'));
@@ -537,21 +566,19 @@ async function start() {
     if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const next=at+(event.key==='ArrowDown'?1:-1);if(next<0)$('#action-search').focus();else items[Math.min(next,items.length-1)].focus();}
     else if(event.key==='Escape'){event.preventDefault();$('#action-search').focus();}});
   $('#shortcuts-open').onclick=()=>{document.querySelectorAll('.more-menu').forEach(menu=>{menu.hidden=true;});$('#shortcuts-dialog').showModal();};
+  $('#shortcuts-bar').onclick=()=>$('#shortcuts-dialog').showModal();
   $('#shortcuts-close').onclick=()=>$('#shortcuts-dialog').close();$('#undo').onclick=()=>undo();$('#redo').onclick=()=>undo(true);
   $('#icons-close').onclick=()=>$('#icon-dialog').close();
   $('#programs-close').onclick=()=>$('#program-dialog').close();
   $('#program-browse').onclick=async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target)placeProgram(result);}catch(error){showError(error);}};
   $('#program-search').oninput=renderProgramResults;
-  $('#program-dialog').onclose=()=>{dialogReturnFocus?.focus();dialogReturnFocus=null;};
-  $('#icon-dialog').onclose=()=>{iconReturnFocus?.focus();iconReturnFocus=null;};
   $('#form-dialog [value=cancel]').onclick=()=>$('#form-dialog').close();
-  $('#form-dialog').onclose=()=>{dialogReturnFocus?.focus();dialogReturnFocus=null;};
   $('#icon-search').oninput=$('#icon-category').onchange=()=>{iconPage=0;renderIconResults();};
   $('#icons-prev').onclick=()=>{if(iconPage>0){iconPage--;renderIconResults();}};
   $('#icons-next').onclick=()=>{iconPage++;renderIconResults();};
   $('#new-page').onclick=()=>newPage();$('#page-options').onclick=pageSettings;$('#profile-options').onclick=profileSettings;
   $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=appSettings;
-  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
+  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='move')moveToSlot();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
   $('#profile-templates').onclick=openTemplates;
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};

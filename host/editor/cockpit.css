@@ -6,6 +6,7 @@
   --accent:#58E09B;--cyan:#4DD0E1;--purple:#B388FF;--amber:#FFB74D;--red:#FF7070;
   --panel:#12191D;--mint-dark:#16372A;--orange:#FFB74D;
   --brand:linear-gradient(135deg,#58E09B,#4DD0E1 55%,#B388FF);
+  --col:840px;  /* the width of the one column: title, deck, pages, sync bar and key settings */
   font-family:'DejaVu Sans',Verdana,'Segoe UI',system-ui,sans-serif;font-size:14px;color-scheme:dark;
 }
 html body{background:var(--bg);color:var(--text);font-family:inherit}
@@ -29,7 +30,7 @@ html body .outline:hover,html body .outline.active{background:var(--card2);color
 html body .quiet{color:var(--muted);background:transparent;border-radius:12px}
 html body .quiet:hover{background:var(--card2);color:var(--text)}
 html body input:not([type=checkbox]):not([type=radio]):not([type=color]),html body select,html body textarea,html body .prop-field{background:var(--card);color:var(--text);border:1px solid var(--line2);border-radius:12px}
-html body input:focus-visible,html body select:focus-visible,html body textarea:focus-visible,html body button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+html body input:focus-visible,html body select:focus-visible,html body textarea:focus-visible,html body button:focus-visible,html body summary:focus-visible,html body a:focus-visible,html body [tabindex]:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 html body input[type=checkbox]{accent-color:var(--accent)}
 html body .section-label{color:var(--dim);letter-spacing:.14em;font-size:11px}
 
@@ -87,12 +88,11 @@ html body #deck-grid .deck-key{background:var(--card) !important;border:1px soli
 html body #deck-grid .deck-key:hover{background:var(--card2) !important}
 html body #deck-grid .deck-key.selected{background:var(--card2) !important;border-color:var(--accent) !important;box-shadow:0 0 0 1px var(--accent) !important}
 html body #deck-grid .deck-key.empty{background:#0D1316 !important;border:1px solid #131d22 !important}
-html body .lib-cat{border:0 !important}
+html body .lib-cat{border:0}
 html body .library .lib-cat[aria-expanded=true],html body .library .lib-cat.open{background:var(--card2) !important}
 html body .toolbar .device-name,html body .toolbar select{background:transparent}
-html body .page-chip{border:0 !important}
 html body .syncbar{border:0 !important}
-html body .lib-items{background:transparent !important;border:0 !important}
+html body .lib-items{background:transparent;border:0}
 html body .program-launcher{background:var(--card) !important;border:1px solid var(--line2) !important;border-radius:12px !important;color:var(--soft)}
 html body .program-launcher:hover{background:var(--card2) !important}
 html body .search{background:var(--card) !important;border:1px solid var(--line2) !important;border-radius:12px !important}
@@ -103,10 +103,8 @@ html body .more-menu hr{border-color:var(--line)}
 html body .history-buttons button,html body .icon-button{border-radius:12px}
 
 /* One column: the title, the deck, the pages, the sync bar and the key's settings share the same width and edges. */
-:root{--col:840px}
 html body .toolbar,html body .deck-card,html body .syncbar,html body #inspector>*{width:min(100%,var(--col));max-width:var(--col);margin-left:auto;margin-right:auto;box-sizing:border-box}
 html body .workspace{padding:22px 28px 6px}
-html body #inspector{padding:0 28px 28px}
 html body .device-frame{width:100% !important;max-width:none !important;margin:6px auto 0 !important}
 html body .page-pill{margin:12px auto 0}
 html body .syncbar{margin-top:10px;display:flex;align-items:center;gap:14px}

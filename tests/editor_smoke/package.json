@@ -1,0 +1,13 @@
+{
+  "name": "tessera-editor-smoke",
+  "private": true,
+  "type": "module",
+  "description": "Starts the editor and checks it in a real browser; runs only in CI (.github/workflows/editor-smoke.yml).",
+  "scripts": {
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "4.10.1",
+    "playwright": "1.49.1"
+  }
+}
