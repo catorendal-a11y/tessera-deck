@@ -339,3 +339,49 @@ class EditorFirmwareTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class SerialOtaRetryTests(unittest.TestCase):
+    def test_a_timed_out_upload_is_aborted_and_tried_once_more(self):
+        from unittest import mock
+        import panel_serial
+        panels = []
+
+        class FakePanel:
+            def __init__(self, port, log):
+                self.sent = []
+                panels.append(self)
+
+            def ota_upload(self, data, progress):
+                if len(panels) == 1:
+                    raise TimeoutError('The panel did not answer AD_OTA_DATA')
+
+            def send_line(self, line):
+                self.sent.append(line)
+
+            def close(self):
+                pass
+        with mock.patch.object(panel_serial, 'PanelSerial', FakePanel), mock.patch.object(fw.time, 'sleep'):
+            fw.serial_ota('COM4', b'app', lambda percent: None)
+        self.assertEqual(len(panels), 2)
+        self.assertEqual(panels[0].sent, ['AD_OTA_ABORT'])
+
+    def test_a_second_timeout_is_reported(self):
+        from unittest import mock
+        import panel_serial
+
+        class FakePanel:
+            def __init__(self, port, log):
+                pass
+
+            def ota_upload(self, data, progress):
+                raise TimeoutError('The panel did not answer AD_OTA_DATA')
+
+            def send_line(self, line):
+                pass
+
+            def close(self):
+                pass
+        with mock.patch.object(panel_serial, 'PanelSerial', FakePanel), mock.patch.object(fw.time, 'sleep'):
+            with self.assertRaises(TimeoutError):
+                fw.serial_ota('COM4', b'app', lambda percent: None)

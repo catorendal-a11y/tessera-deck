@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import subprocess
+import time
 import sys
 import tempfile
 import threading
@@ -197,11 +198,23 @@ def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tupl
 def serial_ota(port: str, data: bytes, progress: Callable[[float], None]) -> None:
     """Send the application over the panel's own USB connection (the host is stopped, so the port is free)."""
     from panel_serial import PanelSerial
-    panel = PanelSerial(port, lambda *_: None)
-    try:
-        panel.ota_upload(data, progress)
-    finally:
-        panel.close()
+    for attempt in (1, 2):
+        panel = PanelSerial(port, lambda *_: None)
+        try:
+            panel.ota_upload(data, progress)
+            return
+        except TimeoutError:
+            # Seen on a panel that had run for hours: it stopped acknowledging partway, and a second try worked.
+            # The panel keeps its running firmware either way, so one fresh start of the upload is safe.
+            if attempt == 2:
+                raise
+            try:
+                panel.send_line('AD_OTA_ABORT')
+            except OSError:
+                pass
+        finally:
+            panel.close()
+        time.sleep(2)
 
 
 def install(package: Package, port: str, identify: Callable[[str], dict | None], mode: str = 'app',

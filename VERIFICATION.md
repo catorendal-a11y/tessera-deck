@@ -37,8 +37,10 @@ Other automatic checks:
 | A Claude Code permission question answered with Allow on the panel | 0.6.0 | Passed |
 | The firmware installer updating a running panel from 0.5.2 to 0.6.0 (app only) | 0.6.0 | Passed |
 | A key that opens a running program brings its window to the front | 0.6.0 | Passed |
+| First full install of the A/B layout (0.7.0, esptool 5.4 and again with 5.6) | 0.7.0, 13 November 2026 | Passed |
+| Update over USB into the idle slot: 0.7.0 to 0.7.0, 0.7.0 to 0.8.0, then 0.8.0 to 0.8.0 four times | 0.8.0, 13 November 2026 | Passed, with two failures (below) |
 
-This page records no hardware run of the 0.7.0 firmware. Run the smoke test after you flash a new version.
+Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA* on a panel that had run 0.7.0 for about four hours; it kept its old firmware, and the next tries worked. The cause is not found. Since 0.8.0 the host aborts and starts such an upload once more by itself. `hardware_smoke.py` has not been run on 0.7.0 or 0.8.0.
 
 The editor was also walked through against a copy of a real configuration: every page, the three key tabs on every key, all dialogs, pages and profiles created, renamed and deleted, drag and drop with synthetic events, undo and redo. That was before the latest editor redesign. The editor smoke test covers the new layout only in part.
 
@@ -49,7 +51,6 @@ The code for these is written and tested in simulation. Nobody has tried them on
 | Feature | What is unknown |
 |---|---|
 | Firmware rollback | Whether the bootloader returns to the old slot after a new firmware crashes or hangs before the host confirms it |
-| Update over USB (`AD_OTA_*`) | A real update into the idle slot, and the first full install of the A/B layout on a panel |
 | Watchdog restart | Whether a hung screen or USB loop restarts the panel under real load |
 | Hold to confirm | The 0.6 s hold and the filling ring with a finger on the glass |
 | Panel lock | Locking, the lock badge and the 2 s hold on the logo that unlocks |

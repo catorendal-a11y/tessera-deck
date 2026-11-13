@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
 
+- Firmware update over USB: when the panel stops acknowledging partway, the host aborts and starts the upload once more by itself. The panel keeps its running firmware either way.
 - Editor: the Panel menu starts with *Display …* (brightness, dimming, quiet hours and the idle clock, which used to sit in Program settings and *Clock when idle …*) and *Panel firmware and updates …*. Program settings keeps only what the PC does: autostart, automatic profiles and the calendar.
 - Editor: *Panel screens …* is gone from the Panel menu; choose what the agents, mixer and status screens show on those screens in the rail, as the Rail dialog now says.
 - Editor: the Page menu has *New page*, and the Page and Profile menus each have *Delete this page* / *Delete this profile* with Undo in the toast. The settings dialogs no longer have a delete checkbox.
