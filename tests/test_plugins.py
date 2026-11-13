@@ -316,6 +316,14 @@ class ManagerTests(unittest.TestCase):
         self.assertIn('could not start', status['error'])
         self.assertEqual(self.revoked, ['token-0'])
 
+    def test_a_log_that_cannot_be_opened_revokes_the_token_and_backs_off(self):
+        with patch('builtins.open', side_effect=PermissionError('locked')):
+            self.manager.sync(self.enabled())
+            self.manager.sync(self.enabled())
+        self.assertEqual(self.revoked, ['token-0'])
+        self.assertEqual(self.spawned, [])
+        self.assertIn('could not open its log', self.manager.status(self.enabled())[0]['error'])
+
     def test_unknown_plugins_in_the_configuration_are_ignored_and_stop_all_cleans_up(self):
         self.manager.sync({'ghost': {'enabled': True}, **self.enabled()})
         self.assertEqual(len(self.spawned), 1)

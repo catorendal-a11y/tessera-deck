@@ -10,12 +10,13 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
 import threading
 import time
 from pathlib import Path
 from typing import Callable
+
+from config_store import write_atomic
 
 NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COUNTER_OPS = ('inc', 'dec', 'set', 'reset')
@@ -125,10 +126,8 @@ class LiveState:
             if not self._dirty:
                 return
             payload = {'version': VERSION, 'counters': self.counters, 'timers': self.timers}
-            temporary = self.path.with_suffix('.tmp')
             try:
-                temporary.write_text(json.dumps(payload), encoding='utf-8')
-                os.replace(temporary, self.path)
+                write_atomic(self.path, json.dumps(payload).encode('utf-8'))
                 self._dirty = False
             except OSError:
                 pass  # try again on the next flush

@@ -9,7 +9,7 @@ import time
 import types
 import unittest
 from io import BytesIO
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
@@ -475,6 +475,30 @@ class HostRuntimeTests(HostCase):
             daemon.profile_stamp = -1
             daemon.reload_profiles()
             self.assertEqual(accepted, daemon.config)
+
+    def test_saving_only_display_settings_keeps_toggle_states_folder_and_dimming(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.log = Mock()
+            daemon.enqueue = Mock()
+            daemon.button_states[('main', 'main', 1)] = 1
+            daemon.folder_stack.append('main')
+            daemon.dimmed = True
+            config['display'] = dict(config.get('display', {}), brightness=40)  # the panel's brightness slider
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon.profile_stamp = -1
+            daemon.reload_profiles()
+            self.assertEqual(daemon.button_states, {('main', 'main', 1): 1})
+            self.assertEqual(daemon.folder_stack, ['main'])
+            self.assertNotIn(call(('brightness',)), daemon.enqueue.call_args_list)
+            config['profiles']['main']['pages']['main'][0]['label'] = 'Changed'
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon.profile_stamp = -1
+            daemon.reload_profiles()
+            self.assertEqual((daemon.button_states, daemon.folder_stack), ({}, []))
 
     def test_missing_profile_file_does_not_stop_daemon(self):
         with tempfile.TemporaryDirectory() as directory:

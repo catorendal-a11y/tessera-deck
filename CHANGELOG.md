@@ -11,6 +11,15 @@
 - Panel: a key's confirmation no longer flashes the key that took its place after a page change.
 - Panel: the idle screen's line is no longer missed when it changes at the moment it is drawn.
 - Panel firmware: when the display fails to start, the panel restarts instead of going silent on USB, so an unconfirmed update rolls back.
+- Host: moving the panel's brightness slider (or any save that leaves the keys as they were) no longer resets toggle keys, leaves the open folder or wakes a dimmed panel.
+- Host: a plugin whose log file cannot be opened is marked as failed and backs off instead of retrying every few seconds.
+- Host: the diagnostics bundle's log no longer shows key labels or profile and page names.
+- Host: a weather place name can no longer break the idle clock line, and a long non-English name is cut on a whole character.
+- Host: a wide pinned key that would cover a page key (or the reverse) is rejected when the configuration is checked.
+- Host: a profiles.json that is briefly locked at start (antivirus, an editor saving) is no longer replaced by an older backup.
+- Host: the panel's audio and media state keeps updating after an unexpected error from the audio or media library.
+- Host: the control API answers 401 to a token with non-ASCII characters instead of dropping the connection.
+- Firmware update: the message for a single-slot package names *Full install*, the option the editor has.
 
 ## 0.8.0
 

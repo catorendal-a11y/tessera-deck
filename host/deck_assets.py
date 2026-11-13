@@ -46,7 +46,6 @@ def resolve_program_target(target):
 
 
 def _com_guid(text):
-    import ctypes
     import uuid
 
     class GUID(ctypes.Structure):
@@ -60,7 +59,6 @@ def _com_guid(text):
 
 
 def _hbitmap_to_image(hbitmap):
-    import ctypes
     from ctypes import wintypes
     from PIL import Image
 
@@ -88,7 +86,7 @@ def _hbitmap_to_image(hbitmap):
     gdi32.GetObjectW(hbitmap, ctypes.sizeof(bitmap), ctypes.byref(bitmap))
     width, height = bitmap.width, bitmap.height
     if bitmap.bits_per_pixel != 32 or not 0 < width <= 1024 or not 0 < height <= 1024:
-        raise ValueError('Uventet ikonformat fra Windows')
+        raise ValueError('Windows returned an unexpected icon format')
     header = BITMAPINFOHEADER(ctypes.sizeof(BITMAPINFOHEADER), width, -height, 1, 32, 0, 0, 0, 0, 0, 0)
     pixels = ctypes.create_string_buffer(width * height * 4)
     screen = user32.GetDC(None)
@@ -105,7 +103,6 @@ def shell_item_image(target, size=SHELL_ICON_SIZE):
     import os
     if os.name != 'nt':
         raise ValueError('Program icons are only supported on Windows')
-    import ctypes
     from ctypes import wintypes
 
     class SIZE(ctypes.Structure):
@@ -290,7 +287,6 @@ class Assets:
         import os
         if os.name != 'nt':
             raise ValueError('Program icons are only supported on Windows')
-        import ctypes
         from ctypes import wintypes
         from PIL import Image
 

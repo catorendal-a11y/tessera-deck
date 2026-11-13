@@ -260,7 +260,12 @@ class PluginManager:
                 os.replace(log_path, log_path.with_name(log_path.name + '.1'))
         except OSError:
             pass
-        log = open(log_path, 'ab')
+        try:  # a locked or full log folder must not leak the token granted above or retry without back-off
+            log = open(log_path, 'ab')
+        except OSError as exc:
+            self._revoke(token)
+            self._record_failure(manifest.id, f'could not open its log: {exc}')
+            return
         try:
             process = self._spawn(resolve_command(manifest, self._python), cwd=manifest.path, env=environment,
                                   stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,

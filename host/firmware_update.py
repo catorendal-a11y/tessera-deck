@@ -241,7 +241,7 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
     if mode == 'app' and has_slots and not package.needs_full:
         # An older single-slot firmware would never confirm itself, so the bootloader would roll it back.
         raise InstallError('This firmware is older than the A/B flash layout the panel has now. '
-                           'Install it with "Everything".')
+                           'Install it with "Full install".')
     if mode == 'app' and has_slots:
         progress('writing', 0)
         try:

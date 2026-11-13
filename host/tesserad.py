@@ -34,20 +34,18 @@ from pc_state import PcState, control_audio
 from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
 
-# The engine's building blocks live in their own modules; the names stay importable from here for the editor,
+# The engine's building blocks live in their own modules; the names stay importable from here for the apps,
 # the tools and the tests.
 from win_input import (CHILD_NAMES_SECONDS, IS_WINDOWS, VK, bring_to_front, child_names, dry_hotkey,  # noqa: F401
                        focus_existing_process, foreground_context, is_neutral_window,
                        matches_foreground, parse_hotkey, real_app_exe, send_hotkey, send_mouse, send_text,
                        set_clipboard, window_action)
-from config_check import (ACTION_FIELDS, VARIABLE_NAME, _check_display, in_quiet_hours,  # noqa: F401
-                          validate_config)
-from daemon_display import DEFAULT_DIM_AFTER, DisplayMixin  # noqa: F401
-from daemon_presses import (BLOCKING_ACTIONS, DOUBLE_PRESS_SECONDS, PressMixin,  # noqa: F401
-                            action_list_name)
+from config_check import _check_display, in_quiet_hours, validate_config  # noqa: F401
+from daemon_display import DisplayMixin
+from daemon_presses import DOUBLE_PRESS_SECONDS, PressMixin  # noqa: F401
 from daemon_ticks import BackgroundMixin
-from panel_serial import (BOARD_ID, OFFLINE_LAYOUT_BYTES, SUPPORTED_PROTOCOLS, DeviceRejected,  # noqa: F401
-                          PanelSerial, layout_bytes, layout_payload, restart_report)
+from panel_serial import (OFFLINE_LAYOUT_BYTES, SUPPORTED_PROTOCOLS, DeviceRejected,  # noqa: F401
+                          PanelSerial, layout_bytes, restart_report)
 
 JOB_QUEUE_SIZE = 128
 SLOW_LANE_LIMIT = 4

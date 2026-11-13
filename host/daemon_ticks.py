@@ -298,13 +298,18 @@ class BackgroundMixin:
             before = self.config.get('triggers', [])
             kept = {index: self.trigger_state[index] for index, trigger in enumerate(config.get('triggers', []))
                     if index in self.trigger_state and index < len(before) and before[index].get('when') == trigger.get('when')}
+            # The host and the tray save the file themselves (brightness slider, notifications switch): when
+            # the keys did not change, toggle states and the open folder stay, and a dimmed panel stays dim.
+            same_keys = config['profiles'] == self.config.get('profiles')
             self.config = config
             if self.profile not in config['profiles']:
                 self.profile = config.get('default_profile', next(iter(config['profiles'])))
             if self.page not in config['profiles'][self.profile]['pages']:
                 self.page = next(iter(config['profiles'][self.profile]['pages']))
             self.trigger_state = kept
-            self.folder_stack.clear()
-            self.button_states.clear()
+            if not same_keys:
+                self.folder_stack.clear()
+                self.button_states.clear()
             self.enqueue(('force-push',))
-            self.enqueue(('brightness',))
+            if not (same_keys and self.dimmed):
+                self.enqueue(('brightness',))

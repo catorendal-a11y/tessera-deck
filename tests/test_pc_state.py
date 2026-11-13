@@ -48,6 +48,14 @@ class PcStateTests(unittest.TestCase):
         self.assertIn('no device', state.error)
         self.assertFalse(state.flag('media_playing'))
 
+    def test_an_unexpected_library_error_is_recorded_not_raised(self):
+        def changed_api():
+            raise AttributeError('no GetMasterVolume')
+        state = pc_state.PcState(changed_api, media('Song', '', 'PLAYING'))
+        state.poll()
+        self.assertIn('GetMasterVolume', state.error)
+        self.assertTrue(state.flag('media_playing'))
+
     def test_unknown_audio_commands_are_rejected(self):
         with self.assertRaises(ValueError):
             pc_state.control_audio('headset', 'toggle')
