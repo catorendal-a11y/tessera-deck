@@ -208,6 +208,7 @@ function renderGauge(panel,base) {
   }
   panel.append(text('p','The host fills in the value. The panel shows it in the gauge color, amber and red at the thresholds; without a sensor it shows --.','hint'));
 }
+const windowOps=[['minimize','Minimize'],['maximize','Maximize'],['restore','Restore'],['close','Close'],['topmost','Always on top (on/off)'],['next_monitor','Move to the next monitor'],['focus','Bring a program to the front']];
 function renderStep(action,index,count) {
   const k=kinds[action.type]||kinds.hotkey;
   const step=element('section',{class:'step','aria-label':`Step ${index+1}: ${k.name}`,draggable:'false','data-step':index});
@@ -217,11 +218,11 @@ function renderStep(action,index,count) {
   const move=delta=>{if(index+delta<0||index+delta>=count)return;mutate(()=>{const a=activeActions();[a[index],a[index+delta]]=[a[index+delta],a[index]];});};
   const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.disabled=index===0;down.disabled=index===count-1;
   step.append(element('div',{class:'step-header'},text('strong',`${index+1}. ${k.name}`),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
-  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
   if(action.type==='profile_lock'){step.append(text('p','Locks the current profile when pressed. Press again to follow the active program. Pin this key to make it available on every page in this profile.','hint'));return step;}
-  const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
+  const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell','clipboard'].includes(action.type)});
   if(action.type==='open') {
     const input=parameter.querySelector('input');input.setAttribute('data-path',index);parameter.append(button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target){applyProgramDetails(result,index);}}catch(error){showError(error);}},'text-button'));
   }
@@ -252,6 +253,16 @@ function renderStep(action,index,count) {
     if(action.op==='scroll')step.append(field('Notches (positive = up)',String(action.amount??3),v=>editAction(index,'amount',Math.max(-50,Math.min(50,Math.round(Number(v))||0))),{type:'number'}));
     if(action.op==='move'||action.op==='moveto')step.append(field(action.op==='move'?'Pixels right (negative = left)':'Screen X',String(action.x??0),v=>editAction(index,'x',Math.round(Number(v))||0),{type:'number'}),field(action.op==='move'?'Pixels down (negative = up)':'Screen Y',String(action.y??0),v=>editAction(index,'y',Math.round(Number(v))||0),{type:'number'}));
     step.append(text('p','The pointer acts where it is now, except Move the pointer to, which uses screen pixels.','hint'));
+  }
+  if(action.type==='clipboard') {
+    const paste=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Paste it too'),text('small','Presses Ctrl+V after copying.')));
+    const checkbox=paste.querySelector('input');checkbox.checked=!!action.paste;checkbox.onchange=()=>mutate(()=>activeActions()[index].paste=checkbox.checked);step.append(paste);
+  }
+  if(action.type==='window')step.append(field('Process name (empty = the window in front)',action.process||'',v=>editAction(index,'process',v),{placeholder:'for example notepad.exe'}));
+  if(action.type==='toggle') {
+    const values=action.values||['on','off'],setValue=(i,v)=>mutate(()=>{const a=activeActions()[index];a.values=[...(a.values||['on','off'])];a.values[i]=v;});
+    step.append(field('First value',values[0],v=>setValue(0,v)),field('Second value',values[1],v=>setValue(1,v)),
+      text('p','Each press switches $(var:NAME) between the two values. For a key whose look and steps alternate, give the key states instead.','hint'));
   }
   if(action.type==='counter')renderCounterStep(step,action,index);
   if(action.type==='timer')renderTimerStep(step,action,index);

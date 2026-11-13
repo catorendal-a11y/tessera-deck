@@ -25,6 +25,9 @@ const kinds = {
   set:{name:'Set variable',icon:'edit',field:'variable',label:'Variable name',group:'Advanced'},
   state:{name:'Set key state',icon:'loop',field:'button',label:'Key number (1–18)',group:'Advanced'},
   home:{name:'Go home',icon:'home',field:null,label:'Go to the first page of the default profile',group:'Navigation'},
+  clipboard:{name:'Copy to clipboard',icon:'download',field:'text',label:'Text to copy',placeholder:'Text; $(var:name) and $(time) work too',group:'On the computer'},
+  window:{name:'Window',icon:'list',field:'op',label:'Window operation',group:'On the computer'},
+  toggle:{name:'Toggle variable',icon:'loop',field:'variable',label:'Variable name',placeholder:'for example mode',group:'Advanced'},
 };
 // Sensors the host provides, with the ranges and thresholds of the bundled status page.
 const gaugeSensors={
@@ -461,7 +464,7 @@ function actionTemplate(key) {
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock'}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',clipboard:'',window:'minimize',toggle:'mode'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
     ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
   const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':k.name;

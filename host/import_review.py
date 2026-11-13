@@ -88,7 +88,7 @@ def review(config: dict) -> list[dict]:
             if not isinstance(action, dict):
                 continue
             found = _classify(action)
-            if found is None and automatic and action.get('type') in ('hotkey', 'text'):
+            if found is None and automatic and action.get('type') in ('hotkey', 'text', 'clipboard', 'window'):
                 found = ('medium', f"{action['type']} is sent automatically")
             if found is None:
                 continue

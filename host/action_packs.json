@@ -80,6 +80,40 @@
       ]
     },
     {
+      "group": "Window management",
+      "name": "Always on top",
+      "icon": "upload",
+      "actions": [
+        {
+          "type": "window",
+          "op": "topmost"
+        }
+      ]
+    },
+    {
+      "group": "Window management",
+      "name": "Close window",
+      "icon": "close",
+      "actions": [
+        {
+          "type": "window",
+          "op": "close"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Paste date",
+      "icon": "download",
+      "actions": [
+        {
+          "type": "clipboard",
+          "text": "$(date)",
+          "paste": true
+        }
+      ]
+    },
+    {
       "group": "Browser",
       "name": "New tab",
       "icon": "plus",
