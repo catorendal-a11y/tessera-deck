@@ -35,6 +35,7 @@
 extern "C" {
 #include "deck_model.h"
 #include "time_service.h"
+#include "wifi_service.h"
 #include "ui/ui.h"
 }
 
@@ -376,6 +377,62 @@ static bool parse_percent(const char *text, long low, long high, int *out)
 }
 /* USB console: line protocol with the Windows host. The panel has no network
  * stack; USB is the only transport. */
+/* Wi-Fi status as one {"type":"wifi"} line: AD_WIFI_STATUS answers it, and the console sends it unsolicited
+ * when wifi_service_version() changes. Built with cJSON, so the SSID is escaped; it never holds the password. */
+static void wifi_status_line(void)
+{
+    wifi_svc_status_t status;
+    wifi_service_status(&status);
+    cJSON *line = cJSON_CreateObject();
+    if (!line) return;
+    cJSON_AddStringToObject(line, "type", "wifi");
+    cJSON_AddStringToObject(line, "state", wifi_service_state_name(status.state));
+    if (status.reason != WIFI_REASON_NONE) cJSON_AddStringToObject(line, "reason", wifi_service_reason_name(status.reason));
+    if (status.ssid[0]) cJSON_AddStringToObject(line, "ssid", status.ssid);
+    if (status.state == WIFI_SVC_CONNECTED) {
+        cJSON_AddStringToObject(line, "ip", status.ip);
+        cJSON_AddNumberToObject(line, "rssi", status.rssi);
+    }
+    static const uint8_t no_mac[6] = {};
+    if (memcmp(status.mac, no_mac, sizeof(no_mac)) != 0) {
+        char mac[18];
+        snprintf(mac, sizeof(mac), "%02X:%02X:%02X:%02X:%02X:%02X", status.mac[0], status.mac[1], status.mac[2],
+                 status.mac[3], status.mac[4], status.mac[5]);
+        cJSON_AddStringToObject(line, "mac", mac);
+    }
+    if (status.cp_version[0]) cJSON_AddStringToObject(line, "cp", status.cp_version);
+    char *text = cJSON_PrintUnformatted(line);
+    if (text) { printf("%s\n", text); cJSON_free(text); }
+    cJSON_Delete(line);
+    fflush(stdout);
+}
+
+/* AD_WIFI_SET <json> (exactly one space), AD_WIFI_CLEAR, AD_WIFI_STATUS. No answer echoes the password.
+ * The caller zeroes the line afterwards; the parsed credentials are wiped here. */
+static void wifi_command(char *line)
+{
+    if (!strncmp(line, "AD_WIFI_SET ", 12)) {
+        wifi_credentials_t credentials;
+        const char *field = "json";
+        if (line[12] == ' ') {
+            wifi_credentials_wipe(&credentials);
+            printf("AD_WIFI_SET INVALID json\n");
+        } else if (!wifi_config_from_json(line + 12, &credentials, &field)) {
+            printf("AD_WIFI_SET INVALID %s\n", field);
+        } else {
+            const esp_err_t stored = wifi_service_set(&credentials);
+            printf("AD_WIFI_SET %s\n", stored == ESP_OK ? "OK" : "FAILED storage");
+        }
+        wifi_credentials_wipe(&credentials);
+    } else if (!strcmp(line, "AD_WIFI_CLEAR")) {
+        printf("AD_WIFI_CLEAR %s\n", wifi_service_clear() == ESP_OK ? "OK" : "FAILED storage");
+    } else if (!strcmp(line, "AD_WIFI_STATUS")) {
+        wifi_status_line();
+        return;
+    }
+    fflush(stdout);
+}
+
 static void usb_console_task(void *)
 {
     static uint8_t received[2048];
@@ -392,6 +449,8 @@ static void usb_console_task(void *)
     const uint32_t boot_id = esp_random();
     const char *const reset_reason = reset_reason_name();
     uint32_t wake_seen = deck_model_wake_sequence();
+    uint32_t wifi_seen = wifi_service_version();
+    int64_t wifi_sent_at = 0;
     /* A hung loop restarts the panel (CONFIG_ESP_TASK_WDT_TIMEOUT_S); every read below returns within 20 ms. */
     const bool watched = esp_task_wdt_add(nullptr) == ESP_OK;
     for (;;) {
@@ -410,6 +469,13 @@ static void usb_console_task(void *)
         }
         layout_flush_if_due();
         brightness_flush_if_due();
+        /* Wi-Fi changes, at most one line a second; the last change wins. */
+        const int64_t now_us = esp_timer_get_time();
+        if (wifi_service_version() != wifi_seen && now_us - wifi_sent_at >= 1000000) {
+            wifi_seen = wifi_service_version();
+            wifi_sent_at = now_us;
+            wifi_status_line();
+        }
         /* The about sheet's slider: apply at once, save and tell the host when the finger lifts. */
         int wanted_level = 0;
         bool save_level = false;
@@ -472,6 +538,12 @@ static void usb_console_task(void *)
             used = 0;
             continue;
         }
+        if (!overflow && strncmp(line, "AD_WIFI_", 8) == 0) {
+            wifi_command(line);
+            memset(line, 0, sizeof(line)); /* AD_WIFI_SET carried the password */
+            used = 0;
+            continue;
+        }
         if (!overflow && deck_image_command(line, image_reply)) {
             if (!image_reply.empty()) {printf("%s\n", image_reply.c_str());fflush(stdout);}
             used=0;overflow=false;
@@ -487,6 +559,7 @@ static void usb_console_task(void *)
                 cJSON_AddNumberToObject(reply,"uptime",esp_timer_get_time()/1000000);cJSON_AddNumberToObject(reply,"heap",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
+                wifi_svc_status_t wifi;wifi_service_status(&wifi);cJSON_AddStringToObject(reply,"wifi",wifi_service_state_name(wifi.state));
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
                 app_confirm();  /* the host can talk to this firmware: keep it */
                 char *text=cJSON_PrintUnformatted(reply);
@@ -718,6 +791,8 @@ extern "C" void app_main(void)
         }
     }
     store_mount();
+    /* Never blocks: without stored credentials it only reads NVS and parks a task; the C6 is left alone. */
+    if (nvs == ESP_OK && wifi_service_init() != ESP_OK) ESP_LOGW(TAG, "Wi-Fi service unavailable");
     layout_restore();
     deck_model_set_brightness(s_brightness);
     ui_set_firmware_version(esp_app_get_description()->version);

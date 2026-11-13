@@ -646,8 +646,25 @@ void show_offline(bool linked) {
     }
 }
 /* ---- About sheet: a long press on the logo shows the firmware, the PC link and a brightness slider. ---- */
-lv_obj_t *about=nullptr,*about_link=nullptr,*about_level=nullptr;
-void close_about() {if(about)lv_obj_delete(about);about=about_link=about_level=nullptr;}
+lv_obj_t *about=nullptr,*about_link=nullptr,*about_wifi=nullptr,*about_level=nullptr;
+uint32_t about_wifi_version=0;
+void close_about() {if(about)lv_obj_delete(about);about=about_link=about_wifi=about_level=nullptr;}
+/* The Wi-Fi line under the PC link (protocol 5). ASCII only: the DejaVu subsets may lack other dashes and dots. */
+void show_about_wifi() {
+    if(!about_wifi)return;
+    deck_network_t network;deck_model_network(&network);about_wifi_version=deck_model_network_version();
+    char text[80];uint32_t color=Soft;
+    if(network.state==1)snprintf(text,sizeof(text),"Wi-Fi: connecting to %s",network.ssid);
+    else if(network.state==2){snprintf(text,sizeof(text),"Wi-Fi: %s, %d dBm",network.ip,network.rssi);color=Accent;}
+    else if(network.state==3){
+        /* wifi_svc_reason_t: 1 no_coprocessor, 2 init, 3 no_ap, 4 auth, 5 no_ip, 7 crashed */
+        const char *why=network.reason==4?"wrong password":network.reason==3?"network not found":network.reason==5?"no address":
+                        network.reason==1?"no Wi-Fi chip":network.reason==7?"turned off after a crash":"setup failed";
+        snprintf(text,sizeof(text),"Wi-Fi: %s",why);color=Amber;
+    }
+    else snprintf(text,sizeof(text),"Wi-Fi off");
+    lv_label_set_text(about_wifi,text);set_color(about_wifi,LV_STYLE_TEXT_COLOR,color);
+}
 void show_about_link() {
     if(!about_link)return;
     const bool linked=deck_model_host_linked(HostTimeoutMs);
@@ -665,15 +682,16 @@ void open_about(lv_event_t *) {
     about=lv_obj_create(screen);flat(about,Bg);lv_obj_set_style_bg_opa(about,LV_OPA_70,0);lv_obj_set_pos(about,0,0);lv_obj_set_size(about,W,H);
     lv_obj_add_event_cb(about,about_tapped,LV_EVENT_CLICKED,nullptr);
     constexpr int CardW=460;
-    auto *card=box(about,Rail+16,16,CardW,300,22,Card);lv_obj_set_clickable(card,true);
+    auto *card=box(about,Rail+16,16,CardW,336,22,Card);lv_obj_set_clickable(card,true);
     lv_obj_set_style_border_width(card,2,0);lv_obj_set_style_border_color(card,lv_color_hex(Line),0);
     label(card,"Tessera",28,24,CardW-56,&fq_font_dejavu_bold_28,Text);
     char version[48];snprintf(version,sizeof(version),"Firmware %s",firmware_version);
     label(card,version,28,70,CardW-56,&fq_font_dejavu_20,Soft);
     about_link=label(card,"",28,102,CardW-56,&fq_font_dejavu_20,Accent);show_about_link();
-    label(card,"Brightness",28,166,CardW-160,&fq_font_dejavu_20,Soft);
-    about_level=label(card,"",CardW-128,166,100,&fq_font_dejavu_20,Text);lv_obj_set_style_text_align(about_level,LV_TEXT_ALIGN_RIGHT,0);
-    auto *slider=lv_slider_create(card);lv_obj_set_pos(slider,40,224);lv_obj_set_size(slider,CardW-80,20);
+    about_wifi=label(card,"",28,136,CardW-56,&fq_font_dejavu_20,Soft);show_about_wifi();
+    label(card,"Brightness",28,200,CardW-160,&fq_font_dejavu_20,Soft);
+    about_level=label(card,"",CardW-128,200,100,&fq_font_dejavu_20,Text);lv_obj_set_style_text_align(about_level,LV_TEXT_ALIGN_RIGHT,0);
+    auto *slider=lv_slider_create(card);lv_obj_set_pos(slider,40,258);lv_obj_set_size(slider,CardW-80,20);
     lv_slider_set_range(slider,1,100);lv_slider_set_value(slider,deck_model_brightness(),LV_ANIM_OFF);
     lv_obj_set_style_bg_color(slider,lv_color_hex(Line),LV_PART_MAIN);lv_obj_set_style_bg_color(slider,lv_color_hex(Accent),LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(slider,lv_color_hex(Text),LV_PART_KNOB);lv_obj_set_style_pad_all(slider,10,LV_PART_KNOB);
@@ -842,6 +860,7 @@ void update(lv_timer_t*) {
     else if(live_version!=deck_model_live_version())update_live();
     if(context_version!=deck_model_context_version())update_context();
     if(rail_version!=deck_model_rail_version())build_rail();
+    if(about_wifi&&about_wifi_version!=deck_model_network_version())show_about_wifi();
     if(agents_dirty||agents_version!=deck_model_agents_version()){
         if(view==ViewAgents)build_agents();
         else if(agents_dot!=deck_model_agents_version()){agents_dot=deck_model_agents_version();update_rail_dot();}

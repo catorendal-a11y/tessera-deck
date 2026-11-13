@@ -11,7 +11,7 @@ file(GLOB_RECURSE LV_SOURCES "${LVGL}/src/*.c")
 add_library(lvgl_native STATIC ${LV_SOURCES})
 target_include_directories(lvgl_native PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${LVGL}" "${LVGL}/include")
 target_compile_definitions(lvgl_native PUBLIC LV_CONF_INCLUDE_SIMPLE=1 LV_USE_LZ4_INTERNAL=1)
-add_executable(test_ui test_ui.cpp "${ROOT}/main/deck_model.c" "${ROOT}/main/deck_images.cpp"
+add_executable(test_ui test_ui.cpp "${ROOT}/main/deck_model.c" "${ROOT}/main/wifi_config.c" "${ROOT}/main/deck_images.cpp"
   "${ROOT}/managed_components/espressif__cjson/cJSON/cJSON.c" "${ROOT}/main/ui/ui.cpp"
   "${ROOT}/main/ui/fonts/deck_lucide_60.c" "${ROOT}/main/ui/fonts/fq_dejavu_16.c"
   "${ROOT}/main/ui/fonts/fq_dejavu_20.c" "${ROOT}/main/ui/fonts/fq_dejavu_24.c"

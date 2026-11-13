@@ -820,3 +820,38 @@ int deck_model_rail(deck_rail_item_t *out, int max_out)
 }
 
 uint32_t deck_model_rail_version(void) { return s_rail_version; }
+
+static deck_network_t s_network;
+static uint32_t s_network_version = 1;
+
+void deck_model_set_network(const deck_network_t *network)
+{
+    if (!network) return;
+    /* A normalized copy (zeroed padding, terminated text), so memcmp only sees a real change. */
+    deck_network_t next;
+    memset(&next, 0, sizeof(next));
+    next.state = network->state;
+    next.reason = network->reason;
+    strncpy(next.ssid, network->ssid, sizeof(next.ssid) - 1); /* zero-pads the rest */
+    strncpy(next.ip, network->ip, sizeof(next.ip) - 1);
+    next.rssi = network->rssi;
+    next.api_client = network->api_client;
+    model_lock();
+    if (memcmp(&next, &s_network, sizeof(next)) != 0) {
+        s_network = next;
+        ++s_network_version;
+    }
+    model_unlock();
+}
+
+void deck_model_network(deck_network_t *out)
+{
+    if (!out) return;
+    model_lock(); *out = s_network; model_unlock();
+}
+
+uint32_t deck_model_network_version(void)
+{
+    model_lock(); uint32_t version = s_network_version; model_unlock();
+    return version;
+}

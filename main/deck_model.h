@@ -198,6 +198,19 @@ int deck_model_take_view_request(void); /* -1 when nothing is pending */
 void deck_model_queue_line(const char *line);
 bool deck_model_take_line(char *out, size_t size);
 
+/* Network (protocol 5): wifi_service writes it, the About sheet reads it. ui.cpp includes no Wi-Fi header. */
+typedef struct {
+    uint8_t state;   /* wifi_svc_state_t values: 0 off, 1 connecting, 2 connected, 3 failed */
+    uint8_t reason;  /* wifi_svc_reason_t values */
+    char ssid[33];
+    char ip[16];
+    int8_t rssi;
+    bool api_client; /* stage B: a Home Assistant client is connected */
+} deck_network_t;
+void deck_model_set_network(const deck_network_t *network); /* bumps the version only when something changed */
+void deck_model_network(deck_network_t *out);
+uint32_t deck_model_network_version(void);
+
 /* Parser for the layout the host pushes over the USB console.
  * Accepts {"buttons":[...]} text; returns false (count untouched) on any
  * invalid entry. */

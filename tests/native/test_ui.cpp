@@ -12,6 +12,7 @@
 #include <vector>
 #include "deck_images.h"
 #include "deck_model.h"
+#include "wifi_config.h"
 #include "ui/ui.h"
 #include "ui/ui_palette.h"
 #include "ui/icon_pack.h"
@@ -344,13 +345,82 @@ static void test_lock_covers_agents_and_mixer(){
     deck_model_set_locked(false);updates();tap(191,523);assert(taken()==R"({"type":"mute","id":"speaker"})");
     tap(191,523);while(!taken().empty()){}ui_show_view(0);updates();
 }
+static bool wifi_ok(const char* json){wifi_credentials_t c;const char* field="?";const bool ok=wifi_config_from_json(json,&c,&field);assert(!ok||!*field);return ok;}
+static std::string wifi_field(const char* json){wifi_credentials_t c;const char* field="?";assert(!wifi_config_from_json(json,&c,&field));
+    for(size_t i=0;i<sizeof(c);++i)assert(reinterpret_cast<const unsigned char*>(&c)[i]==0);  /* a refusal leaves nothing behind */
+    return field;}
+static void test_wifi_config(){
+    /* AD_WIFI_SET's JSON: the same table as host/panel_serial.check_wifi_credentials. */
+    wifi_credentials_t c;const char* field=nullptr;
+    assert(wifi_config_from_json(R"({"ssid":"HomeNet","password":"correct horse","extra":1})",&c,&field)&&!strcmp(c.ssid,"HomeNet")&&!strcmp(c.password,"correct horse")&&!*field);
+    wifi_credentials_wipe(&c);for(size_t i=0;i<sizeof(c);++i)assert(reinterpret_cast<const unsigned char*>(&c)[i]==0);
+    assert(wifi_config_from_json(R"({"ssid":"Hj\u00e6m","password":""})",&c,&field)&&!strcmp(c.ssid,"Hj\xC3\xA6m")&&!c.password[0]);  /* ae, an open network */
+    assert(wifi_config_from_json(R"({"ssid":"\ud83d\ude00","password":""})",&c,&field)&&!strcmp(c.ssid,"\xF0\x9F\x98\x80"));     /* a surrogate pair */
+    assert(wifi_config_from_json("{\"ssid\":\"Hj\xC3\xA6m\",\"password\":\"\"}",&c,&field));                                       /* raw UTF-8 */
+    const std::string s32(32,'s'),s33(33,'s');
+    assert(wifi_ok(("{\"ssid\":\""+s32+"\",\"password\":\"\"}").c_str()));
+    assert(wifi_field(("{\"ssid\":\""+s33+"\",\"password\":\"\"}").c_str())=="ssid");
+    std::string sixteen,seventeen;for(int i=0;i<16;++i)sixteen+="\\u00e6";seventeen=sixteen+"\\u00e6";  /* 32 and 34 bytes once decoded */
+    assert(wifi_ok(("{\"ssid\":\""+sixteen+"\",\"password\":\"\"}").c_str()));
+    assert(wifi_field(("{\"ssid\":\""+seventeen+"\",\"password\":\"\"}").c_str())=="ssid");
+    assert(wifi_field(R"({"ssid":"","password":""})")=="ssid");
+    assert(wifi_field(R"({"ssid":"a\tb","password":""})")=="ssid");
+    assert(wifi_field(R"({"ssid":"a\u007fb","password":""})")=="ssid");          /* DEL */
+    assert(wifi_field(R"({"ssid":"a\u0085b","password":""})")=="ssid");          /* C1 control */
+    assert(wifi_field("{\"ssid\":\"a\xFF\",\"password\":\"\"}")=="ssid");          /* not UTF-8 */
+    assert(wifi_field("{\"ssid\":\"a\xC0\xAF\",\"password\":\"\"}")=="ssid");      /* overlong */
+    assert(wifi_field("{\"ssid\":\"a\xE6\",\"password\":\"\"}")=="ssid");          /* cut short */
+    assert(wifi_field(R"({"ssid":"ab\u0000cd","password":""})")=="json");         /* a NUL would hide the rest */
+    assert(wifi_ok(R"({"ssid":"ab\\u0000cd","password":""})"));                   /* an escaped backslash is just text */
+    assert(wifi_field(R"({"ssid":12,"password":""})")=="ssid");
+    assert(wifi_field(R"({"password":"12345678"})")=="ssid");
+    const std::string p7(7,'p'),p8(8,'p'),p63(63,'p'),hex64(64,'a'),nothex64=std::string(63,'a')+"g";
+    auto with=[](const std::string& password){return "{\"ssid\":\"Net\",\"password\":\""+password+"\"}";};
+    assert(wifi_field(with(p7).c_str())=="password");
+    assert(wifi_ok(with(p8).c_str())&&wifi_ok(with(p63).c_str())&&wifi_ok(with(hex64).c_str()));
+    assert(wifi_ok(with("0123456789ABCDEFabcdef0123456789ABCDEFabcdef0123456789ABCDEF0123").c_str()));
+    assert(wifi_field(with(nothex64).c_str())=="password");
+    assert(wifi_field(with(std::string(65,'a')).c_str())=="password");
+    assert(wifi_field(with("p\\u00e6sswords").c_str())=="password");             /* not ASCII */
+    assert(wifi_field(with("pass\\tword").c_str())=="password");                 /* not printable */
+    assert(wifi_ok(with("with \\\" quote").c_str()));
+    assert(wifi_field(R"({"ssid":"Net","password":12345678})")=="password");
+    assert(wifi_field(R"({"ssid":"Net"})")=="password");
+    assert(wifi_field(R"(["ssid","password"])")=="json");
+    assert(wifi_field("not json")=="json");
+    assert(wifi_field(R"({"ssid":"Net","password":"12345678")")=="json");
+    assert(!wifi_config_from_json(nullptr,&c,&field)&&!strcmp(field,"json"));
+}
+static void test_network_model(){
+    /* wifi_service writes the network record, the About sheet reads it; the version moves only on a change. */
+    deck_network_t network{};deck_model_network(&network);assert(network.state==0&&!network.ssid[0]);
+    const uint32_t before=deck_model_network_version();
+    deck_network_t next{};next.state=2;strcpy(next.ssid,"HomeNet");strcpy(next.ip,"192.168.1.40");next.rssi=-58;
+    deck_model_set_network(&next);assert(deck_model_network_version()==before+1);
+    deck_model_network(&network);assert(network.state==2&&!strcmp(network.ssid,"HomeNet")&&!strcmp(network.ip,"192.168.1.40")&&network.rssi==-58);
+    deck_network_t same=next;memset(same.ssid+8,'x',sizeof(same.ssid)-9);  /* bytes after the NUL do not count */
+    deck_model_set_network(&same);assert(deck_model_network_version()==before+1);
+    next.rssi=-60;deck_model_set_network(&next);assert(deck_model_network_version()==before+2);
+    deck_network_t off{};deck_model_set_network(&off);deck_model_set_network(nullptr);
+}
 static void test_about_sheet(){
     /* A long press on the logo opens a sheet with the firmware, the PC link and a brightness slider; a tap outside closes it. */
     keep_host(1000);tap(42,41);assert(!visible("Brightness"));
     hold(42,41,700);assert(visible("Tessera")&&visible("Firmware 9.8.7")&&visible("PC connected")&&visible("Brightness")&&visible("100 %"));
-    capture("about.ppm");
+    assert(visible("Wi-Fi off"));capture("about.ppm");
+    /* The Wi-Fi line follows the network record while the sheet is open: connecting, connected, failed. */
+    deck_network_t network{};network.state=1;strcpy(network.ssid,"HomeNet");deck_model_set_network(&network);updates();
+    assert(visible("Wi-Fi: connecting to HomeNet"));capture("about-wifi-connecting.ppm");
+    network.state=2;strcpy(network.ip,"192.168.1.40");network.rssi=-58;deck_model_set_network(&network);updates();
+    assert(visible("Wi-Fi: 192.168.1.40, -58 dBm"));capture("about-wifi-connected.ppm");
+    network.state=3;network.ip[0]='\0';network.rssi=0;
+    const struct{uint8_t reason;const char* text;}failed[]={{4,"Wi-Fi: wrong password"},{3,"Wi-Fi: network not found"},{5,"Wi-Fi: no address"},
+        {1,"Wi-Fi: no Wi-Fi chip"},{7,"Wi-Fi: turned off after a crash"},{2,"Wi-Fi: setup failed"},{8,"Wi-Fi: setup failed"}};
+    for(const auto& f:failed){network.reason=f.reason;deck_model_set_network(&network);updates();assert(visible(f.text));}
+    network.reason=4;deck_model_set_network(&network);updates();capture("about-wifi-failed.ppm");
+    deck_network_t off{};deck_model_set_network(&off);updates();assert(visible("Wi-Fi off"));
     int level=0;bool save=false;while(deck_model_take_brightness_request(&level,&save)){}
-    tap(330,250);assert(deck_model_take_brightness_request(&level,&save)&&save&&level>30&&level<70&&deck_model_brightness()==level);
+    tap(330,284);assert(deck_model_take_brightness_request(&level,&save)&&save&&level>30&&level<70&&deck_model_brightness()==level);
     char shown_level[8];snprintf(shown_level,sizeof(shown_level),"%d %%",level);assert(visible(shown_level));
     const int before=deck_model_last_event_id();
     tap(key_x(12),key_y(12));assert(!visible("Brightness")&&deck_model_last_event_id()==before);
@@ -452,7 +522,7 @@ int main(int argc,char** argv){
      {"host disconnect and reconnect",test_host_disconnect_reconnect},{"agents",test_agents},{"agent allow and deny",test_agent_allow_deny},
      {"agent tap follows its lane",test_agent_tap_follows_its_lane},
      {"agent questions",test_agent_questions},{"mixer",test_mixer},{"rail shortcuts",test_rail_shortcuts},
-     {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
+     {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"wifi config",test_wifi_config},{"network model",test_network_model},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"key styling",test_key_styling},
      {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}

@@ -3,6 +3,8 @@ idf_component_register(
         "main.cpp"
         "time_service.c"
         "deck_model.c"
+        "wifi_config.c"
+        "wifi_service.c"
         "deck_images.cpp"
         "ui/ui.cpp"
         "ui/fonts/deck_lucide_60.c"
@@ -31,5 +33,10 @@ idf_component_register(
         app_update
         spiffs
         esp_driver_usb_serial_jtag
+        esp_wifi
+        esp_netif
+        esp_event
+        espressif__esp_wifi_remote
+        espressif__esp_hosted
 )
 

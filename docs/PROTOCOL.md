@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 4; [Releasing](RELEASING.md) lists what each version added.
+The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 5; [Releasing](RELEASING.md) lists what each version added.
 
 ## Framing
 
@@ -36,6 +36,9 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 | `AD_RAIL {"rail":[…]}` | `AD_RAIL OK` or `INVALID` | The rail's buttons, at most 7 (protocol 4). |
 | `AD_VIEW keys`, `agents`, `mixer` or `status` | `AD_VIEW OK` or `INVALID` | Brings one screen forward, for example for a permission question (protocol 4). |
 | `AD_OTA_BEGIN <bytes> <sha256>`, `AD_OTA_DATA <offset> <hex>`, `AD_OTA_END`, `AD_OTA_ABORT` | see [Firmware update](#firmware-update) | Updates the firmware over USB. |
+| `AD_WIFI_SET {"ssid":"…","password":"…"}` | `AD_WIFI_SET OK`, `AD_WIFI_SET INVALID json\|ssid\|password` or `AD_WIFI_SET FAILED storage` | Stores the Wi-Fi network and connects (protocol 5). See [Wi-Fi](#wi-fi). |
+| `AD_WIFI_CLEAR` | `AD_WIFI_CLEAR OK` or `AD_WIFI_CLEAR FAILED storage` | Forgets the network and turns Wi-Fi off (protocol 5). |
+| `AD_WIFI_STATUS` | one `{"type":"wifi",…}` line | Asks for the Wi-Fi state (protocol 5). |
 | `AD_PRESS <id>` | `AD_PRESS OK` or `UNKNOWN` | A synthetic key press. Only `tests/hardware_smoke.py` uses it. |
 | `FQ_UI_STATUS` | `FQ_UI_STATUS {"screen":N,"labels":"…"}` | A debug dump of the visible text. The host never sends it. |
 
@@ -75,7 +78,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 
 | Message | When | What the host does |
 |---|---|---|
-| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"layoutSaved":N}` | The answer to `get_info` | Accepts only `tessera-p4` and a supported protocol. See [Handshake fields](#handshake-fields). |
+| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":5,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"wifi":"off","layoutSaved":N}` | The answer to `get_info` | Accepts only `tessera-p4` and a supported protocol. See [Handshake fields](#handshake-fields). |
 | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed. `hold` is present for a long press. | Runs the key's actions. |
 | `{"type":"wake"}` | A touch woke the dimmed panel. | Resets the idle timer. No key is pressed. |
 | `{"type":"brightness","level":N}` | The brightness slider was released. | Stores the level (1 to 100). |
@@ -87,6 +90,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `{"type":"mute","id":"…"}` | A mute button was touched. | Toggles mute. |
 | `{"type":"image","id":"im:…"}` | The panel needs an image it no longer has. | Sends the image again. |
 | `{"type":"unlocked"}` | The lock badge was held for 2 s. | Marks the panel as unlocked. |
+| `{"type":"wifi","state":"…",…}` | The answer to `AD_WIFI_STATUS`, and on its own when the Wi-Fi state changes (protocol 5). | Shows the state in the editor. See [Wi-Fi](#wi-fi). |
 
 ### Handshake fields
 
@@ -98,6 +102,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `reset` | Why the panel last started: `poweron`, `sw`, `panic`, `int_wdt`, `task_wdt`, `wdt`, `brownout`, `deepsleep`, `ext` or `unknown`. The host warns about `panic`, `int_wdt`, `task_wdt`, `wdt` and `brownout`. |
 | `ota` | `1` when the panel accepts `AD_OTA_*`. Missing on older firmware. |
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
+| `wifi` | `off`, `connecting`, `connected` or `failed` (protocol 5). With the protocol number it tells the host that `AD_WIFI_*` exists. |
 
 A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once.
 
@@ -111,6 +116,38 @@ The update writes the new image into the idle A/B slot (needs `"ota":1`). Every 
 4. After `AD_OTA_END OK` the panel restarts into the new slot. It keeps that slot once the host completes a handshake, or after 60 s. Otherwise the bootloader goes back to the previous slot.
 
 `AD_OTA_ABORT` cancels an update and answers `AD_OTA_ABORT OK`. The slots and the install options are in [Releasing](RELEASING.md).
+
+## Wi-Fi
+
+Protocol 5. The panel joins Wi-Fi through its ESP32-C6. Wi-Fi is off until `AD_WIFI_SET` stores a network: before that the panel never starts the C6, and USB works exactly as without Wi-Fi.
+
+- `AD_WIFI_SET` takes exactly one space and then the JSON on the rest of the line; the whole line is at most 1,099 bytes, and a longer one is dropped without an answer. `ssid` is 1 to 32 bytes of UTF-8 after JSON decoding, without control characters. `password` is `""` for an open network, 8 to 63 printable ASCII characters, or exactly 64 hex digits. Other keys are ignored. The host sends `json.dumps(…, ensure_ascii=True, separators=(',', ':'))`, so the line is pure ASCII.
+- `INVALID` names the first field that failed: `json` (not an object, or a `\u0000` escape), `ssid` or `password`. `OK` means stored and connecting, not connected; the result arrives as `{"type":"wifi"}` lines. `FAILED storage` means the settings could not be written.
+- The panel keeps the network in NVS (namespace `tessera_net`) and never on the C6. No answer and no log line carries the password; the panel zeroes the line after `AD_WIFI_SET`.
+- `AD_WIFI_CLEAR` erases the whole `tessera_net` namespace and stops Wi-Fi.
+
+The status line:
+
+```json
+{"type":"wifi","state":"connected","ssid":"HomeNet","ip":"192.168.1.40","rssi":-58,"mac":"AA:BB:CC:DD:EE:FF","cp":"2.7.0"}
+{"type":"wifi","state":"failed","reason":"auth","ssid":"HomeNet"}
+{"type":"wifi","state":"off"}
+```
+
+`state` is always there. `ssid` appears when a network is stored, `ip` and `rssi` only when `connected`, `reason` only when there is one, and `mac` and `cp` (the C6's ESP-Hosted version) once known. The panel sends the line on its own when the state, reason, SSID or address changes, at most once a second; a new signal strength alone sends nothing.
+
+| `reason` | Meaning |
+|---|---|
+| `no_coprocessor` | The C6 did not answer within 15 s. The panel leaves it alone until the next `AD_WIFI_SET` or a restart. |
+| `init` | The network stack could not start. |
+| `no_ap` | The network was not found three times in a row. Tries again every minute. |
+| `auth` | The password was refused three times in a row. Tries again every 5 minutes. |
+| `no_ip` | No address from DHCP within 30 s. Tries again with backoff. |
+| `lost` | Was connected; reconnecting (state `connecting`). Retries after 2, 4, 8, 16, 32, then every 60 s. |
+| `crashed` | The last Wi-Fi start crashed the panel, so Wi-Fi stays off until the next `AD_WIFI_SET`. |
+| `storage` | The settings could not be read. |
+
+Stages B and C (Home Assistant) add the capability fields `"api":1` and `"ha":1` to `get_info`, not a new protocol number.
 
 ## Panel lock
 

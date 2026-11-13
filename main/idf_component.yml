@@ -7,3 +7,6 @@ dependencies:
   espressif/esp_lcd_jd9165: "*"
   espressif/esp_lvgl_port: "^2.9.0"
   espressif/esp_lcd_touch_gt911: "^1"
+  # Wi-Fi through the ESP32-C6 over SDIO (docs/design/esphome.md, stage A). Off until credentials are set.
+  espressif/esp_wifi_remote: "^1.6.5"
+  espressif/esp_hosted: ">=3.0.10"
