@@ -314,6 +314,11 @@ def _check_button_list(name, buttons, pages, profiles):
             _check_button(button, pages, profiles)
         except ValueError as exc:
             raise ValueError(f'{name}, key {bid}: {exc}') from exc
+    _check_spans(name, buttons)
+
+
+def _check_spans(name, buttons):
+    ids = {button['id'] for button in buttons}
     for button in buttons:
         span, bid = button.get('span', 1), button['id']
         if span > 1 and ((bid - 1) % 6 + span > 6 or any(bid + extra in ids for extra in range(1, span))):
@@ -331,6 +336,10 @@ def _check_profile(name, profile, profiles):
         raise ValueError('Page names must be 1-100 characters')
     for page_name, buttons in list(pages.items()) + [('Pinned buttons', profile.get('pinned', []))]:
         _check_button_list(page_name, buttons, pages, profiles)
+    pinned = profile.get('pinned', [])
+    for page_name, buttons in pages.items() if pinned else ():  # the panel shows both lists together, pinned keys win
+        merged = {button['id']: button for button in buttons} | {button['id']: button for button in pinned}
+        _check_spans(f'{page_name} with the pinned buttons', list(merged.values()))
 
 
 def _check_trigger(trigger, pages, profiles):

@@ -1,7 +1,8 @@
 """A support bundle the user can attach to a bug report: versions, status, counts and a cleaned log tail.
 
-It never contains profile contents (no commands, URLs, labels or paths from buttons), only numbers about them.
-User names, tokens and passwords are removed from the log before it is written.
+The report holds no profile contents (no commands, URLs, labels or paths from buttons), only numbers about them,
+plus the profile and page the panel shows. User names, tokens, passwords, key labels and profile and page names are
+removed from the log before it is written; error messages from failed actions stay, as they are the point of a bundle.
 """
 from __future__ import annotations
 
@@ -18,13 +19,16 @@ MAX_LOG_BYTES = 256 * 1024
 USER_PATH = re.compile(r'(?i)([A-Z]:[\\/]+Users[\\/]+)[^\\/"\r\n]+')  # a user name may contain spaces
 BEARER = re.compile(r'(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+')
 SECRET = re.compile(r'(?i)(token|secret|password|passwd|authorization|api[_-]?key|bearer)(["\']?\s*[:=]?\s*["\']?)([^\s"\',;]+)')
+LABEL = re.compile(r'^(\[[^\]\n]*\] Button \d+: ).*?((?: \((?:hold|double)\))?)$', re.M)  # daemon_presses logs each press
+PAGE = re.compile(r'^(\[[^\]\n]*\] ).+ / .+(: \d+ buttons acknowledged)$', re.M)  # tesserad logs each page push
 PROBLEM = re.compile(r'(?i)fail|error|exception|traceback|timed? ?out|did not finish|could not')
 PROBLEM_LINES = 20
 PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', 'pycaw', 'esptool', 'textual')
 
 
 def clean(text: str) -> str:
-    """Remove the user's name from paths and anything that looks like a credential."""
+    """Remove the user's name from paths, key labels, profile and page names and anything that looks like a credential."""
+    text = PAGE.sub(r'\1<profile> / <page>\2', LABEL.sub(r'\1<label>\2', text))
     text = USER_PATH.sub(r'\1<user>', BEARER.sub(r'\1 <hidden>', text))
     return SECRET.sub(lambda match: f'{match.group(1)}{match.group(2)}<hidden>', text)
 

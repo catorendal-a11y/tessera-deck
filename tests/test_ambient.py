@@ -71,6 +71,13 @@ class WeatherTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ambient.describe({}, 'Oslo', 'celsius')
 
+    def test_the_place_name_cannot_start_a_command_and_is_cut_on_utf8_bytes(self):
+        current = {'temperature_2m': 1, 'weather_code': 0}
+        self.assertNotIn('\n', ambient.describe(current, 'Oslo\nAD_BRIGHTNESS 1', 'celsius'))
+        line = ambient.describe(current, 'Ø' * 60, 'celsius')
+        self.assertLessEqual(len(line.encode('utf-8')), ambient.MAX_LINE)
+        self.assertTrue(line.endswith('Ø'))
+
     def test_the_forecast_request_carries_only_coordinates_and_units(self):
         url = ambient.forecast_url(59.9139, 10.7522, 'celsius')
         self.assertTrue(url.startswith('https://api.open-meteo.com/v1/forecast?'))

@@ -169,14 +169,24 @@ def recover(path: Path) -> str | None:
     The broken file is kept next to it as profiles-unreadable.local.json. A file from a newer Tessera is left
     alone (it is valid, just not for this version). Returns the name of the backup restored, or None."""
     path = Path(path)
+    for attempt in range(3):
+        # a read error says nothing about the content (antivirus or an editor may hold the file for a moment), so it
+        # is retried and then raised rather than taken as a broken file and replaced by an older backup
+        try:
+            data = path.read_bytes()
+            break
+        except FileNotFoundError:
+            return None
+        except OSError:
+            if attempt == 2:
+                raise
+            time.sleep(0.2)
     try:
-        check(path.read_bytes())
+        check(data)
         return None
     except FutureConfig:
         return None
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError):
+    except ValueError:
         pass
     for file in reversed(_backup_files(backups_dir(path))):
         try:

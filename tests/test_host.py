@@ -208,6 +208,18 @@ class HostTests(HostCase):
                 with self.assertRaises(ValueError):
                     deck.validate_config(config)
 
+    def test_a_wide_pinned_key_may_not_cover_a_page_key(self):
+        config = deck.Daemon.load_profiles(ROOT / 'host/profiles.default.json')
+        profile = config['profiles']['main']
+        page = next(iter(profile['pages']))
+        profile['pages'] = dict.fromkeys(profile['pages'], [])
+        profile['pages'][page] = [{'id': 2, 'label': 'Page key'}]
+        profile['pinned'] = [{'id': 1, 'label': 'Wide', 'span': 2}]
+        with self.assertRaises(ValueError):
+            deck.validate_config(config)
+        profile['pinned'] = [{'id': 2, 'label': 'Pinned wins', 'span': 2}]
+        deck.validate_config(config)
+
     def test_hot_reload_survives_wrongly_typed_config(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'profiles.json'

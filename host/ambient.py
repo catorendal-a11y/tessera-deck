@@ -53,9 +53,10 @@ def describe(current: dict, name: str, unit: str) -> str:
         raise ValueError('the weather answer has no temperature')
     text = WEATHER_CODES.get(current.get('weather_code'), '')
     parts = [f'{round(temperature)} {"F" if unit == "fahrenheit" else "C"}' + (f', {text}' if text else '')]
-    if name:
-        parts.append(name)
-    return ' - '.join(parts)[:MAX_LINE]
+    if name:  # a newline would end the AD_AMBIENT line early and the rest would reach the panel as a command
+        parts.append(''.join(ch if ch >= ' ' and ch != '\x7f' else ' ' for ch in name))
+    # the panel's buffer is MAX_LINE bytes, so cut whole UTF-8 characters rather than characters
+    return ' - '.join(parts).encode('utf-8')[:MAX_LINE].decode('utf-8', 'ignore')
 
 
 def _get_json(url: str, opener=urllib.request.urlopen) -> dict:

@@ -120,6 +120,20 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(self.path.with_name('profiles-unreadable.local.json').read_text(encoding='utf-8'), '{broken')
         self.assertIsNone(config_store.recover(self.path), 'a good file is left alone')
 
+    def test_a_file_that_cannot_be_read_for_a_moment_is_not_replaced_by_a_backup(self):
+        self.backup(json.dumps(config('older')))
+        self.path.write_text(json.dumps(config('newer')), encoding='utf-8')
+        with patch.object(Path, 'read_bytes', side_effect=PermissionError('in use')), patch.object(config_store.time, 'sleep'):
+            with self.assertRaises(PermissionError):
+                config_store.recover(self.path)
+        self.assertIn('newer', self.path.read_text(encoding='utf-8'))
+        self.assertFalse(self.path.with_name('profiles-unreadable.local.json').exists())
+
+    def test_diagnostics_log_hides_key_labels_and_page_names(self):
+        text = diagnostics.clean('[1] Button 3: Mute mic (hold)\n[2] Work / Main: 5 buttons acknowledged\n[3] Action failed: x')
+        self.assertEqual(text, '[1] Button 3: <label> (hold)\n[2] <profile> / <page>: 5 buttons acknowledged\n'
+                               '[3] Action failed: x')
+
     def test_a_file_from_a_newer_tessera_or_no_backup_changes_nothing(self):
         future = json.dumps(dict(config(), version=config_store.CONFIG_VERSION + 1))
         self.backup(json.dumps(config()))

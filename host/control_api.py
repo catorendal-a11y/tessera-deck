@@ -103,8 +103,9 @@ class ControlServer:
     def grant_for(self, supplied):
         with self.grant_lock:
             found = None
+            supplied = supplied.encode('utf-8', 'replace')  # compare_digest raises on non-ASCII str: answer 401 instead
             for token, grant in self.grants.items():
-                if secrets.compare_digest(supplied, token):
+                if secrets.compare_digest(supplied, token.encode()):
                     found = grant
             return found
 

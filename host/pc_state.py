@@ -215,8 +215,8 @@ class PcState:
         for reader in (self._audio, self._media):
             try:
                 reading = reader()
-            except (OSError, RuntimeError, ValueError) as exc:
-                errors.append(str(exc))
+            except Exception as exc:  # a changed pycaw/winrt API must not end the polling thread without a word
+                errors.append(str(exc) or type(exc).__name__)
                 continue
             with self._lock:
                 self._values.update(reading)
