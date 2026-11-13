@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Editor: when no panel connects, the status bar names the cause (another program holds the USB port, firmware too old, not a Tessera panel, or no answer) and shows the host's own error on a second line.
+- Editor: connection problems in the status bar have a *Show the host log* button.
+- Editor: a panel with older firmware than Tessera gets a status bar notice with *Update firmware …*; *Not now* hides it until the next Tessera version.
+- Editor: *Start host* in the status bar shows "Starting the host …" and keeps a failure in the bar.
+- Editor: the LED and connection text open a *Panel status* window with the port, firmware, Tessera version, the next step and *Panel firmware …*.
+- Panel firmware: with no panel connected the dialog chooses the full install and shows *Install anyway* at once; the choices are now *Update (keeps settings)* and *Full install (new or blank panel)*, and the protocol number shows only when it does not match.
+- Panel firmware: a panel that does not answer is told to choose *Full install* and tick *Install anyway*.
+
 ## 0.7.0
 
 - Install: `Tessera.cmd` installs the host packages from `host/requirements.lock`, where every package is pinned with its SHA-256 hash (`--require-hashes`), and says clearly when Python is missing or older than 3.11.

@@ -182,7 +182,7 @@ class InstallTests(unittest.TestCase):
         for answer in ({'firmwareVersion': '1.0.0'}, None):
             with self.assertRaises(fw.InstallError) as raised:
                 fw.install(self.ab_package(), 'COM4', lambda port, answer=answer: answer, force=True, runner=runner, ota=ota)
-            self.assertIn('Everything', str(raised.exception))
+            self.assertIn('Full install', str(raised.exception))
         runner.assert_not_called()
         ota.assert_not_called()
         fw.install(self.ab_package(), 'COM4', lambda port: {'firmwareVersion': '1.0.0'}, mode='full', runner=runner)

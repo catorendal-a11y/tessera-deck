@@ -166,6 +166,17 @@ class EditorTests(unittest.TestCase):
         self.path.write_text(json.dumps(config('original')))
         self.editor = Editor(self.path, dashboard=lambda: {'running': False, 'device': {}})
 
+    def test_setup_flags_keep_only_known_keys_of_the_right_type(self):
+        import tessera_app
+        from unittest import mock
+        setup = Path(self.temp.name) / 'setup.local.json'
+        with mock.patch.object(tessera_app, 'SETUP_PATH', setup):
+            self.assertEqual(self.editor.command('setup-state', {}), {'welcome_done': False, 'firmware_hint_dismissed': ''})
+            self.editor.command('setup-done', {'firmware_hint_dismissed': '0.7.0', 'welcome_done': 'yes', 'other': 1})
+            self.assertEqual(self.editor.command('setup-state', {}), {'welcome_done': False, 'firmware_hint_dismissed': '0.7.0'})
+            setup.write_text('[1]')
+            self.assertEqual(self.editor.command('setup-state', {})['firmware_hint_dismissed'], '')
+
     def test_saving_backs_up_the_previous_file_and_a_backup_can_be_restored(self):
         state = self.editor.read()
         changed = json.loads(json.dumps(state['config']))

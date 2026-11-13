@@ -34,6 +34,8 @@ from action_preview import preview
 from import_review import export_left_out, redact_secrets, review, strip_executable
 
 WEB = Path(__file__).with_name('editor')
+SETUP_PATH = ROOT / 'host/setup.local.json'  # first-run flags the editor reads and sets
+SETUP_KEYS = {'welcome_done': bool, 'firmware_hint_dismissed': str}
 
 
 def editor_build_id():
@@ -589,7 +591,29 @@ class Editor:
         # The raw hash, not read(): the file being replaced may be the broken one this restore is for.
         return self.save({'config': config, 'revision': hashlib.sha256(self._raw()).hexdigest()}, force_backup=True)
 
+    @staticmethod
+    def setup_state():
+        try:
+            saved = json.loads(SETUP_PATH.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            saved = {}
+        saved = saved if isinstance(saved, dict) else {}
+        return {key: saved[key] if isinstance(saved.get(key), kind) else kind() for key, kind in SETUP_KEYS.items()}
+
+    def setup_done(self, data):
+        state = self.setup_state()
+        state.update({key: value for key, value in data.items() if type(value) is SETUP_KEYS.get(key)})
+        temporary = SETUP_PATH.with_suffix('.tmp')
+        with self.lock:
+            temporary.write_text(json.dumps(state), encoding='utf-8')
+            temporary.replace(SETUP_PATH)
+        return state
+
     def command(self, command, data):
+        if command == 'setup-state':
+            return self.setup_state()
+        if command == 'setup-done':
+            return self.setup_done(data)
         if command == 'host-log':
             return {'log': diagnostics.log_tail(ROOT / 'host/deck.local.log', int(data.get('lines', 200)) if isinstance(data.get('lines', 200), int) else 200)}
         if command == 'update-check':

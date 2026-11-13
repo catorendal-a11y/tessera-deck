@@ -352,6 +352,17 @@ html body #inspector .prop-value>label>select{width:100%;max-width:100%}
 .status-bar .outline{padding:7px 14px;font-size:12px;border-color:var(--amber)}
 body.has-status-bar #toast{bottom:76px}
 body.has-status-bar{padding-bottom:52px}
+/* The host's raw error goes on a second, quieter line under the advice. */
+.status-bar-message{display:flex;flex-direction:column;gap:3px;min-width:0;max-width:760px}
+#status-bar-detail{color:var(--muted);font-size:11px;overflow-wrap:anywhere}
+.status-bar .quiet{padding:7px 10px;font-size:12px;text-decoration:underline}
+body.has-status-bar:has(#status-bar-detail:not([hidden])){padding-bottom:70px}
+/* The LED and connection text open the panel status. */
+.connection-button{display:flex;gap:8px;align-items:center;min-width:0;padding:0;background:transparent;color:inherit;font-size:inherit;border-radius:999px}
+.connection-button:hover #connection{text-decoration:underline}
+.panel-status{width:380px}
+.panel-status-list{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:4px 0 14px;font-size:13px}
+.panel-status-list dt{color:var(--muted)}.panel-status-list dd{margin:0;overflow-wrap:anywhere}
 /* In-page confirm and prompt; a message may hold several lines. */
 .ask-message{white-space:pre-line;line-height:1.6;color:var(--soft)}
 #ask-input{margin-top:14px}

@@ -487,10 +487,9 @@ function renderStatus() {
   if(connected&&layoutBytes){const share=Math.min(100,Math.round(layoutBytes/offlineLimit*100));$('#memory-fill').style.width=share+'%';memory.classList.toggle('full',layoutBytes>offlineLimit);
     $('#memory-text').textContent=layoutBytes>offlineLimit?`This page is ${layoutBytes} of ${offlineLimit} bytes: too big to keep for use without the PC`:`${layoutBytes} of ${offlineLimit} bytes kept for use without the PC`;}
   const firmware=dashboard.device?.firmware,hostVersion=dashboard.host_version;
-  if(connected&&firmware){const parse=v=>String(v||'').split('.').map(Number),a=parse(firmware),b=parse(hostVersion);let older=false;
-    for(let i=0;i<3;i++)if((a[i]||0)!==(b[i]||0)){older=(a[i]||0)<(b[i]||0);break;}
-    $('#connection').textContent+=` · firmware ${firmware}${older?' (update available)':''}`;}
-  $('#host-toggle').hidden=!!dashboard.running;
+  if(connected&&firmware)$('#connection').textContent+=` · firmware ${firmware}${versionOlder(firmware,hostVersion)?' (update available)':''}`;
+  $('#host-toggle').hidden=!!dashboard.running;if(dashboard.running)hostStartError='';
+  if($('#panel-status').open)renderPanelStatus();
   $('#screen-profile').textContent=profile.toUpperCase();$('#screen-page').textContent=titleCase(page);
   $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);
   const last=dashboard.device?.last_action;
@@ -504,21 +503,64 @@ function renderStatus() {
   if(live!==lastLive&&!drag){lastLive=live;renderGrid();}
 }
 let lastLive='';
-let configError='',editorOffline=false,startError='';
-/* Blocking states sit in a fixed bar until they clear; toasts stay for passing news. The first state that applies wins. */
-function renderStatusBar() {
-  const d=dashboard||{},reload=['Reload',()=>location.reload()],states=[
+let configError='',editorOffline=false,startError='',hostStarting=false,hostStartError='',setupState={};
+function versionOlder(a,b) {const parse=v=>String(v||'').split('.').map(Number),x=parse(a),y=parse(b);
+  for(let i=0;i<3;i++)if((x[i]||0)!==(y[i]||0))return (x[i]||0)<(y[i]||0);return false;}
+async function startHost() {  // called directly so the bar can say it is starting and keep a failure in view
+  hostStarting=true;hostStartError='';$('#host-toggle').disabled=true;renderStatusBar();
+  try{await command('start');}catch(error){hostStartError=error.message;}finally{hostStarting=false;$('#host-toggle').disabled=false;renderStatusBar();}
+}
+async function dismissFirmwareHint() {
+  try{setupState=await api('command/setup-done',{firmware_hint_dismissed:String(dashboard.host_version||'')});}catch(error){showError(error);}
+  renderStatusBar();
+}
+/* Why no panel connected, read from the host's own error, so the advice fits the cause. */
+function panelProblem(error) {
+  const firmware=['Panel firmware …',()=>openFirmware().catch(showError)],log=['Show the host log',()=>openLog().catch(showError)];
+  if(/protocol/i.test(error))return ['The panel firmware is too old for this Tessera. Update it.',firmware,error,log];
+  if(/access is denied|permission|busy|in use/i.test(error))return ["Another program is using the panel's USB port. Close it (for example Arduino IDE, PuTTY or Thonny) and the panel connects by itself.",log,error];
+  if(/different device/i.test(error))return ['The USB device found is not a Tessera panel. Plug in the panel with its USB Serial/JTAG port.',log,error];
+  return ["No panel found. Check the USB cable and use the board's USB Serial/JTAG port; a new panel needs its firmware first.",firmware,error,log];
+}
+/* Blocking states sit in a fixed bar until they clear; toasts stay for passing news. The first state that applies wins.
+   Each state: [applies, text, main action or null, raw error for a second line, second action]. */
+function statusState() {
+  const d=dashboard||{},reload=['Reload',()=>location.reload()],start=['Start host',startHost],log=['Show the host log',()=>openLog().catch(showError)];
+  const firmware=d.device?.firmware,hostVersion=d.host_version;
+  return [
     [startError,'The editor could not start: '+startError,reload],
     [editorOffline,'The editor lost contact with Tessera. If this does not clear, open Tessera again.',reload],
     [configError,'Your configuration file could not be read: '+configError,['Restore a backup …',()=>openBackups().catch(showError)]],
     [conflicted,'The configuration was changed in another window. Reload it to go on; the changes made here since then are lost.',['Reload',()=>$('#reload').click()]],
-    [d.running===false,'The USB host has stopped, so the panel does not react to presses.',['Start host',()=>$('#host-toggle').click()]],
-    [d.running&&!d.device?.connected&&performance.now()>15000,'No panel found. Check the USB cable; a new panel needs its firmware from Panel → Panel firmware.',['Panel firmware …',()=>openFirmware().catch(showError)]]];
-  const state=states.find(s=>s[0]),bar=$('#status-bar'),action=$('#status-bar-action');
+    [hostStarting,'Starting the host …',null],
+    [hostStartError,'The host could not start: '+hostStartError,start,'',log],
+    [d.running===false,'The USB host has stopped, so the panel does not react to presses. Edits are still saved.',start,'',log],
+    [d.running&&!d.device?.connected&&performance.now()>15000,...panelProblem(d.device?.error||'')],
+    [d.device?.connected&&firmware&&versionOlder(firmware,hostVersion)&&setupState.firmware_hint_dismissed!==String(hostVersion),
+      `The panel firmware (${firmware}) is older than Tessera (${hostVersion}). Update it for new features.`,['Update firmware …',()=>openFirmware().catch(showError)],'',['Not now',dismissFirmwareHint]]].find(s=>s[0]);
+}
+function renderStatusBar() {
+  const state=statusState(),bar=$('#status-bar'),action=$('#status-bar-action'),second=$('#status-bar-second'),detail=$('#status-bar-detail');
   bar.hidden=!state;document.body.classList.toggle('has-status-bar',!!state);if(!state)return;
   if($('#status-bar-text').textContent!==state[1])$('#status-bar-text').textContent=state[1];  // unchanged text is not announced again
-  action.textContent=state[2][0];action.onclick=state[2][1];
+  if(detail.textContent!==(state[3]||''))detail.textContent=state[3]||'';detail.hidden=!state[3];
+  action.hidden=!state[2];if(state[2]){action.textContent=state[2][0];action.onclick=state[2][1];}
+  second.hidden=!state[4];if(state[4]){second.textContent=state[4][0];second.onclick=state[4][1];}
 }
+/* The LED opens this: where the panel is, its firmware, and the next step from the same states as the bar. */
+function renderPanelStatus() {
+  const d=dashboard||{},device=d.device||{},state=statusState();
+  const rows=[['Host',d.running?'Running':d.running===false?'Stopped':'Checking …'],['Panel',device.connected?`Connected on ${device.port}`:'Not connected'],
+    ['Firmware',device.firmware?device.firmware+(versionOlder(device.firmware,d.host_version)?' (update available)':''):'Unknown'],['Tessera',d.host_version||'Unknown']];
+  $('#panel-status-list').replaceChildren(...rows.flatMap(([name,value])=>[element('dt',{text:name}),element('dd',{text:value})]));
+  $('#panel-status-next').textContent=state?state[1]+(state[3]?` (${state[3]})`:''):'Everything works. Press a key on the panel to try it.';
+}
+$('#panel-status-open').onclick=()=>{renderPanelStatus();$('#panel-status').showModal();};
+$('#panel-status-close').onclick=()=>$('#panel-status').close();
+$('#panel-status').onclick=event=>{const box=event.currentTarget.getBoundingClientRect();  // a click on the backdrop closes it
+  if(event.target===event.currentTarget&&(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom))event.currentTarget.close();};
+$('#panel-status-firmware').onclick=()=>{$('#panel-status').close();openFirmware().catch(showError);};
+$('#panel-status-log').onclick=()=>{$('#panel-status').close();openLog().catch(showError);};
 let polling=false,lastScreenLive='';
 async function pollStatus(timer) {if(timer===true&&(document.hidden||polling))return;polling=true;  /* a hidden tab does not poll */
   try{dashboard=await api('status');editorOffline=false;renderStatus();if(typeof renderRail==='function'){renderRail();const live=JSON.stringify([dashboard,editorView]);
@@ -649,7 +691,8 @@ async function start() {
   $('#profile-templates').onclick=openTemplates;
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
-  $('#host-toggle').onclick=async()=>{const b=$('#host-toggle');b.disabled=true;try{await command('start');}catch(error){showError(error);}finally{b.disabled=false;}};
+  $('#host-toggle').onclick=startHost;
+  api('command/setup-state',{}).then(state=>{setupState=state;renderStatusBar();}).catch(()=>{});  // without it the firmware hint just shows
   $('#reload').onclick=async()=>{if(dirty&&!await confirmDialog('Reload the configuration?','Your unsaved changes here are discarded and the configuration is read again from the PC.',{ok:'Discard and reload',danger:true}))return;try{const state=await api('config');config=state.config;savedBase=clone(config);revision=state.revision;dirty=false;conflicted=false;configError=state.error||'';history=[];future=[];$('#reload').hidden=true;renderAll();renderStatusBar();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
   setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);
   $('#sync').onchange=()=>{if($('#sync').checked)syncPanel();};
