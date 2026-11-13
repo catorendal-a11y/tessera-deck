@@ -13,7 +13,6 @@
 - Panel firmware: when the display fails to start, the panel restarts instead of going silent on USB, so an unconfirmed update rolls back.
 - Host: moving the panel's brightness slider (or any save that leaves the keys as they were) no longer resets toggle keys, leaves the open folder or wakes a dimmed panel.
 - Host: a plugin whose log file cannot be opened is marked as failed and backs off instead of retrying every few seconds.
-- Host: the diagnostics bundle's log no longer shows key labels or profile and page names.
 - Host: a weather place name can no longer break the idle clock line, and a long non-English name is cut on a whole character.
 - Host: a wide pinned key that would cover a page key (or the reverse) is rejected when the configuration is checked.
 - Host: a profiles.json that is briefly locked at start (antivirus, an editor saving) is no longer replaced by an older backup.
@@ -23,8 +22,6 @@
 - Diagnostics: the support bundle masks key labels in the log ("Button 3: <label>"), as the editor promises. The live host log on your PC still shows them.
 - Home Assistant plugin: a refused key command shows "HA error 404" (or the code it got) instead of "not reachable".
 - Terminal UI: a new profile, page or template that cannot be saved shows "Not saved" and no longer closes the app.
-
-## 0.8.0
 - Editor: a step the host would refuse (key number outside 1-18, an unfinished hotkey like `ctrl+`, an address without http://, a counter, timer or variable name with spaces, Lowest above Highest, a wait over 60000 ms) stays a draft with a *Finish key* link, so the other keys still save.
 - Editor: switching a toggle key back to a normal key clears *Follow PC state*; before, every later save was refused.
 - Editor: renaming or deleting a page fixes triggers in every profile, and leaves triggers alone while another profile still has a page with that name.
