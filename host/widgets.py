@@ -41,11 +41,18 @@ def _load(name: str, raw: dict, load: str, temp: str, extra: str = '') -> dict:
     return {'label': f'{name} {value:.0f}%', 'sub': ' · '.join(parts) or 'Load', 'progress': _percent(value)}
 
 
-def content(kind: str, now: datetime, raw: dict, audio: dict, agents: dict) -> dict:
+def clock_text(now: datetime, twelve: bool = False) -> str:
+    """'14:32', or '2:32 PM' on a 12-hour clock (Panel -> Display -> Clock format)."""
+    if not twelve:
+        return now.strftime('%H:%M')
+    return f'{now.hour % 12 or 12}:{now.minute:02d} {"AM" if now.hour < 12 else "PM"}'
+
+
+def content(kind: str, now: datetime, raw: dict, audio: dict, agents: dict, twelve: bool = False) -> dict:
     """The fields a wide key gets for this widget; an unknown kind gives nothing."""
     if kind == 'clock':
         day = (now.hour * 3600 + now.minute * 60 + now.second) / 864
-        return {'label': now.strftime('%H:%M'), 'sub': now.strftime('%A %d %b').replace(' 0', ' '), 'progress': _percent(day)}
+        return {'label': clock_text(now, twelve), 'sub': now.strftime('%A %d %b').replace(' 0', ' '), 'progress': _percent(day)}
     if kind == 'date':
         # a two-slot key has 162 px: the weekday moves to the second line so the title fits in the large type
         return {'label': now.strftime('%d %b').lstrip('0'), 'sub': f'{now.strftime("%A")} · week {now.isocalendar()[1]}'}

@@ -42,7 +42,7 @@ def editor_build_id():
     files = [Path(__file__), ROOT / 'host/deck_control.py', ROOT / 'host/deck_assets.py',
              ROOT / 'host/tesserad.py', ROOT / 'host/config_check.py', ROOT / 'host/panel_serial.py',
              ROOT / 'host/win_input.py', ROOT / 'host/action_packs.json',
-             WEB / 'index.html', WEB / 'style.css', WEB / 'cockpit.css', WEB / 'core.js', WEB / 'app.js', WEB / 'dialogs.js']
+             WEB / 'index.html', WEB / 'style.css', WEB / 'streamdeck.css', WEB / 'cockpit.css', WEB / 'core.js', WEB / 'app.js', WEB / 'dialogs.js']
     for path in files:
         digest.update(path.name.encode('utf-8'))
         digest.update(path.read_bytes())

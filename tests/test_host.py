@@ -457,6 +457,19 @@ class HostTests(HostCase):
         self.assertEqual(sent, ['AD_PING', 'AD_TIME 2026-10-20T14:05:33 24h', 'AD_PING',
                                 'AD_PING', 'AD_TIME 2026-10-20T14:05:33 24h', 'AD_PING', 'AD_TIME 2026-10-20T14:05:33 12h'])
 
+    def test_time_on_keys_follows_the_clock_format(self):
+        import widgets
+        from datetime import datetime
+        self.assertEqual(widgets.clock_text(datetime(2026, 11, 13, 14, 5)), '14:05')
+        self.assertEqual(widgets.clock_text(datetime(2026, 11, 13, 14, 5), True), '2:05 PM')
+        self.assertEqual(widgets.clock_text(datetime(2026, 11, 13, 0, 30), True), '12:30 AM')
+        self.assertEqual(widgets.content('clock', datetime(2026, 11, 13, 12, 0), {}, {}, {}, True)['label'], '12:00 PM')
+        daemon = self.daemon()
+        daemon.config['display'] = {'clock': '12h'}
+        self.assertRegex(daemon.variables()['time'], r'^\d{1,2}:\d\d [AP]M$')
+        daemon.config['display'] = {'clock': '24h'}
+        self.assertRegex(daemon.variables()['time'], r'^\d\d:\d\d$')
+
     def test_the_clock_format_follows_windows_unless_it_is_set(self):
         import daemon_display
         daemon = self.daemon()

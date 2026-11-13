@@ -48,6 +48,7 @@ class HostRuntimeTests(HostCase):
             page = next(iter(config['profiles'][profile]['pages']))
             config['profiles'][profile]['pages'][page] = [{'id': 1, 'label': 'Clock', 'icon': 'ok', 'span': 2, 'live': 'clock', 'actions': []},
                                                           {'id': 4, 'label': 'Mute', 'icon': 'ok', 'actions': []}]
+            config['display'] = dict(config.get('display', {}), clock='24h')  # not this PC's own Windows format
             path.write_text(json.dumps(config), encoding='utf-8')
             daemon = test_daemon(path)
             daemon.panel, daemon.log = Mock(), Mock()

@@ -755,7 +755,7 @@ void show_weather_icon(const char *line) {
     char packed[5]{};weather_shown="";
     for(const auto& item:Icons)if(strstr(lower,item.word)&&deck_lucide_glyph(item.icon,packed)){set_color(ambient_icon,LV_STYLE_TEXT_COLOR,item.color);weather_shown=item.icon;break;}
     lv_label_set_text(ambient_icon,packed);
-    if(packed[0])lv_obj_remove_flag(ambient_icon,LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(ambient_icon,LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_hidden(ambient_icon,!packed[0]);
 }
 char ambient_time[12]="";uint32_t ambient_seen=0;lv_obj_t *ambient_meridiem=nullptr;
 const char *const DigitGlyphs[11][7]={
@@ -812,7 +812,7 @@ void build_ambient() {
     auto *row=clear_box(ambient,0,466,W,LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(row,LV_FLEX_FLOW_ROW);lv_obj_set_flex_align(row,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_column(row,16,0);
-    ambient_icon=label(row,"",0,0,60,&deck_lucide_60,Soft);lv_obj_set_style_text_align(ambient_icon,LV_TEXT_ALIGN_CENTER,0);lv_obj_add_flag(ambient_icon,LV_OBJ_FLAG_HIDDEN);
+    ambient_icon=label(row,"",0,0,60,&deck_lucide_60,Soft);lv_obj_set_style_text_align(ambient_icon,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(ambient_icon,true);
     ambient_line=label(row,"",0,0,LV_SIZE_CONTENT,&fq_font_dejavu_28,Soft);lv_obj_set_style_max_width(ambient_line,W-200,0);
     lv_label_set_long_mode(ambient_line,LV_LABEL_LONG_WRAP);  /* a long weather line wraps */
     lv_obj_add_event_cb(ambient,ambient_touched,LV_EVENT_PRESSED,nullptr);
@@ -881,7 +881,7 @@ extern "C" void ui_init(void) {
     page_label=head(views[ViewKeys],"Main",&profile_label);
     keys_area=clear_box(views[ViewKeys],Pad,Top+HeadH,ContentW,H-Top-HeadH-Top);
     /* Swipes end here (keys bubble them up); clickable so a swipe may start between keys too. */
-    lv_obj_set_clickable(keys_area,true);lv_obj_remove_flag(keys_area,LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_set_clickable(keys_area,true);lv_obj_set_gesture_bubble(keys_area,false);
     lv_obj_add_event_cb(keys_area,swipe,LV_EVENT_GESTURE,nullptr);
     /* Agents */
     head(views[ViewAgents],"Agents",&agents_summary);

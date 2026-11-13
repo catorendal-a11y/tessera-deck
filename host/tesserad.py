@@ -254,7 +254,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             pass
 
     def variables(self):
-        return dict(time=time.strftime('%H:%M'), date=time.strftime('%d.%m'),
+        return dict(time=widgets.clock_text(datetime.now(), self.clock_format() == '12h'), date=time.strftime('%d.%m'),
                     profile=self.profile, page=self.page, profile_lock='LOCKED' if self.profile_locked else 'AUTO',
                     **{f'agent:{name}': 'ON' if running else 'OFF'
                        for name, running in self.agents.items()},
@@ -331,7 +331,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             return calendar_feed.content(events, now, error)
         if live in widgets.WIDGETS:
             return widgets.content(live, datetime.now(), self.stats.raw, self.pc.snapshot(),
-                                   {name: self.agent_seen.get(key, '') for key, name, _ in cockpit.AGENTS})
+                                   {name: self.agent_seen.get(key, '') for key, name, _ in cockpit.AGENTS},
+                                   self.clock_format() == '12h')
         return {}
 
     def current_buttons(self):
