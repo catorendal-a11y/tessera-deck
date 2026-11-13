@@ -14,7 +14,7 @@ body:
     attributes:
       label: Tessera version
       description: The editor's status line shows the firmware version; the host version is in the VERSION file.
-      placeholder: "0.6.1"
+      placeholder: "0.6.2"
     validations:
       required: true
   - type: dropdown

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.2
 
 - Permission questions: a touch on Allow within 0.8 s of a new question no longer answers it (it was meant for what stood there before); a question too long to show in full offers Deny only (panel firmware); a lane hidden from the agents screen is not asked; a question is never shortened to fit.
 - Import review and *Import without commands* also find commands inside a timer's end actions.
