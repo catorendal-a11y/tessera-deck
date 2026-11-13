@@ -51,7 +51,7 @@ Tessera makes these connections, each only after you ask for it:
 | Your own HTTP actions, the calendar address you enter for the *Next meeting* widget | When a key or widget uses them. |
 | What the plugins you turn on contact | The bundled plugins only reach your own Home Assistant and OBS. |
 
-Setup installs Python packages from PyPI, pinned by SHA-256 hash in `host/requirements.lock`. `tools\setup_sensors.ps1` downloads Libre Hardware Monitor. Releases carry a build attestation and `SHA256SUMS`; [Install](docs/INSTALL.md) shows how to check a download.
+Setup installs Python packages from PyPI, pinned by SHA-256 hash in `host/requirements.lock`. `tools\setup_sensors.ps1` downloads Libre Hardware Monitor and checks its SHA-256. The copy that runs with administrator rights (`Tessera.cmd --sensors` and the start at the end of setup) is downloaded and checked again into `%ProgramFiles%\Tessera\LibreHardwareMonitor`, where only administrators can write, never started from the Tessera folder. A firewall rule blocks its port 8085 from the network; Tessera reads it on 127.0.0.1. Releases carry a build attestation and `SHA256SUMS`; [Install](docs/INSTALL.md) shows how to check a download.
 
 ## Claude Code's permission questions
 

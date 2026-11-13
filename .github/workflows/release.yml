@@ -14,6 +14,8 @@ jobs:
     container: espressif/idf:v6.1
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no job here pushes; keep the token out of .git/config, where any later step could read it
       - name: Check the tag matches VERSION
         shell: bash
         run: |
@@ -55,6 +57,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no job here pushes; keep the token out of .git/config, where any later step could read it
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -75,6 +79,8 @@ jobs:
       attestations: write
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false  # no job here pushes; keep the token out of .git/config, where any later step could read it
       - uses: actions/download-artifact@v8
         with:
           name: dist

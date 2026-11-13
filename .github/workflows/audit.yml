@@ -1,0 +1,33 @@
+name: Dependency audit
+
+# CI audits the ranges in host/requirements.txt. This audits host/requirements.lock, the exact versions Tessera.cmd
+# and the release install, and runs every week as well: a CVE published after the last push would otherwise go
+# unnoticed until the next commit.
+on:
+  push:
+    branches: [main]
+    paths: ['host/requirements*', '.github/workflows/audit.yml']
+  pull_request:
+    paths: ['host/requirements*', '.github/workflows/audit.yml']
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lock:
+    name: Audit host/requirements.lock
+    runs-on: windows-latest  # the lock has Windows-only packages
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install pip-audit
+        run: python -m pip install pip-audit==2.10.1
+      - name: Audit the locked versions
+        run: python -m pip_audit --require-hashes -r host/requirements.lock
