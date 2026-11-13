@@ -223,7 +223,8 @@ function togglePin() {
   const from=b.id;mutate(()=>{p.pinned.splice(p.pinned.indexOf(b),1);b.id=slot;buttons().push(b);selected=slot;});
   if(slot!==from)toast(`This page has its own key on slot ${from}, so the unpinned key moved to slot ${slot}.`);
 }
-function uniqueName(base,names) {let name=`${base} copy`,number=2;while(names.includes(name))name=`${base} copy ${number++}`;return name;}
+/* The host takes names of 1-100 characters, so a copy of a copy of a long name stays inside that. */
+function uniqueName(base,names) {base=String(base).slice(0,90);let name=`${base} copy`,number=2;while(names.includes(name))name=`${base} copy ${number++}`;return name;}
 function clearButton() {if(!current())return;mutate(()=>{const list=owner(),at=list.findIndex(x=>x.id===selected);if(at>=0)list.splice(at,1);});}
 function duplicateButton() {
   const source=current(),slot=Array.from({length:18},(_,i)=>i+1).find(id=>spanFits(id,source?.span||1));
@@ -262,7 +263,21 @@ function nameProblem(b) {
 }
 function stepProblem(a) {
   const kind=kinds[a.type];if(!kind)return '';  // a type the editor does not know (a plugin's, say) goes as it is: the host checks it
-  return kind.field&&a.type!=='text'&&(a[kind.field]===undefined||String(a[kind.field]).trim()==='')?'fill in '+kind.label.toLowerCase():'';
+  if(kind.field&&a.type!=='text'&&(a[kind.field]===undefined||String(a[kind.field]).trim()===''))return 'fill in '+kind.label.toLowerCase();
+  return valueProblem(a);
+}
+/* The host refuses the whole configuration over one bad value, so a step it would refuse stays a draft like an empty one (rules from config_check.py). */
+const NAME_RULE=/^[A-Za-z0-9_.-]{1,64}$/;
+function valueProblem(a) {
+  const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
+  if((a.type==='press'&&!whole(a.id,1,18))||(a.type==='state'&&!whole(a.button,1,18)))return 'use a key number from 1 to 18';
+  if(a.type==='delay'&&!whole(a.ms,0,60000))return 'use a wait of 0 to 60000 milliseconds';
+  if(a.type==='hotkey'&&String(a.keys).split('+').some(part=>!part.trim()))return 'finish the key combination';
+  if(a.type==='http'&&!String(a.url).startsWith('$(')&&!/^https?:\/\/[^/\s]/i.test(a.url))return 'start the address with http:// or https://';
+  if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
+  if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
+  if(a.type==='timer'&&a.seconds!==undefined&&!whole(a.seconds,1,604800))return 'use a timer length from 1 second to 7 days';
+  return '';
 }
 function keyProblem(b) {
   const name=nameProblem(b);if(name)return name;
@@ -340,7 +355,7 @@ async function save() {
       if(onPanel)setTimeout(()=>{if($('#save-state').textContent==='✓ On the panel')$('#save-state').textContent='✓ Saved on the PC';},2000);
       renderShowHere();}
   } catch(error){
-    if(error.status===409&&savedBase&&await mergeFromDisk().catch(()=>false)){saving=false;saveInFlight=null;return save();}
+    if(error.status===409&&savedBase&&await mergeFromDisk().catch(()=>false)){saving=false;saveInFlight=null;return await save();}  // awaited, so finally cannot clear the retry's saveInFlight
     setSaveState('Not saved · '+error.message);throw error;
   } finally {saving=false;saveInFlight=null;}
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);

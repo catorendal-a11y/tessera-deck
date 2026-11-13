@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Editor: a step the host would refuse (key number outside 1-18, an unfinished hotkey like `ctrl+`, an address without http://, a counter, timer or variable name with spaces, Lowest above Highest, a wait over 60000 ms) stays a draft with a *Finish key* link, so the other keys still save.
+- Editor: switching a toggle key back to a normal key clears *Follow PC state*; before, every later save was refused.
+- Editor: renaming or deleting a page fixes triggers in every profile, and leaves triggers alone while another profile still has a page with that name.
+- Editor: a pinned key can only be made wide when the slots are free on every page.
+- Editor: profile and page names stop at 100 characters, the host's limit, also for copies of copies.
+- Editor: a plugin asks again when its command or permissions change, even under the same version.
+- Editor: a failed online icon search shows the error in the results instead of *Searching …*; Ctrl+C with text selected copies the text, not the key.
+- Editor: no false "changed in another window" after restoring a backup, and no second save with an old revision while a merge retry is running.
+- Host: a *Set variable* step needs a name of letters, digits, `_ . -` (the only names `$(var:…)` can read) and a value of at most 1000 characters.
+
 ## 0.8.0
 
 - Firmware update over USB: when the panel stops acknowledging partway, the host aborts and starts the upload once more by itself. The panel keeps its running firmware either way.

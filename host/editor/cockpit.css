@@ -100,7 +100,7 @@ html body .search input{background:transparent !important;border:0 !important}
 html body .lib-cat strong,html body .lib-cat span{color:inherit}
 html body .action-preset{border:0 !important}
 html body .more-menu hr{border-color:var(--line)}
-html body .history-buttons button,html body .icon-button{border-radius:12px}
+html body .icon-button{border-radius:12px}
 
 html body .device-frame{width:100%;max-width:none;margin:6px auto 0}
 html body .page-pill{margin:12px auto 0}

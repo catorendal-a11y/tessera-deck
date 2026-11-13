@@ -45,6 +45,13 @@ class ValidationTests(unittest.TestCase):
             with self.assertRaises(ValueError, msg=repr(bad)):
                 check(bad)
 
+    def test_set_needs_a_name_that_can_be_read_back(self):
+        check({'type': 'set', 'variable': 'mode.1', 'value': 'on $(var:x)'})
+        for bad in ({'type': 'set', 'variable': 'Mode 1', 'value': 'a'}, {'type': 'set', 'variable': 'tæller'},
+                    {'type': 'set', 'variable': 'm', 'value': 'x' * 1001}, {'type': 'set', 'variable': 'm', 'value': True}):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                check(bad)
+
 
 class RunTests(unittest.TestCase):
     def test_toggle_flips_a_variable_starting_with_the_first_value(self):

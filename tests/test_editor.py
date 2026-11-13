@@ -305,5 +305,40 @@ class MarkupTests(unittest.TestCase):
             self.assertNotIn('zoom:var(--z)', text, f'{sheet}: the zoom is set once, in cockpit.css')
             self.assertNotRegex(text, r'#deck-view\s*\{[^}]*grid-template-columns', f'{sheet}: the columns are set in cockpit.css')
 
+    def test_a_step_the_host_would_refuse_stays_a_draft(self):
+        """One bad value makes the host refuse the whole configuration, so the editor keeps such a step back like an empty one."""
+        import shutil
+        import subprocess
+        node = shutil.which('node')
+        if not node:
+            self.skipTest('node is not installed')
+        core = (ROOT / 'host/editor/core.js').read_text(encoding='utf-8')
+        kinds = core[core.index('const kinds = {'):core.index('\n};', core.index('const kinds = {')) + 3]
+        rules = core[core.index('function stepProblem'):core.index('function keyProblem')]
+        steps = [{'type': 'press', 'id': 0}, {'type': 'press', 'id': 19}, {'type': 'state', 'button': 0, 'state': 'next'},
+                 {'type': 'delay', 'ms': 60001}, {'type': 'hotkey', 'keys': 'ctrl+'}, {'type': 'http', 'url': 'example.com'},
+                 {'type': 'counter', 'name': 'tæller'}, {'type': 'timer', 'name': 'my timer'}, {'type': 'set', 'variable': 'Mode 1'},
+                 {'type': 'counter', 'name': 'laps', 'min': 5, 'max': 1}, {'type': 'timer', 'name': 'tea', 'seconds': 1.5},
+                 {'type': 'press', 'id': 18}, {'type': 'delay', 'ms': 0}, {'type': 'hotkey', 'keys': 'ctrl+shift+b'},
+                 {'type': 'http', 'url': 'https://example.com'}, {'type': 'http', 'url': '$(var:hook)'},
+                 {'type': 'counter', 'name': 'laps', 'min': 1, 'max': 5}, {'type': 'set', 'variable': 'mode.1', 'value': 'x'}]
+        script = kinds + rules + f'console.log(JSON.stringify({json.dumps(steps)}.map(s=>!!stepProblem(s))));'
+        result = subprocess.run([node, '-e', script], capture_output=True, text=True, encoding='utf-8', timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7)
+
+    def test_editor_edits_never_leave_a_value_the_host_refuses(self):
+        editor = ROOT / 'host/editor'
+        app, core, dialogs = ((editor / name).read_text(encoding='utf-8') for name in ('app.js', 'core.js', 'dialogs.js'))
+        self.assertIn('delete base.states;delete base.bind;', app, 'a normal key keeps no bind: the host needs two states for one')
+        self.assertIn('return await save();', core, 'the merge retry is awaited, so finally cannot clear its saveInFlight')
+        self.assertIn("savedBase = clone(state.config)", dialogs, 'a restored backup is the base of the next merge')
+        self.assertEqual(app.count('maxLength:100'), 4, 'profile and page names stay inside the host limit of 100')
+        self.assertIn('base=String(base).slice(0,90)', core)
+        self.assertIn('if(shared)for(const t of config.triggers', app, 'triggers follow a page rename in any profile')
+        span = app[app.index('function setSpan'):app.index('function wideRows')]
+        self.assertIn('freeOnAllPages(base.id, span, [base])', span, 'a wide pinned key must be free on every page')
+        self.assertIn('[plugin.version, plugin.permissions, plugin.command', dialogs, 'a changed manifest asks again')
+
 if __name__ == '__main__':
     unittest.main()
