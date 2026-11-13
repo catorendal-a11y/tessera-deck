@@ -167,6 +167,18 @@ class ObsTests(unittest.TestCase):
         with self.assertRaisesRegex(ConnectionError, 'did not accept the password'):
             obs.identify()
 
+    def test_a_huge_frame_from_whatever_holds_the_port_is_refused_before_buffering(self):
+        module = load('obs', {'port': 1})
+        obs = object.__new__(module.Obs)  # a connected client without the handshake
+        obs.sock, peer = socket.socketpair()
+        self.addCleanup(obs.sock.close)
+        self.addCleanup(peer.close)
+        obs.buffer, obs.lock = b'', threading.Lock()
+        obs.sock.settimeout(5)  # without the limit, read() would wait for 2**62 bytes
+        peer.sendall(bytes([0x81, 127]) + struct.pack('>Q', 1 << 62) + b'x' * 1000)
+        with self.assertRaisesRegex(ConnectionError, 'too much'):
+            obs.read()
+
 
 if __name__ == '__main__':
     unittest.main()

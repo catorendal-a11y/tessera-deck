@@ -31,6 +31,9 @@ SETTINGS = json.loads(os.environ.get('TESSERA_SETTINGS') or '{}')
 PORT = int(SETTINGS.get('port') or 4455)
 PASSWORD = str(SETTINGS.get('password') or '')
 SUBSCRIBE = 1 | 4 | 64 | 8  # general, scenes, outputs and inputs events
+# OBS messages are a few kB. Whatever answers on the port (OBS closed, another program on it) cannot make
+# this process buffer without end.
+MAX_MESSAGE = 1024 * 1024
 
 
 def tessera(method, path, data=None, timeout=35):
@@ -57,6 +60,8 @@ class Obs:
                            f'Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n'
                            'Sec-WebSocket-Protocol: obswebsocket.json\r\n\r\n').encode())
         while b'\r\n\r\n' not in self.buffer:
+            if len(self.buffer) > MAX_MESSAGE:
+                raise ConnectionError('OBS sent too much')
             self.buffer += self._receive()
         head, self.buffer = self.buffer.split(b'\r\n\r\n', 1)
         if b' 101 ' not in head.split(b'\r\n', 1)[0]:
@@ -98,6 +103,8 @@ class Obs:
                 size = struct.unpack('>H', self._exactly(2))[0]
             elif size == 127:
                 size = struct.unpack('>Q', self._exactly(8))[0]
+            if len(message) + size > MAX_MESSAGE:
+                raise ConnectionError('OBS sent too much')
             payload = self._exactly(size)
             opcode = first & 0x0F
             if opcode == 0x8:

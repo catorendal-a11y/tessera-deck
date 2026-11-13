@@ -21,6 +21,8 @@ RETRY_SECONDS = 60
 MAX_BYTES = 2 * 1024 * 1024
 MAX_URL = 500
 LOOK_AHEAD = timedelta(days=2)
+# Repeat periods (days, weeks, months, years) one feed may walk in total: a hostile invite or feed cannot keep the host busy for minutes.
+MAX_STEPS = 100_000
 DAYS = ('MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU')
 DURATION = re.compile(r'([+-])?P(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$')
 
@@ -138,17 +140,19 @@ def _add_months(day: date, months: int) -> tuple[int, int]:
 def _nth_weekday(year: int, month: int, weekday: int, nth: int) -> date | None:
     """The nth (1-5, or -1 for the last) weekday of a month."""
     first = date(year, month, 1)
-    following = date(year + month // 12, month % 12 + 1, 1)
-    days = [first + timedelta(days=offset) for offset in range((following - first).days)]
-    matches = [day for day in days if day.weekday() == weekday]
+    length = (date(year + month // 12, month % 12 + 1, 1) - first).days
+    matches = range(1 + (weekday - first.weekday()) % 7, length + 1, 7)  # days of the month, arithmetic only
     try:
-        return matches[nth - 1] if nth > 0 else matches[nth]
+        return first.replace(day=matches[nth - 1] if nth > 0 else matches[nth])
     except IndexError:
         return None
 
 
-def _starts(event: dict, until: datetime):
-    """Every start of the event up to `until`, its repeat rule followed (daily, weekly, monthly, yearly)."""
+def _starts(event: dict, until: datetime, budget: list | None = None):
+    """Every start of the event up to `until`, its repeat rule followed (daily, weekly, monthly, yearly).
+
+    `budget` is a one-item list of repeat periods the whole feed may still walk; OverflowError when used up.
+    """
     start = event['start']
     rule = event.get('rrule')
     if not rule:
@@ -159,10 +163,14 @@ def _starts(event: dict, until: datetime):
     end = _when(rule['UNTIL'], {}) if rule.get('UNTIL') else None
     if end is not None and not isinstance(end, datetime):
         end = _as_datetime(end) + timedelta(days=1) - timedelta(microseconds=1)  # a date UNTIL includes that whole day
-    by_day = [item for item in rule.get('BYDAY', '').split(',') if item]
+    # As (nth, weekday) pairs, duplicates dropped: a BYDAY of thousands of items is still at most 77 pairs.
+    by_day = sorted({(int(item[:-2]) if item[:-2] else 0, DAYS.index(item[-2:]))
+                     for item in rule.get('BYDAY', '').split(',') if item})
+    if any(not -5 <= nth <= 5 for nth, _ in by_day):
+        raise ValueError('BYDAY out of range')
     clock = start - datetime.combine(start.date(), datetime.min.time()) if isinstance(start, datetime) else timedelta()
     first = start.date() if isinstance(start, datetime) else start
-    days = sorted(DAYS.index(day[-2:]) for day in by_day) or [first.weekday()]
+    days = sorted({weekday for _, weekday in by_day}) or [first.weekday()]
     made = 0
 
     def at(day: date):
@@ -174,10 +182,20 @@ def _starts(event: dict, until: datetime):
         skip = max(0, ((until - LOOK_AHEAD * 2).date() - first).days // period - 1)
         if skip:  # what COUNT has already used up in the skipped weeks or days
             made = skip if frequency == 'DAILY' else skip * len(days) - sum(day < first.weekday() for day in days)
+    elif frequency in ('MONTHLY', 'YEARLY') and count is None:  # the same jump; COUNT needs the walk to count
+        target = (until - LOOK_AHEAD * 2).date()
+        if frequency == 'MONTHLY':
+            skip = max(0, ((target.year - first.year) * 12 + target.month - first.month) // interval - 1)
+        else:
+            skip = max(0, (target.year - first.year) // interval - 1)
 
     def candidates():
         step = skip
         for _ in range(5000):
+            if budget is not None:
+                budget[0] -= 1 + len(by_day)  # a month of BYDAY items is that much more work
+                if budget[0] < 0:
+                    raise OverflowError('The calendar repeats too much')
             if frequency == 'DAILY':
                 yield first + timedelta(days=step * interval)
             elif frequency == 'WEEKLY':
@@ -190,10 +208,9 @@ def _starts(event: dict, until: datetime):
                     # BYDAY=2TU is one day; a bare BYDAY=FR is every Friday, which BYSETPOS (-1: the last) narrows.
                     # Sorted, because the early stop below assumes the dates come in order.
                     month_days = set()
-                    for item in by_day:
-                        weekday = DAYS.index(item[-2:])
-                        if item[:-2]:
-                            month_days.add(_nth_weekday(year, month, weekday, int(item[:-2])))
+                    for nth, weekday in by_day:
+                        if nth:
+                            month_days.add(_nth_weekday(year, month, weekday, nth))
                         else:
                             month_days.update(_nth_weekday(year, month, weekday, nth) for nth in range(1, 6))
                     month_days = sorted(day for day in month_days if day)
@@ -236,7 +253,7 @@ def upcoming(text: str, now: datetime) -> list[dict]:
     until = now + LOOK_AHEAD
     events = _events(text)
     moved = {(event.get('uid'), event['recurrence']) for event in events if 'recurrence' in event}
-    found = []
+    found, budget = [], [MAX_STEPS]
     for event in events:
         if event.get('status', '').upper() == 'CANCELLED':
             continue
@@ -245,7 +262,7 @@ def upcoming(text: str, now: datetime) -> list[dict]:
         if length is None:
             length = timedelta(days=1) if not isinstance(start, datetime) else timedelta()
         try:
-            starts = list(_starts(event, until))
+            starts = list(_starts(event, until, budget))
         except (ValueError, KeyError, IndexError, OverflowError):  # a rule this reader does not understand
             starts = [start]
         for moment in starts:
