@@ -15,6 +15,7 @@ WIDGETS = {
     'network': ('Network', 'lc:e046', 2),
     'volume': ('Volume', 'lc:e1ab', 2),
     'agents': ('AI agents', 'lc:e1bb', 3),
+    'calendar': ('Next meeting', 'lc:e304', 3),  # filled by calendar_feed from the address in Program settings
 }
 
 

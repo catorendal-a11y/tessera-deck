@@ -454,7 +454,8 @@ const WIDGETS = [
   {kind: 'ram', name: 'Memory', sub: 'How much memory is in use', icon: 'lc:e445', span: 2, color: '#64B5F6', path: '<rect x="2" y="6" width="20" height="10" rx="2"/><path d="M6 18v-2M10 18v-2M14 18v-2M18 18v-2"/>'},
   {kind: 'network', name: 'Network', sub: 'Download and upload speed', icon: 'lc:e046', span: 2, color: '#4DD0E1', path: '<path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/>'},
   {kind: 'volume', name: 'Volume', sub: 'Speaker level and the microphone', icon: 'lc:e1ab', span: 2, color: '#B388FF', path: '<path d="M11 5 6 9H2v6h4l5 4z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>'},
-  {kind: 'agents', name: 'AI agents', sub: 'Who works and who waits for you', icon: 'lc:e1bb', span: 3, color: '#58E09B', path: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'}
+  {kind: 'agents', name: 'AI agents', sub: 'Who works and who waits for you', icon: 'lc:e1bb', span: 3, color: '#58E09B', path: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'},
+  {kind: 'calendar', name: 'Next meeting', sub: 'Your next meeting from your calendar (set it in Program settings)', icon: 'lc:e304', span: 3, color: '#64B5F6', path: '<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>'}
 ];
 /* Put a widget on a slot: an empty slot gets a new wide key, a key that is already there starts showing the widget. */
 function addWidget(kind,id=selected) {

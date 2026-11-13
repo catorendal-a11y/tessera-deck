@@ -64,10 +64,17 @@ A wide key can show something live instead of its own title (`"live"` in `profil
 | `network` | Download and upload speed |
 | `volume` | Speaker level, muted or not, and the microphone |
 | `agents` | Which AI tools are working and which wait for you |
+| `calendar` | Your next meeting: its name, when it starts or *Now · until 10:30*, from your own calendar |
 | `media` | The track that plays, the artist and how far it is |
 | `timer:NAME` | The time left of that timer, as a ring |
 
 A widget does nothing when pressed until you give it actions like any other key.
+
+**Next meeting.** Paste your calendar's secret iCal address in **Program settings** (Google Calendar: the calendar's
+settings, *Secret address in iCal format*; Outlook: *Settings → Calendar → Shared calendars → Publish a calendar*,
+the ICS link; iCloud: share the calendar publicly). Tessera reads it every five minutes, follows repeating meetings and
+cancelled or moved ones, and leaves the address out when you export your keys. Times given in UTC are converted to
+the PC's time; times with a time zone name are read as the PC's local time, so use a calendar in your own zone.
 
 ### Live gauges and sensors
 

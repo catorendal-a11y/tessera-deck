@@ -8,6 +8,7 @@ SENSITIVE_HEADERS = ('authorization', 'proxy-authorization', 'x-api-key', 'api-k
 DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
 EXECUTABLE_KINDS = ('shell', 'http')
+SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
 
 
@@ -99,8 +100,18 @@ def env_name(header: str) -> str:
 
 
 def redact_secrets(config: dict) -> tuple[dict, list[str]]:
-    """A copy for export: credentials in HTTP headers become $(env:NAME) references. Returns it and the names used."""
+    """A copy for export: credentials in HTTP headers become $(env:NAME) references. Returns it and the names used.
+
+    The calendar's iCal address and plugin settings named like a secret (a token or a password) are left out:
+    anyone with them can read the calendar or act as the plugin's account.
+    """
     shared = copy.deepcopy(config)
+    shared.pop('calendar', None)
+    for plugin in (shared.get('plugins') or {}).values():
+        settings = plugin.get('settings') if isinstance(plugin, dict) else None
+        for name in list(settings or {}):
+            if SECRET_SETTING.search(name):
+                del settings[name]
     names = []
     for _, owner, key, _ in iter_actions(shared):
         for action in owner[key]:

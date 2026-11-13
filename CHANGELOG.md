@@ -6,6 +6,8 @@
 - Editor: `/` jumps to the action search, Enter adds the first match and the arrow keys walk the list; a cleared key comes back with the Undo button in the message; the key menu shows its shortcuts, and `?` (or **⋯ → Keyboard shortcuts**) lists them all.
 - Tray: the Tessera and panel versions in the menu; **Help** opens the host log, saves diagnostics for a bug report, opens the data folder and checks for updates when you ask; a problem that lasts 30 seconds (a port held by another program, a stopped host) gets a notice; the first start asks whether Tessera should start with Windows.
 - README: build it or buy one, with prices; CONTRIBUTING points to first issues. CI runs cppcheck on the firmware.
+- New widget *Next meeting*: the meeting that runs now or comes next, read from the iCal address of your Google, Outlook or iCloud calendar (Program settings); repeating, cancelled and moved meetings are followed, and the address is left out of exports.
+- New plugins: **Home Assistant** (show and switch lights and sensors, run scenes) and **OBS Studio** (scenes, recording, streaming, mute). Plugin settings named like a secret are left out of exports.
 
 ## 0.6.2
 

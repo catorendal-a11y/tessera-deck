@@ -1,0 +1,14 @@
+{
+  "id": "home-assistant",
+  "name": "Home Assistant",
+  "version": "1.0.0",
+  "api": 1,
+  "command": ["python", "main.py"],
+  "permissions": ["vars", "events"],
+  "settings": {
+    "url": {"type": "text", "label": "Home Assistant address, for example http://homeassistant.local:8123", "default": "http://homeassistant.local:8123"},
+    "token": {"type": "text", "label": "Long-lived access token (your profile in Home Assistant, Security tab)", "default": ""},
+    "entities": {"type": "text", "label": "Entities to show, separated by commas (light.kitchen, sensor.outdoor_temperature)", "default": ""},
+    "interval": {"type": "number", "label": "Seconds between updates", "default": 10}
+  }
+}

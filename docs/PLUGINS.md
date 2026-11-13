@@ -16,7 +16,16 @@ plugins/
     main.py         your program (any language; see "command")
 ```
 
-`plugins/example-uptime` is a complete, working example that uses only the Python standard library.
+Three plugins come with Tessera, all using only the Python standard library. Turn them on in **⋯ → Plugins …**:
+
+| Plugin | What it does |
+|---|---|
+| `example-uptime` | The smallest complete plugin: a counter in a key name and a `reset` command. Copy it to start your own. |
+| `home-assistant` | Shows the state of lights and sensors (`$(var:home-assistant.light.kitchen)`), toggles them and runs any service from a key. Needs the address and a long-lived access token. |
+| `obs` | Switches OBS scenes, starts and stops recording and streaming, mutes an input, and shows the scene and *ON*/*OFF* in key names. Needs OBS's WebSocket server (Tools → WebSocket Server Settings). |
+
+Each plugin's `main.py` starts with the key actions and names it understands. A setting named like a secret
+(`token`, `password`, `secret`, `api key`) is left out when you export your keys.
 
 ## The manifest
 

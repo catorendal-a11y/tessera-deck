@@ -3,6 +3,7 @@ import json
 import re
 
 from ambient import check_ambient
+import calendar_feed
 from config_store import CONFIG_VERSION, version_of
 from live_state import NAME as LIVE_NAME, check_counter, check_timer
 import widgets
@@ -382,6 +383,8 @@ def _validate_config(config):
     _check_display(config.get('display', {}))
     if 'ambient' in config:
         check_ambient(config['ambient'])
+    if 'calendar' in config:
+        calendar_feed.check_settings(config['calendar'])
     theme = config.get('theme', {})
     if not isinstance(theme, dict) or set(theme) - {'bg', 'text_color', 'border'}:
         raise ValueError('theme may only set bg, text_color and border')

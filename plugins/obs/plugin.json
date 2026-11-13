@@ -1,0 +1,12 @@
+{
+  "id": "obs",
+  "name": "OBS Studio",
+  "version": "1.0.0",
+  "api": 1,
+  "command": ["python", "main.py"],
+  "permissions": ["vars", "events"],
+  "settings": {
+    "port": {"type": "number", "label": "WebSocket port (OBS: Tools → WebSocket Server Settings)", "default": 4455},
+    "password": {"type": "text", "label": "WebSocket server password (empty if authentication is off)", "default": ""}
+  }
+}

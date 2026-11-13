@@ -12,6 +12,7 @@ import threading
 import time
 import urllib.request
 from ambient import Weather
+import calendar_feed
 from config_store import migrate
 from plugins import EventLog, PluginManager
 from live_state import LiveState
@@ -128,6 +129,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
         self.pc = PcState()
+        self.calendar = calendar_feed.Feed()
         self.events = EventLog()
         self.plugins = None
         self.plugins_checked = 0.0
@@ -264,6 +266,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 result['progress'] = max(0, min(100, round(left / timer['duration'] * 100)))
                 result['sub'] = f'{name} · {timer["state"]}'[:40]
             return result
+        if live == 'calendar':
+            now = datetime.now()
+            events, error = self.calendar.events(self.config.get('calendar'), now)
+            return calendar_feed.content(events, now, error)
         if live in widgets.WIDGETS:
             return widgets.content(live, datetime.now(), self.stats.raw, self.pc.snapshot(),
                                    {name: self.agent_seen.get(key, '') for key, name, _ in cockpit.AGENTS})
