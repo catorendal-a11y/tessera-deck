@@ -42,5 +42,17 @@ class ImageCacheTests(unittest.TestCase):
         self.assertEqual(panel.uploads, ['im:a', 'im:b', 'im:c', 'im:a'])
 
 
+class PanelAsksTests(unittest.TestCase):
+    def test_an_image_the_panel_asks_for_is_sent_again_once_a_minute(self):
+        import host_support
+        daemon = host_support.test_daemon()
+        daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
+        daemon.panel.assets_sent = OrderedDict({'im:a': 1})
+        with patch.object(daemon, 'push_page') as push:
+            daemon.handle_job(('image-missing', 'im:a'))
+            daemon.handle_job(('image-missing', 'im:a'))
+        self.assertNotIn('im:a', daemon.panel.assets_sent)
+        push.assert_called_once_with(force=True)
+
 if __name__ == '__main__':
     unittest.main()

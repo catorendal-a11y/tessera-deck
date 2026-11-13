@@ -249,6 +249,20 @@ function changed() {
 }
 function mutate(fn,refresh=true,key=null) {remember(key);fn();changed();if(refresh)renderInspector();}
 function showError(error) {toast(error.message);if(error.status===409){conflicted=true;$('#reload').hidden=false;}}
+let savedBase=null;  // the configuration as the PC last had it: lets a change made elsewhere be merged in
+/* Another program (the tray's brightness, the terminal editor) saved meanwhile: take its changes where this
+   editor changed nothing, and give up only when both changed the same part. */
+async function mergeFromDisk() {
+  const disk=await api('config'),merged={};
+  for(const key of new Set([...Object.keys(disk.config),...Object.keys(config)])){
+    const there=JSON.stringify(disk.config[key]),before=JSON.stringify(savedBase?.[key]),here=JSON.stringify(config[key]);
+    if(there===before||there===here)merged[key]=config[key];
+    else if(here===before)merged[key]=disk.config[key];
+    else return false;
+    if(merged[key]===undefined)delete merged[key];
+  }
+  config=merged;savedBase=clone(disk.config);revision=disk.revision;renderAll();return true;
+}
 async function save() {
   clearTimeout(saveTimer);
   if(saveInFlight){await saveInFlight;if(dirty)return save();return;}
@@ -257,11 +271,14 @@ async function save() {
   if(conflicted)throw new Error('Reload the configuration to resolve the conflict.');
   saving=true;const sentVersion=version;
   try {
-    saveInFlight=api('config',{config:clone(config),revision});
-    const result=await saveInFlight;revision=result.revision;
+    const sent=clone(config);saveInFlight=api('config',{config:sent,revision});
+    const result=await saveInFlight;revision=result.revision;savedBase=sent;
     if(version===sentVersion){dirty=false;const same=dashboard.device?.profile===profile&&dashboard.device?.page===page;
       setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Turn on Mirror on panel to show this page.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
-  } catch(error){setSaveState('Not saved · '+error.message);throw error;} finally {saving=false;saveInFlight=null;}
+  } catch(error){
+    if(error.status===409&&savedBase&&await mergeFromDisk().catch(()=>false)){saving=false;saveInFlight=null;return save();}
+    setSaveState('Not saved · '+error.message);throw error;
+  } finally {saving=false;saveInFlight=null;}
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);
 }
 function updateHistory() {$('#undo').disabled=!history.length;$('#redo').disabled=!future.length;}

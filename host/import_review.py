@@ -106,6 +106,9 @@ def strip_executable(config: dict) -> dict:
     safe['triggers'] = []
     # Plugin setup turns code on; the editor keeps the plugins already set up on this PC instead.
     safe.pop('plugins', None)
+    panel = safe.get('panel')
+    if isinstance(panel, dict) and isinstance(panel.get('shortcuts'), list):  # a step shortcut left without steps is refused
+        panel['shortcuts'] = [item for item in panel['shortcuts'] if not (isinstance(item, dict) and item.get('type') == 'actions' and not item.get('actions'))]
     return safe
 
 

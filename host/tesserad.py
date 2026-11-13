@@ -581,6 +581,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('screen-deck',))
                         elif message.get('type') == 'fader' and isinstance(message.get('id'), str) and type(message.get('level')) is int:
                             self.enqueue(('fader', message['id'][:80], max(0, min(100, message['level']))))
+                        elif message.get('type') == 'image' and isinstance(message.get('id'), str) and message['id'].startswith('im:'):
+                            self.enqueue(('image-missing', message['id'][:80]))
+                        elif message.get('type') == 'view':
+                            self.last_activity = time.monotonic()
                         elif message.get('type') == 'rail' and type(message.get('i')) is int:
                             self.enqueue(('rail', message['i']))
                         elif message.get('type') == 'mute' and isinstance(message.get('id'), str):
@@ -663,6 +667,15 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.ambient_active = self.ambient_requested = False
         elif kind == 'question':
             self.show_question()
+        elif kind == 'image-missing':
+            # the panel dropped an image from its cache that the host thought it had: send it again, at most
+            # once a minute per image, so an image that cannot be shown does not loop
+            asked = getattr(self, 'images_asked', {})
+            self.images_asked = asked
+            if self.panel is not None and time.monotonic() - asked.get(job[1], -1e9) > 60:
+                asked[job[1]] = time.monotonic()
+                self.panel.assets_sent.pop(job[1], None)
+                self.push_page(force=True)
         elif kind == 'rail':
             self.last_activity = time.monotonic()
             if self.dimmed:  # the first touch on a dimmed panel only wakes it, like a key
@@ -773,6 +786,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         self.panel, self.port = self.open_panel()
                         self.device_info = getattr(self.panel, 'info', {}) or {}
                         self.cockpit_sent = {}
+                        if self.question_open():
+                            self.enqueue(('question',))
                         remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
                         connect_error = None

@@ -204,7 +204,11 @@ void build_keys() {
         const bool title_top=cells==1&&value.title_position==1;  /* the icon moves down to make room for the title */
         const int cx=cells>1?58:KeyW/2,cy=cells>1?KeyH/2-12:title_top?KeyH-60:60;
         auto image=deck_image_get(value.icon);
-        if(!image&&!strncmp(value.icon,"im:",3))image_missing=true;
+        if(!image&&!strncmp(value.icon,"im:",3)){
+            image_missing=true;
+            /* The host may believe the panel still has it (the cache dropped it): ask for it again. */
+            char line[96];snprintf(line,sizeof(line),"{\"type\":\"image\",\"id\":\"%.60s\"}",value.icon);deck_model_queue_line(line);
+        }
         if(cells>1&&value.ring&&value.has_progress){
             /* A ring (a timer) on the left, the time big to its right. */
             auto *arc=ring_arc[slot]=lv_arc_create(tile);lv_obj_set_size(arc,104,104);lv_obj_set_pos(arc,14,(KeyH-104)/2);
@@ -517,6 +521,7 @@ void rail_pressed(lv_event_t *event) {
     char line[40];
     snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",index);
     if(rail_list[index].kind<4) {
+        if(rail_list[index].kind!=ViewKeys)deck_model_queue_line("{\"type\":\"view\"}");  /* activity: no clock over this screen */
         /* Keys while the keys already show: back to the page before a shortcut (or the first page). Without
            this the tap changed nothing after a shortcut, and the keys button seemed dead. */
         if(rail_list[index].kind==ViewKeys&&view==ViewKeys)deck_model_queue_line(line);
@@ -646,6 +651,12 @@ void update_ambient() {
     if(ambient_seen!=deck_model_ambient_version()){char line[DECK_AMBIENT_MAX+1];deck_model_ambient(line,sizeof(line));lv_label_set_text(ambient_line,line);ambient_seen=deck_model_ambient_version();}
 }
 
+int view_before_question=-1;  /* the screen a permission question took the panel away from */
+bool question_waiting() {
+    deck_agent_t list[DECK_AGENTS_MAX];const int count=deck_model_agents(list,DECK_AGENTS_MAX);
+    for(int i=0;i<count;++i)if(list[i].state==DECK_AGENT_WAITING&&list[i].asks)return true;
+    return false;
+}
 void update(lv_timer_t*) {
     /* Compare the insert generation, not the count: a full cache evicts one image per insert. */
     if(button_version!=deck_model_buttons_version()||(image_missing&&deck_image_generation()!=image_generation))build_keys();
@@ -654,7 +665,11 @@ void update(lv_timer_t*) {
     if(rail_version!=deck_model_rail_version())build_rail();
     if(agents_version!=deck_model_agents_version())build_agents();
     const int wanted=deck_model_take_view_request();
-    if(wanted>=0)set_view(wanted);
+    if(wanted>=0){if(wanted==ViewAgents&&view!=ViewAgents)view_before_question=view;set_view(wanted);}
+    if(view_before_question>=0&&agents_version==deck_model_agents_version()&&!question_waiting()){
+        if(view==ViewAgents)set_view(view_before_question);  /* answered or gone: back to the screen you had */
+        view_before_question=-1;
+    }
     for(auto& hold:fader_hold)if(hold&&static_cast<int32_t>(millis()-hold)>=0)hold=0;
     if(faders_version!=deck_model_faders_version())sync_faders();
     if(stats_version!=deck_model_stats_version())sync_stats();

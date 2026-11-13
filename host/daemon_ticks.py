@@ -214,6 +214,7 @@ class BackgroundMixin:
         if self.page != page:
             self.switch_page(page)
         else:
+            self.folder_stack = []
             self.push_page(force=True)
 
     def panel_takes_questions(self):

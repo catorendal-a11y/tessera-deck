@@ -520,7 +520,7 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
 async function start() {
   const token=location.hash.slice(1);
   if(token){const response=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json','X-Deck-Token':token},body:'{}'});if(!response.ok)throw new Error('Open the program with Tessera.cmd.');window.history.replaceState(null,'',location.pathname);}
-  const state=await api('config');config=state.config;revision=state.revision;if(state.error)setTimeout(()=>{setSaveState('Not saved · '+state.error,'Your configuration file could not be read; open More → Restore a backup …');toast(state.error);},0);profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
+  const state=await api('config');config=state.config;revision=state.revision;savedBase=clone(config);if(state.error)setTimeout(()=>{setSaveState('Not saved · '+state.error,'Your configuration file could not be read; open More → Restore a backup …');toast(state.error);},0);profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
   try{const [,catalog]=await Promise.all([loadIconPack(),api('action-packs')]);actionCatalog=catalog;}catch(error){toast('The add-on packs could not be loaded. '+error.message);}
   renderAll();renderLibrary();setSaveState('✓ Configuration ready');await pollStatus();
   $('#profile').onchange=()=>{profile=$('#profile').value;page=Object.keys(config.profiles[profile].pages)[0];selected=1;editState=0;renderAll();syncPanel();};
@@ -553,7 +553,7 @@ async function start() {
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
   $('#host-toggle').onclick=async()=>{const b=$('#host-toggle');b.disabled=true;try{await command('start');}catch(error){showError(error);}finally{b.disabled=false;}};
-  $('#reload').onclick=async()=>{if(dirty&&!confirm('Discard unsaved changes and reload the configuration from disk?'))return;try{const state=await api('config');config=state.config;revision=state.revision;dirty=false;conflicted=false;history=[];future=[];$('#reload').hidden=true;renderAll();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
+  $('#reload').onclick=async()=>{if(dirty&&!confirm('Discard unsaved changes and reload the configuration from disk?'))return;try{const state=await api('config');config=state.config;savedBase=clone(config);revision=state.revision;dirty=false;conflicted=false;history=[];future=[];$('#reload').hidden=true;renderAll();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
   setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);
   $('#sync').onchange=()=>{if($('#sync').checked)syncPanel();};
   pollStatus();setInterval(pollStatus,1500);

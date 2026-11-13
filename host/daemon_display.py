@@ -42,6 +42,7 @@ class DisplayMixin:
         if self.dimmed:
             self.log('Panel woke')
         self.dimmed = False
+        self.panel.send_line('AD_SCREEN deck')  # a wake always shows the screen under the clock
         self.panel.send_line('AD_DISPLAY_WAKE')
 
     def dim_display(self, reason):
@@ -61,11 +62,16 @@ class DisplayMixin:
         elif not locked and self.dimmed:
             self.wake_display()
 
+    def question_open(self):
+        permissions = getattr(self, 'permissions', None)
+        return bool(permissions and permissions.current())
+
     def ambient_settings(self):
         return dict({'enabled': False, 'after': 120}, **self.config.get('ambient', {}))
 
     def leave_ambient(self):
-        if self.ambient_active and self.panel is not None:
+        # sent even when the host thinks the keys show: a touch's 'screen-deck' can cross the host's 'ambient'
+        if (self.ambient_active or self.ambient_requested) and self.panel is not None:
             self.panel.send_line('AD_SCREEN deck')
         self.ambient_active = False
         self.ambient_requested = False
@@ -95,7 +101,7 @@ class DisplayMixin:
                 self.leave_ambient()
             return
         if not self.ambient_active:
-            if self.locked or now - self.last_activity < settings['after']:
+            if self.locked or now - self.last_activity < settings['after'] or self.question_open():
                 return
             self.ambient_active = True
             self.panel.send_line('AD_SCREEN ambient')
@@ -108,7 +114,7 @@ class DisplayMixin:
     def idle_tick(self, now):
         """Dim the panel once after dim_after seconds without a press."""
         settings = self.display_settings()
-        if (not settings['dim_after'] or self.dimmed or self.panel is None
+        if (not settings['dim_after'] or self.dimmed or self.panel is None or self.question_open()
                 or now - self.last_activity < settings['dim_after']):
             return
         self.dim_display(f'after {settings["dim_after"]} s without a press')

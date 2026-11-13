@@ -75,7 +75,8 @@ class ReviewTests(unittest.TestCase):
         config = bundle()
         config['panel'] = {'shortcuts': [{'type': 'actions', 'label': 'Build', 'icon': 'lc:e0ff', 'actions': [{'type': 'shell', 'command': 'calc'}]}]}
         self.assertIn('Rail shortcut 1', ' '.join(item['where'] for item in review(config)))
-        self.assertEqual(strip_executable(config)['panel']['shortcuts'][0]['actions'], [])
+        self.assertEqual(strip_executable(config)['panel']['shortcuts'], [], 'a step shortcut without steps is dropped')
+        deck.validate_config(strip_executable(config))
 
     def test_plugin_commands_and_an_enabled_plugins_block_are_listed_and_stripped(self):
         config = bundle()
