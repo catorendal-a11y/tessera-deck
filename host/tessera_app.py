@@ -5,7 +5,7 @@ import copy
 import hashlib
 from functools import lru_cache
 from http.cookies import SimpleCookie
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 import json
 import os
 from pathlib import Path
@@ -24,6 +24,7 @@ from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, b
 from deck_assets import Assets
 import ambient
 import config_store
+from control_api import REQUEST_TIMEOUT, ExclusiveServer
 import diagnostics
 import firmware_update
 import iconify
@@ -776,6 +777,8 @@ def make_server(editor, port=0, token=None):
     token = token or secrets.token_urlsafe(32)
 
     class Handler(BaseHTTPRequestHandler):
+        timeout = REQUEST_TIMEOUT  # a client that stalls before or during its request must not hold a thread forever
+
         def log_message(self, *_):
             pass  # Never log user actions, paths or session tokens.
 
@@ -913,7 +916,7 @@ def make_server(editor, port=0, token=None):
             except (OSError, subprocess.SubprocessError) as exc:
                 self.json({'error': f'The operation could not be completed: {exc}'}, 400)
 
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    server = ExclusiveServer(('127.0.0.1', port), Handler)
     server.daemon_threads = True
     server.token = token
     server.editor = editor

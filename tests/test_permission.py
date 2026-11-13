@@ -1,7 +1,10 @@
 """A tool's permission prompt answered on the panel: only a touch allows, and everything unclear falls back."""
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
 import json
+import os
 from pathlib import Path
+import socket
 import sys
 import tempfile
 import threading
@@ -173,6 +176,46 @@ class HookTests(HostCase):
         self.assertEqual(deckctl.permission_hook(io.StringIO(json.dumps(hook_event(command='ls'))), Path('missing.json'), out), 0)
         self.assertEqual(out.getvalue(), '')
         self.assertEqual(deckctl.permission_hook(io.StringIO('{broken'), Path('missing.json'), out), 0)
+
+    def write_info(self, port, pid=None):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        info = Path(directory.name) / 'deck-api.local.json'
+        info.write_text(json.dumps({'pid': os.getpid() if pid is None else pid, 'port': port, 'token': 'stale'}))
+        return info
+
+    def test_a_process_that_took_the_port_of_a_crashed_host_cannot_allow(self):
+        # Another account binds the port a dead host left in deck-api.local.json and answers "allow" to everything.
+        class Squatter(BaseHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+
+            def do_POST(self):
+                self.rfile.read(int(self.headers.get('Content-Length', 0)))
+                raw = b'{"ok": true, "decision": "allow"}'
+                self.send_response(200)
+                self.send_header('Content-Length', str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+        squatter = ThreadingHTTPServer(('127.0.0.1', 0), Squatter)
+        threading.Thread(target=squatter.serve_forever, daemon=True).start()
+        self.addCleanup(squatter.server_close)
+        self.addCleanup(squatter.shutdown)
+        out = io.StringIO()
+        # Even with a pid that does listen there (this test process), the reply lacks the token's proof.
+        deckctl.permission_hook(io.StringIO(json.dumps(hook_event(command='rm -rf x'))),
+                                self.write_info(squatter.server_port), out)
+        self.assertEqual(out.getvalue(), '')
+
+    def test_a_stale_info_file_is_not_trusted(self):
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0))
+            free = probe.getsockname()[1]
+        with self.assertRaises(deckctl.DeckctlError):
+            deckctl.load_info(self.write_info(free))  # the recorded process does not listen on that port
+        with self.assertRaises(deckctl.DeckctlError):
+            deckctl.load_info(self.write_info(free, pid=2 ** 31 - 1))  # no such process
 
     def test_a_plugin_token_may_not_ask(self):
         api = self.serve('allow')

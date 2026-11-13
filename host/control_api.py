@@ -6,10 +6,14 @@ deck-api.local.json (readable by the same Windows user only), and browser reques
 call that changes something is logged with the caller's grant name.
 """
 
+import atexit
+import hashlib
+import hmac
 import json
 import os
 import re
 import secrets
+import socket
 import subprocess
 import threading
 import time
@@ -26,6 +30,18 @@ MAX_VALUE = 200
 # Per token: a runaway script or plugin is slowed down instead of flooding the panel's work queue.
 RATE_PER_SECOND = 20
 RATE_BURST = 40
+# A client that sends its headers or body slowly may hold a thread only this long (seconds).
+REQUEST_TIMEOUT = 10
+MAX_NONCE = 128
+
+
+def proof(token: str, nonce: str) -> str:
+    """What the host answers to a client's nonce: shows that the reply comes from the holder of the token.
+
+    A process that took over the port of a crashed host can answer a request, but it cannot make this proof, so the
+    permission hook never takes its "allow" for the panel's.
+    """
+    return hmac.new(token.encode('utf-8'), nonce.encode('utf-8'), hashlib.sha256).hexdigest()
 
 
 class ApiError(ValueError):
@@ -70,6 +86,17 @@ def _button(data) -> int:
     if type(value) is not int or not 1 <= value <= 18:
         raise ApiError('button must be a whole number from 1 to 18')
     return value
+
+
+class ExclusiveServer(ThreadingHTTPServer):
+    # http.server turns SO_REUSEADDR on, and on Windows that lets a second socket bind a port that is in use.
+    # Port 0 never needs it; exclusive use keeps another process from taking the port over while the host runs.
+    allow_reuse_address = False
+
+    def server_bind(self):
+        if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 class ControlServer:
@@ -218,6 +245,8 @@ class ControlServer:
         api = self
 
         class Handler(BaseHTTPRequestHandler):
+            timeout = REQUEST_TIMEOUT  # a stalled client must not pin a thread forever
+
             def log_message(self, *_):
                 pass
 
@@ -229,6 +258,9 @@ class ControlServer:
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Content-Length', str(len(raw)))
                 self.send_header('Cache-Control', 'no-store')
+                nonce = self.headers.get('X-Deck-Nonce', '')
+                if getattr(self, 'token', None) and 0 < len(nonce) <= MAX_NONCE:
+                    self.send_header('X-Deck-Proof', proof(self.token, nonce))
                 self.end_headers()
                 self.wfile.write(raw)
 
@@ -242,7 +274,7 @@ class ControlServer:
                 if grant is None:
                     self.reply(401, {'error': 'Invalid token'})
                     return None
-                self.caller = grant.name
+                self.caller, self.token = grant.name, token
                 if not api.allow(token):
                     self.reply(429, {'error': 'Too many requests', 'retry': True})
                     return None
@@ -292,7 +324,7 @@ class ControlServer:
         return Handler
 
     def start(self):
-        self.server = ThreadingHTTPServer(('127.0.0.1', 0), self.make_handler())
+        self.server = ExclusiveServer(('127.0.0.1', 0), self.make_handler())
         self.server.daemon_threads = True
         self.server.handle_error = lambda request, client_address: None  # a client that hangs up is not an error
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
@@ -301,6 +333,14 @@ class ControlServer:
         temporary.write_text(json.dumps(info), encoding='utf-8')
         make_private(temporary)
         os.replace(temporary, self.info_path)
+        atexit.register(self.remove_own_info)  # a normal exit without stop() leaves no stale file
+
+    def remove_own_info(self):
+        try:
+            if json.loads(self.info_path.read_text(encoding='utf-8')).get('pid') == os.getpid():
+                self.info_path.unlink()
+        except (OSError, ValueError, AttributeError):
+            pass
 
     def stop(self):
         if self.server is not None:

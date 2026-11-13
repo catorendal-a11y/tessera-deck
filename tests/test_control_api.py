@@ -1,12 +1,14 @@
 """The control API's HTTP surface: tokens, browser and Host checks, body limit, scoped grants, rate limit and audit."""
 import json
 from pathlib import Path
+import socket
 import sys
 import tempfile
+import time
 import unittest
 import urllib.error
 import urllib.request
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
@@ -47,6 +49,38 @@ class ControlApiTests(unittest.TestCase):
         except urllib.error.HTTPError as error:
             with error:
                 return error.code, json.loads(error.read())
+
+    def test_an_authorized_reply_proves_the_host_knows_the_token(self):
+        request = urllib.request.Request(f'http://127.0.0.1:{self.port}/v1/state',
+                                         headers={'X-Deck-Token': self.api.token, 'X-Deck-Nonce': 'abc123'})
+        with urllib.request.urlopen(request, timeout=3) as reply:
+            self.assertEqual(reply.headers['X-Deck-Proof'], control_api.proof(self.api.token, 'abc123'))
+        request = urllib.request.Request(f'http://127.0.0.1:{self.port}/v1/state',
+                                         headers={'X-Deck-Token': 'wrong', 'X-Deck-Nonce': 'abc123'})
+        with self.assertRaises(urllib.error.HTTPError) as refused:
+            urllib.request.urlopen(request, timeout=3)
+        with refused.exception as error:
+            self.assertIsNone(error.headers['X-Deck-Proof'])
+
+    def test_the_port_cannot_be_bound_a_second_time_while_the_host_runs(self):
+        with socket.socket() as second:
+            if hasattr(socket, 'SO_REUSEADDR'):
+                second.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            with self.assertRaises(OSError):
+                second.bind(('127.0.0.1', self.port))
+
+    def test_a_client_that_stalls_is_disconnected(self):
+        with patch.object(control_api, 'REQUEST_TIMEOUT', 0.3):
+            temp = tempfile.TemporaryDirectory()
+            self.addCleanup(temp.cleanup)
+            api = ControlServer(self.daemon, Path(temp.name) / 'slow.json')
+            api.start()
+            self.addCleanup(api.stop)
+        with socket.create_connection(('127.0.0.1', api.server.server_port), timeout=5) as client:
+            client.sendall(b'POST /v1/press HTTP/1.1\r\nHost: 127.0.0.1')  # and then nothing more
+            started = time.monotonic()
+            self.assertEqual(client.recv(1024), b'')
+            self.assertLess(time.monotonic() - started, 4)
 
     def test_missing_or_wrong_token_is_refused(self):
         self.assertEqual(self.call('POST', '/v1/press', {'button': 1}, token=False)[0], 401)
