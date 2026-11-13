@@ -2,91 +2,245 @@
 
 [Back to the README](../README.md)
 
-### Profiles, pages and actions
+This guide covers daily use of the editor and the panel. [Install](INSTALL.md) covers setup and flashing.
 
-A **profile** holds pages; a **page** holds up to 18 keys; slot 18 is the pinned **Home** key. Folders push a page
-with a *Back* key in slot 17. A key runs one or more actions in order:
+## The editor at a glance
 
-| Action | What it does |
+The editor is laid out like the panel.
+
+| Area | What it does |
 |---|---|
-| `hotkey` | Press a key combination or media key |
-| `text` | Type text |
-| `open` | Open a program, file, folder or URL (optionally focus an already running program) |
-| `shell` / `http` | Run a command or call an HTTP endpoint |
-| `delay` | Wait between steps |
-| `folder`, `back`, `home`, `page`, `profile` | Navigate |
-| `press` | Run another key |
-| `set` | Set a variable |
-| `state` | Set the state of a toggle key (`next` or a state number) |
-| `audio` | Mute, unmute or set the volume of the speaker, the microphone or one program (`app:NAME.exe`) |
-| `counter`, `timer` | Change a counter; start, pause, resume, stop or toggle a timer |
-| `mouse` | Click (left, right, middle or double), scroll, or move the pointer |
-| `screen` | Show the clock, the keys, or switch between them |
-| `profile_lock` | Lock or unlock automatic profile switching |
-| `plugin` | Send a command to a plugin |
+| Rail (left) | Switches between **Keys** and the agents, mixer and status screens. The **+** at its foot opens *Rail …*. |
+| Action list (right) | Four tabs: **Basics**, **Widgets**, **Ready-made** (Windows, browser, meetings, media) and **Apps** (your installed programs and app packs). The search looks in all of them. A button folds the list into a narrow strip; `/` opens it again. |
+| Deck (middle) | The **Profile** selector, the **Profile**, **Page**, **Panel** and **More** menus, the keys, and the page tabs with **＋** for a new page. |
+| Key settings | A click on a key opens its settings: beside the deck from 1280 px wide, below it on a narrower window. |
+| Status bar (bottom) | Appears only when something blocks you, names the cause and has the fix button. |
 
-Labels can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`. `$(pc:track)` shows *No music* when nothing is playing.
-In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`): Tessera refuses values that contain shell metacharacters, but a value may contain spaces, which would otherwise become extra arguments.
-A toggle key can follow the PC instead of the presses with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "timer-running:NAME"` (state 1 = off, state 2 = on), and the `audio` action (`target`: `mic`, `speaker` or `app:NAME.exe`; `op`: `toggle`, `mute`, `unmute`, `volume`, `up` or `down`) changes the real device. Profiles switch
-automatically with rules such as `chrome.exe`, `process:claude.exe` or `title:codex`.
-
-Actions can also run by themselves: `triggers` at the top of `profiles.json` is a list of
-`{"when": {...}, "actions": [...]}`, where `when` is `{"type": "startup"}`, `{"type": "interval", "seconds": 60}`,
-`{"type": "daily", "at": "08:30"}`, `{"type": "file", "path": "..."}` (the file changed) or
-`{"type": "variable", "name": "claude"}` (the variable changed). Import shows every automatic rule before it can run.
-
-### The editor
-
-The editor is laid out like the panel. The rail on the left switches between the keys and the agents, mixer and status screens; the **+** at its foot opens the rail settings. In the middle are the **Profile** selector, the page tabs and the keys, with the **Profile**, **Page**, **Panel** and **More** menus above them. A click on a key opens its settings in three tabs:
+Key settings have three tabs, with **Test**, **Copy**, **Paste**, **Clear** and **Move to slot** underneath:
 
 | Tab | What it holds |
 |---|---|
-| **Look** | Title, icon, text size and position, the key's size (Normal, Wide, Extra wide) and its main action |
-| **Actions** | Normal or toggle key, and the steps for a press, a long press and a double press |
-| **Live** | A live value or gauge, and what the key is bound to |
+| **Look** | Title, icon, icon color, text size and position, the key's size (Normal, Wide, Extra wide) and the **Action** row with the field a key needs most |
+| **Actions** | *Key type* (Normal key or Toggle key), the steps for **Pressed**, **Held** and **Double-press**, **＋ Step …** and *Hold to confirm* |
+| **Live** | *Live gauge* and *Follow PC state* |
 
-The action list on the right has four tabs: **Basics** (hotkey, open, text and the other building blocks), **Widgets**, **Ready-made** (Windows, browser, meetings, media) and **Apps** (your installed programs and the app packs). The search looks in all of them. A click on an action makes a new key on the selected empty slot or the first free one; drop an action on a key to add a step to it. Nothing runs in the editor. Keys run only when you press them on the panel. The one exception is **Test** on a key and then *Run now*.
+Nothing runs in the editor. Keys run only when you press them on the panel. The one exception is **Test** on a key and then *Run now on this PC*.
 
 | Menu | What it holds |
 |---|---|
-| **Profile** | New profile, a profile from a template, duplicate, *Profile settings …* (name, the programs it follows, default) and *Delete this profile* |
-| **Page** | New page, a page from a template, duplicate, *Page settings …* (name) and *Delete this page* |
-| **Panel** | *Display …* (brightness, dimming, quiet hours and the idle clock), *Panel firmware and updates …*, *Rail …* and *Key colors …* |
-| **More** | *Getting started*, Connect Claude Code, plugins, export, import, backups, *Host log …* and *Save diagnostics* |
+| **Profile** | New profile, *Profile from a template …*, Duplicate, *Profile settings …*, *Delete this profile* |
+| **Page** | New page, *Page from a template …*, Duplicate, *Page settings …*, *Delete this page* |
+| **Panel** | *Display …*, *Panel firmware and updates …*, *Rail …*, *Key colors …* |
+| **More** | *Getting started*, *Connect Claude Code …*, *Plugins …*, *Export to a file*, *Import from a file …*, *Restore a backup …*, *Host log …*, *Save diagnostics* |
 
-A deleted page or profile comes back with *Undo* in the message that follows, or with Ctrl+Z. **Program settings** in the top bar holds only what the PC does: starting the host at sign-in, switching profiles by program, and the calendar for the Next meeting widget.
+**Program settings** in the top bar holds only what the PC does: starting the host at sign-in, switching profiles by program, and the calendar for the Next meeting widget.
 
-### Wide keys and widgets
+A profile holds pages. A page holds up to 18 keys, and slot 18 is the pinned **Home** key. Changes save by themselves; the line under the deck says when the panel has them. The editor keeps your edits as you make them, and Undo (Ctrl+Z) takes back the last one, including a deleted page or profile.
 
-A key can cover two or three slots on its row: choose **Wide** or **Extra wide** under *Size*. The slots to its right must be free, and a wide key cannot run past the end of the row. In `profiles.json` this is `"span": 2` or `3`.
+## Tasks
 
-A wide key can show something live instead of its own title (`"live"` in `profiles.json`). Drag a widget from the **Widgets** tab, or pick it under *Shows* on a wide key:
+### Add an app
 
-| `live` | Shows |
+1. Open the **Apps** tab in the action list, then *Installed programs …*.
+2. Drag a program onto a key. A click puts it on the selected key.
+3. Or choose *Choose program file …* to pick an `.exe` by hand.
+
+Tessera fetches the program's icon. The key gets an *Open program / file* step. To bring a running program to the front instead of starting another copy, tick *Focus open window* in that step.
+
+### Add a hotkey
+
+1. Click **Hotkey** in the action list. A new key appears on the selected empty slot or the first free one, and the toast says which.
+2. On the **Look** tab, type the name in *Title*.
+3. In the **Action** row, press **⌨ Record**, then press the combination. **Esc** cancels.
+
+A media key works the same way.
+
+### Add a folder
+
+1. Click **Open folder (with Back key)** in the action list.
+2. *Create a subpage* opens with the key's name filled in. Press *Save*.
+3. The editor opens the new page. Back is on slot 17.
+
+**Go to page (no Back key)** switches to a page without adding Back.
+
+### Add a widget
+
+A widget is a wide key that shows something live. Open the **Widgets** tab and drag one onto a key with free slots to its right (two or three, depending on the widget).
+
+| Widget | Shows |
 |---|---|
-| `clock` | The time, the weekday and date, and how far the day is |
-| `date` | The date, the week number and the day of the year |
-| `cpu`, `gpu` | Load with a bar, temperature, clock speed or frames per second |
-| `ram` | How much memory is in use |
-| `network` | Download and upload speed |
-| `volume` | Speaker level, muted or not, and the microphone |
-| `agents` | Which AI tools are working and which wait for you |
-| `calendar` | Your next meeting: its name, when it starts or *Now · until 10:30*, from your own calendar |
-| `media` | The track that plays, the artist and how far it is |
-| `timer:NAME` | The time left of that timer, as a ring |
+| Clock | The time, the weekday and date, and how far the day is |
+| Date | The date, the week number and the day of the year |
+| Processor, Graphics card | Load with a bar, temperature, clock speed or frames per second |
+| Memory | How much memory is in use |
+| Network | Download and upload speed |
+| Volume | Speaker level, muted or not, and the microphone |
+| AI agents | Which AI tools are working and which wait for you |
+| Next meeting | Its name, and when it starts or *Now · until 10:30* |
+| Music (under *Shows*) | The track, the artist and how far it is |
+| Timer (under *Shows*) | The time left of a named timer, as a ring |
 
-A widget does nothing when pressed until you give it actions like any other key.
+To change a widget, open the key's **Look** tab and press *Widget: … · Change …*. To make an ordinary key wide, choose **Wide** or **Extra wide** under *Size* and pick a widget under *Shows*. The slots to its right must be free, and a wide key cannot run past the end of the row.
 
-**Next meeting.** Paste your calendar's secret iCal address in **Program settings** (Google Calendar: the calendar's
-settings, *Secret address in iCal format*; Outlook: *Settings → Calendar → Shared calendars → Publish a calendar*,
-the ICS link; iCloud: share the calendar publicly). Tessera reads it every five minutes, follows repeating meetings and
-cancelled or moved ones, and leaves the address out when you export your keys. Times given in UTC are converted to
-the PC's time; times with a time zone name are read as the PC's local time, so use a calendar in your own zone.
+A widget does nothing when pressed until you give it steps on the **Actions** tab.
+
+**Next meeting** needs your calendar's secret iCal address in **Program settings** (*Calendar for the Next meeting widget*). Google Calendar: the calendar's settings, *Secret address in iCal format*. Outlook: *Settings → Calendar → Shared calendars → Publish a calendar*, the ICS link. iCloud: share the calendar publicly. Tessera reads it every five minutes, follows repeating, cancelled and moved meetings, and leaves the address out of exports. Times in UTC are converted to the PC's time; times with a time zone name are read as the PC's local time.
+
+### Make a macro with several steps
+
+A key runs its steps in order.
+
+1. Select the key and open the **Actions** tab.
+2. Pick **Pressed**, **Held** or **Double-press** for when the steps run. A held key runs after about half a second.
+3. Add steps with **＋ Step …**, or drop an action from the list on the key.
+4. Drag a step to reorder it, or use its ↑ and ↓ buttons. A step's type is a menu in its title.
+5. Put **Wait** steps between steps that need time.
+
+*Hold to confirm* on the same tab makes the panel run the key only after a 0.6 s hold, with a ring that fills. It cannot be combined with Held or Double-press steps.
+
+For a toggle, set *Key type* to **Toggle key**. Each press runs the current state's steps and shows the next state. *Edit state* picks the state to edit. On the **Live** tab, *Follow PC state* makes the key follow the microphone, the speakers, media playback or a timer instead of the presses.
+
+### Move, copy and replace keys
+
+| Do this | Result |
+|---|---|
+| Drag a key to a slot | Moves it; a key there changes places with it |
+| Drag a key onto a page tab | Moves it to that page |
+| Alt+arrow, or *Move to slot* | Moves it to the next slot |
+| Ctrl+C, Ctrl+V | Copies and pastes; pasting onto a used slot says "Replaced key N" with Undo |
+| Ctrl+D | Duplicates the key to a free slot |
+| Pin (Look tab) | Shows the key on every page |
+
+A key with a yellow dot is unfinished. The other keys keep saving, and the panel gets the unfinished key without its unfinished part.
+
+### Profiles that follow the app
+
+A profile can switch in by itself when a program is in front.
+
+1. Open **Profile → Profile settings …**.
+2. Under *Add a running program*, choose the program. Or type rules in *Automatic profile switching rules*, separated by commas.
+3. Tick *Use as default profile* for the profile to show when no rule matches.
+
+Rules look like `chrome.exe`, `process:claude.exe` or `title:codex`. Turn the whole feature off with *Switch profile automatically by active program* in **Program settings**. The *Lock profile* action locks or unlocks automatic switching from a key. **Profile → Profile from a template …** gives you ready-made profiles for browsers, Windows and AI tools.
+
+### The rail and the panel's screens
+
+The rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**.
+
+- **Which screens and shortcuts:** open **Panel → Rail …** (or **+** in the editor's rail). Turn the agents, mixer and status screens on or off, put them in order and add up to three shortcuts. The panel has room for seven places; the preview shows which are free. Press *Apply*.
+- **A shortcut** opens a page of any profile, or runs steps like a key without leaving the screen you are on (copy the steps from one of your keys and give it a name). It can use any icon from the library. After a page shortcut, a tap on Keys takes you back. Step shortcuts need panel firmware 0.6.3 or later.
+- **What a screen shows:** click that screen in the editor's rail.
+
+### The mixer
+
+Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now.
+
+The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed.
+
+### The agents screen and Claude Code
+
+**Agents** shows which AI tools work and which wait for you, and ticks *Show on panel* per tool. Working and idle come from the tools' own session files.
+
+To see what Claude Code is doing, and to answer its permission questions on the panel:
+
+1. Open **More → Connect Claude Code …** (or *Connect …* on the Agents screen).
+2. Tick *Show what Claude Code is doing (working, waiting for you, idle)* and *Answer Claude's permission questions on the panel*. Press *Apply*.
+3. Restart Claude Code.
+
+This adds hooks to `~/.claude/settings.json`, keeps your other hooks and makes a backup first. The question appears on the agents screen, and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog. Tessera never allows anything on its own. To do it by hand, merge the output of `python host\deckctl.py hooks claude` and `python host\deckctl.py hooks claude-permission`.
+
+### Display settings
+
+Open **Panel → Display …** (or the tray's *Brightness* menu).
+
+| Setting | What it does |
+|---|---|
+| *Panel brightness* | The normal level |
+| *Dim the panel after* | How long without a press before it dims, or *Never*. It also dims when Windows locks. |
+| *Brightness when dimmed* | The level while dimmed, or *Off* |
+| *Quiet hours* and *Brightness during quiet hours* | A lower level between two times, for example at night |
+| *Show a big clock when the panel has been idle* and *Show it after* | The idle clock. Touch the panel to get the keys back. |
+| *Weather for (city, optional)* and *Temperature unit* | Weather on the idle clock from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use. |
+
+The first touch on a dimmed panel only wakes it; it does not press a key. A long press on the panel's logo opens an About sheet with a brightness slider. The panel keeps its brightness across restarts.
+
+**Panel → Key colors …** sets the default background, text and outline for every key without colors of its own.
+
+### Back up, export and import
+
+- **Automatic backups:** Tessera keeps the latest 30 while you edit. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.
+- **Export:** **More → Export to a file** writes your profiles and keys. It leaves out secrets: the calendar address, plugin passwords and web request credentials.
+- **Import:** **More → Import from a file …** first shows the file's profiles, pages and keys and the risky actions in it, including the host each web request goes to and every automatic rule. Then choose *Add as new profiles* (your profiles stay; rules, rail and settings in the file are not used) or *Replace the configuration*. You can undo an import.
+
+If `host/profiles.json` is broken at start, Tessera restores the newest good backup and the tray says so.
+
+### Keyboard shortcuts
+
+**⌨ Keyboard shortcuts** in the top bar, or `?`, shows the list.
+
+| Keys | Does |
+|---|---|
+| `/` | Search the actions. Enter adds the first match; ↓ walks the list. |
+| Arrow keys | Move between keys on the deck |
+| Alt + arrow keys | Move the selected key to the next slot |
+| F2 | Rename the selected key |
+| Del | Clear the selected key |
+| Ctrl+C, Ctrl+V | Copy and paste a key |
+| Ctrl+D | Duplicate the key to a free slot |
+| Ctrl+Z | Undo |
+| Ctrl+Y, Ctrl+Shift+Z | Redo |
+| Ctrl+S | Save now |
+| Shift+F10 | Open the key menu |
+
+## Reference
+
+### Actions
+
+| Editor name | Type in `profiles.json` | What it does |
+|---|---|---|
+| Hotkey | `hotkey` | Press a key combination or media key |
+| Type text | `text` | Type text |
+| Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program |
+| Run command, HTTP request | `shell`, `http` | Run a command or call an address; an error status (4xx, 5xx) fails the action |
+| Wait | `delay` | Wait between steps |
+| Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate |
+| Trigger another key | `press` | Run another key |
+| Set variable, Toggle variable | `set`, `toggle` | Set a variable, or switch it between two values |
+| Set key state | `state` | Set a toggle key's state (`next` or a state number) |
+| Mute / unmute audio | `audio` | Mute, unmute or set the volume of the speaker, the microphone or one program (`app:NAME.exe`) |
+| Counter, Timer | `counter`, `timer` | Change a counter; start, pause, resume, stop or toggle a timer |
+| Mouse | `mouse` | Click (left, right, middle or double), scroll, or move the pointer |
+| Switch screen | `screen` | Show the clock, the keys, or switch between them |
+| Lock profile, Lock panel | `profile_lock`, `panel_lock` | Lock or unlock automatic profile switching; make the panel ignore taps (hold the logo for 2 s to unlock) |
+| Copy to clipboard | `clipboard` | Put text on the clipboard and optionally paste it |
+| Window | `window` | Minimize, maximize, restore or close a window, toggle always on top, move it to the next monitor or bring a program to the front |
+| Plugin (no editor name; added by plugins) | `plugin` | Send a command to a [plugin](PLUGINS.md) |
+
+### Labels and variables
+
+A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`. `$(pc:track)` shows *No music* when nothing plays.
+
+In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`). Tessera refuses values with shell metacharacters; spaces are allowed.
+
+A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key.
+
+### Automatic actions
+
+`triggers` at the top of `profiles.json` is a list of `{"when": {...}, "actions": [...]}`. `when` is one of:
+
+| `when` | Runs |
+|---|---|
+| `{"type": "startup"}` | When the host starts |
+| `{"type": "interval", "seconds": 60}` | Every 60 seconds |
+| `{"type": "daily", "at": "08:30"}` | Every day at that time |
+| `{"type": "file", "path": "..."}` | When the file changes |
+| `{"type": "variable", "name": "claude"}` | When the variable changes |
+
+Import shows every automatic rule before it can run.
 
 ### Live gauges and sensors
 
-A key becomes a gauge with a `gauge` block. The panel shows the value in the gauge's color, amber from `warn` and
-red from `critical`; the icon, how far it is filled and the badge appear in the editor's preview:
+A key becomes a gauge with the **Live** tab's *Live gauge* field. In `profiles.json` it is a `gauge` block:
 
 ```json
 {
@@ -96,28 +250,16 @@ red from `critical`; the icon, how far it is filled and the badge appear in the 
 }
 ```
 
-`icon` is what the gauge belongs to and the optional `badge` is what it measures. Formats are `int`, `ghz` (GHz or MHz), `gb`, `rate`, `uptime`, `clock` and `live`; `scale: "log"` suits network rates, and `percent_key` fills the icon from another value than the one shown.
+The panel shows the value in the gauge's color, amber from `warn` and red from `critical` (*Amber from* and *Red from* in the editor). `icon` is what the gauge belongs to and the optional `badge` is what it measures. Formats are `int`, `ghz`, `gb`, `rate`, `uptime`, `clock` and `live`; `scale: "log"` suits network rates, and `percent_key` fills the icon from another value than the one shown.
 
 | Source | Needs | Provides |
 |---|---|---|
-| Windows | nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
-| Graphics driver | nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power, fan speed, clock |
-| Libre Hardware Monitor | free download, administrator rights | temperatures, CPU and GPU power, fan speed, clocks |
-| HWiNFO | running with shared memory enabled | sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
+| Windows | Nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
+| Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power, fan speed, clock |
+| Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks |
+| HWiNFO | Running with shared memory enabled | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
-Install the optional sensor source: in the Tessera folder run
-`powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1`. It downloads the official release, verifies
-its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation
-once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
-
-### Brightness and auto-dim
-
-Open **Panel → Display …** in the editor, or the tray menu. By default the panel dims to 10 % after five minutes without
-a press and when Windows locks; the first touch anywhere on the screen wakes it without pressing a key. The panel
-remembers the brightness across restarts. Set the values in
-`profiles.json` with `"display": { "brightness": 80, "dim_after": 300, "dim_level": 10 }` (`dim_after: 0` disables it).
-Quiet hours in **Panel → Display …** lower the brightness between two times, for example at night:
-`"night": { "from": "22:00", "to": "07:00", "brightness": 10 }` inside `display`.
+To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
 
 ### Control from scripts and AI tools
 
@@ -132,55 +274,28 @@ python host\deckctl.py ok 5                   # flash key 5 green (alert 5: red)
 python host\deckctl.py status                 # also: wake, dim
 ```
 
-A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`.
-The Claude Code profile uses this on its first key.
+Each token is limited to 20 calls a second (bursts of 40, then `429`), and every change is logged with the caller's name.
 
-**Claude Code.** **More → Connect Claude Code …** in the editor adds these hooks to `~/.claude/settings.json` for you
-(it keeps your other hooks and makes a backup first). To do it by hand, `python host\deckctl.py hooks claude` prints
-the `hooks` block to merge. Every hook runs `deckctl adapter claude`, which reads
-the hook's JSON from stdin and sets `$(var:claude)` (`working`, `waiting`, `idle`, `ended`), `$(var:claude.tool)`,
-`$(var:claude.project)` and `$(var:claude.message)` (the text of a notification, for example a permission prompt).
-It always exits 0, so a stopped host never disturbs Claude Code. Check the event names against the Claude Code
-hooks documentation for your version.
+**Claude Code.** *Connect Claude Code …* (above) wires this up. Every hook runs `deckctl adapter claude`, which reads the hook's JSON from stdin and sets `$(var:claude)` (`working`, `waiting`, `idle`, `ended`), `$(var:claude.tool)`, `$(var:claude.project)` and `$(var:claude.message)`. It always exits 0, so a stopped host never disturbs Claude Code.
 
-**Codex.** Codex reports only finished turns through its `notify` setting: point it at
-`python host\deckctl.py adapter codex` and `$(var:codex)`, `codex.project` and `codex.message` are set when a turn
-completes. While Codex works, the key still shows `$(agent:codex)` from process detection; Codex offers no
-"working" event to read.
+**Codex.** Codex reports only finished turns through its `notify` setting. Point it at `python host\deckctl.py adapter codex` and `$(var:codex)`, `codex.project` and `codex.message` are set when a turn completes. While Codex works, a key still shows `$(agent:codex)` from process detection.
 
-**Any other tool.** `python host\deckctl.py adapter generic NAME STATE [MESSAGE]` sets `$(var:NAME)` and
-`$(var:NAME.message)`. Adapters live in `host/adapters.py`; adding one is a function from the tool's event to
-`{variable: value}`.
+**Any other tool.** `python host\deckctl.py adapter generic NAME STATE [MESSAGE]` sets `$(var:NAME)` and `$(var:NAME.message)`. Adapters live in `host/adapters.py`.
 
-**Your own program.** Write a [plugin](PLUGINS.md): a separate process with its own limited token that sets
-values, reads key presses and receives commands from a key.
+**Your own program.** Write a [plugin](PLUGINS.md): a separate process with its own limited token that sets values, reads key presses and receives commands from a key.
 
 ### Real icons for existing keys
 
-`host\.venv\Scripts\python.exe tools\refresh_program_icons.py` gives every program key the icon `"app"`, which the host resolves from
-the key's `open` action. It is a dry run by default; add `--apply` to write the changes (the old file is kept as
-`profiles.backup.local.json`) or `--freeze` to store the images instead.
-
-## The panel's four screens
-
-A rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**. Choose what the last three show by clicking that screen in the editor's rail (which agents, up to three programs for the mixer and whether the microphone is included, and which readings).
-
-The rail itself is yours to arrange: **Panel → Rail …** (or the **+** at the foot of the editor's rail) turns the agents, mixer and status screens on or off, puts them in order and adds up to three shortcuts. A shortcut either opens a page of any profile, or runs steps like a key without leaving the screen you are on (copy the steps from one of your keys, and give it a name). Every shortcut can use any icon from the library. The preview shows the seven places and which are free. After a page shortcut, a tap on Keys takes you back to where you were. Step shortcuts need panel firmware 0.6.3 or later.
-
-To answer Claude Code's permission questions on the panel, open **More → Connect Claude Code …** in the editor: it adds the hooks to `~/.claude/settings.json`, keeps the hooks you already have and makes a backup of the file first. To do it by hand, add the hook that `python host\deckctl.py hooks claude-permission` prints. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
+`host\.venv\Scripts\python.exe tools\refresh_program_icons.py` gives every program key the icon `"app"`, which the host resolves from the key's `open` action. It is a dry run by default. Add `--apply` to write the changes (the old file is kept as `profiles.backup.local.json`) or `--freeze` to store the images instead.
 
 ## Troubleshooting
 
-Open **More → Host log …** in the editor first: it shows what the USB host is doing (connections, presses,
-actions and problems). **More → Save diagnostics** writes a file to attach to a bug report.
+Start with **More → Host log …**. It shows what the USB host does: connections, presses, actions and problems. **More → Save diagnostics** writes a file to attach to a bug report. Messages in the editor's status bar and fixes for them are in [Install](INSTALL.md#troubleshooting).
 
 | Symptom | Fix |
 |---|---|
-| The panel stays black but touch works | A touch wakes a dimmed panel; if it stays black, restart the host, which also wakes the backlight on connect |
-| The rail shows *NO PC* above the clock | The host is not running or does not own the port; start it from the tray |
-| `Another Tessera host is already running` | Only one host may own the port; stop it from the tray, then start again |
-| Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`); FPS needs HWiNFO with PresentMon |
-| The editor looks out of date | Close the editor window and open it again from the tray |
-| A key only makes a program's taskbar button flash | Update to 0.6.0 or later and restart the host; it then brings the window to the front |
-| The editor says *The host has stopped* while the panel works | Update to 0.6.0 or later; the editor then recognises a host that was started from a terminal or a script |
-| Flashing fails with *port busy* | Stop the host first; it holds the COM port |
+| The panel stays black but touch works | A touch wakes a dimmed panel. If it stays black, restart the host; it wakes the backlight on connect. |
+| Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`). FPS needs HWiNFO with PresentMon. |
+| A key makes only a program's taskbar button flash | Update to 0.6.0 or later and restart the host. It then brings the window to the front. |
+| A key does nothing | Check the key for a yellow dot (unfinished). **Test** the key and read the steps. Then read the host log. |
+| An action list click made a key on the wrong slot | A click uses the selected slot if it is empty, else the first free one. Select the empty slot first, or drag the action to it. |
