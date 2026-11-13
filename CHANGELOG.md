@@ -20,6 +20,11 @@
 - Host: the panel's audio and media state keeps updating after an unexpected error from the audio or media library.
 - Host: the control API answers 401 to a token with non-ASCII characters instead of dropping the connection.
 - Firmware update: the message for a single-slot package names *Full install*, the option the editor has.
+- Diagnostics: the support bundle masks key labels in the log ("Button 3: <label>"), as the editor promises. The live host log on your PC still shows them.
+- Home Assistant plugin: a refused key command shows "HA error 404" (or the code it got) instead of "not reachable".
+- Terminal UI: a new profile, page or template that cannot be saved shows "Not saved" and no longer closes the app.
+
+## 0.8.0
 
 ## 0.8.0
 

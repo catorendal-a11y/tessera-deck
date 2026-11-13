@@ -59,6 +59,19 @@ class LogTests(unittest.TestCase):
             self.assertEqual(len(report['recent_problems']), 20)
 
 
+    def test_the_diagnostics_bundle_masks_key_labels_from_press_lines(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'deck.local.log'
+            path.write_text('[1] Button 3: Therapy zoom link (hold)\n[2] Button 4: Payroll plan failed\n', encoding='utf-8')
+            target = diagnostics.build(Path(folder) / 'out', config(), {}, '0.8.0', path)
+            import zipfile
+            with zipfile.ZipFile(target) as archive:
+                log, report = archive.read('host.log').decode(), archive.read('report.json').decode()
+            self.assertIn('[1] Button 3: <label> (hold)', log)
+            self.assertNotIn('Therapy', log + report)
+            self.assertNotIn('Payroll plan', log + report)
+            self.assertIn('Therapy', diagnostics.log_tail(path), 'the live log view on this PC keeps the labels')
+
 class HttpTests(unittest.TestCase):
     def test_an_error_status_fails_the_action_with_its_code(self):
         daemon = host_support.test_daemon(port='TEST', no_focus=True)
@@ -130,7 +143,7 @@ class BackupTests(unittest.TestCase):
         self.assertFalse(self.path.with_name('profiles-unreadable.local.json').exists())
 
     def test_diagnostics_log_hides_key_labels_and_page_names(self):
-        text = diagnostics.clean('[1] Button 3: Mute mic (hold)\n[2] Work / Main: 5 buttons acknowledged\n[3] Action failed: x')
+        text = diagnostics._no_labels('[1] Button 3: Mute mic (hold)\n[2] Work / Main: 5 buttons acknowledged\n[3] Action failed: x')
         self.assertEqual(text, '[1] Button 3: <label> (hold)\n[2] <profile> / <page>: 5 buttons acknowledged\n'
                                '[3] Action failed: x')
 
@@ -173,6 +186,17 @@ class UpdateNotesTests(unittest.TestCase):
         lines = info['notes'].splitlines()
         self.assertEqual((len(lines), lines[0], lines[-1]), (10, '## Tessera 0.7.0', '- change 8'))
         self.assertEqual(updates.notes_excerpt(None), '')
+
+
+@unittest.skipIf(importlib.util.find_spec('textual') is None, 'textual is not installed')
+class TerminalCommitTests(unittest.TestCase):
+    def test_a_refused_save_reports_false_so_no_missing_profile_is_selected(self):
+        import tessera_terminal
+        pane = Mock(config={'profiles': {}}, path=Path('unused.json'))
+        draft = {'profiles': {'x' * 101: {'match': [], 'pages': {'main': []}}}}
+        self.assertFalse(tessera_terminal.DeckPane.commit(pane, draft))
+        self.assertEqual(pane.config, {'profiles': {}})
+        self.assertIn('Not saved', pane.query_one.return_value.update.call_args.args[0])
 
 
 @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')

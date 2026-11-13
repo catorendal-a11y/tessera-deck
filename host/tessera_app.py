@@ -255,9 +255,7 @@ def scan_programs():
     script = ('[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); '
               'Get-StartApps | Select-Object Name,AppID | ConvertTo-Json -Compress')
     try:
-        result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
-                                capture_output=True, text=True, encoding='utf-8', timeout=20,
-                                creationflags=subprocess.CREATE_NO_WINDOW)
+        result = _powershell(script, 20)
         values = json.loads(result.stdout or '[]')
         if isinstance(values, dict):
             values = [values]
@@ -271,16 +269,19 @@ def scan_programs():
     return sorted(programs.values(), key=lambda item: item['name'].casefold())
 
 
+def _powershell(script, timeout, env=None):
+    return subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script], env=env,
+                          capture_output=True, text=True, encoding='utf-8', timeout=timeout,
+                          creationflags=subprocess.CREATE_NO_WINDOW)
+
+
 def shortcut_target(path):
     if os.name != 'nt' or Path(path).suffix.lower() != '.lnk':
         return str(path)
     script = ('$shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($env:TESSERA_LINK); '
               '[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); $shortcut.TargetPath')
     try:
-        result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script],
-                                env=dict(os.environ, TESSERA_LINK=str(path)),
-                                capture_output=True, text=True, encoding='utf-8', timeout=10,
-                                creationflags=subprocess.CREATE_NO_WINDOW)
+        result = _powershell(script, 10, env=dict(os.environ, TESSERA_LINK=str(path)))
         value = result.stdout.strip()
         return value or str(path)
     except (OSError, subprocess.SubprocessError):
@@ -312,9 +313,10 @@ class Editor:
         raw = self.path.read_bytes()
         config = validate_config(config_store.migrate(json.loads(raw)))
         revision = hashlib.sha256(raw).hexdigest()
-        self.served[revision] = copy.deepcopy(config)
-        while len(self.served) > 16:
-            del self.served[next(iter(self.served))]
+        with self.lock:  # GET handlers run on several server threads
+            self.served[revision] = copy.deepcopy(config)
+            while len(self.served) > 16:
+                del self.served[next(iter(self.served))]
         return {'config': self.assets.heal(config), 'revision': revision}
 
     def rebase(self, data, raw):
@@ -670,7 +672,8 @@ class Editor:
         if command == 'setup-done':
             return self.setup_state(data)
         if command == 'host-log':
-            return {'log': diagnostics.log_tail(ROOT / 'host/deck.local.log', int(data.get('lines', 200)) if isinstance(data.get('lines', 200), int) else 200)}
+            lines = data.get('lines')
+            return {'log': diagnostics.log_tail(ROOT / 'host/deck.local.log', lines if isinstance(lines, int) else 200)}
         if command == 'update-check':
             return self.check_updates()
         if command == 'update-download-firmware':
@@ -813,7 +816,7 @@ def make_server(editor, port=0, token=None):
                 supplied = cookie[name].value if name in cookie else ''
             except Exception:
                 supplied = ''
-            return secrets.compare_digest(supplied, token)
+            return secrets.compare_digest(supplied.encode('utf-8', 'replace'), token.encode('utf-8'))  # str raises on non-ASCII
 
         def do_GET(self):
             if not self.allowed():
@@ -877,7 +880,7 @@ def make_server(editor, port=0, token=None):
                 return
             session = self.path == '/api/session'
             if session:
-                if not secrets.compare_digest(self.headers.get('X-Deck-Token', ''), token):
+                if not secrets.compare_digest(self.headers.get('X-Deck-Token', '').encode('utf-8', 'replace'), token.encode('utf-8')):
                     return self.json({'error': 'Invalid session'}, 403)
             elif not self.authenticated() or self.headers.get('X-Deck-Request') != '1':
                 return self.json({'error': 'Invalid session'}, 403)

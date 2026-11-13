@@ -141,6 +141,13 @@ class BatchRouteTests(unittest.TestCase):
         self.assertEqual(deckctl.main(['adapter', 'claude'], gone), 0, 'a hook must exit 0 when the host is not running')
         self.assertEqual(deckctl.main(['adapter', 'generic', 'bad name', 'x'], gone), 1)
 
+    def test_a_reply_that_is_not_json_is_a_deckctl_error(self):
+        from unittest.mock import MagicMock, patch
+        reply = MagicMock()
+        reply.__enter__.return_value.read.return_value = b'<html>not the host</html>'
+        with patch('urllib.request.urlopen', return_value=reply), self.assertRaises(deckctl.DeckctlError):
+            deckctl.call(self.info, 'GET', '/v1/state')
+
 
 if __name__ == '__main__':
     unittest.main()

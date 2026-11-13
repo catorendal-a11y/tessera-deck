@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 import threading
 
+ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4
+
 
 class SuspendableRLock:
     """A re-entrant lock that can be fully released around a blocking call and re-taken afterwards.
@@ -121,8 +123,6 @@ def _installed_ports():
     from serial.tools import list_ports
     return {port.device: port.serial_number for port in list_ports.comports()}
 
-
-ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4
 
 
 def _espressif_ports():

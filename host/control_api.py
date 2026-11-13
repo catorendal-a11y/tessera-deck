@@ -5,7 +5,6 @@ deck-api.local.json (readable by the same Windows user only), and browser reques
 (anything with an Origin header) are rejected so a web page cannot reach it. Each token is rate-limited, and every
 call that changes something is logged with the caller's grant name.
 """
-from __future__ import annotations
 
 import json
 import os
