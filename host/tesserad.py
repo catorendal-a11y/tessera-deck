@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from ambient import Weather
 import calendar_feed
@@ -53,15 +54,28 @@ LOG_PATH = Path(__file__).resolve().parent / 'deck.local.log'
 LOG_KEEP_BYTES = 5 * 1024 * 1024
 
 
+LOG_FILES = 3  # older logs kept as deck.local.log.1 (newest) .. .3
+
+
+def shift_logs(path=None, keep=LOG_FILES):
+    """Move .1 to .2 and so on, dropping the oldest, so .1 is free for the log being rotated."""
+    path = Path(path or LOG_PATH)
+    for number in range(keep - 1, 0, -1):
+        older = path.with_name(f'{path.name}.{number}')
+        if older.exists():
+            os.replace(older, path.with_name(f'{path.name}.{number + 1}'))
+    return path.with_name(f'{path.name}.1')
+
+
 def rotate_log():
-    """The host runs for weeks: keep the log it writes to (its stdout) under 5 MB, the older part in .1."""
+    """The host runs for weeks: keep the log it writes to (its stdout) under 5 MB, older parts in .1 .. .3."""
     try:
         fd = sys.stdout.fileno()
         opened = os.fstat(fd)
         if opened.st_size <= LOG_KEEP_BYTES or not os.path.samestat(opened, os.stat(LOG_PATH)):
             return
         sys.stdout.flush()
-        shutil.copyfile(LOG_PATH, LOG_PATH.with_name('deck.local.log.1'))
+        shutil.copyfile(LOG_PATH, shift_logs(LOG_PATH))
         os.ftruncate(fd, 0)
         os.lseek(fd, 0, os.SEEK_SET)  # stdout and stderr share this position: write from the start again
     except (OSError, ValueError, AttributeError):
@@ -463,8 +477,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 method=action.get('method', 'GET'), headers=headers,
                 data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
             with self.state_lock.suspended():
-                with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
-                    response.read(65536)
+                try:
+                    with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
+                        response.read(65536)
+                except urllib.error.HTTPError as exc:  # the server answered, but with an error page
+                    raise CommandFailed(f'The web request failed with HTTP {exc.code} {exc.reason}'.strip()) from exc
         elif kind == 'delay':
             with self.state_lock.suspended():
                 self.stop.wait(action.get('ms', 100)/1000)

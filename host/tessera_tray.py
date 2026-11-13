@@ -28,6 +28,9 @@ PROFILES_PATH = ROOT / 'host/profiles.json'
 LOG_PATH = ROOT / 'host/deck.local.log'
 FIRST_RUN_PATH = ROOT / 'host/tray-first-run.local.json'  # written once the Start with Windows question was asked
 TROUBLE_SECONDS = 30  # how long a problem must last before the tray says so
+PROBLEMS_PATH = ROOT / 'host/recent-problems.local.txt'
+RESTART_WAITS = (5, 15, 60, 300)  # seconds before each automatic restart of a host that died; the last repeats
+RESTART_RESET_SECONDS = 600  # a host that ran this long starts a new burst from the first wait
 BRIGHTNESS_LEVELS = (100, 80, 60, 40, 20)
 STATE_COLORS = {'connected': (53, 208, 127), 'waiting': (255, 183, 77), 'stopped': (255, 112, 112)}
 
@@ -129,6 +132,10 @@ class TrayApp:
         self.menu_shows = None  # what the open menu was built from; it is rebuilt when this changes
         self.trouble = None  # (text, since, shown) of a problem that lasts
         self.user_stopped = False  # a host the user stopped is no problem to report
+        self.seen_running = False  # only a host that ran is restarted by itself; a failed first start is reported
+        self.restarts = 0  # automatic restarts in this burst
+        self.restart_at = None  # when the next automatic restart runs (monotonic), while the host is down
+        self.running_since = None  # since when the host has been seen running (monotonic)
         self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
                                  menu=pystray.Menu(self.menu_items))
 
@@ -165,16 +172,19 @@ class TrayApp:
                 self.host_work.release()
         self.background(work)
 
+    def warn(self, message):
+        self.icon.notify(str(message)[:200], 'Tessera')
+
     def start_host(self, *_):
         self.user_stopped = False
-        self.host(self.controller.start)
+        self.host(lambda: self.controller.start(warn=self.warn))
 
     def stop_host(self, *_):
         self.user_stopped = True
         self.host(self.controller.stop)
 
     def restart_host(self, *_):
-        self.host(self.controller.stop, self.controller.start)
+        self.host(self.controller.stop, lambda: self.controller.start(warn=self.warn))
 
     def switch_profile(self, name):
         def action(*_):
@@ -196,6 +206,17 @@ class TrayApp:
         else:
             self.icon.notify('There is no host log yet. It is written once the host has run.', 'Tessera')
 
+    def show_problems(self, *_):
+        """The last failures from the log in a small text file, so a user need not read the whole log."""
+        import diagnostics
+        problems = diagnostics.recent_problems(LOG_PATH)
+        if not problems:
+            self.icon.notify('No problems in the host log.', 'Tessera')
+            return
+        PROBLEMS_PATH.write_text('Recent problems in the Tessera host log (newest last)\n\n' + '\n'.join(problems) + '\n',
+                                 encoding='utf-8')
+        os.startfile(PROBLEMS_PATH)  # noqa: S606 - our own text file in the user's text editor
+
     def save_diagnostics(self, *_):
         def work():
             import setup_tool
@@ -213,7 +234,8 @@ class TrayApp:
             current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
             release = updates.check(current)
             if release.get('newer'):
-                self.icon.notify(f"Tessera {release['latest']} is available. Open the editor: Panel → Panel firmware …", 'Tessera')
+                notes = release.get('notes') or 'Open the editor: Panel → Panel firmware …'
+                self.icon.notify(notes[:250], f"Update available: {release['latest']}")
             else:
                 self.icon.notify(f'Tessera {current} is the newest version.', 'Tessera')
         self.background(work)
@@ -283,6 +305,7 @@ class TrayApp:
         yield pystray.MenuItem('Start with Windows', self.toggle_autostart, checked=lambda item: autostart_enabled())
         yield pystray.MenuItem('Help', pystray.Menu(
             pystray.MenuItem('Open the host log', self.open_log),
+            pystray.MenuItem('Recent problems', lambda *_: self.background(self.show_problems)),
             pystray.MenuItem('Save diagnostics for a bug report', self.save_diagnostics),
             pystray.MenuItem('Open the data folder', self.open_data_folder),
             pystray.MenuItem('Check for updates', self.check_for_updates)))
@@ -301,6 +324,7 @@ class TrayApp:
             self.menu_shows = shown
             self.icon.update_menu()
         self.show_notices(self.status.get('notices', []))
+        self.watch_host(bool(self.status.get('running')), time.monotonic())
         self.report_trouble(trouble_text(self.status), time.monotonic())
         if state != self.state:
             previous, self.state = self.state, state
@@ -310,11 +334,44 @@ class TrayApp:
             elif previous and state == 'connected':
                 self.icon.notify('The panel is connected.', 'Tessera')
 
+    def watch_host(self, running, now):
+        """Start a host again that died without the user pressing Stop: after 5 s, 15 s, 60 s, then every 5 min.
+        One notice per burst; a host that then runs RESTART_RESET_SECONDS starts the next burst afresh."""
+        if running:
+            self.seen_running, self.restart_at = True, None
+            if self.running_since is None:
+                self.running_since = now
+            elif now - self.running_since >= RESTART_RESET_SECONDS:
+                self.restarts = 0
+            return
+        self.running_since = None
+        # Stop, Restart (while it runs) and a firmware install stop the host on purpose
+        if self.user_stopped or not self.seen_running or self.host_work.locked() or firmware_installing():
+            self.restart_at = None
+            return
+        if self.restart_at is None:
+            if self.restarts == 0:
+                self.icon.notify('The host stopped unexpectedly. Tessera starts it again in a moment.', 'Tessera')
+            self.restart_at = now + RESTART_WAITS[min(self.restarts, len(RESTART_WAITS) - 1)]
+        elif now >= self.restart_at:
+            self.restarts += 1
+            self.host(self.restart_quietly)
+
+    def restart_quietly(self):
+        try:
+            self.controller.start(warn=self.warn)
+        except Exception:  # the burst notice said it; the next attempt follows the backoff
+            log.debug('automatic host start failed', exc_info=True)
+        finally:
+            self.restart_at = None  # the next poll waits again if this start did not keep the host up
+
     def report_trouble(self, text, now):
         """One notice for a problem that lasts TROUBLE_SECONDS (a port held by another program, a host that
         stopped); the icon colour alone does not say why nothing works. A new problem gets a new notice."""
         # the editor stops the host for a firmware install, which takes longer than TROUBLE_SECONDS
-        if text is None or (self.user_stopped and not self.status.get('running')) or firmware_installing():
+        # a host that is being restarted already got its notice
+        if (text is None or (not self.status.get('running') and (self.user_stopped or self.restart_at is not None))
+                or firmware_installing()):
             self.trouble = None
             return
         if self.trouble is None or self.trouble[0] != text:
