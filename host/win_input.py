@@ -243,11 +243,6 @@ def child_names(pid):
     return names
 
 
-def foreground_exe():
-    """Compatibility helper used by integrations that only need the executable."""
-    return foreground_context()['exe']
-
-
 def bring_to_front(user32, hwnd):
     """Show a window in front. Only a minimized window is restored: SW_RESTORE on a maximized one would shrink it."""
     if user32.IsIconic(hwnd):

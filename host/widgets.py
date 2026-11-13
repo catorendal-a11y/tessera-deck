@@ -46,7 +46,8 @@ def content(kind: str, now: datetime, raw: dict, audio: dict, agents: dict) -> d
         day = (now.hour * 3600 + now.minute * 60 + now.second) / 864
         return {'label': now.strftime('%H:%M'), 'sub': now.strftime('%A %d %b').replace(' 0', ' '), 'progress': _percent(day)}
     if kind == 'date':
-        return {'label': now.strftime('%a %d %b').replace(' 0', ' '), 'sub': f'Week {now.isocalendar()[1]} · day {now.timetuple().tm_yday}'}
+        # a two-slot key has 162 px: the weekday moves to the second line so the title fits in the large type
+        return {'label': now.strftime('%d %b').lstrip('0'), 'sub': f'{now.strftime("%A")} · week {now.isocalendar()[1]}'}
     if kind == 'cpu':
         clock = raw.get('cpu_clock')
         return _load('CPU', raw, 'cpu_load', 'cpu_temp', f'{clock / 1000:.1f} GHz' if clock else '')
@@ -56,13 +57,13 @@ def content(kind: str, now: datetime, raw: dict, audio: dict, agents: dict) -> d
         value = raw.get('ram')
         return {'label': 'RAM', 'sub': 'No reading'} if value is None else {'label': f'RAM {value:.0f}%', 'sub': 'Memory in use', 'progress': _percent(value)}
     if kind == 'network':
-        return {'label': _rate(raw.get('net_down') or 0), 'sub': 'Down · up ' + _rate(raw.get('net_up') or 0)}  # the panel font has no arrows
+        return {'label': _rate(raw.get('net_down') or 0), 'sub': 'Up ' + _rate(raw.get('net_up') or 0)}  # the title is the download; the panel font has no arrows
     if kind == 'volume':
         level = audio.get('volume')
         if level is None:
             return {'label': 'Volume', 'sub': 'No sound device'}
-        return {'label': 'Muted' if audio.get('speaker_muted') else f'Volume {level}%',
-                'sub': 'Microphone off' if audio.get('mic_muted') else 'Microphone on', 'progress': _percent(level)}
+        return {'label': 'Muted' if audio.get('speaker_muted') else f'{level}%',
+                'sub': 'Volume · mic off' if audio.get('mic_muted') else 'Volume · mic on', 'progress': _percent(level)}
     if kind == 'agents':
         waiting = [name for name, state in agents.items() if state == 'waiting']
         working = [name for name, state in agents.items() if state == 'working']

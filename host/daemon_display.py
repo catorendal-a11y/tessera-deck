@@ -73,6 +73,8 @@ class DisplayMixin:
 
     def show_screen(self, show):
         """The screen action: the clock or the keys on demand, whether or not the idle clock is switched on."""
+        if self.panel is None:
+            raise ValueError('The panel is not connected')
         if (self.device_info.get('protocol') or 1) < 3:
             raise ValueError('The panel firmware does not have the clock screen; update it first')
         if show == 'toggle':

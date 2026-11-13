@@ -19,7 +19,7 @@ README states it; behaviour that was not stated is marked *not stated*.
 | Timer action: countdown with notifications | **Added.** `timer` action: start, pause, resume, stop, toggle; label `$(timer:name)`, optional countdown ring, message, sound, tray notification and actions when it ends. Running timers keep counting while Tessera is closed. |
 | Counter action: increment/decrement, long-press reset | **Added.** `counter` action with step, limits and wrap; reset on long press through `hold_actions`; saved across restarts. |
 | Persistent device-side state, offline use (*not stated* by SmartDeck) | **Partly added.** The panel keeps the last layout in flash and shows it after a restart without the PC. Counters and timers are saved by the Windows host, not on the panel (see limits). |
-| "Install Firmware" button in the app, about 60 s | **Added.** *Panel firmware …* in the editor: verified package, board and protocol check, progress, host stopped and restarted around it, application-only mode that keeps panel settings. Not run on hardware in this work. |
+| "Install Firmware" button in the app, about 60 s | **Added.** *Panel firmware …* in the editor: verified package, board and protocol check, progress, host stopped and restarted around it, application-only mode that keeps panel settings. Run on the panel from 0.5.2 to 0.6.0 (see [VERIFICATION.md](../VERIFICATION.md)). |
 | Test mode (right-click → Test), works without a device | **Added as a dry run.** *Test (dry run)* explains each step, checks hotkeys, program paths, shell values and web addresses against the panel's current values, and executes nothing. |
 | 100,000+ icons through Iconify | **Added, opt-in.** *Search online* in the icon library queries api.iconify.design only when pressed; the host validates the SVG and the editor turns it into a key image in the key's color. Tessera still ships 1,895 offline Lucide icons. |
 | Image crop and scale editor | **Added.** Cropper with drag and zoom for still pictures; animated GIF/WebP are sent unchanged. |
@@ -34,7 +34,7 @@ README states it; behaviour that was not stated is marked *not stated*.
 | Global theme row (background, button, text, stroke, shadow) and a Themes menu (seen in its screenshots) | **Added.** *Key theme …* sets the default background, label and outline for every key with five presets or custom colors; a key's own colors win. |
 | Mouse action type (click, double-click, move, drag) | **Added** click, right/middle click, double-click, scroll, move by and move to. Drag was not added. |
 | Rotary encoder with LED ring | Not applicable: Tessera targets a different board without an encoder. |
-| Mouse actions, presets for creative apps | Not added; Tessera has 119 ready-made actions and 10 templates for other programs. |
+| Presets for creative apps | Not added; mouse actions exist, and Tessera has 119 ready-made actions and 10 templates for other programs. |
 | Smart upload (only changed files) | Tessera already sends only changed layouts and images; *Export diagnostics* adds a support bundle. |
 | Multi-action builder, undo/redo (50 steps), app-based pages, tray, sleep/wake | Already in Tessera. |
 
@@ -57,5 +57,5 @@ README states it; behaviour that was not stated is marked *not stated*.
   time without the PC; it was not built.
 - The offline layout is limited to about 3.8 KB of layout text (one flash page) and is written at most once per
   ten minutes and only when the key structure changes, to spare the flash. Larger layouts are simply not kept.
-- Nothing in the firmware, installer or ambient screen has been run on the physical panel in this work; they are
-  covered by native LVGL rendering tests and host tests only.
+- What has run on the physical panel, and what so far only in the native LVGL tests (the ambient screen among
+  them), is listed in [VERIFICATION.md](../VERIFICATION.md).

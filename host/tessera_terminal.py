@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import sys
 import config_store
-from deck_control import ROOT, Controller, configure_upstream, save_profiles
+from deck_control import ROOT, Controller, save_profiles
 from tesserad import Daemon, validate_config
 from deck_forms import ActionForm
 from textual.app import App
@@ -577,7 +577,6 @@ def main():
         from terminal_check import check
         asyncio.run(check())
         return 0
-    configure_upstream()
     controller = Controller()
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         print('Open Tessera.cmd in a terminal, or use --check for tests.')

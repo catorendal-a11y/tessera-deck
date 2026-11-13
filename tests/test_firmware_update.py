@@ -180,7 +180,7 @@ class EditorFirmwareTests(unittest.TestCase):
 
     def wait_for_job(self):
         for _ in range(200):
-            if self.editor.firmware_job['state'] != 'running':
+            if self.editor.firmware_job['state'] != 'running' and not self.editor.firmware_lock.locked():
                 return self.editor.firmware_job
             time.sleep(0.02)
         self.fail('the installation did not finish')

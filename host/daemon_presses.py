@@ -18,9 +18,18 @@ class PressMixin:
         button = next((b for b in self.effective_buttons() if b['id'] == button_id), None)
         if button is None:
             return False
-        actions = self.resolved_button(button).get(action_list_name(hold, double), [])
-        return any(action['type'] in BLOCKING_ACTIONS or (action['type'] == 'text' and action.get('delay_ms'))
-                   for action in actions)
+        return self.waits(self.resolved_button(button).get(action_list_name(hold, double), []))
+
+    def waits(self, actions, depth=0):
+        """Whether the list waits (shell, HTTP, delay, slow typing), following presses of other keys."""
+        for action in actions:
+            if action.get('type') in BLOCKING_ACTIONS or (action.get('type') == 'text' and action.get('delay_ms')):
+                return True
+            if action.get('type') == 'press' and depth < 8:  # depth: a loop of presses is refused when it runs
+                target = next((b for b in self.effective_buttons() if b['id'] == action.get('id')), None)
+                if target and self.waits(self.resolved_button(target).get('actions', []), depth + 1):
+                    return True
+        return False
 
     def start_press(self, button_id, hold=False, double=False):
         """Run a press now, or on the slow lane when it waits (shell, HTTP, delay) so other keys keep working.
@@ -59,8 +68,7 @@ class PressMixin:
 
         Otherwise one slow trigger would hold up every key press behind it. A list that is still running is skipped.
         """
-        if not any(action.get('type') in BLOCKING_ACTIONS or (action.get('type') == 'text' and action.get('delay_ms'))
-                   for action in actions):
+        if not self.waits(actions):
             for action in actions:
                 self.run_action(action)
             return
@@ -97,7 +105,8 @@ class PressMixin:
         if button is None:
             self.last_action = {'id': button_id, 'label': 'Unknown button', 'ok': False,
                                 'error': 'The button does not exist on the active page', 'at': time.time()}
-            self.panel.feedback(button_id, False)
+            if self.panel is not None:
+                self.panel.feedback(button_id, False)
             self.publish_runtime(True, force=True)
             return False
         if not self.active_press:
@@ -127,7 +136,8 @@ class PressMixin:
             self.events.add('press', button=button_id, label=button['label'], profile=self.profile, page=self.page,
                             ok=ok, hold=hold, double=double)
             try:
-                self.panel.feedback(button_id, ok)
+                if self.panel is not None:
+                    self.panel.feedback(button_id, ok)
             finally:
                 self.publish_runtime(True, force=True)
         return ok

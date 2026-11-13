@@ -113,22 +113,38 @@ class WeatherTests(unittest.TestCase):
         clock = [0.0]
         answers = [{'current': {'temperature_2m': 5, 'weather_code': 0}}]
 
+        calls = []
+
         def opener(request, timeout):
+            calls.append(request)
             if not answers:
                 raise OSError('offline')
             return FakeReply(answers.pop())
 
+        def settled():
+            for _ in range(250):
+                if not weather._busy:
+                    return
+                time.sleep(0.02)
+            self.fail('the weather refresh did not finish')
+
         weather = ambient.Weather(opener, clock=lambda: clock[0])
         settings = {'enabled': True, 'weather': {'name': 'X', 'latitude': 1, 'longitude': 1}}
         weather.line(settings)
-        for _ in range(100):
-            if weather.line(settings):
-                break
-            time.sleep(0.02)
+        settled()
         clock[0] += ambient.REFRESH_SECONDS + 1
+        weather.line(settings)  # the refresh fails
+        settled()
+        self.assertEqual((len(calls), weather.line(settings)), (2, '5 C, Clear sky - X'), 'the last line is kept')
+        settled()
+        clock[0] += 30
         weather.line(settings)
-        time.sleep(0.2)
-        self.assertEqual(weather.line(settings), '5 C, Clear sky - X')
+        settled()
+        self.assertEqual(len(calls), 2, 'no new request within a minute of a failure')
+        clock[0] += 31
+        weather.line(settings)
+        settled()
+        self.assertEqual(len(calls), 3, 'it tries again after the back-off')
 
 
 class DaemonAmbientTests(unittest.TestCase):

@@ -18,6 +18,12 @@
 - Template keys no longer use arrow characters the panel font cannot draw.
 - A damaged image, or a toggle state with a non-text label, gives a clear error instead of stopping the upload or the host.
 - Docs: the native build's tools, which commands the panel answers, the weather city search host, flashing steps.
+- Editor: Enter saves a dialog (it cancelled); keyboard focus stays where it was after a change; messages show above an open dialog; arrow keys step over a wide key; recorded hotkeys use names the host knows (punctuation, digits, media keys); Ctrl+C copies text in the host log; deck shortcuts no longer fire in other screens and dialogs; a plugin switch no longer flips back; renaming or deleting a page or profile also updates long-press and double-press steps and rail shortcuts; after a save conflict the editor says *Not saved · press Reload*; only a failed save marks the configuration *Not saved*.
+- Editor: one name for one thing: a deck position is a *key* everywhere; key colors and quick icons are under *Look*; *Show on device* is gone (*Mirror on panel* does it).
+- Firmware install: the dialog says the host started again only when it did, and a stalled esptool is stopped after five minutes.
+- Panel (new firmware): long titles end in dots instead of running into the line below; the fader knob stays inside its track; a fader you touched follows the PC again afterwards (also after 25 days of uptime); picture keys appear once the images arrive after a panel restart; the corner marks sit in the corner of a wide key; without the PC the agents and status screens say *PC not connected* and Allow and Deny do nothing; a full settings partition is reset instead of disabling stored settings.
+- Host: the reason a host could not start reaches the editor; start with Windows and the file picker work with æ, ø or å in the path; the tray shows why the panel is not connected and follows brightness and profile changes; the editor's token file is private to your account; a damaged firmware zip no longer breaks the firmware list, which is sorted by version; a timer restarted without seconds keeps its notice and actions; a key that presses a slow key runs on the slow lane; a dropped press flashes red at once; the log gets one line per page instead of one per refresh; validation errors name the page and the key; widget titles fit a two-slot key.
+- Docs: actions, bind values, automatic triggers, Connect Claude Code, gauges and *NO PC* described as they are.
 
 ## 0.6.1
 

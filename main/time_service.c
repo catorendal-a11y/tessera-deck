@@ -94,7 +94,7 @@ void time_service_set_manual(int year, int month, int day, int hour, int minute)
 
 bool time_service_set_from_host(int year, int month, int day, int hour, int minute, int second)
 {
-    /* SNTP is authoritative; the PC clock only fills in when it is missing. */
+    /* A network clock would win over the PC's; there is none yet, so the host always sets it. */
     if (s_time_synced) return false;
     return set_local_time(year, month, day, hour, minute, second);
 }

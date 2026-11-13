@@ -6,7 +6,6 @@ from functools import lru_cache
 from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import mimetypes
 import os
 from pathlib import Path
 import secrets
@@ -18,7 +17,7 @@ import urllib.request
 import urllib.parse
 import webbrowser
 
-from deck_control import (ROOT, Controller, autostart_enabled, configure_upstream,
+from deck_control import (ROOT, Controller, autostart_enabled,
                           save_profiles, set_autostart)
 from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, bring_to_front, validate_config
 from deck_assets import Assets
@@ -393,6 +392,7 @@ class Editor:
 
     def run_firmware_install(self, package, mode, force):
         was_running = bool(self.controller.processes())
+        outcome = {'state': 'failed', 'error': 'The install was interrupted'}
         try:
             if was_running:
                 self.controller.stop()  # the host is the only owner of the USB port
@@ -401,15 +401,18 @@ class Editor:
                 self.firmware_job = dict(self.firmware_job, stage=stage, percent=round(percent))
 
             result = firmware_update.install(package, self.firmware_port(), self.identify_panel, mode, force, progress)
-            self.firmware_job = dict(self.firmware_job, state='done', stage='done', percent=100, result=result)
+            outcome = {'state': 'done', 'stage': 'done', 'percent': 100, 'result': result}
         except Exception as exc:  # whatever went wrong, the job must not stay "running" forever
-            self.firmware_job = dict(self.firmware_job, state='failed', error=str(exc) or type(exc).__name__)
+            outcome = {'state': 'failed', 'error': str(exc) or type(exc).__name__}
         finally:
+            # the outcome is published after the restart, so the dialog never says the host is back before it is
             try:
                 if was_running:
                     self.controller.start()
-            except (OSError, RuntimeError) as exc:
-                self.firmware_job = dict(self.firmware_job, restart_error=str(exc))
+                    outcome['restarted'] = True
+            except Exception as exc:
+                outcome['restart_error'] = str(exc) or type(exc).__name__
+            self.firmware_job = dict(self.firmware_job, **outcome)
             self.firmware_lock.release()
 
     def dry_run(self, data):
@@ -555,6 +558,7 @@ class Editor:
                 raise ValueError('Unknown file picker')
             result = subprocess.run([sys.executable, str(ROOT / 'host/editor_file_picker.py'), kind],
                                     capture_output=True, text=True, encoding='utf-8', timeout=180,
+                                    env=dict(os.environ, PYTHONUTF8='1'),
                                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
             if result.returncode:
                 raise ValueError('The file picker could not be opened. You can paste the path into the field.')
@@ -649,7 +653,9 @@ def make_server(editor, port=0, token=None):
                     if self.path == '/api/action-packs':
                         return self.json(action_pack_catalog())
                     return self.json(editor.read() if self.path == '/api/config' else dict(icon_catalog(), preferences=editor.icon_preferences()) if self.path == '/api/icons' else editor.status())
-                except (ValueError, OSError, TypeError):
+                except ValueError as exc:
+                    return self.json({'error': str(exc) or 'Could not read the local configuration'}, 400)
+                except (OSError, TypeError):
                     return self.json({'error': 'Could not read the local configuration'}, 400)
             files = {'/': 'index.html', '/core.js': 'core.js', '/app.js': 'app.js', '/dialogs.js': 'dialogs.js',
                      '/style.css': 'style.css',
@@ -660,7 +666,8 @@ def make_server(editor, port=0, token=None):
             raw = file.read_bytes()
             self.send_response(200)
             self.headers_common()
-            self.send_header('Content-Type', mimetypes.guess_type(file)[0] + '; charset=utf-8')
+            self.send_header('Content-Type', {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
+                                              '.svg': 'image/svg+xml'}[file.suffix] + '; charset=utf-8')
             self.send_header('Content-Length', str(len(raw)))
             self.end_headers()
             self.wfile.write(raw)
@@ -698,8 +705,10 @@ def make_server(editor, port=0, token=None):
                 self.json({'error': str(exc)}, 409)
             except (ValueError, KeyError, TypeError, AttributeError, RecursionError) as exc:
                 self.json({'error': str(exc) if isinstance(exc, ValueError) else 'Invalid configuration'}, 400)
-            except (OSError, subprocess.SubprocessError):
-                self.json({'error': 'The operation could not be completed. Check the configuration in the terminal.'}, 400)
+            except RuntimeError as exc:  # for example the host could not start; RecursionError is caught above
+                self.json({'error': str(exc)}, 400)
+            except (OSError, subprocess.SubprocessError) as exc:
+                self.json({'error': f'The operation could not be completed: {exc}'}, 400)
 
     server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     server.daemon_threads = True
@@ -730,6 +739,9 @@ def show_running_editor(record, build, open_if_hidden=False):
             if response.status != 200:
                 return False
         if previous.get('build') == build:
+            if previous.get('browser'):  # the editor runs in a browser tab, which has no window of its own to raise
+                webbrowser.open(previous['url'] + '#' + previous['token'])
+                return True
             if activate_window(previous['pid']):
                 return True
             if open_if_hidden:
@@ -756,7 +768,6 @@ def main():
     if args.terminal or args.check:
         return subprocess.call([sys.executable, str(ROOT / 'host/tessera_terminal.py')]
                                + (['--check'] if args.check else []), cwd=ROOT)
-    configure_upstream()
     controller = Controller()
     controller.install_adapters()
     record = ROOT / 'host/editor.local.json'
@@ -777,8 +788,15 @@ def main():
     url = f'http://127.0.0.1:{server.server_port}/'
     if not args.profiles:
         import psutil
-        record.write_text(json.dumps({'pid': os.getpid(), 'created': psutil.Process().create_time(),
-                                      'url': url, 'token': server.token, 'build': build}), encoding='utf-8')
+        from control_api import make_private
+        details = {'pid': os.getpid(), 'created': psutil.Process().create_time(), 'url': url, 'token': server.token, 'build': build}
+
+        def write_record():
+            temporary = record.with_suffix('.tmp')
+            temporary.write_text(json.dumps(details), encoding='utf-8')
+            make_private(temporary)  # the token opens the editor's API: other accounts must not read it
+            os.replace(temporary, record)
+        write_record()
     print('The Tessera editor is open. Keep this window open.', flush=True)
     server_thread = None
     try:
@@ -789,6 +807,9 @@ def main():
                 server.shutdown()
                 server_thread.join(timeout=3)
                 return
+            if not args.profiles:  # no window of our own: the next start opens another browser tab at once
+                details['browser'] = True
+                write_record()
             while server_thread.is_alive():
                 server_thread.join(timeout=.5)
         else:

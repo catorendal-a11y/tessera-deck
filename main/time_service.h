@@ -9,9 +9,9 @@
 extern "C" {
 #endif
 
-/* How trustworthy the clock is (implementation plan section 8): a boot-time
- * clock with no set point and an insane epoch is UNKNOWN, a clock set by the
- * parent in Settings is MANUAL, and a clock set by the USB host is SYNCED. */
+/* How trustworthy the clock is: a boot-time clock with an impossible date is
+ * UNKNOWN, and a clock the USB host has set is MANUAL. SYNCED is kept for a
+ * network time source, which this firmware does not have. */
 typedef enum {
     TIME_UNKNOWN = 0,
     TIME_MANUAL,

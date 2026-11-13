@@ -409,8 +409,15 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
     usb_serial_jtag_vfs_use_driver();
     deck_model_init();
-    /* Idempotent; the stored brightness must be readable before the display starts. */
-    if (nvs_flash_init() == ESP_OK) {
+    /* Idempotent; the stored brightness must be readable before the display starts. A full or newer-format
+       partition is erased and set up again (the usual ESP-IDF recovery): otherwise nothing is ever stored again. */
+    esp_err_t nvs = nvs_flash_init();
+    if (nvs == ESP_ERR_NVS_NO_FREE_PAGES || nvs == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "Settings storage was reset (%s)", esp_err_to_name(nvs));
+        nvs = nvs_flash_erase() == ESP_OK ? nvs_flash_init() : nvs;
+    }
+    if (nvs != ESP_OK) ESP_LOGW(TAG, "Settings storage is not available (%s)", esp_err_to_name(nvs));
+    if (nvs == ESP_OK) {
         load_brightness();
         layout_restore();
     }

@@ -155,8 +155,11 @@ class EventLog:
         with self._condition:
             return self._last
 
-    def since(self, after: int, plugin: str | None = None, wait: float = 0.0, limit: int = 100) -> list[dict]:
-        """Events newer than `after`. A plugin sees general events and only the commands addressed to it."""
+    def since(self, after: int, plugin: str | None = None, wait: float = 0.0, limit: int = 100, with_last: bool = False):
+        """Events newer than `after`. A plugin sees general events and only the commands addressed to it.
+
+        `with_last` also returns the id to ask after next time, read under the same lock: read later, an event that
+        arrived in between would be skipped, and with a full page it is the last event returned, not the newest."""
         deadline = time.monotonic() + max(0.0, min(wait, MAX_WAIT_SECONDS))
 
         def visible():
@@ -168,6 +171,8 @@ class EventLog:
             while not events and (remaining := deadline - time.monotonic()) > 0:
                 self._condition.wait(remaining)
                 events = visible()
+            if with_last:
+                return events, events[-1]['id'] if len(events) >= limit else max(after, self._last)
             return events
 
 
@@ -226,7 +231,7 @@ class PluginManager:
         token = self._grant(manifest.id, manifest.routes(), f'{manifest.id}.', 'events' in manifest.permissions,
                             'read' in manifest.permissions)
         environment = {key: os.environ[key] for key in ENV_KEEP if key in os.environ}
-        environment.update({'PYTHONUTF8': '1', 'TESSERA_API': self._api_url(), 'TESSERA_TOKEN': token,
+        environment.update({'PYTHONUTF8': '1', 'PYTHONUNBUFFERED': '1', 'TESSERA_API': self._api_url(), 'TESSERA_TOKEN': token,
                             'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(settings)})
         log_path = self.log_dir / f'{manifest.id}.log'
         try:  # keep one previous file instead of letting a chatty plugin fill the disk

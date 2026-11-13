@@ -34,7 +34,6 @@ class ActionForm(ModalScreen):
                         yield Select(choices, value=value if value not in (None,'') else Select.NULL, id='field-'+key)
                     else:
                         yield Input(str(value or ''), password=kind=='secret', id='field-'+key)
-            yield Static('', id='form-error', markup=False)
             with Horizontal():
                 yield Button('Cancel', id='cancel')
                 yield Button('Save', id='submit', variant='success')

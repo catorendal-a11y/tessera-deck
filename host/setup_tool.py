@@ -46,7 +46,8 @@ def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_
            requirements: Path = REQUIREMENTS, emit: Callable[[str], None] = print) -> bool:
     """Install host/requirements.txt when needed. Returns False (with a plain explanation) when that fails."""
     if sys.version_info < MINIMUM_PYTHON:
-        emit(f'Tessera needs Python {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]} or newer; this is {sys.version.split()[0]}.')
+        emit(f'Tessera needs Python {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]} or newer; this is {sys.version.split()[0]}.'
+             ' Install a newer Python, delete the folder host\\.venv and start Tessera again.')
         return False
     current = requirements_hash(requirements)
     stored = hash_file.read_text(encoding='utf-8').strip() if hash_file.is_file() else None
@@ -65,7 +66,13 @@ def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_
 
 
 def desktop_shortcut_path() -> Path:
-    return Path(os.path.expandvars(r'%USERPROFILE%\Desktop')) / 'Tessera.lnk'
+    folder = ''
+    if os.name == 'nt':  # ask Windows: the Desktop may have been moved, for example into OneDrive
+        import ctypes
+        buffer = ctypes.create_unicode_buffer(260)
+        if ctypes.windll.shell32.SHGetFolderPathW(None, 0x10, None, 0, buffer) == 0:
+            folder = buffer.value
+    return Path(folder or os.path.expandvars(r'%USERPROFILE%\Desktop')) / 'Tessera.lnk'
 
 
 def create_shortcut(target: Path = ROOT / 'Tessera.cmd', link: Path | None = None) -> Path:
@@ -104,16 +111,16 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
     if purge:
         answer = confirm('This permanently deletes your profiles, icons, backups, counters and downloads. '
                          'Type YES to continue: ').strip()
-        if answer != 'YES':
-            emit('Nothing was deleted.')
-            return removed
-        for relative in USER_DATA:
-            target = root / relative
-            if target.is_dir():
-                shutil.rmtree(target, ignore_errors=True)
-            elif target.exists():
-                target.unlink()
-        removed.append('your data')
+        if answer == 'YES':
+            for relative in USER_DATA:
+                target = root / relative
+                if target.is_dir():
+                    shutil.rmtree(target, ignore_errors=True)
+                elif target.exists():
+                    target.unlink()
+            removed.append('your data')
+        else:
+            emit('Your profiles, icons and backups were kept.')
     else:
         emit('Your profiles, icons and backups were kept. Run again with --purge to delete them too.')
     emit('Removed: ' + (', '.join(removed) or 'nothing'))

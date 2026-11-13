@@ -18,17 +18,22 @@ with a *Back* key in slot 17. A key runs one or more actions in order:
 | `press` | Run another key |
 | `set` | Set a variable |
 | `state` | Set the state of a toggle key (`next` or a state number) |
-| `audio` | Mute or unmute the real microphone or speaker |
-| `counter`, `timer` | Change a counter; start, stop or reset a timer |
-| `mouse` | Click (left, right or middle) |
+| `audio` | Mute, unmute or set the volume of the speaker, the microphone or one program (`app:NAME.exe`) |
+| `counter`, `timer` | Change a counter; start, pause, resume, stop or toggle a timer |
+| `mouse` | Click (left, right, middle or double), scroll, or move the pointer |
 | `screen` | Show the clock, the keys, or switch between them |
 | `profile_lock` | Lock or unlock automatic profile switching |
 | `plugin` | Send a command to a plugin |
 
 Labels can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`. `$(pc:track)` shows *No music* when nothing is playing.
 In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`): Tessera refuses values that contain shell metacharacters, but a value may contain spaces, which would otherwise become extra arguments.
-A toggle button can follow the PC instead of the presses with `"bind": "mic_muted" | "speaker_muted" | "media_playing"` (state 1 = off, state 2 = on), and the `audio` action (`target`: `mic` or `speaker`, `op`: `toggle`, `mute` or `unmute`) mutes the real device. Profiles switch
+A toggle key can follow the PC instead of the presses with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "timer-running:NAME"` (state 1 = off, state 2 = on), and the `audio` action (`target`: `mic`, `speaker` or `app:NAME.exe`; `op`: `toggle`, `mute`, `unmute`, `volume`, `up` or `down`) changes the real device. Profiles switch
 automatically with rules such as `chrome.exe`, `process:claude.exe` or `title:codex`.
+
+Actions can also run by themselves: `triggers` at the top of `profiles.json` is a list of
+`{"when": {...}, "actions": [...]}`, where `when` is `{"type": "startup"}`, `{"type": "interval", "seconds": 60}`,
+`{"type": "daily", "at": "08:30"}`, `{"type": "file", "path": "..."}` (the file changed) or
+`{"type": "variable", "name": "claude"}` (the variable changed). Import shows every automatic rule before it can run.
 
 ### The editor
 
@@ -66,7 +71,8 @@ A widget does nothing when pressed until you give it actions like any other key.
 
 ### Live gauges and sensors
 
-A key becomes a gauge with a `gauge` block; the host fills in the value, how far the icon is filled and the color:
+A key becomes a gauge with a `gauge` block. The panel shows the value in the gauge's color, amber from `warn` and
+red from `critical`; the icon, how far it is filled and the badge appear in the editor's preview:
 
 ```json
 {
@@ -104,14 +110,17 @@ The host publishes a per-run token in `host/deck-api.local.json`; `host/deckctl.
 python host\deckctl.py var claude working     # labels can use $(var:claude)
 python host\deckctl.py state 3 next           # set a toggle key's state
 python host\deckctl.py page main status       # show a page
-python host\deckctl.py press 5 | ok 5 | alert 5 | wake | dim | status
+python host\deckctl.py press 5                # press key 5
+python host\deckctl.py ok 5                   # flash key 5 green (alert 5: red)
+python host\deckctl.py status                 # also: wake, dim
 ```
 
 A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`.
 The Claude Code profile uses this on its first key.
 
-**Claude Code.** `python host\deckctl.py hooks claude` prints the `hooks` block for `~/.claude/settings.json`
-(Tessera never edits your settings itself; merge it yourself). Every hook runs `deckctl adapter claude`, which reads
+**Claude Code.** **⋯ → Connect Claude Code …** in the editor adds these hooks to `~/.claude/settings.json` for you
+(it keeps your other hooks and makes a backup first). To do it by hand, `python host\deckctl.py hooks claude` prints
+the `hooks` block to merge. Every hook runs `deckctl adapter claude`, which reads
 the hook's JSON from stdin and sets `$(var:claude)` (`working`, `waiting`, `idle`, `ended`), `$(var:claude.tool)`,
 `$(var:claude.project)` and `$(var:claude.message)` (the text of a notification, for example a permission prompt).
 It always exits 0, so a stopped host never disturbs Claude Code. Check the event names against the Claude Code
@@ -131,7 +140,7 @@ values, reads key presses and receives commands from a key.
 
 ### Real icons for existing keys
 
-`python tools\refresh_program_icons.py` gives every program key the icon `"app"`, which the host resolves from
+`host\.venv\Scripts\python.exe tools\refresh_program_icons.py` gives every program key the icon `"app"`, which the host resolves from
 the key's `open` action. It is a dry run by default; add `--apply` to write the changes (the old file is kept as
 `profiles.backup.local.json`) or `--freeze` to store the images instead.
 
@@ -148,7 +157,7 @@ To answer Claude Code's permission questions on the panel, open **⋯ → Connec
 | Symptom | Fix |
 |---|---|
 | The panel stays black but touch works | A touch wakes a dimmed panel; if it stays black, restart the host, which also wakes the backlight on connect |
-| The header says *NO PC* | The host is not running or does not own the port; start it from the tray |
+| The rail shows *NO PC* above the clock | The host is not running or does not own the port; start it from the tray |
 | `Another Tessera host is already running` | Only one host may own the port; stop it from the tray, then start again |
 | Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`); FPS needs HWiNFO with PresentMon |
 | The editor looks out of date | Close the editor window and open it again from the tray |

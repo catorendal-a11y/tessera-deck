@@ -547,8 +547,8 @@ class HostRuntimeTests(HostCase):
             with patch('deck_control.os.name', 'nt'), patch('deck_control.ROOT', fake_root):
                 path = set_autostart(True, directory)
                 self.assertTrue(autostart_enabled(directory))
-                self.assertIn('tessera_tray.py', path.read_text(encoding='utf-8'))
-                self.assertIn('pythonw.exe', path.read_text(encoding='utf-8'))
+                self.assertIn('tessera_tray.py', path.read_text(encoding='utf-16'))
+                self.assertIn('pythonw.exe', path.read_text(encoding='utf-16'))
                 set_autostart(False, directory)
                 self.assertFalse(autostart_enabled(directory))
 

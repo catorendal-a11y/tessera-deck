@@ -37,6 +37,8 @@ MIGRATIONS: dict[int, Callable[[dict], dict]] = {1: _v1_to_v2}
 
 def migrate(config: dict) -> dict:
     """A copy of `config` brought up to CONFIG_VERSION; refuses files from the future."""
+    if not isinstance(config, dict):
+        raise ValueError('The configuration must be a JSON object')
     version = version_of(config)
     if version > CONFIG_VERSION:
         raise FutureConfig(f'This configuration was saved by a newer Tessera (version {version}); '

@@ -40,13 +40,9 @@ def set_autostart(enabled, appdata=None):
                 f'TesseraShell.Run "{command}", 0, False\r\n')
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix('.tmp')
-    temporary.write_text(contents, encoding='utf-8')
+    temporary.write_text(contents, encoding='utf-16')  # Script Host reads a non-ASCII path only as UTF-16
     os.replace(temporary, path)
     return path
-
-
-def configure_upstream():
-    """Compatibility no-op for launchers created before Deck became standalone."""
 
 
 def save_profiles(config, path=None):
@@ -109,7 +105,7 @@ class Controller:
                   'device': {'connected': False, 'port': os.environ.get('TESSERA_PORT', 'COM4')}}
         if not processes:
             return result
-        result['connection'] = 'Waiting for the device'
+        result['connection'] = 'Waiting for the panel'
         try:
             runtime = json.loads(self.runtime_path.read_text(encoding='utf-8'))
             if runtime.get('pid') != processes[0].pid or time.time() - float(runtime.get('updated', 0)) > 5:
@@ -128,7 +124,7 @@ class Controller:
             result['stats'] = runtime.get('stats', {})
             result['device']['gauges'] = runtime.get('gauges', {})
             result['connection'] = ('Panel connected' if runtime.get('connected')
-                                    else runtime.get('error') or 'Waiting for the device')
+                                    else runtime.get('error') or 'Waiting for the panel')
         except (OSError, ValueError, TypeError):
             pass
         return result
@@ -158,7 +154,7 @@ class Controller:
         self.pid_path.write_text(json.dumps({'pid': process.pid, 'created': current.create_time()}))
         time.sleep(.3)
         if process.poll() is not None:
-            raise RuntimeError('Host failed to start; open the Deck log')
+            raise RuntimeError('The host stopped right after it started. Open the host log (⋯ menu) to see why.')
         self.processes()
         emit(f'The deck host has started on {port}.')
 

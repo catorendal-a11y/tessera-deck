@@ -116,7 +116,8 @@ class ControlServer:
         except ValueError as exc:
             raise ApiError('since must be a whole number and wait a number of seconds') from exc
         plugin = None if grant.name == 'owner' else grant.name
-        return {'events': self.daemon.events.since(since, plugin, wait), 'last': self.daemon.events.last}
+        events, last = self.daemon.events.since(since, plugin, wait, with_last=True)
+        return {'events': events, 'last': last}
 
     # --- request handlers: validate, then queue work for the daemon's worker thread ---
     def set_variable(self, data):

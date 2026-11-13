@@ -262,7 +262,10 @@ def _check_button_list(name, buttons, pages, profiles):
         if type(bid) is not int or not 1 <= bid <= 18 or bid in ids:
             raise ValueError(f'{name}: invalid or duplicate id')
         ids.add(bid)
-        _check_button(button, pages, profiles)
+        try:
+            _check_button(button, pages, profiles)
+        except ValueError as exc:
+            raise ValueError(f'{name}, key {bid}: {exc}') from exc
     for button in buttons:
         span, bid = button.get('span', 1), button['id']
         if span > 1 and ((bid - 1) % 6 + span > 6 or any(bid + extra in ids for extra in range(1, span))):

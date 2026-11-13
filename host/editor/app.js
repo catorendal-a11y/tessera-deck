@@ -59,16 +59,16 @@ function placeProgram(result,id=selected) {
       actions:[{type:'open',target:result.target,process:result.process||'',reuse:result.reuse!==false}]});
   });
   $('#program-dialog').close();
-  toast(`“${result.name}” was placed on button ${id}.`);
+  toast(`“${result.name}” was placed on key ${id}.`);
 }
 function renderProgramResults() {
   const query=$('#program-search').value.trim().toLocaleLowerCase();
   const matches=installedPrograms.map((item,index)=>({...item,index})).filter(item=>!query||item.name.toLocaleLowerCase().includes(query));
   const list=$('#program-results');
   list.replaceChildren(...matches.map(item=>{
-    const choice=button('',()=>installProgram(item.target).catch(showError),'program-choice',`Put ${item.name} on the selected button`);
+    const choice=button('',()=>installProgram(item.target).catch(showError),'program-choice',`Put ${item.name} on the selected key`);
     choice.dataset.program=item.index;choice.dataset.label=item.name;choice.append(text('span',item.name.slice(0,1).toUpperCase(),'program-symbol'),
-      element('span',{},text('strong',item.name),text('small','Drag to a button or click for the selected slot')));
+      element('span',{},text('strong',item.name),text('small','Drag to a key or click for the selected slot')));
     return choice;
   }));
   if(!matches.length)list.append(element('div',{class:'program-empty'},text('strong','No programs found'),text('span','Try a shorter search term, or use “Choose program file”.')));
@@ -97,17 +97,18 @@ function wrapSection(panel,from,to,title,open,cls='') {
   panel.insertBefore(section,nodes[0]);section.append(text('summary',title),element('div',{class:'section-body'},...nodes));
 }
 function renderInspector() {
-  recording=null;const panel=$('#inspector'),base=current(),b=appearance();panel.replaceChildren();
-  panel.append(element('div',{class:'inspector-title'},element('div',{},text('div',`BUTTON ${String(selected).padStart(2,'0')}`,'section-label'),b?null:text('h2','An empty slot'))));
+  const controls='input,select,textarea,button,summary';
+  recording=null;const panel=$('#inspector'),base=current(),b=appearance(),focusAt=[...panel.querySelectorAll(controls)].indexOf(document.activeElement);panel.replaceChildren();
+  panel.append(element('div',{class:'inspector-title'},element('div',{},text('div',`KEY ${String(selected).padStart(2,'0')}`,'section-label'),b?null:text('h2','An empty slot'))));
   const firstField=panel.children.length;
   if(!b){panel.append(element('div',{class:'empty-inspector'},text('strong','What do you want here?'),text('p','Drag an action here from the action list. Or pick one of the shortcuts below.')));
-    panel.append(button('▦ Choose installed program',openProgramPicker,'add-action'),button('＋ Add hotkey',()=>addAction('hotkey'),'add-action'),button('▱ Open file or program',()=>addAction('open'),'add-action'),button('▶ Play / pause',()=>addAction('preset:3'),'add-action'));if(clipboard)panel.append(button('Paste copied button',pasteButton,'add-action'));return;}
+    panel.append(button('▦ Choose installed program',openProgramPicker,'add-action'),button('＋ Add hotkey',()=>addAction('hotkey'),'add-action'),button('▱ Open file or program',()=>addAction('open'),'add-action'),button('▶ Play / pause',()=>addAction('preset:3'),'add-action'));if(clipboard)panel.append(button('Paste copied key',pasteButton,'add-action'));return;}
   const previewLabel=text('span',resolveLabel(b.label)||' ','prop-label');
   const meter=text('small','','label-meter');
   const updateMeter=()=>{const full=expandLabel(appearance()?.label),bytes=new TextEncoder().encode(full).length,variable=/[$][(]/.test(appearance()?.label||'');
     meter.classList.toggle('over',bytes>LABEL_BYTES);
     meter.textContent=bytes>LABEL_BYTES?`Too long for the panel: it shows “${panelLabel(full)}”`:`${bytes} / ${LABEL_BYTES} bytes on the panel${variable?' with the current values':''}`;};
-  const nameInput=element('input',{type:'text',placeholder:'A short, clear name','aria-label':'Button name'});nameInput.value=b.label??'';
+  const nameInput=element('input',{type:'text',placeholder:'A short, clear name','aria-label':'Key name'});nameInput.value=b.label??'';
   nameInput.addEventListener('input',()=>{mutate(()=>appearance().label=nameInput.value,false,editKey('label'));updateMeter();previewLabel.textContent=resolveLabel(nameInput.value)||' ';});
   updateMeter();
   const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color',title:'Icon color'});
@@ -129,35 +130,36 @@ function renderInspector() {
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
     element('div',{class:'prop-rows'},titleRow,row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
       textRow,...(wideRows(base,row)))));
-  const typeStart=panel.children.length;
-  panel.append(field('Button type',base.states?'Toggle button':'Normal button',value=>mutate(()=>{if(value==='Toggle button'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal button','Toggle button']}));
-  if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local button state, not confirmed app status.','hint'));}
-  const bindStart=panel.children.length;
-  renderGauge(panel,base);
-  renderBind(panel,base);
   renderStyle(panel);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
   panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
+  const typeStart=panel.children.length;
+  panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal key','Toggle key']}));
+  if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local key state, not confirmed app status.','hint'));}
+  const bindStart=panel.children.length;
+  renderGauge(panel,base);
+  renderBind(panel,base);
   const actionsStart=panel.children.length;
   panel.append(renderTriggers(base));
-  panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+' STEPS','section-label'));
+  panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+(activeActions()?.length===1?' STEP':' STEPS'),'section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
   const addSelect=element('select',{'aria-label':'Add a new action step'});addSelect.append(element('option',{value:'',text:'＋ Add action …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));addSelect.addEventListener('change',()=>{if(addSelect.value)addAction(addSelect.value);});panel.append(addSelect);
-  panel.append(element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear button',clearButton,'quiet danger')));
+  panel.append(element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear key',clearButton,'quiet danger')));
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
-  panel.append(text('p','Changes are saved automatically. The button action runs only when you press the panel.','hint'));
+  panel.append(text('p','Changes are saved automatically. The key action runs only when you press the panel.','hint'));
   wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');
   wrapSection(panel,bindStart,actionsStart,'Gauge and binding',false,'extras');
-  wrapSection(panel,typeStart,bindStart,'Button type',false,'kind');
+  wrapSection(panel,typeStart,bindStart,'Key type',false,'kind');
   // Tabs: one group of settings at a time instead of a stack of folded sections.
   const steps=activeActions()?.length||0,others=otherTriggerRows(base,row);
-  const groups={look:[panel.querySelector('.prop-card')],actions:[...panel.querySelectorAll(':scope>.kind,:scope>.handling')],more:[...panel.querySelectorAll(':scope>.extras')]};
+  const groups={look:[panel.querySelector('.prop-card'),...panel.querySelectorAll(':scope>.quick-icons')],actions:[...panel.querySelectorAll(':scope>.kind,:scope>.handling')],more:[...panel.querySelectorAll(':scope>.extras')]};
   if(others.length)panel.querySelector('.handling .section-body')?.prepend(element('div',{class:'other-triggers'},...others));
   const tabs=element('div',{class:'inspector-tabs',role:'tablist','aria-label':'Key settings'},...[['look','Look'],['actions',steps?`Actions · ${steps}`:'Actions'],['more','Gauge']].map(([id,name])=>{
     const tab=button(name,()=>{inspectorTab=id;renderInspector();},'inspector-tab'+(inspectorTab===id?' on':''));tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(inspectorTab===id));return tab;}));
   panel.insertBefore(tabs,panel.children[firstField]);
-  for(const [id,nodes] of Object.entries(groups))for(const node of nodes){if(!node)continue;node.hidden=id!==inspectorTab;if(node.tagName==='DETAILS'){node.open=true;node.classList.add('tabbed');}}
+  for(const [id,nodes] of Object.entries(groups))for(const node of nodes){if(!node)continue;node.hidden=id!==inspectorTab;if(node.classList.contains('inspector-section')){node.open=true;node.classList.add('tabbed');}}
+  if(focusAt>=0)panel.querySelectorAll(controls)[focusAt]?.focus();
 }
 /* The same corner marks as the panel: a ring for a long press, two dots for a double press (150 px key, positions in %). */
 function gestureMarks(base) {
@@ -218,7 +220,7 @@ function renderStep(action,index,count) {
   let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
-  if(action.type==='profile_lock'){step.append(text('p','Locks the current profile when pressed. Press again to follow the active program. Pin this button to make it available on every page in this profile.','hint'));return step;}
+  if(action.type==='profile_lock'){step.append(text('p','Locks the current profile when pressed. Press again to follow the active program. Pin this key to make it available on every page in this profile.','hint'));return step;}
   const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
   if(action.type==='open') {
     const input=parameter.querySelector('input');input.setAttribute('data-path',index);parameter.append(button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target){applyProgramDetails(result,index);}}catch(error){showError(error);}},'text-button'));
@@ -244,7 +246,7 @@ function renderStep(action,index,count) {
   if(action.type==='state') {
     const shown=action.state===undefined||action.state==='next'?'next':String(action.state+1);
     step.append(field('State to set',shown,v=>editAction(index,'state',v==='next'?'next':Number(v)-1),{values:['next',...Array.from({length:8},(_,i)=>String(i+1))]}),
-      text('p','Sets the toggle state of another button. Choose next to cycle, or a state number to match reality.','hint'));
+      text('p','Sets the toggle state of another key. Choose next to cycle, or a state number to match reality.','hint'));
   }
   if(action.type==='mouse') {
     if(action.op==='scroll')step.append(field('Notches (positive = up)',String(action.amount??3),v=>editAction(index,'amount',Math.max(-50,Math.min(50,Math.round(Number(v))||0))),{type:'number'}));
@@ -269,7 +271,7 @@ function renderCounterStep(step,action,index) {
   step.append(optionalNumber('Lowest value (optional)',action.min,v=>setOptional(index,'min',v)),optionalNumber('Highest value (optional)',action.max,v=>setOptional(index,'max',v)));
   const wrap=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Wrap around'),text('small','Past the highest value it continues at the lowest (needs both limits).')));
   const box=wrap.querySelector('input');box.checked=!!action.wrap;box.onchange=()=>mutate(()=>{activeActions()[index].wrap=box.checked;},false);step.append(wrap);
-  step.append(text('p',`Show it in a button name with $(counter:${action.name||'name'}). It is saved, so it survives restarts. For a reset on long press, use the Long-press setting.`,'hint'));
+  step.append(text('p',`Show it in a key name with $(counter:${action.name||'name'}). It is saved, so it survives restarts. To reset on a long press, add a Counter step set to Reset under Held.`,'hint'));
 }
 function clockToSeconds(value) {
   const parts=String(value).trim().split(':').map(Number);if(!parts.length||parts.length>3||parts.some(n=>!Number.isFinite(n)||n<0))return null;
@@ -285,14 +287,14 @@ function renderTimerStep(step,action,index) {
   const pressed=action.actions?.find(a=>a.type==='press')?.id;
   step.append(optionalNumber('When finished, press key (optional, 1-18)',pressed,v=>mutate(()=>{const target=activeActions()[index];if(v>=1&&v<=18)target.actions=[{type:'press',id:v}];else delete target.actions;},false)));
   step.append(button('◔ Show the countdown ring on this key',()=>mutate(()=>{const base=current();base.gauge={key:`timer:${action.name||'timer'}`,max:action.seconds||300,fmt:'clock'};}),'outline'),
-    text('p',`Show the time in a button name with $(timer:${action.name||'name'}) or the ring above. The timer keeps running while Tessera is closed.`,'hint'));
+    text('p',`Show the time in a key name with $(timer:${action.name||'name'}) or the ring above. The timer keeps running while Tessera is closed.`,'hint'));
 }
-function copyButton() {if(!current())return;clipboard=clone(current());toast('The button was copied. Choose a slot and press Ctrl+V.');}
-function pasteButton() {if(!clipboard)return toast('Copy a button first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&!spanFits(selected,copy.span,[old])){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
+function copyButton() {if(!current())return;clipboard=clone(current());toast('The key was copied. Choose a slot and press Ctrl+V.');}
+function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&!spanFits(selected,copy.span,[old])){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
 function dialog(title,fields,onSave,saveLabel='Save') {
   const d=$('#form-dialog');dialogReturnFocus=document.activeElement;$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
   $('#dialog-fields').replaceChildren(...fields.map(f=>{const label=element('label',{class:'form-field'},text('span',f.label));const input=f.options?element('select',{name:f.name}):element(f.multiline?'textarea':'input',{name:f.name,type:f.type||'text',required:f.required?'required':undefined});if(f.options)options(input,f.options,f.value||f.options[0][0]);else if(f.type==='checkbox')input.checked=!!f.value;else input.value=f.value||'';label.append(input);if(f.note)label.append(text('small',f.note,'hint'));return label;}));
-  d.querySelector('form').onsubmit=event=>{if(event.submitter?.value==='cancel')return;event.preventDefault();const form=new FormData(event.target);const values={};for(const f of fields)values[f.name]=f.type==='checkbox'?form.has(f.name):form.get(f.name);try{onSave(values);d.close();}catch(error){$('#dialog-error').textContent=error.message;}};
+  d.querySelector('form').onsubmit=event=>{event.preventDefault();const form=new FormData(event.target);const values={};for(const f of fields)values[f.name]=f.type==='checkbox'?form.has(f.name):form.get(f.name);try{onSave(values);d.close();}catch(error){$('#dialog-error').textContent=error.message;}};
   d.showModal();setTimeout(()=>d.querySelector('input,textarea')?.focus(),30);
 }
 function openTemplates() {
@@ -316,6 +318,7 @@ function renameProfile(old,name) {
   if(config.default_profile===old)config.default_profile=name;
   for(const item of Object.values(config.profiles))rewriteActions(profileButtons(item),a=>a.type==='profile'&&a.profile===old?{...a,profile:name}:a);
   for(const t of config.triggers||[])for(const a of t.actions||[])if(a.type==='profile'&&a.profile===old)a.profile=name;
+  for(const s of config.panel?.shortcuts||[])if(s.profile===old)s.profile=name;
 }
 async function profileSettings() {
   let running=[];try{running=(await api('processes')).names||[];}catch(error){}
@@ -331,7 +334,8 @@ async function profileSettings() {
       if(!confirm(`Delete profile “${profile}” and actions that point to it?`))return;
       mutate(()=>{const old=profile;delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
         for(const item of Object.values(config.profiles))rewriteActions(profileButtons(item),a=>a.type==='profile'&&a.profile===old?null:a);
-        for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));});renderAll();return;
+        for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
+        if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);});renderAll();return;
     }
     const name=values.name.trim();if(!name||(name!==profile&&config.profiles[name]))throw new Error('The profile name is already in use.');
     mutate(()=>{renameProfile(profile,name);profile=name;const rules=values.match.split(',').map(s=>s.trim()).filter(Boolean);if(values.program&&!rules.includes(values.program))rules.push(values.program);config.profiles[profile].match=rules;if(values.default)config.default_profile=profile;});renderAll();
@@ -352,11 +356,11 @@ function appSettings() {
   {name:'autostart',label:'Start the USB host automatically when I sign in',type:'checkbox',value:!!dashboard.autostart,note:'The panel is ready without opening the editor window. You can still open Tessera from the desktop to edit.'},
   {name:'autoProfiles',label:'Switch profile automatically by active program',type:'checkbox',value:config.auto_profiles!==false,note:'Turn off if the panel should stay on the program launcher until you switch profile yourself.'},
   {name:'brightness',label:'Panel brightness',options:displayChoices(brightnessChoices,display.brightness,v=>`${v}%`),value:String(display.brightness)},
-  {name:'dimAfter',label:'Dim the panel after',options:displayChoices(dimAfterChoices,display.dim_after,v=>`${Math.round(v/60)} min`),value:String(display.dim_after),note:'The first touch on a dimmed panel only wakes it; it does not press a button.'},
+  {name:'dimAfter',label:'Dim the panel after',options:displayChoices(dimAfterChoices,display.dim_after,v=>`${Math.round(v/60)} min`),value:String(display.dim_after),note:'The first touch on a dimmed panel only wakes it; it does not press a key.'},
   {name:'dimLevel',label:'Brightness when dimmed',options:displayChoices(dimLevelChoices,display.dim_level,v=>v?`${v}%`:'Off'),value:String(display.dim_level)},
   {name:'nightWindow',label:'Quiet hours',options:nightChoices(display.night),value:nightWindowValue(display.night),note:'Between these times the panel uses the lower brightness below instead of the normal one.'},
   {name:'nightLevel',label:'Brightness during quiet hours',options:displayChoices(nightLevelChoices,display.night?.brightness||10,v=>`${v}%`),value:String(display.night?.brightness||10)}
-],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.display={brightness:Number(values.brightness),dim_after:Number(values.dimAfter),dim_level:Number(values.dimLevel)};const night=nightFromValues(values.nightWindow,values.nightLevel);if(night)config.display.night=night;});command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
+],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.display={brightness:Number(values.brightness),dim_after:Number(values.dimAfter),dim_level:Number(values.dimLevel)};const night=nightFromValues(values.nightWindow,values.nightLevel);if(night)config.display.night=night;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
 function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',value:page,required:true},{name:'remove',label:'Delete this page and remove actions that point to it',type:'checkbox'}],values=>{
   const pages=config.profiles[profile].pages,name=values.name.trim(),old=page;
   if(values.remove&&Object.keys(pages).length===1)throw new Error('Keep at least one page.');
@@ -367,6 +371,7 @@ function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',
     else {config.profiles[profile].pages=Object.fromEntries(Object.entries(pages).map(([key,value])=>[key===old?name:key,value]));page=name;}
     const update=a=>['page','folder'].includes(a.type)&&a.page===old?(values.remove?null:{...a,page:name}):a;
     rewriteActions(profileButtons(config.profiles[profile]),update);
+    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:values.remove?[]:[{...s,page:name}]);
     if(config.default_profile===profile)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
   });renderAll();
 });}
@@ -427,7 +432,10 @@ document.addEventListener('keydown',event=>{
   if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}
     if(['Control','Shift','Alt','Meta'].includes(event.key))return;
     const aliases={' ':'space',Escape:'esc',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',Delete:'delete',PageUp:'pageup',PageDown:'pagedown','/':'slash','`':'grave'};
-    const parts=[event.ctrlKey?'ctrl':null,event.altKey?'alt':null,event.shiftKey?'shift':null,event.metaKey?'win':null,aliases[event.key]||event.key.toLowerCase()].filter(Boolean);
+    const codes={186:'semicolon',187:'equals',188:'comma',189:'minus',190:'period',191:'slash',192:'grave',219:'lbracket',220:'backslash',221:'rbracket',222:'quote',
+      20:'capslock',44:'printscreen',45:'insert',93:'apps',173:'volumemute',174:'volumedown',175:'volumeup',176:'medianext',177:'mediaprev',178:'mediastop',179:'playpause'};
+    const code=event.keyCode,named=codes[code]||(code>=48&&code<=57||code>=65&&code<=90?String.fromCharCode(code).toLowerCase():code>=96&&code<=105?'numpad'+(code-96):code>=112&&code<=135?'f'+(code-111):null);
+    const parts=[event.ctrlKey?'ctrl':null,event.altKey?'alt':null,event.shiftKey?'shift':null,event.metaKey?'win':null,named||aliases[event.key]||event.key.toLowerCase()].filter(Boolean);
     const value=parts.join('+'),index=recording.index;recording=null;editAction(index,'keys',value);renderInspector();return;
   }
   const menu=$('#key-menu');
@@ -435,18 +443,18 @@ document.addEventListener('keydown',event=>{
     if(event.key==='Escape'){event.preventDefault();hideKeyMenu(true);return;}
     if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?items.length-1:(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;items[next].focus();return;}}
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().then(()=>toast('All changes are saved.')).catch(showError);return;}
-  if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||$('#form-dialog').open||$('#icon-dialog').open)return;
-  const onDeck=!document.activeElement||document.activeElement===document.body||document.activeElement.closest('#deck-grid');
+  if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||document.querySelector('dialog:modal'))return;
+  const onDeck=editorView==='keys'&&(!document.activeElement||document.activeElement===document.body||document.activeElement.closest('#deck-grid'));
   if(event.key==='F2'&&onDeck&&current()){event.preventDefault();renameButton();return;}
-  if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Button ${selected} was cleared. Press Ctrl+Z to undo.`);return;}
-  if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&current()){event.preventDefault();openKeyMenu(selected);return;}
-  if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y','c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}
+  if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Key ${selected} was cleared. Press Ctrl+Z to undo.`);return;}
+  if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&editorView==='keys'&&current()){event.preventDefault();openKeyMenu(selected);return;}
+  if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y','c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(editorView==='keys'){if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}}
 });
 function hideKeyMenu(restore=false) {$('#key-menu').hidden=true;if(restore)keyMenuReturnFocus?.focus();keyMenuReturnFocus=null;}
 function renameButton(id=selected) {
   if(!visibleButtons().some(button=>button.id===id))return;
   selected=id;editState=0;renderGrid();renderInspector();
-  const input=$('#inspector input[aria-label="Button name"]');input?.scrollIntoView({block:'nearest'});input?.focus();input?.select();
+  const input=$('#inspector input[aria-label="Key name"]');input?.scrollIntoView({block:'nearest'});input?.focus();input?.select();
 }
 function openKeyMenu(id,x,y) {
   let tile=$(`[data-slot="${id}"]`);if(!tile||!visibleButtons().some(b=>b.id===id))return;
@@ -475,7 +483,7 @@ document.addEventListener('pointerdown',event=>{
 document.addEventListener('pointermove',event=>{
   if(!drag||drag.id!==event.pointerId)return;
   if(!drag.active&&Math.hypot(event.clientX-drag.x,event.clientY-drag.y)<7)return;
-  if(!drag.active){drag.active=true;drag.ghost=text('div',drag.source.dataset.slot?'Move button '+drag.source.dataset.slot:drag.source.dataset.label||drag.source.innerText.split('\n')[0],'drag-ghost');document.body.append(drag.ghost);document.body.classList.add('dragging');if(drag.source.dataset.program!==undefined)$('#program-dialog').classList.add('drag-through');}
+  if(!drag.active){drag.active=true;drag.ghost=text('div',drag.source.dataset.slot?'Move key '+drag.source.dataset.slot:drag.source.dataset.label||drag.source.innerText.split('\n')[0],'drag-ghost');document.body.append(drag.ghost);document.body.classList.add('dragging');if(drag.source.dataset.program!==undefined)$('#program-dialog').classList.add('drag-through');}
   drag.ghost.style.left=(event.clientX+15)+'px';drag.ghost.style.top=(event.clientY+15)+'px';
   document.querySelectorAll('.drag-over').forEach(n=>n.classList.remove('drag-over'));
   document.elementFromPoint(event.clientX,event.clientY)?.closest(drag.source.dataset.step!==undefined?'[data-step]':'[data-slot]')?.classList.add('drag-over');
@@ -510,6 +518,7 @@ async function start() {
   $('#program-search').oninput=renderProgramResults;
   $('#program-dialog').onclose=()=>{dialogReturnFocus?.focus();dialogReturnFocus=null;};
   $('#icon-dialog').onclose=()=>{iconReturnFocus?.focus();iconReturnFocus=null;};
+  $('#form-dialog [value=cancel]').onclick=()=>$('#form-dialog').close();
   $('#form-dialog').onclose=()=>{dialogReturnFocus?.focus();dialogReturnFocus=null;};
   $('#icon-search').oninput=$('#icon-category').onchange=()=>{iconPage=0;renderIconResults();};
   $('#icons-prev').onclick=()=>{if(iconPage>0){iconPage--;renderIconResults();}};
@@ -520,7 +529,6 @@ async function start() {
   $('#profile-templates').onclick=openTemplates;
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
-  $('#activate').onclick=async()=>{try{await save();if(!dashboard.running)await api('command/start',{});await command('activate',{profile,page});}catch(error){showError(error);}};
   $('#host-toggle').onclick=async()=>{const b=$('#host-toggle');b.disabled=true;try{await command('start');}catch(error){showError(error);}finally{b.disabled=false;}};
   $('#reload').onclick=async()=>{if(dirty&&!confirm('Discard unsaved changes and reload the configuration from disk?'))return;try{const state=await api('config');config=state.config;revision=state.revision;dirty=false;conflicted=false;history=[];future=[];$('#reload').hidden=true;renderAll();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
   setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);

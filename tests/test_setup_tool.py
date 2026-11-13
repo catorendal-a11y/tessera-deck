@@ -117,9 +117,6 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(launcher.count(b'\n'), launcher.count(b'\r\n'), 'a batch file needs CRLF line endings')
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 
 @unittest.skipUnless(sys.platform == 'win32', 'Windows shortcuts')
 class ShortcutTests(unittest.TestCase):
@@ -131,3 +128,7 @@ class ShortcutTests(unittest.TestCase):
             setup_tool.create_shortcut(target, link)
             import tessera_app
             self.assertEqual(Path(tessera_app.shortcut_target(link)), target)
+
+
+if __name__ == '__main__':
+    unittest.main()

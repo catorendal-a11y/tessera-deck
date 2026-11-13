@@ -5,6 +5,7 @@ import os
 import shutil
 
 from program_locator import locate
+from win_input import parse_hotkey
 from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
 
 MAX_TEXT = 90
@@ -16,7 +17,6 @@ def _clip(text: str) -> str:
 
 
 def _step(action: dict, variables: dict[str, str], environment, locator) -> tuple[bool, str]:
-    from tesserad import parse_hotkey  # imported late: tesserad is heavy
     kind = action.get('type')
     if kind == 'hotkey':
         try:

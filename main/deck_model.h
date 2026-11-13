@@ -4,8 +4,8 @@
  * navigation context and press events.
  *
  * Thread contract: every accessor takes the internal mutex and copies
- * data in/out, so the HTTP server task, the LVGL timer and the USB
- * console can all use it without sharing pointers. UI refresh is driven
+ * data in/out, so the USB console task and the LVGL timer can both use
+ * it without sharing pointers. UI refresh is driven
  * by the monotonically increasing version counters, never by callbacks
  * from other tasks. */
 
@@ -125,8 +125,8 @@ void deck_model_set_ambient(const char *line); /* weather or status line under t
 void deck_model_ambient(char *out, size_t size);
 uint32_t deck_model_ambient_version(void);
 
-/* Host link: every line from the host stamps it; the header shows whether a
- * host has spoken within the timeout. */
+/* Host link: every line from the host stamps it; the foot of the rail shows
+ * NO PC when no host has spoken within the timeout. */
 void deck_model_note_host(void);
 bool deck_model_host_linked(int64_t timeout_ms);
 
@@ -187,7 +187,7 @@ int deck_model_take_view_request(void); /* -1 when nothing is pending */
 void deck_model_queue_line(const char *line);
 bool deck_model_take_line(char *out, size_t size);
 
-/* Shared parser for both the HTTP API and the USB console config push.
+/* Parser for the layout the host pushes over the USB console.
  * Accepts {"buttons":[...]} text; returns false (count untouched) on any
  * invalid entry. */
 bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,

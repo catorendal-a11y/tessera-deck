@@ -44,7 +44,7 @@ def status_text(status: dict) -> str:
     if state == 'connected':
         return f'Connected · {device.get("port")} · {device.get("profile")} / {device.get("page")}{suffix}'
     if state == 'waiting':
-        return 'Waiting for the panel …'
+        return str(device.get('error') or 'Waiting for the panel …')[:110]
     return 'Host stopped'
 
 
@@ -218,7 +218,8 @@ class TrayApp:
         self.status = self.controller.status()
         state = tray_state(self.status)
         self.icon.title = f'Tessera — {status_text(self.status)}'[:120]  # Windows allows 127 characters in a tooltip
-        shown = (status_text(self.status), bool(self.status.get('running')), self.status.get('device', {}).get('profile'))
+        shown = (status_text(self.status), bool(self.status.get('running')), self.status.get('device', {}).get('profile'),
+                 PROFILES_PATH.stat().st_mtime_ns if PROFILES_PATH.exists() else 0)
         if shown != self.menu_shows:  # the menu is built once; without this it keeps the old status and ticks
             self.menu_shows = shown
             self.icon.update_menu()

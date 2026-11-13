@@ -16,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import threading
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -29,6 +30,7 @@ APP_OFFSET = 0x10000
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 PROGRESS = re.compile(r'(\d+(?:\.\d+)?)\s*%')
 OUTPUT_TAIL = 400
+ESPTOOL_TIMEOUT = 300  # seconds; a full write takes about one minute
 
 
 class PackageError(ValueError):
@@ -97,7 +99,7 @@ def load_package(path: Path, supported_protocols: tuple[int, ...]) -> Package:
     with archive:
         try:
             manifest = json.loads(archive.read(MANIFEST))
-        except (KeyError, ValueError) as exc:
+        except Exception as exc:  # zipfile raises BadZipFile, zlib.error, NotImplementedError and more
             raise PackageError('The package has no readable manifest.json') from exc
         if not isinstance(manifest, dict) or manifest.get('format') != FORMAT:
             raise PackageError('The package format is not supported by this version of Tessera')
@@ -127,7 +129,10 @@ def load_package(path: Path, supported_protocols: tuple[int, ...]) -> Package:
                 raise PackageError(f'{name} is listed but missing from the package') from exc
             if info.file_size > MAX_IMAGE_BYTES:
                 raise PackageError(f'{name} is larger than {MAX_IMAGE_BYTES // 1024 // 1024} MiB')
-            data = archive.read(name)
+            try:
+                data = archive.read(name)
+            except Exception as exc:  # a damaged member: one bad package must not break the whole list
+                raise PackageError(f'{name} is damaged: {exc}') from exc
             if sha256(data) != expected:
                 raise PackageError(f'{name} is damaged (checksum mismatch)')
             images.append(Image(offset, name, data))
@@ -159,12 +164,16 @@ def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tupl
                                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
     tail = ''
     assert process.stdout is not None
+    watchdog = threading.Timer(ESPTOOL_TIMEOUT, process.kill)
+    watchdog.start()
     for chunk in iter(process.stdout.readline, ''):
         tail = (tail + chunk)[-OUTPUT_TAIL:]
         found = PROGRESS.findall(chunk)
         if found:
             progress(min(100.0, float(found[-1])))
-    return process.wait(), tail.strip()
+    code = process.wait()
+    watchdog.cancel()
+    return code, tail.strip()
 
 
 def install(package: Package, port: str, identify: Callable[[str], dict | None], mode: str = 'app',
@@ -207,4 +216,5 @@ def find_packages(folders: list[Path], supported_protocols: tuple[int, ...]) -> 
                                   'bytes': len(package.app.data), 'error': None})
                 except PackageError as exc:
                     found.append({'path': str(path), 'version': None, 'protocol': None, 'bytes': 0, 'error': str(exc)})
-    return sorted(found, key=lambda item: item['path'], reverse=True)
+    return sorted(found, key=lambda item: ([int(n) for n in re.findall(r'\d+', item['version'] or '')], item['path']),
+                  reverse=True)

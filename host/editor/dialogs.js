@@ -73,7 +73,8 @@ async function pollFirmware() {
     label.textContent = `${job.stage === 'checking' ? 'Checking the panel' : 'Writing'} … ${job.percent || 0}%`;
     firmwareTimer = setTimeout(pollFirmware, 700);
   } else if (job.state === 'done') {
-    label.textContent = `Installed ${job.result.installed}${job.result.previous ? ` (was ${job.result.previous})` : ''}. The host has started again.`;
+    label.textContent = `Installed ${job.result.installed}${job.result.previous ? ` (was ${job.result.previous})` : ''}.`
+      + (job.restarted ? ' The host has started again.' : job.restart_error ? ` The host did not start again: ${job.restart_error}` : '');
   } else if (job.state === 'failed') {
     label.textContent = job.error || 'The installation failed.';
     $('.firmware-force').hidden = !(job.error || '').includes('did not answer');
@@ -313,7 +314,8 @@ $('#diagnostics-export').onclick = async () => { $('#more-menu').hidden = true; 
 let logTimer = null;
 async function refreshLog() {
   const view = $('#log-view'), atEnd = view.scrollHeight - view.scrollTop - view.clientHeight < 40;
-  view.textContent = (await api('command/host-log', {lines: 200})).log;
+  const log = (await api('command/host-log', {lines: 200})).log;
+  if (view.textContent !== log) view.textContent = log;
   if (atEnd) view.scrollTop = view.scrollHeight;
 }
 async function openLog() {
@@ -345,7 +347,7 @@ async function renderPlugins() {
       text('small', `${plugin.enabled ? plugin.state : 'off'} · may use: ${plugin.permissions.join(', ') || 'nothing'}`)));
     const check = toggle.querySelector('input');
     check.checked = plugin.enabled;
-    check.onchange = () => { setPlugin(plugin.id, {enabled: check.checked}); renderPlugins(); };
+    check.onchange = () => { setPlugin(plugin.id, {enabled: check.checked}); save().then(renderPlugins).catch(showError); };  // the list shows the host's state, so save first
     box.append(toggle);
     if (plugin.error) box.append(text('p', plugin.error, 'error'));
     for (const [key, spec] of Object.entries(plugin.settings || {})) {

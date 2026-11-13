@@ -177,8 +177,9 @@ class LiveState:
                 if not seconds:
                     raise ValueError('timer: start needs seconds')
                 self.timers[name] = {'state': 'running', 'duration': seconds, 'remaining': float(seconds),
-                                     'ends_at': now + seconds, 'notify': action.get('notify', ''),
-                                     'sound': action.get('sound', False), 'actions': action.get('actions', [])}
+                                     'ends_at': now + seconds, 'notify': action.get('notify', (timer or {}).get('notify', '')),
+                                     'sound': action.get('sound', (timer or {}).get('sound', False)),
+                                     'actions': action.get('actions', (timer or {}).get('actions', []))}
             elif timer is None:
                 raise ValueError(f'timer {name} has not been started')
             elif op == 'pause' and timer['state'] == 'running':

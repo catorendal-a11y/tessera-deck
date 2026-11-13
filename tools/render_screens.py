@@ -40,7 +40,7 @@ def contact_sheet(shots: list[tuple[str, Path]], path: Path, columns: int = 3) -
 def main() -> int:
     profiles = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / 'host/profiles.json'
     output = Path(sys.argv[2]) if len(sys.argv) > 2 else ROOT / 'build/screens'
-    renderer = Path(sys.argv[3]) if len(sys.argv) > 3 else ROOT / 'build/native-gcc/render_screens.exe'
+    renderer = Path(sys.argv[3]) if len(sys.argv) > 3 else ROOT / 'build/native/render_screens.exe'
     output.mkdir(parents=True, exist_ok=True)
     daemon = deck.Daemon(types.SimpleNamespace(profiles=str(profiles), port='RENDER', verbose=False, no_focus=True, deck_only=True))
     daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()

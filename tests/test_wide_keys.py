@@ -79,11 +79,11 @@ class WidgetTests(HostCase):
         self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('CPU 42%', '63 °C · 4.2 GHz', 42))
         self.assertEqual(widgets.content('gpu', datetime.now(), {}, {}, {}), {'label': 'GPU', 'sub': 'No reading'})
         self.assertEqual(widgets.content('network', datetime.now(), {'net_down': 3 * 1024 * 1024, 'net_up': 512}, {}, {}),
-                         {'label': '3.0 MB/s', 'sub': 'Down · up 512 B/s'})
+                         {'label': '3.0 MB/s', 'sub': 'Up 512 B/s'})
 
     def test_volume_and_agents(self):
         entry = widgets.content('volume', datetime.now(), {}, {'volume': 40, 'speaker_muted': True, 'mic_muted': False}, {})
-        self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('Muted', 'Microphone on', 40))
+        self.assertEqual((entry['label'], entry['sub'], entry['progress']), ('Muted', 'Volume · mic on', 40))
         agents = {'Claude Code': 'waiting', 'Codex': 'working', 'ZCode': 'idle'}
         self.assertEqual(widgets.content('agents', datetime.now(), {}, {}, agents), {'label': '1 waiting for you', 'sub': 'Claude Code'})
         self.assertEqual(widgets.content('agents', datetime.now(), {}, {}, {})['label'], 'Agents idle')

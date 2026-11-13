@@ -108,14 +108,14 @@ step in the current implementation.
 |---|---|---|
 | Visual button configuration | Drag actions to buttons; edit the selected action | Exists; mouse/touch, move/swap, choice of icon/color/name |
 | Custom icons | Images from file, icon library and animated formats | 1,895 Lucide icons, real app icons and your own PNG, JPEG, GIF and WebP files |
-| Text on buttons | Font settings and top/middle/bottom placement | Size, placement and bold; the host protocol limits the label to 24 UTF-8 bytes |
-| Profiles | Separate setups with Smart Profiles by active program | Exists; rules based on process name, manual entry in the editor |
+| Text on buttons | Font settings and top/middle/bottom placement | Size, placement and bold are saved, but the panel draws one size today (only *Hide text* applies); the label is limited to 24 UTF-8 bytes |
+| Profiles | Separate setups with Smart Profiles by active program | Exists; rules on the process, a child process or the window title, picked from running programs in the editor |
 | Folders/pages | Its own folder action and pages; pinned actions can follow navigation | Folders with a folder stack, back button and pinned buttons |
 | Multi-actions | Own Multi Action configuration with steps and delays | Sequential steps and delay exist; simplified editor |
 | Toggle buttons | Hotkey Switch and Multi Action Switch | Buttons with 2-8 states |
-| Dynamic buttons | The SDK can update icon, title and state from the app | Label variables and short success/failure color; no general app-status binding |
-| Press/release | The SDK has separate key-down/key-up events | The Deck action triggers on click; a general hold/release stream is missing |
-| App integrations | Marketplace plugins for OBS, Discord and more | Hotkeys, open, text, shell and HTTP; no equivalent plugin host |
+| Dynamic buttons | The SDK can update icon, title and state from the app | Label variables, live widgets, `status` colors from a variable and `bind` to the PC's mute and media state |
+| Press/release | The SDK has separate key-down/key-up events | Click, long press and double press each run their own steps; a general key-down/key-up stream is missing |
+| App integrations | Marketplace plugins for OBS, Discord and more | Hotkeys, open, text, shell and HTTP, plus a local plugin host with permissions (no marketplace) |
 | Sharing | Stream Deck profiles and sharing of actions | Its own JSON format; no .streamDeckProfile import |
 | Program lifecycle | Established desktop app | Local Windows program with WebView2, Python host and terminal program |
 

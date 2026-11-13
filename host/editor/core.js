@@ -14,16 +14,16 @@ const kinds = {
   profile:{name:'Switch profile',icon:'list',field:'profile',label:'Go to profile',group:'Navigation'},
   profile_lock:{name:'Lock profile',icon:'settings',field:null,label:'Lock or unlock automatic profile switching',group:'Navigation'},
   delay:{name:'Wait',icon:'pause',field:'ms',label:'Delay (milliseconds)',placeholder:'500',group:'More actions'},
-  shell:{name:'Run command',icon:'settings',field:'command',label:'Command',placeholder:'The command runs when the button is pressed',group:'Advanced'},
+  shell:{name:'Run command',icon:'settings',field:'command',label:'Command',placeholder:'The command runs when the key is pressed',group:'Advanced'},
   http:{name:'HTTP request',icon:'wifi',field:'url',label:'Address',placeholder:'https://…',group:'Advanced'},
-  press:{name:'Trigger another button',icon:'loop',field:'id',label:'Button number (1–18)',group:'Advanced'},
+  press:{name:'Trigger another key',icon:'loop',field:'id',label:'Key number (1–18)',group:'Advanced'},
   audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
   counter:{name:'Counter',icon:'plus',field:'name',label:'Counter name',placeholder:'for example laps',group:'On the computer'},
   mouse:{name:'Mouse',icon:'settings',field:'op',label:'Mouse operation',group:'On the computer'},
   screen:{name:'Switch screen',icon:'home',field:'show',label:'Show on the panel',group:'More actions'},
   timer:{name:'Timer',icon:'pause',field:'name',label:'Timer name',placeholder:'for example tea',group:'On the computer'},
   set:{name:'Set variable',icon:'edit',field:'variable',label:'Variable name',group:'Advanced'},
-  state:{name:'Set button state',icon:'loop',field:'button',label:'Button number (1–18)',group:'Advanced'},
+  state:{name:'Set key state',icon:'loop',field:'button',label:'Key number (1–18)',group:'Advanced'},
   home:{name:'Go home',icon:'home',field:null,label:'Go to the first page of the default profile',group:'Navigation'},
 };
 // Sensors the host provides, with the ranges and thresholds of the bundled status page.
@@ -140,7 +140,8 @@ function element(tag, attrs={}, ...children) {
 }
 const button=(text,fn,cls='quiet',title) => element('button',{text,class:cls,onclick:fn,type:'button',title});
 const text=(tag,value,cls) => element(tag,{text:value,class:cls||''});
-function toast(message) {$('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
+function toast(message) {const host=document.querySelector('dialog:modal')||document.body;if($('#toast').parentNode!==host){host.append($('#toast'));if(host!==document.body)host.addEventListener('close',()=>document.body.append($('#toast')),{once:true});}
+  $('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
 async function api(path, data) {
   const response=await fetch('/api/'+path, {method:data===undefined?'GET':'POST',credentials:'same-origin',
     headers:{'Content-Type':'application/json','X-Deck-Request':'1'},body:data===undefined?undefined:JSON.stringify(data)});
@@ -150,7 +151,11 @@ async function api(path, data) {
 }
 function buttons() {return config.profiles[profile].pages[page];}
 function profileButtons(item) {return [...Object.values(item.pages).flat(),...(item.pinned||[])];}
-function rewriteActions(items,transform) {for(const b of items)for(const holder of [b,...(b.states||[])])holder.actions=(holder.actions||[]).flatMap(action=>{const changed=transform(action);return changed?[changed]:[];});}
+function rewriteActions(items,transform) {
+  const rewrite=list=>list.flatMap(action=>{const changed=transform(action);return changed?[changed]:[];});
+  for(const b of items){for(const holder of [b,...(b.states||[])])holder.actions=rewrite(holder.actions||[]);
+    for(const key of ['hold_actions','double_actions'])if(b[key]){b[key]=rewrite(b[key]);if(!b[key].length)delete b[key];}}
+}
 function visibleButtons() {const values=new Map(buttons().map(b=>[b.id,b]));for(const b of config.profiles[profile].pinned||[])values.set(b.id,b);return [...values.values()];}
 function current() {return visibleButtons().find(b=>b.id===selected);}
 function owner(id=selected) {const pins=config.profiles[profile].pinned||[];return pins.some(b=>b.id===id)?pins:buttons();}
@@ -166,7 +171,7 @@ function duplicateButton() {
   const source=current(),slot=Array.from({length:18},(_,i)=>i+1).find(id=>spanFits(id,source?.span||1));
   if(!source)return;if(!slot)return toast('This page has no free slots.');
   mutate(()=>{buttons().push({...clone(source),id:slot});selected=slot;editState=0;});
-  toast(`The button was duplicated to slot ${slot}.`);
+  toast(`The key was duplicated to slot ${slot}.`);
 }
 function duplicateProfile() {
   const name=uniqueName(profile,Object.keys(config.profiles));
@@ -183,8 +188,8 @@ async function uploadImage(file,id=selected) {if(!file)return;if(file.size>8*102
 function setSaveState(message,note='Changes are saved automatically.') {$('#save-state').textContent=message;$('#save-note').textContent=note;}
 function draftError() {
   for(const item of Object.values(config.profiles)) for(const b of profileButtons(item)) {
-    if(!b.label?.trim()) return 'Give the button a name';
-    if((b.states||[]).some(state=>state.label!==undefined&&!String(state.label).trim()))return 'Give every state of the toggle button a name';
+    if(!b.label?.trim()) return 'Give the key a name';
+    if((b.states||[]).some(state=>state.label!==undefined&&!String(state.label).trim()))return 'Give every state of the toggle key a name';
     for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {
       const kind=kinds[a.type];
       if(!kind) return 'Unknown action';
@@ -203,11 +208,11 @@ function remember(key=null) {
 const editKey=(...parts)=>[profile,page,selected,editState,...parts].join('\u0000');
 function changed() {
   dirty=true;version++;clearTimeout(saveTimer);renderGrid();updateHistory();
-  const error=draftError();setSaveState(error?'Draft · '+error:'Saving …',error?'Fill in the field, or undo the change.':'The change is sent automatically to the active page.');
+  const error=draftError();if(conflicted)setSaveState('Not saved · press Reload','The configuration was changed in another window.');else setSaveState(error?'Draft · '+error:'Saving …',error?'Fill in the field, or undo the change.':'The change is sent automatically to the active page.');
   if(!error&&!conflicted)saveTimer=setTimeout(()=>save().catch(showError),650);
 }
 function mutate(fn,refresh=true,key=null) {remember(key);fn();changed();if(refresh)renderInspector();}
-function showError(error) {setSaveState('Not saved',error.message);toast(error.message);if(error.status===409){conflicted=true;$('#reload').hidden=false;}}
+function showError(error) {toast(error.message);if(error.status===409){conflicted=true;$('#reload').hidden=false;}}
 async function save() {
   clearTimeout(saveTimer);
   if(saveInFlight){await saveInFlight;if(dirty)return save();return;}
@@ -219,8 +224,8 @@ async function save() {
     saveInFlight=api('config',{config:clone(config),revision});
     const result=await saveInFlight;revision=result.revision;
     if(version===sentVersion){dirty=false;const same=dashboard.device?.profile===profile&&dashboard.device?.page===page;
-      setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Press “Show on device” to switch.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
-  } finally {saving=false;saveInFlight=null;}
+      setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Turn on Mirror on panel to show this page.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
+  } catch(error){setSaveState('Not saved',error.message);throw error;} finally {saving=false;saveInFlight=null;}
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);
 }
 function updateHistory() {$('#undo').disabled=!history.length;$('#redo').disabled=!future.length;}
@@ -300,7 +305,7 @@ function renderGrid() {
   const next=Array.from({length:18},(_,index)=>{
     const id=index+1,base=visibleButtons().find(b=>b.id===id),b=base&&{...base,...(id===selected?appearance(base):base.states?.[0]||{})};
     const tile=element('button',{class:'deck-key'+(!b?' empty':'')+(id===selected?' selected':''),type:'button',draggable:'false',
-      'data-slot':id,'aria-label':`Button ${id}: ${b?.label||'Empty slot'}`,'aria-pressed':id===selected,
+      'data-slot':id,'aria-label':`Key ${id}: ${b?.label||'Empty slot'}`,'aria-pressed':id===selected,
       onclick:()=>{selected=id;editState=0;renderGrid();renderInspector();}});
     tile.style.left=`${DEVICE.x+(index%6)*(DEVICE.cell+DEVICE.gap)}px`;
     tile.style.top=`${DEVICE.y+Math.floor(index/6)*(DEVICE.cell+DEVICE.gap)}px`;
@@ -343,7 +348,7 @@ function renderGrid() {
       if(source&&source!==id)moveSlot(source,id);
       else {const key=event.dataTransfer.getData('application/x-deck-action');if(key)addAction(key,id);}
     });
-    tile.addEventListener('keydown',event=>{const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:6,ArrowUp:-6}[event.key];if(delta){event.preventDefault();selected=Math.max(1,Math.min(18,id+delta));renderGrid();renderInspector();$(`[data-slot="${selected}"]`).focus();}});
+    tile.addEventListener('keydown',event=>{const delta={ArrowRight:1,ArrowLeft:-1,ArrowDown:6,ArrowUp:-6}[event.key];if(delta){event.preventDefault();let target=Math.max(1,Math.min(18,id+delta));const wide=visibleButtons().find(b=>b.id<target&&target<b.id+(b.span||1));if(wide)target=delta===1?wide.id+wide.span:wide.id;selected=target>18?id:target;renderGrid();renderInspector();$(`[data-slot="${selected}"]`).focus();}});
     if(b)tile.addEventListener('dblclick',event=>{event.preventDefault();renameButton(id);});
     return tile;
   });
@@ -376,7 +381,7 @@ async function syncPanel() {
 }
 let lastDevicePath='';
 function followDevice() {
-  const d=dashboard.device;if(!$('#sync').checked||!d?.connected||!d.profile)return;
+  const d=dashboard.device;if(!$('#sync').checked||!d?.connected||!d.profile||document.querySelector('dialog[open]'))return;
   const path=d.profile+'|'+d.page;if(path===lastDevicePath)return;lastDevicePath=path;
   if(config.profiles[d.profile]?.pages?.[d.page]&&(d.profile!==profile||d.page!==page)){profile=d.profile;page=d.page;selected=1;editState=0;renderAll();}
 }

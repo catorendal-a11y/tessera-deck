@@ -25,7 +25,8 @@ if (-not $IsAdmin) {
     Write-Host 'Windows will ask for permission to continue as administrator ...'
     $Arguments = @('-NoProfile', '-ExecutionPolicy', 'RemoteSigned', '-File', "`"$PSCommandPath`"")
     if ($Remove) { $Arguments += '-Remove' }
-    Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $Arguments -Wait
+    try { Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $Arguments -Wait }
+    catch { Write-Host 'Cancelled. Nothing was changed.'; Start-Sleep -Seconds 3 }
     return
 }
 
@@ -55,4 +56,6 @@ try {
 catch {
     Write-Host "Could not finish: $($_.Exception.Message)" -ForegroundColor Red
 }
-Start-Sleep -Seconds 4
+finally {
+    Start-Sleep -Seconds 4  # also after -Remove, which returns early: the window would close before it can be read
+}

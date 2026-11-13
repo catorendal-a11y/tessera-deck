@@ -32,7 +32,7 @@ from system_stats import SystemStats, gauge_state
 # The engine's building blocks live in their own modules; the names stay importable from here for the editor,
 # the tools and the tests.
 from win_input import (CHILD_NAMES_SECONDS, IS_WINDOWS, VK, bring_to_front, child_names, dry_hotkey,  # noqa: F401
-                       focus_existing_process, foreground_context, foreground_exe, is_neutral_window,
+                       focus_existing_process, foreground_context, is_neutral_window,
                        matches_foreground, parse_hotkey, real_app_exe, send_hotkey, send_mouse, send_text)
 from config_check import (ACTION_FIELDS, VARIABLE_NAME, _check_display, in_quiet_hours,  # noqa: F401
                           validate_config)
@@ -328,8 +328,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.last_push = payload
             path = (self.profile, self.page)
             labels = {b['id']: b['label'] for b in buttons}
+            fresh = force or not self.pushed_labels or self.pushed_labels[-1][0] != path
             self.pushed_labels = [entry for entry in self.pushed_labels if entry[0] == path][-1:] + [(path, labels)]
-            self.log(f'{self.profile} / {self.page}: {len(buttons)} buttons acknowledged')
+            if fresh:  # live values refresh the page every few seconds; that is not news for the log
+                self.log(f'{self.profile} / {self.page}: {len(buttons)} buttons acknowledged')
 
     def switch_page(self, page, folder=False):
         if page not in self.config['profiles'][self.profile]['pages']:
@@ -475,8 +477,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             while not self.stop.is_set() and panel is self.panel and not self.connection_failed.is_set():
                 self.heartbeat(panel, time.monotonic())
                 self.stop.wait(1)
-        except (OSError, ValueError, AttributeError, TypeError):
-            pass  # the reader loop reports the disconnect
+        except (OSError, ValueError, AttributeError, TypeError) as exc:
+            if panel is self.panel and not self.stop.is_set():  # without a heartbeat the panel shows a lost PC
+                self.log(f'Heartbeat failed: {exc!r}')
+                self.connection_failed.set()
 
     def submit(self, *jobs):
         """Queue jobs all-or-nothing; raises Busy when the queue cannot take them, so callers can report it."""
@@ -572,6 +576,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if len(job) > 4 and time.monotonic() - job[4] > STALE_PRESS_SECONDS:
                 self.dropped_jobs += 1
                 self.log(f'Dropped a stale key press for button {job[1]}')
+                if self.panel is not None:
+                    self.panel.feedback(job[1], False)
                 return
             self.last_activity = time.monotonic()
             current = next((b for b in self.current_buttons() if b['id'] == job[1]), None)
@@ -584,6 +590,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     self.tap_with_double(job[1])
                 else:
                     self.start_press(job[1], hold=hold)
+            else:  # the panel showed another key there (a page change crossed the press)
+                self.log(f'Ignored a press on button {job[1]}: the panel showed a different key')
+                if self.panel is not None:
+                    self.panel.feedback(job[1], False)
         elif kind == 'single-due':
             _, identity, token = job
             if self.pending_single.get(identity) == token:

@@ -13,8 +13,8 @@
 | host → panel | `AD_FEEDBACK <ok or alert> <id>` | Flash a key green or red |
 | host → panel | `AD_BRIGHTNESS <1-100>`, `AD_DISPLAY_DIM <0-100>`, `AD_DISPLAY_WAKE` | Backlight control; the brightness is stored on the panel |
 | host → panel | `AD_PRESS <id>` | A synthetic key press, used by `tests/hardware_smoke.py`; answers `AD_PRESS OK` or `UNKNOWN` |
-| host → panel | `AD_PING` | Heartbeat every second; the header shows *NO PC* after 3.5 s without one |
-| host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | The PC's local time for the header and the ambient clock; the panel has no network clock |
+| host → panel | `AD_PING` | Heartbeat every second; the rail shows *NO PC* after 3.5 s without one |
+| host → panel | `AD_TIME YYYY-MM-DDTHH:MM:SS` | The PC's local time for the clock on the rail and the ambient clock; the panel has no network clock |
 | host → panel | `AD_SCREEN deck` / `AD_SCREEN ambient` | Show the keys or the ambient clock (protocol 3) |
 | host → panel | key fields `span` (1-3), `sub`, `progress` (0-100), `ring` | A wide key in the layout the host pushes: it covers `span` slots to the right and shows a title, a second line and a progress bar or ring (protocol 4). The host fills these for music, timers and every widget, so a new widget needs no new firmware |
 | host → panel | `AD_AGENTS {"agents":[{id,name,state,text,sub}]}` | The agents screen: up to 3 lanes, `state` is idle, working or waiting (protocol 4) |
