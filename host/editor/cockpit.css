@@ -350,7 +350,7 @@ html body .primary.danger-button{background:var(--red);color:#1A0707}
 .welcome-head h2{font-size:18px}
 /* the live checklist: done steps fade, the step to do now is outlined */
 .welcome-intro{margin-top:4px;color:var(--muted);font-size:13px;line-height:1.5}
-.welcome-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0 0;padding:0;list-style:none}
+.welcome-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin:12px 0 0;padding:0;list-style:none}
 .welcome-steps li{display:flex;gap:10px;padding:12px;border-radius:12px;background:var(--card2);border:1px solid transparent}
 .welcome-steps li.active{border-color:var(--accent)}
 .welcome-steps li.done{opacity:.7}
@@ -431,3 +431,5 @@ html body .library-tabs{display:grid;grid-template-columns:1fr 1fr}
 html body .library-tabs .library-tab{text-overflow:clip}
 /* In the narrow deck column (1280 px window) the page title and the four menus take two rows instead of overflowing. */
 html body .toolbar{flex-wrap:wrap;row-gap:8px}
+/* A checkbox in a form field took the full width, so it sat alone in the middle of the dialog. */
+html body .form-field input[type=checkbox]{width:18px;height:18px;display:block;margin:8px 0 4px}
