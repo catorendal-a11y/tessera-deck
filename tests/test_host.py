@@ -20,18 +20,17 @@ class HostTests(HostCase):
     def test_default_profiles_validate_on_all_platforms(self):
         deck.Daemon.load_profiles(ROOT / 'host/profiles.default.json')
 
-    def test_default_home_is_a_complete_app_launcher(self):
+    def test_default_home_is_a_lean_starter_set_without_personal_apps(self):
         config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
         profile = config['profiles']['main']
         home = profile['pages']['main']
         labels = {button['label'] for button in home}
-        self.assertEqual(len(home), 17)
-        self.assertTrue({'Chrome', 'ChatGPT', 'ZCode', 'Claude', 'VS Code',
-                         'GitHub Desktop', 'Terminal', 'Explorer', 'Discord',
-                         'Obsidian', 'LM Studio', 'Steam'} <= labels)
-        self.assertEqual({'Status', 'Desktop', 'Audio', 'Tools', 'Apps'}, labels - {
-            'Chrome', 'ChatGPT', 'ZCode', 'Claude', 'VS Code', 'GitHub Desktop', 'Terminal', 'Explorer',
-            'Discord', 'Obsidian', 'LM Studio', 'Steam'})
+        self.assertEqual({'Mute', 'Volume -', 'Volume +', 'Play / pause', 'Explorer', 'Terminal', 'Screenshot',
+                          'Calculator', 'Show desktop', 'Lock PC', 'Status', 'Desktop', 'Audio', 'Tools'}, labels)
+        self.assertNotIn('apps', profile['pages'])
+        # a new owner has none of the original author's apps, so no starter key opens a program by full path
+        targets = [a.get('target', '') for b in home for a in b.get('actions', [])]
+        self.assertFalse([t for t in targets if '\\' in t or '%' in t])
         self.assertEqual(profile['pinned'][0]['id'], 18)
 
     def test_every_subpage_has_back_in_slot_17_and_home_is_pinned_everywhere(self):

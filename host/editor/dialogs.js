@@ -461,16 +461,77 @@ async function claudeSettings() {
 }
 $('#claude-open').onclick = () => claudeSettings().catch(showError);
 
-/* Getting started: shown when no profile has a key yet and it was not closed before; More → Getting started opens it again. */
-const WELCOME_CLOSED = 'tessera-welcome-closed';
-function showWelcome(force) {
-  let closed = false;
-  try { closed = localStorage.getItem(WELCOME_CLOSED) === '1'; } catch {}
-  const empty = !Object.values(config.profiles).some(p => profileButtons(p).length);
-  $('#welcome').hidden = force !== true && (closed || !empty);
+/* Getting started: a live checklist on a first run. The host keeps the flags (setup-state), so a starter deck
+   still counts as new; the status poll ticks the steps. More → Getting started opens it again. */
+const WELCOME_CLOSED = 'tessera-welcome-closed';  // the older browser-only flag, read once to carry it over
+let setup = {welcome_done: true}, welcomeOpen = false, welcomeSnapshot = '', welcomeShown = '', pressBaseline = null, pressedLabel = '';
+function setupDone(changes) { Object.assign(setup, changes); api('command/setup-done', changes).catch(showError); }
+function firmwareOlder(firmware, host) {
+  const a = String(firmware || '').split('.').map(Number), b = String(host || '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) if ((a[i] || 0) !== (b[i] || 0)) return (a[i] || 0) < (b[i] || 0);
+  return false;
+}
+/* [done, title, what to do or what happened, optional [label, action]] per step, in order. */
+function welcomeSteps() {
+  const d = dashboard || {}, device = d.device || {}, firmware = () => openFirmware().catch(showError);
+  const older = device.connected && device.firmware && firmwareOlder(device.firmware, d.host_version);
+  return [
+    [!!d.running, 'Host running', d.running ? 'The USB host is running on this PC.' : 'The USB host is not running, so the panel cannot connect.',
+      ['Start host', () => $('#host-toggle').click()]],
+    [!!device.connected, 'Panel connected', device.connected ? `Connected${device.port ? ' on ' + device.port : ''}.` : 'Plug in the panel. A new panel needs its firmware first.',
+      ['Install firmware …', firmware]],
+    [!!device.connected && !older, 'Firmware up to date', !device.connected ? 'Checked once the panel is connected.'
+      : older ? `The panel has ${device.firmware}; Tessera is ${d.host_version}.` : `The panel runs firmware ${device.firmware || 'that fits this version'}.`,
+      device.connected && ['Update firmware …', firmware]],
+    [!!setup.key_edited, 'Put an action on a key', setup.key_edited ? 'You changed a key.' : 'Click a key and change it, or drag an action from the list on the left onto a key.'],
+    [!!setup.key_pressed, 'Press it on the panel', setup.key_pressed ? `${pressedLabel || 'Your key'} worked.` : 'Press a key on the panel. This ticks off when the PC gets the press.']];
+}
+/* The first press that reaches the PC is the moment it all works: say so and light up that key. */
+function notePress() {
+  const last = dashboard?.device?.last_action;
+  if (pressBaseline === null) { pressBaseline = last?.at || 0; return; }
+  if (!last || last.at <= pressBaseline) return;
+  pressBaseline = last.at;
+  if (!last.ok || setup.welcome_done && !welcomeOpen || setup.key_pressed) return;
+  pressedLabel = last.label || '';
+  setupDone({key_pressed: true});
+  toast(`✓ It works: ${pressedLabel || 'the key'} ran on this PC.`);
+  if (dashboard.device.profile === profile && dashboard.device.page === page) {
+    const tile = $(`#deck-grid [data-slot="${last.id}"]`);
+    if (tile) { tile.classList.add('first-press'); setTimeout(() => tile.classList.remove('first-press'), 4000); }
+  }
+}
+function renderWelcome() {
+  notePress();
+  if (!welcomeOpen) return;
+  if (!setup.key_edited && welcomeSnapshot && JSON.stringify(config.profiles) !== welcomeSnapshot) setupDone({key_edited: true});
+  const steps = welcomeSteps(), active = steps.findIndex(step => !step[0]), shown = JSON.stringify(steps.map(step => step.slice(0, 3)));
+  if (shown === welcomeShown) return;  // unchanged: keep the buttons, and the focus on them
+  welcomeShown = shown;
+  $('#welcome-intro').textContent = active < 0 ? 'You are all set. Close this card when you like; More → Getting started brings it back.'
+    : 'The keys below are a starter set. These steps get your panel working; each one ticks itself off.';
+  $('#welcome-steps').replaceChildren(...steps.map(([done, title, detail, action], index) => element('li',
+    {class: done ? 'done' : index === active ? 'active' : '', 'aria-current': index === active ? 'step' : null},
+    element('span', {class: 'welcome-mark', 'aria-hidden': 'true', text: done ? '✓' : String(index + 1)}),
+    element('div', {class: 'welcome-step-text'}, text('b', title), text('small', detail),
+      !done && action ? button(action[0], action[1], 'outline') : null))));
+}
+async function showWelcome(force) {
+  if (force !== true) {
+    try { setup = await api('command/setup-state', {}); } catch { setup = {welcome_done: true}; }  // an older host: no card
+    let closed = false;
+    try { closed = localStorage.getItem(WELCOME_CLOSED) === '1'; } catch {}
+    if (closed && !setup.welcome_done) setupDone({welcome_done: true});
+  }
+  welcomeOpen = force === true || !setup.welcome_done;
+  $('#welcome').hidden = !welcomeOpen;
+  if (!welcomeOpen) return;
+  welcomeSnapshot = welcomeSnapshot || JSON.stringify(config.profiles);
+  welcomeShown = '';
+  renderWelcome();
   if (force === true) { $('#welcome').scrollIntoView({block: 'nearest'}); $('#welcome-close').focus(); }
 }
-$('#welcome-close').onclick = () => { $('#welcome').hidden = true; try { localStorage.setItem(WELCOME_CLOSED, '1'); } catch {} };
+$('#welcome-close').onclick = () => { $('#welcome').hidden = true; welcomeOpen = false; if (!setup.welcome_done) setupDone({welcome_done: true}); };
 $('#welcome-open').onclick = () => showWelcome(true);
 $('#welcome-template').onclick = () => openGallery();
 $('#welcome-test').onclick = () => testButton(selected).catch(showError);

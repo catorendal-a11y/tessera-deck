@@ -366,9 +366,17 @@ html body .primary.danger-button{background:var(--red);color:#1A0707}
 .welcome-card{margin:0 0 14px;padding:16px 18px;border:1px solid var(--line2);border-radius:16px;background:var(--card)}
 .welcome-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .welcome-head h2{font-size:18px}
-.welcome-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 0;padding:0;list-style:none;counter-reset:step}
-.welcome-steps li{counter-increment:step;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:12px;background:var(--card2)}
-.welcome-steps li::before{content:counter(step);font-weight:700;color:var(--accent)}
+/* the live checklist: done steps fade, the step to do now is outlined */
+.welcome-intro{margin-top:4px;color:var(--muted);font-size:13px;line-height:1.5}
+.welcome-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:12px 0 0;padding:0;list-style:none}
+.welcome-steps li{display:flex;gap:10px;padding:12px;border-radius:12px;background:var(--card2);border:1px solid transparent}
+.welcome-steps li.active{border-color:var(--accent)}
+.welcome-steps li.done{opacity:.7}
+.welcome-mark{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1px solid var(--line2);font-size:12px;font-weight:700;color:var(--accent)}
+.welcome-steps li.done .welcome-mark{background:var(--accent);border-color:var(--accent);color:#12251a}
+.welcome-step-text{display:flex;flex-direction:column;gap:6px;min-width:0}
 .welcome-steps small{color:var(--muted);line-height:1.5}
 .welcome-steps .outline{margin-top:auto;align-self:flex-start;font-size:12px;padding:7px 12px}
+.welcome-foot{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px}
+.deck-key.first-press{outline:3px solid var(--accent);outline-offset:3px}
 html body .release-notes{white-space:pre-wrap;font:inherit;font-size:12px;color:var(--soft);margin:8px 0 0;max-height:160px;overflow:auto}

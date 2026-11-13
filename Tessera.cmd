@@ -9,14 +9,17 @@ set PYTHONUTF8=1
 cd /d "%~dp0"
 if not exist "host\.venv\Scripts\python.exe" (
   echo Setting up Tessera. The first start takes about a minute.
+  echo 1/3 Finding Python ...
   call :create_environment
   if errorlevel 1 goto failed
   set FIRST_RUN=1
 )
 if "%~1"=="--uninstall" goto uninstall
+if defined FIRST_RUN echo 2/3 Installing packages ...
 "host\.venv\Scripts\python.exe" "host\setup_tool.py" ensure
 if errorlevel 1 goto failed
 if defined FIRST_RUN "host\.venv\Scripts\python.exe" "host\setup_tool.py" setup >nul
+if defined FIRST_RUN echo 3/3 Starting Tessera. Look for the editor window and the tray icon.
 if "%~1"=="" goto app
 if "%~1"=="--app" goto app
 if "%~1"=="--setup" goto setup

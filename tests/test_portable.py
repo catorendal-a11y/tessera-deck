@@ -68,8 +68,7 @@ class LocatorTests(unittest.TestCase):
 
     def test_default_profiles_no_longer_pin_the_c_drive(self):
         text = (ROOT / 'host/profiles.default.json').read_text(encoding='utf-8')
-        self.assertNotIn('C:\\\\Program Files', text)
-        self.assertIn('%ProgramFiles%', text)
+        self.assertNotIn('C:\\\\', text)  # no drive-letter paths: the starter set opens programs by name
         json.loads(text)
 
 

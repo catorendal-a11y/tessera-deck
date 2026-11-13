@@ -309,7 +309,7 @@ class HostRuntimeTests(HostCase):
         daemon.run_action = Mock(side_effect=RuntimeError('blocked'))
         self.assertFalse(daemon.dispatch_press(1))
         daemon.panel.feedback.assert_called_with(1, False)
-        self.assertEqual(daemon.last_action['label'], 'Chrome')
+        self.assertEqual(daemon.last_action['label'], 'Explorer')
         self.assertFalse(daemon.last_action['ok'])
         self.assertEqual(daemon.last_action['error'], 'blocked')
 
