@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Panel: a locked panel also ignores Allow, Deny, Stop and Open on the agents screen and the faders and mute on the mixer. A question still shows.
+- Panel: Allow, Deny and Stop answer the agent the lane showed, and do nothing if that agent's state changed before the screen caught up.
+- Panel: gauge keys draw a ring filled to the percentage, and the badge icon in the corner.
+- Panel: a key's confirmation no longer flashes the key that took its place after a page change.
+- Panel: the idle screen's line is no longer missed when it changes at the moment it is drawn.
+- Panel firmware: when the display fails to start, the panel restarts instead of going silent on USB, so an unconfirmed update rolls back.
+
 ## 0.8.0
 
 - Firmware update over USB: when the panel stops acknowledging partway, the host aborts and starts the upload once more by itself. The panel keeps its running firmware either way.

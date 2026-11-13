@@ -40,6 +40,8 @@ static bool visible(const char* text){auto* found=find(lv_screen_active(),text);
 static std::string taken(){char line[128]="";while(deck_model_take_line(line,sizeof(line)))if(strncmp(line,R"({"type":"view")",14))return line;return std::string();}
 static char status[256];
 static bool view_is(const char* name){char want[32];snprintf(want,sizeof(want),"\"view\":\"%s\"",name);return ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,want);}
+static lv_obj_t* arc_in(lv_obj_t* parent){for(uint32_t i=0;i<lv_obj_get_child_count(parent);++i)if(lv_obj_check_type(lv_obj_get_child(parent,i),&lv_arc_class))return lv_obj_get_child(parent,i);return nullptr;}
+static bool bg_is(lv_obj_t* object,uint32_t rgb){return lv_color_eq(lv_obj_get_style_bg_color(object,LV_PART_MAIN),lv_color_hex(rgb));}
 static int arcs_in(lv_obj_t* parent){int n=0;for(uint32_t i=0;i<lv_obj_get_child_count(parent);++i)n+=lv_obj_check_type(lv_obj_get_child(parent,i),&lv_arc_class);return n;}
 /* Key slot centres: the keys start at (110, 72), 150 px apart across and 172 down. */
 static int key_x(int id){return 110+((id-1)%6)*150+69;}
@@ -119,9 +121,11 @@ static void test_pending_key_times_out(){
 static void test_live_update_in_place(){
     /* A new label or gauge value updates the key in place: a rebuild would drop a touch in progress. */
     deck_button_t live[18]{};int live_count=0;saved_buttons(live,&live_count);
-    const uint32_t structure=deck_model_buttons_version();strcpy(live[0].label,"New tab 2");strcpy(live[6].gauge_text,"80%");
+    auto* ring=arc_in(lv_obj_get_parent(find(lv_screen_active(),"45%")));assert(ring&&lv_arc_get_value(ring)==45);  /* the gauge ring shows p */
+    const uint32_t structure=deck_model_buttons_version();strcpy(live[0].label,"New tab 2");strcpy(live[6].gauge_text,"80%");live[6].gauge_percent=80;
     assert(deck_model_replace_buttons(live,live_count)&&deck_model_buttons_version()==structure);updates();
     assert(visible("New tab 2")&&visible("80%")&&!find(lv_screen_active(),"45%"));
+    assert(arc_in(lv_obj_get_parent(find(lv_screen_active(),"80%")))==ring&&lv_arc_get_value(ring)==80);
 }
 static void test_wide_keys(){
     /* Wide keys: a media key three slots wide and a timer ring two slots wide; the slots they cover stay free of tiles. */
@@ -199,6 +203,17 @@ static void test_feedback_queue(){
     const uint32_t first=deck_model_take_feedback(&id,&kind);assert(first&&id==1&&kind==DECK_FEEDBACK_OK);
     assert(deck_model_take_feedback(&id,&kind)==first+1&&id==18&&kind==DECK_FEEDBACK_ALERT);assert(!deck_model_take_feedback(&id,&kind));
 }
+static void test_feedback_after_page_change(){
+    /* A folder key's answer arrives after the page it opened: it must not flash the key now in that slot. */
+    deck_button_t before[18]{};int before_count=0;saved_buttons(before,&before_count);
+    keep_host(1000);ui_show_view(0);updates();tap(key_x(1),key_y(1));
+    deck_button_t other{};other.id=1;strcpy(other.label,"Other page");other.color=0xA3B2BC;
+    assert(deck_model_replace_buttons(&other,1));updates();auto* tile=lv_obj_get_parent(find(lv_screen_active(),"Other page"));
+    deck_model_request_feedback(1,DECK_FEEDBACK_OK);updates();assert(tile&&!bg_is(tile,ui_palette::OkBg));
+    /* Feedback nobody pressed for (the control API) still shows. */
+    deck_model_request_feedback(1,DECK_FEEDBACK_OK);updates();assert(bg_is(tile,ui_palette::OkBg));
+    assert(deck_model_replace_buttons(before,before_count));keep_host(1000);
+}
 static void test_host_disconnect_reconnect(){
     /* Without host pings the rail says NO PC, the cockpit screens say so, a key flashes red; pings bring it all back. */
     keep_host(1000);assert(!visible("NO PC"));tick+=4000;lv_tick_inc(4000);updates();
@@ -232,6 +247,16 @@ static void test_agent_allow_deny(){
     tap(912,145+160);assert(taken()==R"({"type":"agent","id":"codex","do":"stop"})"&&taken().empty());
     /* Without the PC nobody would hear the answer: nothing is sent. */
     tick+=4000;lv_tick_inc(4000);updates();tap(912,145);assert(taken().empty());deck_model_note_host();updates();
+}
+static void test_agent_tap_follows_its_lane(){
+    /* A tap answers the agent its lane showed, even when the list changed before the lanes were redrawn. */
+    keep_host(1000);while(!taken().empty()){}
+    auto* allow=lv_obj_get_parent(find(lv_screen_active(),"Allow"));assert(allow);
+    assert(deck_model_agents_from_json(R"({"agents":[{"id":"codex","name":"Codex","state":"working","text":"x"},{"id":"claude","name":"Claude Code","state":"waiting","q":1,"text":"y"}]})"));
+    lv_obj_send_event(allow,LV_EVENT_CLICKED,nullptr);assert(taken()==R"({"type":"agent","id":"claude","do":"allow"})");
+    assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"working","text":"y"}]})"));
+    lv_obj_send_event(allow,LV_EVENT_CLICKED,nullptr);assert(taken().empty());  /* the question is gone: nothing to allow */
+    assert(deck_model_agents_from_json(ThreeAgents));updates();
 }
 static void test_agent_questions(){
     /* A permission prompt is shown in full on up to three lines, and the host can bring the agents screen forward. */
@@ -296,6 +321,15 @@ static void test_panel_lock(){
     hold(42,41,1000);assert(deck_model_locked()&&taken().empty());
     hold(42,41,2200);assert(!deck_model_locked()&&taken()==R"({"type":"unlocked"})"&&taken().empty());
     updates();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
+}
+static void test_lock_covers_agents_and_mixer(){
+    /* A locked panel still shows a question, but Allow, the faders and mute do nothing until it is unlocked. */
+    keep_host(1000);while(!taken().empty()){}
+    deck_model_set_locked(true);ui_show_view(1);updates();assert(visible("Allow"));
+    tap(912,145);tap(912-144,145);assert(taken().empty());
+    ui_show_view(2);updates();tap(190,171);tap(191,523);assert(taken().empty());
+    deck_model_set_locked(false);updates();tap(191,523);assert(taken()==R"({"type":"mute","id":"speaker"})");
+    tap(191,523);while(!taken().empty()){}ui_show_view(0);updates();
 }
 static void test_about_sheet(){
     /* A long press on the logo opens a sheet with the firmware, the PC link and a brightness slider; a tap outside closes it. */
@@ -387,9 +421,11 @@ int main(int argc,char** argv){
      {"a dimmed touch only wakes",test_dimmed_touch_only_wakes},{"pending key times out",test_pending_key_times_out},
      {"live update in place",test_live_update_in_place},{"wide keys",test_wide_keys},{"long labels stay inside",test_long_labels_stay_inside},
      {"confirm key",test_confirm_key},{"swipe goes back",test_swipe_goes_back},{"feedback queue",test_feedback_queue},
+     {"feedback after a page change",test_feedback_after_page_change},
      {"host disconnect and reconnect",test_host_disconnect_reconnect},{"agents",test_agents},{"agent allow and deny",test_agent_allow_deny},
+     {"agent tap follows its lane",test_agent_tap_follows_its_lane},
      {"agent questions",test_agent_questions},{"mixer",test_mixer},{"rail shortcuts",test_rail_shortcuts},
-     {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"about sheet",test_about_sheet},
+     {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"key styling",test_key_styling},
      {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
