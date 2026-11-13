@@ -252,8 +252,10 @@ html body .page-chip:hover{color:var(--text)}
 html body .page-chip.active{background:var(--text) !important;color:#0D1417}
 html body .syncbar{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted)}
 @media(min-width:1560px){
-  html body .workspace{max-width:1120px}
-  html body .toolbar,html body .deck-card,html body .syncbar,html body .page-pill{max-width:1040px;width:100%}
+  /* A big screen gets a big deck: as wide as the column allows, but never taller than the window (the deck is
+     about twice as wide as it is high; 290 px is the bar, the page tabs and the line under the deck). */
+  html body .workspace{max-width:none}
+  html body .toolbar,html body .deck-card,html body .syncbar,html body .page-pill{max-width:min(1500px,calc((100vh / var(--z,1) - 290px) * 1.9));width:100%}
 }
 html body #inspector>[hidden]{display:none !important}
 html body #inspector .inspector-tabs{display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-sizing:border-box}

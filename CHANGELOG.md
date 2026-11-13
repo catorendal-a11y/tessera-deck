@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Editor: on a large screen the deck grows with the window (bounded by its height) instead of stopping at a fixed width.
 - Editor: the ⋯ menu is six groups (Profiles, Pages, Panel, Connect, Back up and share, Help), every entry says in one line what it does, it opens right under the button and fits the window, and the arrow keys move through it. Clearer names: *Profile from a template*, *Page from a template*, *Clock when idle*, *Key colors*, *Save diagnostics*.
 - Rail: after a shortcut, the Keys button on the panel seemed dead (the keys already showed, so nothing changed). A tap on Keys while the keys show now goes back to the page you came from, or to the profile's first page (panel firmware and host).
 - Panel (new firmware): a key sinks under the finger and pulses while the PC runs its action; the second line of a wide key, the corner marks, the clock and *NO PC* are larger; the mixer has bigger mute buttons and knobs; without the PC the agents, mixer and status screens show a clear *PC not connected* card; a task that hangs the panel for 5 s restarts it.

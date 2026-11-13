@@ -208,5 +208,28 @@ class EditorTests(unittest.TestCase):
                 self.assertEqual(json.load(reply), {'programs': programs})
 
 
+class MarkupTests(unittest.TestCase):
+    def test_the_deck_is_not_inside_the_more_menu(self):
+        """A menu that was not closed swallowed the deck and squeezed it to the menu button's width."""
+        from html.parser import HTMLParser
+        found = {}
+
+        class Walk(HTMLParser):
+            stack = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == 'div':
+                    classes = (dict(attrs).get('class') or '').split()
+                    if 'deck-card' in classes:
+                        found['inside'] = [frame for frame in self.stack if frame & {'more', 'more-menu'}]
+                    self.stack.append(set(classes))
+
+            def handle_endtag(self, tag):
+                if tag == 'div' and self.stack:
+                    self.stack.pop()
+
+        Walk().feed((Path(__file__).resolve().parents[1] / 'host/editor/index.html').read_text(encoding='utf-8'))
+        self.assertEqual(found.get('inside'), [])
+
 if __name__ == '__main__':
     unittest.main()
