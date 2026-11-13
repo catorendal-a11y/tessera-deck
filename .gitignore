@@ -19,3 +19,7 @@ host/plugins/
 dist/
 diagnostics/
 firmware/
+# Blender and FreeCAD backups, and the view script log
+*.blend1
+*.FCBak
+hardware/save_view.log

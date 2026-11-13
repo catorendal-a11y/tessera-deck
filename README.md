@@ -100,6 +100,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | | |
 |---|---|
 | [Install](docs/INSTALL.md) | Hardware, start options, flashing from source |
+| [Desk console](hardware/README.md) | A printable stand for the panel: STL, STEP and the CAD models |
 | [Using Tessera](docs/USING.md) | Actions, labels, gauges, sensors, brightness, scripts, troubleshooting |
 | [Plugins](docs/PLUGINS.md) | Write your own integration |
 | [Serial protocol](docs/PROTOCOL.md) | What the host and the panel say to each other |
