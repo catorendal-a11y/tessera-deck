@@ -535,7 +535,8 @@ void rail_pressed(lv_event_t *event) {
     char line[40];
     snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",index);
     if(rail_list[index].kind<4) {
-        if(rail_list[index].kind!=ViewKeys)deck_model_queue_line("{\"type\":\"view\"}");  /* activity: no clock over this screen */
+        /* Which screen shows: the host reads the mixer often only for its screen, and counts the tap as activity. */
+        char shown[32];snprintf(shown,sizeof(shown),"{\"type\":\"view\",\"v\":%d}",rail_list[index].kind);deck_model_queue_line(shown);
         /* Keys while the keys already show: back to the page before a shortcut (or the first page). Without
            this the tap changed nothing after a shortcut, and the keys button seemed dead. */
         if(rail_list[index].kind==ViewKeys&&view==ViewKeys)deck_model_queue_line(line);

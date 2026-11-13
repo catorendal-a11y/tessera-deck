@@ -7,7 +7,9 @@ import json
 import os
 from pathlib import Path
 import queue
+import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -47,6 +49,25 @@ from panel_serial import (BOARD_ID, OFFLINE_LAYOUT_BYTES, SUPPORTED_PROTOCOLS, D
 JOB_QUEUE_SIZE = 128
 SLOW_LANE_LIMIT = 4
 STALE_PRESS_SECONDS = 5  # a queued press older than this is dropped, never replayed
+LOG_PATH = Path(__file__).resolve().parent / 'deck.local.log'
+LOG_KEEP_BYTES = 5 * 1024 * 1024
+
+
+def rotate_log():
+    """The host runs for weeks: keep the log it writes to (its stdout) under 5 MB, the older part in .1."""
+    try:
+        fd = sys.stdout.fileno()
+        opened = os.fstat(fd)
+        if opened.st_size <= LOG_KEEP_BYTES or not os.path.samestat(opened, os.stat(LOG_PATH)):
+            return
+        sys.stdout.flush()
+        shutil.copyfile(LOG_PATH, LOG_PATH.with_name('deck.local.log.1'))
+        os.ftruncate(fd, 0)
+        os.lseek(fd, 0, os.SEEK_SET)  # stdout and stderr share this position: write from the start again
+    except (OSError, ValueError, AttributeError):
+        pass
+
+
 PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke',
               'screen-deck')
 CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
@@ -134,6 +155,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.plugins_checked = 0.0
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
         self.cockpit_sent, self.cockpit_at = {}, 0.0
+        self.panel_view, self.mixer_at = None, 0.0  # the panel's screen (2 = mixer), when the panel says
         # show_question (worker) and cockpit_tick (main loop) both send AD_AGENTS: one at a time, built from the
         # question open right then, so a closed question never comes back and a new one never vanishes
         self.agents_line_lock = threading.Lock()
@@ -180,6 +202,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
 
     def log(self, message):
         print(f'[{time.strftime("%H:%M:%S")}] {message}', flush=True)
+        self.logged = getattr(self, 'logged', 0) + 1
+        if self.logged % 200 == 0:
+            rotate_log()
 
     def publish_runtime(self, connected, error=None, force=False):
         now = time.time()
@@ -197,11 +222,15 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}
+        body = json.dumps(dict(state, updated=0), ensure_ascii=False)
+        # Nothing changed: write it anyway before readers call it stale (5 s), not every 1.5 s.
+        if not force and body == getattr(self, 'runtime_body', None) and now - self.runtime_written < 3:
+            return
         temporary = self.runtime_path.with_suffix('.tmp')
         try:
             temporary.write_text(json.dumps(state, ensure_ascii=False), encoding='utf-8')
             os.replace(temporary, self.runtime_path)
-            self.runtime_written = now
+            self.runtime_written, self.runtime_body = now, body
         except OSError:
             pass
 
@@ -584,7 +613,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         elif message.get('type') == 'image' and isinstance(message.get('id'), str) and message['id'].startswith('im:'):
                             self.enqueue(('image-missing', message['id'][:80]))
                         elif message.get('type') == 'view':
-                            self.last_activity = time.monotonic()
+                            view = message.get('v')
+                            self.panel_view = view if type(view) is int else None
+                            if view != 0:  # a tap on Keys was never counted, so the clock still comes over the keys
+                                self.last_activity = time.monotonic()
+                            if view == 2:
+                                self.mixer_at = 0.0  # the mixer screen opened: read the sound devices now
                         elif message.get('type') == 'rail' and type(message.get('i')) is int:
                             self.enqueue(('rail', message['i']))
                         elif message.get('type') == 'mute' and isinstance(message.get('id'), str):

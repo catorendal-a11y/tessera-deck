@@ -15,6 +15,7 @@ from pathlib import Path
 WORKING_SECONDS = 15   # a session file written this recently means the tool is busy
 RECENT_SECONDS = 3600  # an idle tool is listed for an hour after its last work, then only when its program runs
 SCAN_SECONDS = 2
+FULL_SCAN_SECONDS = 10  # every session file is checked this often; between, only the newest one
 TAIL_BYTES = 16384
 HEAD_BYTES = 4096
 CWD = re.compile(rb'"cwd":"((?:[^"\\]|\\.)*)"')
@@ -81,7 +82,8 @@ class AgentActivity:
                       'codex': (Path(codex_root) if codex_root else home / '.codex' / 'sessions', _codex_files)}
         self._clock = clock
         self._cache: dict = {}
-        self._scanned_at = float('-inf')
+        self._scanned_at = self._full_at = float('-inf')
+        self._newest: dict = {}
 
     def read(self) -> dict:
         """{'claude': {'state': 'working'|'idle', 'project': …, 'tool': …, 'age': seconds}, …}; only tools with a session file."""
@@ -90,8 +92,15 @@ class AgentActivity:
             return self._cache
         self._scanned_at = now
         result = {}
+        # The history grows for good (Codex keeps every day's folder): walk it all only every 10 s.
+        full = now - self._full_at >= FULL_SCAN_SECONDS
+        if full:
+            self._full_at = now
         for key, (root, files) in self.roots.items():
-            modified, path = _newest(files(root))
+            known = self._newest.get(key)
+            modified, path = _newest(files(root)) if full or known is None else _newest([known])
+            if full or path is not None:
+                self._newest[key] = path
             if path is None:
                 continue
             age = max(0.0, now - modified)

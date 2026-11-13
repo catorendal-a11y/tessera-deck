@@ -29,7 +29,7 @@ static lv_obj_t* find(lv_obj_t* root,const char* text){if(lv_obj_check_type(root
 static bool shown(lv_obj_t* object){for(;object;object=lv_obj_get_parent(object))if(lv_obj_has_flag(object,LV_OBJ_FLAG_HIDDEN))return false;return true;}
 static bool visible(const char* text){auto* found=find(lv_screen_active(),text);return found&&shown(found);}
 /* The next line for the host; the activity note a screen switch sends is skipped. */
-static std::string taken(){char line[128]="";while(deck_model_take_line(line,sizeof(line)))if(strcmp(line,R"({"type":"view"})"))return line;return std::string();}
+static std::string taken(){char line[128]="";while(deck_model_take_line(line,sizeof(line)))if(strncmp(line,R"({"type":"view")",14))return line;return std::string();}
 int main(int argc,char** argv){
 const std::filesystem::path output=argc>1?argv[1]:".";std::filesystem::create_directories(output);
 lv_init();lv_tick_set_cb(millis);pixels.resize(1024*600*3);auto* display=lv_display_create(1024,600);

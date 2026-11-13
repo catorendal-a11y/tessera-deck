@@ -251,11 +251,14 @@ class BackgroundMixin:
         self.rail_items = cockpit.rail_items(choice, self.config['profiles'], actions=version >= (0, 6, 3))
         lines = {'AD_RAIL': cockpit.rail_payload(self.rail_items),
                  'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}
-        try:
-            self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True))
-            lines['AD_MIXER'] = cockpit.mixer_payload(self.cockpit_mixer)
-        except (OSError, ImportError):
-            pass  # no sound device or no audio library: the mixer screen keeps what it had
+        # Reading the sound sessions takes 15-45 ms: every second on the mixer screen, every 5 s behind it.
+        if getattr(self, 'panel_view', None) == 2 or now - getattr(self, 'mixer_at', 0.0) >= 5:
+            self.mixer_at = now
+            try:
+                self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True))
+                lines['AD_MIXER'] = cockpit.mixer_payload(self.cockpit_mixer)
+            except (OSError, ImportError):
+                pass  # no sound device or no audio library: the mixer screen keeps what it had
         for command, payload in lines.items():
             if self.cockpit_sent.get(command) != payload:
                 self.panel.send_line(f'{command} {payload}')

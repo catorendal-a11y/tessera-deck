@@ -105,6 +105,15 @@ def resolve_command(manifest: Manifest, python: str | None = None) -> list[str]:
     return [str(program), *rest]
 
 
+def _folders_changed(root: Path):
+    """A cheap fingerprint of the plugin folders: names and change times. None when it cannot be read."""
+    try:
+        return tuple((folder.name, folder.stat().st_mtime_ns, (folder / 'plugin.json').stat().st_mtime_ns)
+                     for folder in sorted(Path(root).glob('*')) if (folder / 'plugin.json').is_file())
+    except OSError:
+        return None
+
+
 def discover(root: Path) -> tuple[list[Manifest], list[str]]:
     """Every valid plugin under `root`, and a readable problem for each folder that is not."""
     found, problems = [], []
@@ -196,6 +205,11 @@ class PluginManager:
 
     # --- discovery and lifecycle ----------------------------------------------------
     def refresh(self) -> None:
+        # sync() runs every 3 s: read and check the manifests again only when a plugin folder changed.
+        seen = _folders_changed(self.root)
+        if seen is not None and seen == getattr(self, '_seen', None):
+            return
+        self._seen = seen
         found, self.problems = discover(self.root)
         self.manifests = {manifest.id: manifest for manifest in found}
 
