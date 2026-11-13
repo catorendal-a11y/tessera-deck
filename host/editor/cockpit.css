@@ -318,3 +318,22 @@ html body .toolbar .menu-button:hover,html body .toolbar .menu-button[aria-expan
 html body .toolbar .menu-button:focus-visible{outline:2px solid var(--accent,#58e09b);outline-offset:2px}
 html body .toolbar .menu-chevron{color:var(--muted);font-size:11px}
 html body .toolbar .more+.more{margin-left:6px}
+
+/* Rail dialog: a labelled preview of the seven places, numbered shortcuts with profile and page. */
+#rail-dialog{width:min(860px,96vw)}
+.rail-editor{grid-template-columns:132px minmax(0,1fr)}
+.rail-side{display:flex;flex-direction:column;gap:8px;align-self:start;position:sticky;top:0}
+.rail-side-title{font-size:12px;font-weight:700;color:var(--muted)}
+.rail-preview{padding:12px 6px;gap:4px}
+.rail-slot{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
+.rail-slot small{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--muted)}
+.rail-slot.home small{color:var(--text)}
+.rail-slot.shortcut .rail-chip{color:var(--accent)}
+.rail-slot.free .rail-chip{border:1px dashed var(--line2);width:40px;height:32px}
+.rail-slot.free small{color:var(--dim)}
+.rail-count{font-size:12px;color:var(--muted);text-align:center}
+.rail-count.over{color:#ff7070;font-weight:700}
+.rail-short-number{width:24px;height:24px;border-radius:50%;background:var(--card2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none}
+.rail-icons{align-items:center}
+.rail-icons-label{font-size:12px;color:var(--muted);margin-right:4px}
+.rail-lists h3 small{display:block;margin:4px 0 0;line-height:1.4}

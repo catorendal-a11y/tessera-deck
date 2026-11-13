@@ -604,11 +604,13 @@ function railSettings() {
 function drawRail() {
   const d = railDraft, total = railTotal(), over = total > 7;
   // preview: the rail as the panel draws it
+  const slot = (icon, name, cls = '') => element('span', {class: 'rail-slot ' + cls}, element('span', {class: 'rail-chip' + (cls.includes('home') ? ' on' : '')}, icon), text('small', name));
   $('#rail-preview').replaceChildren(
     element('span', {class: 'rail-logo'}),
-    ...d.order.filter(id => d.on.has(id)).map(id => element('span', {class: 'rail-chip' + (id === 'keys' ? ' on' : '')}, railIcon(RAIL.find(r => r[0] === id)[2]))),
+    ...d.order.filter(id => d.on.has(id)).map(id => slot(railIcon(RAIL.find(r => r[0] === id)[2]), SCREEN_INFO[id][0], id === 'keys' ? 'home' : '')),
     ...(d.shortcuts.length ? [element('span', {class: 'rail-sep'})] : []),
-    ...d.shortcuts.map(s => element('span', {class: 'rail-chip'}, railIcon((SHORTCUT_ICONS.find(i => i.code === s.icon) || SHORTCUT_ICONS[0]).path))));
+    ...d.shortcuts.map(s => slot(railIcon((SHORTCUT_ICONS.find(i => i.code === s.icon) || SHORTCUT_ICONS[0]).path), s.page, 'shortcut')),
+    ...Array.from({length: Math.max(0, 7 - total)}, () => slot(element('span'), 'Free', 'free')));
   // screens
   $('#rail-screens').replaceChildren(...d.order.map((id, index) => {
     const on = d.on.has(id), [name, note] = SCREEN_INFO[id];
@@ -617,20 +619,23 @@ function drawRail() {
     return element('div', {class: 'rail-row' + (on ? '' : ' off')}, railIcon(RAIL.find(r => r[0] === id)[2]), element('div', {class: 'rail-text'}, text('strong', name), text('small', id === 'keys' ? note + ' · always on' : note)), move(-1, 'Move up'), move(1, 'Move down'), toggle);
   }));
   // shortcuts
-  const targets = Object.entries(config.profiles).map(([profileName, item]) => element('optgroup', {label: profileName}, ...Object.keys(item.pages).map(pageName => element('option', {value: profileName + '\u0001' + pageName}, pageName))));
+  const targets = Object.entries(config.profiles).map(([profileName, item]) => element('optgroup', {label: profileName}, ...Object.keys(item.pages).map(pageName => element('option', {value: profileName + '\u0001' + pageName}, `${profileName} › ${pageName}`))));
   $('#rail-shortcuts').replaceChildren(...d.shortcuts.map((s, index) => {
     const pick = element('select', {'aria-label': `Shortcut ${index + 1}: page`, onchange: event => { const [p, g] = event.target.value.split('\u0001'); s.profile = p; s.page = g; drawRail(); }}, ...targets.map(group => group.cloneNode(true)));
     pick.value = s.profile + '\u0001' + s.page;
-    const icons = element('div', {class: 'rail-icons', role: 'radiogroup', 'aria-label': 'Icon'}, ...SHORTCUT_ICONS.map(icon => {
+    const icons = element('div', {class: 'rail-icons', role: 'radiogroup', 'aria-label': 'Icon'}, text('span', 'Icon', 'rail-icons-label'), ...SHORTCUT_ICONS.map(icon => {
       const choose = element('button', {class: 'rail-icon-pick' + (icon.code === s.icon ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': String(icon.code === s.icon), title: icon.name, onclick: () => { s.icon = icon.code; drawRail(); }}, railIcon(icon.path));
       return choose;
     }));
-    return element('div', {class: 'rail-short'}, element('div', {class: 'rail-short-top'}, pick, element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': 'Remove shortcut', onclick: () => { d.shortcuts.splice(index, 1); drawRail(); }}, '✕')), icons);
+    const shift = (delta, label) => element('button', {class: 'rail-move', type: 'button', title: label, 'aria-label': `${label}: shortcut ${index + 1}`, disabled: index + delta < 0 || index + delta >= d.shortcuts.length,
+      onclick: () => { [d.shortcuts[index], d.shortcuts[index + delta]] = [d.shortcuts[index + delta], d.shortcuts[index]]; drawRail(); }}, delta < 0 ? '▲' : '▼');
+    const chosen = (SHORTCUT_ICONS.find(icon => icon.code === s.icon) || SHORTCUT_ICONS[0]).name;
+    return element('div', {class: 'rail-short'}, element('div', {class: 'rail-short-top'}, element('span', {class: 'rail-short-number'}, String(index + 1)), pick, shift(-1, 'Move up'), shift(1, 'Move down'), element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': 'Remove shortcut', onclick: () => { d.shortcuts.splice(index, 1); drawRail(); }}, '✕')), icons);
   }), ...(d.shortcuts.length < 3 ? [element('button', {class: 'rail-add-short', type: 'button', onclick: () => {
     const [firstProfile] = Object.keys(config.profiles), firstPage = Object.keys(config.profiles[firstProfile].pages)[0];
     d.shortcuts.push({profile: firstProfile, page: firstPage, icon: SHORTCUT_ICONS[d.shortcuts.length % SHORTCUT_ICONS.length].code}); drawRail();
   }}, '+ Add a shortcut')] : []));
-  $('#rail-count').textContent = over ? `${total} buttons: the panel fits 7. Turn something off.` : `${total} of 7 buttons`;
+  $('#rail-count').textContent = over ? `${total} buttons: the panel fits 7. Turn something off.` : `${total} of 7 places used`;
   $('#rail-count').classList.toggle('over', over);
   $('#rail-apply').disabled = over;
 }
