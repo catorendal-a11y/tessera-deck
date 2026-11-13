@@ -144,6 +144,10 @@ html body #inspector .prop-value select{width:auto;flex:0 1 150px}
 html body #inspector .prop-row:last-child .prop-value select,html body #inspector .prop-row:has(.label-meter) select{flex:1 1 auto}
 html body #inspector .prop-value input[type=color]{width:36px !important;height:36px !important;padding:3px !important;border-radius:12px !important;background:var(--card2) !important;border:1px solid var(--line2) !important;flex:none}
 html body #inspector .prop-clear{background:transparent !important;border:0 !important;color:var(--dim) !important;height:auto !important}
+/* Icon color swatches: the background is the color, set inline */
+html body #inspector .color-swatches{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+html body #inspector .prop-value .color-swatch{width:24px !important;height:24px !important;min-width:0;padding:0 !important;border-radius:50% !important;border:2px solid transparent !important;flex:none}
+html body #inspector .prop-value .color-swatch.on{border-color:var(--text) !important}
 html body #inspector .inspector-section{padding:0 !important}
 html body #inspector .inspector-section>summary{padding:15px 20px !important}
 html body #inspector .inspector-section[open]>summary{margin:0 !important;border-bottom:1px solid var(--line)}

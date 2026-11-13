@@ -698,16 +698,26 @@ class Editor:
             return {'findings': review(config)}
         if command == 'sanitize':
             return {'config': strip_executable(validate_config(data.get('config') or {}))}
-        if command == 'activate':
+        if command in ('activate', 'run-key'):
             config = self.read()['config']
             profile, page = data.get('profile'), data.get('page')
             if profile not in config['profiles'] or page not in config['profiles'][profile]['pages']:
                 raise ValueError('Choose a valid profile and page')
+            sent = {'profile': profile, 'page': page}
+            if command == 'run-key':  # Run now in the editor: the host shows the page and presses the key, as the panel would
+                button = data.get('button')
+                if type(button) is not int or not 1 <= button <= 18:
+                    raise ValueError('Choose a key from 1 to 18')
+                if not self.status().get('device', {}).get('connected'):
+                    raise ValueError('Connect the panel and start the host first. The host runs the key.')
+                sent.update(press=button, at=time.time())
             path = ROOT / 'host/deck-command.local.json'
             temporary = path.with_suffix('.tmp')
             with self.lock:
-                temporary.write_text(json.dumps({'profile': profile, 'page': page}), encoding='utf-8')
+                temporary.write_text(json.dumps(sent), encoding='utf-8')
                 temporary.replace(path)
+            if command == 'run-key':
+                return {'message': f'Key {button} was sent to the host. The panel shows this page and runs it.'}
             return {'message': 'The page was sent to the host. The panel updates when USB is connected.'}
         if command in ('start', 'stop'):
             if self.firmware_job.get('state') == 'running':

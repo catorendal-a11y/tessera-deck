@@ -147,6 +147,7 @@ class Controller:
             result['vars'] = runtime.get('vars', {})
             result['stats'] = runtime.get('stats', {})
             result['device']['gauges'] = runtime.get('gauges', {})
+            result['device']['widgets'] = runtime.get('widgets', {})
             result['connection'] = ('Panel connected' if runtime.get('connected')
                                     else runtime.get('error') or 'Waiting for the panel')
         except (OSError, ValueError, TypeError):

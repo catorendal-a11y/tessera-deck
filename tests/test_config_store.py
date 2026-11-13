@@ -234,6 +234,15 @@ class EditorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.editor.command('restore-backup', {'name': '../../etc/passwd'})
 
+    def test_run_now_needs_a_valid_key_and_a_connected_panel(self):
+        config = self.editor.read()['config']
+        profile = next(iter(config['profiles']))
+        page = next(iter(config['profiles'][profile]['pages']))
+        with self.assertRaisesRegex(ValueError, 'from 1 to 18'):
+            self.editor.command('run-key', {'profile': profile, 'page': page, 'button': 19})
+        with self.assertRaisesRegex(ValueError, 'Connect the panel'):  # a press must not wait for a host started later
+            self.editor.command('run-key', {'profile': profile, 'page': page, 'button': 1})
+
 
 if __name__ == '__main__':
     unittest.main()

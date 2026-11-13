@@ -126,7 +126,7 @@ function renderInspector() {
   const nameInput=element('input',{type:'text',placeholder:'Name (leave empty for icon only)','aria-label':'Key name'});nameInput.value=b.label??'';
   nameInput.addEventListener('input',()=>{mutate(()=>appearance().label=nameInput.value,false,editKey('label'));updateMeter();previewLabel.textContent=resolveLabel(nameInput.value)||' ';});
   updateMeter();
-  const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color',title:'Icon color'});
+  const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Other icon color',title:'Other icon color'});
   color.addEventListener('input',()=>{mutate(()=>appearance().color=color.value,false,editKey('color'));panel.querySelector('.prop-icon')?.replaceWith(iconVisual(current().icon,color.value,'prop-icon'));});
   const selectedIcon=packIcons.get(b.icon);
   const iconButton=button(`${selectedIcon?.name||iconNames[b.icon]||'Default icon'} · Choose …`,openIcons,'prop-field');
@@ -135,24 +135,25 @@ function renderInspector() {
   const positionField=field('Position',base.title?.position||'bottom',v=>mutate(()=>{base.title??={};base.title.position=v;}),{values:[['bottom','Bottom'],['top','Top'],['middle','Middle'],['hidden','Hide text']]});
   const boldButton=button(base.title?.bold?'Bold ✓':'Bold',()=>mutate(()=>{base.title??={};base.title.bold=!base.title.bold;}),'outline');
   const pinButton=button(config.profiles[profile].pinned?.includes(base)?'◆ Unpin':'◇ Pin',togglePin,'outline');
-  const first=activeActions()?.[0];
-  const actionButton=button(first?stepSummary(activeActions()):'No action yet · Add one below',
-    ()=>{const target=panel.querySelector('.handling');if(target){target.open=true;target.scrollIntoView({block:'nearest',behavior:'smooth'});}},'prop-field');
+  const first=activeActions()?.[0],widget=(base.span||1)>1&&base.live;
+  const toActions=()=>{inspectorTab='actions';renderInspector();};
   const row=(name,...nodes)=>element('div',{class:'prop-row'},text('span',name,'prop-name'),element('div',{class:'prop-value'},...nodes));
   const titleRow=row('Title',nameInput,meter);titleRow.classList.add('prop-row-title');
   const textRow=row('Text',sizeField,positionField,boldButton,pinButton);textRow.classList.add('prop-row-text');
-  const head=element('div',{class:'prop-head'},text('b',first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),button('Clear',clearButton,'prop-clear','Clear this key'));
+  const swatches=element('div',{class:'color-swatches',role:'group','aria-label':'Icon color'},...ICON_COLORS.map(([value,name])=>{
+    const on=(b.color||'#35D07F').toUpperCase()===value,swatch=button('',()=>mutate(()=>appearance().color=value),'color-swatch'+(on?' on':''),name);
+    swatch.style.background=value;swatch.setAttribute('aria-label',name);swatch.setAttribute('aria-pressed',String(on));return swatch;}),color);
+  const head=element('div',{class:'prop-head'},text('b',widget?'Widget':first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),
+    button('Test',()=>testButton().catch(showError),'outline prop-test','What this key does, and Run now'));
+  if(widget)previewLabel.textContent=widgetText(base).label;
+  // a widget draws its own text, so its title, icon and text rows would do nothing
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
-    element('div',{class:'prop-rows'},titleRow,row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
-      textRow,...(wideRows(base,row)))));
+    element('div',{class:'prop-rows'},...(widget?[]:[titleRow,row('Icon',iconButton,button('Image …',()=>upload.click(),'outline'),upload),row('Icon color',swatches)]),
+      actionRow(first,toActions,row),...(widget?[]:[textRow]),...(wideRows(base,row)),renderStyle(row))));
   const confirm=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Hold to confirm'),text('small','The panel runs the key only after a 0.6 s hold, so a brush does nothing.')));
   const confirmBox=confirm.querySelector('input');confirmBox.checked=base.confirm===true;
   confirmBox.disabled=!base.confirm&&!!(base.hold_actions?.length||base.double_actions?.length);  /* the host refuses the mix */
-  confirmBox.onchange=()=>mutate(()=>{if(confirmBox.checked)base.confirm=true;else delete base.confirm;});panel.append(confirm);
-  renderStyle(panel);
-  const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
-  for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
-  panel.append(element('details',{class:'quick-icons'},text('summary','Quick icons'),choices));
+  confirmBox.onchange=()=>mutate(()=>{if(confirmBox.checked)base.confirm=true;else delete base.confirm;});
   const typeStart=panel.children.length;
   panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal key','Toggle key']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local key state, not confirmed app status.','hint'));}
@@ -163,22 +164,39 @@ function renderInspector() {
   panel.append(renderTriggers(base));
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+(activeActions()?.length===1?' STEP':' STEPS'),'section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
-  const addSelect=element('select',{'aria-label':'Add a new action step'});addSelect.append(element('option',{value:'',text:'＋ Add action …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));addSelect.addEventListener('change',()=>{if(addSelect.value)addAction(addSelect.value,selected);});panel.append(addSelect);
-  panel.append(element('div',{class:'inspector-tools'},button('Test (nothing runs)',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear key',clearButton,'quiet danger')));
-  panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
-  panel.append(text('p','Changes are saved automatically. The key action runs only when you press the panel.','hint'));
+  // a step goes on this key (and this trigger) directly: a click in the library makes a new key instead
+  const addSelect=element('select',{'aria-label':'Add a step to this key'});addSelect.append(element('option',{value:'',text:'＋ Step …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));
+  addSelect.addEventListener('change',()=>{const item=addSelect.value&&actionTemplate(addSelect.value);if(item)mutate(()=>{if(editList==='actions')base.actions??=[];else base[editList]??=[];activeActions().push(...clone(item.actions));});});
+  panel.append(addSelect,confirm);
   wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');
-  wrapSection(panel,bindStart,actionsStart,'Gauge and binding',false,'extras');
+  wrapSection(panel,bindStart,actionsStart,'Live value and binding',false,'extras');
   wrapSection(panel,typeStart,bindStart,'Key type',false,'kind');
   // Tabs: one group of settings at a time instead of a stack of folded sections.
   const steps=activeActions()?.length||0,others=otherTriggerRows(base,row);
-  const groups={look:[panel.querySelector('.prop-card'),...panel.querySelectorAll(':scope>.quick-icons')],actions:[...panel.querySelectorAll(':scope>.kind,:scope>.handling')],more:[...panel.querySelectorAll(':scope>.extras')]};
+  const groups={look:[panel.querySelector('.prop-card')],actions:[...panel.querySelectorAll(':scope>.kind,:scope>.handling')],more:[...panel.querySelectorAll(':scope>.extras')]};
   if(others.length)panel.querySelector('.handling .section-body')?.prepend(element('div',{class:'other-triggers'},...others));
-  const tabs=element('div',{class:'inspector-tabs',role:'tablist','aria-label':'Key settings'},...[['look','Look'],['actions',steps?`Actions · ${steps}`:'Actions'],['more','Gauge']].map(([id,name])=>{
+  const tabs=element('div',{class:'inspector-tabs',role:'tablist','aria-label':'Key settings'},...[['look','Look'],['actions',steps?`Actions · ${steps}`:'Actions'],['more','Live']].map(([id,name])=>{
     const tab=button(name,()=>{inspectorTab=id;renderInspector();},'inspector-tab'+(inspectorTab===id?' on':''));tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(inspectorTab===id));return tab;}));
   panel.insertBefore(tabs,panel.children[firstField]);rovingTabs('#inspector .inspector-tabs');
   for(const [id,nodes] of Object.entries(groups))for(const node of nodes){if(!node)continue;node.hidden=id!==inspectorTab;if(node.classList.contains('inspector-section')){node.open=true;node.classList.add('tabbed');}}
+  // what applies to the whole key sits under the tabs, so it shows on every tab
+  panel.append(element('div',{class:'inspector-footer'},element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear',clearButton,'quiet danger','Clear this key')),
+    field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}),
+    text('p','Changes are saved automatically. The key runs when you press it on the panel, or with Test and then Run now.','hint')));
   if(focusAt>=0)panel.querySelectorAll(controls)[focusAt]?.focus();
+}
+const ICON_COLORS=[['#35D07F','Green'],['#4DD0E1','Cyan'],['#64B5F6','Blue'],['#B388FF','Purple'],['#FF80AB','Pink'],['#FF5252','Red'],['#FFB74D','Orange'],['#E8F4EF','White']];
+/* A new key opens with its name ready to type. */
+function focusKeyTitle() {const input=$('#inspector .prop-row-title input');if(input){input.focus();input.select();}}
+/* The Look tab's Action row: the field a key needs most (Record for a hotkey, Choose program for open), else a summary that opens the steps. */
+function actionRow(first,toActions,row) {
+  const all=activeActions()||[],k=first&&kinds[first.type];
+  if(all.length!==1||!['hotkey','open'].includes(first.type))return row('Action',button(first?stepSummary(all):'No action yet · Add a step',toActions,'prop-field'));
+  const main=field(k.label,first[k.field],value=>editAction(0,k.field,value),{placeholder:k.placeholder});
+  const input=main.querySelector('input');main.querySelector('span').remove();input.setAttribute('aria-label',k.label);
+  const extra=first.type==='hotkey'?button('⌨ Record',()=>{recording={index:0,input,button:extra};extra.textContent='Press the combination · Esc cancels';extra.classList.add('recording');extra.focus();},'outline record')
+    :button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target)applyProgramDetails(result,0);}catch(error){showError(error);}},'outline');
+  return row('Action',main,extra,button('Steps …',toActions,'text-button','Show all steps of this key'));
 }
 /* The same corner marks as the panel: a ring for a long press, two dots for a double press (150 px key, positions in %). */
 function gestureMarks(base) {
@@ -507,7 +525,8 @@ function renderStatus() {
   document.title=connected&&context?`Tessera · ${context}`:'Tessera';
   followDevice();
   const usesStats=visibleButtons().some(b=>[b,...(b.states||[])].some(v=>v.label?.includes('$(stat:')));
-  const live=JSON.stringify([deviceShowsSelection()?dashboard.device?.gauges||{}:{},dashboard.vars||{},dashboard.agents||{},usesStats?dashboard.stats||{}:{}]);
+  // widget text from the host, and the minute for the editor's own clock stand-in
+  const live=JSON.stringify([deviceShowsSelection()?[dashboard.device?.gauges||{},dashboard.device?.widgets||{}]:{},new Date().getMinutes(),dashboard.vars||{},dashboard.agents||{},usesStats?dashboard.stats||{}:{}]);
   // Never rebuild keys under a finger: the press or drag would lose its key. The next poll catches up.
   if(live!==lastLive&&!drag){lastLive=live;renderGrid();}
 }
@@ -754,7 +773,7 @@ function wideRows(base, row) {
   const rows = [row('Size', width)];
   if ((base.span || 1) > 1) {
     const kind = String(base.live || '').startsWith('timer:') ? 'timer' : base.live || '';
-    rows.push(row('Shows', field('Shows', kind, v => {
+    const shows = field('Shows', kind, v => {
       if (v === 'timer') {
         return askTimerName('Show a timer', 'Name of the timer to show (the same name as in the timer action)', base.live?.startsWith('timer:') ? base.live.slice(6) : 'timer').then(name => {
           if (name && current() === base) mutate(() => { base.live = 'timer:' + name; });
@@ -762,7 +781,13 @@ function wideRows(base, row) {
         });
       } else mutate(() => { if (v === 'media' || WIDGETS.some(w => w.kind === v)) base.live = v; else delete base.live; });
       renderGrid(); renderInspector();
-    }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['timer', 'A timer (time left, ring) …'], ...WIDGETS.map(w => [w.kind, `${w.name}: ${w.sub}`])]})));
+    }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['timer', 'A timer (time left, ring) …'], ...WIDGETS.map(w => [w.kind, `${w.name}: ${w.sub}`])]});
+    shows.querySelector('span').remove(); shows.querySelector('select').setAttribute('aria-label', 'Shows');  // the row already names it
+    if (!base.live) rows.push(row('Shows', shows));
+    else {  // a widget key names its widget; the full list opens only on Change
+      const change = button(`${liveName(base.live)} · Change …`, () => { change.replaceWith(shows); shows.querySelector('select').focus(); }, 'prop-field', 'Choose what this key shows');
+      rows.push(row('Widget', change));
+    }
   }
   return rows;
 }

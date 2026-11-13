@@ -29,6 +29,12 @@
 - Editor and host: a key with Position set to Hide text may have an empty name (icon only).
 - Editor: drag a key onto a page tab to move it to that page. Each page remembers its selected key.
 - Editor: the sync line has a "Show this page on the panel" button when the panel shows another page, and says "✓ On the panel" after a save. The checkbox is now "Panel follows the page I edit".
+- Editor: the Look tab has an **Action** row with the field a key needs most: **Record** for a hotkey, **Choose program …** for an open action, or a summary that opens the steps.
+- Editor: **Test**, **Copy**, **Paste**, **Clear** and **Move to slot** sit in a footer under the inspector tabs, so they show on every tab. *Hold to confirm* moved to the Actions tab, and *Add action …* is now **＋ Step …**.
+- Editor: the inspector tab *Gauge* is now **Live**.
+- Editor: the icon library stays open after you pick an icon, so you can try a few. Icon color has 8 swatches, *Key colors* is a row in the Look tab, and *Quick icons* are gone.
+- Editor: **Test** is also in the Look header, and the test dialog has **Run now on this PC**. It shows the page on the panel and presses the key there, and asks first when the key runs a command, sends a web request or types text.
+- Editor: a widget key shows *Widget: Clock · Change …* instead of title, icon and text rows that did nothing, and its tile shows the same text as the panel.
 
 ## 0.7.0
 
