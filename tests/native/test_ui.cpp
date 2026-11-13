@@ -144,7 +144,11 @@ ui_show_view(1);updates();capture(output/"rail.ppm");
 tap(42,84+3*60+27);
 assert(taken()==R"({"type":"rail","i":3})"&&taken().empty());
 assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"keys\""));
+/* Keys while the keys show (after a shortcut) asks the host to go back; from another screen it only switches. */
+tap(42,84+0*60+27);assert(taken()==R"({"type":"rail","i":0})"&&taken().empty());
 tap(42,84+2*60+27);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"status\""));
+tap(42,84+0*60+27);assert(taken().empty()&&ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"keys\""));
+tap(42,84+2*60+27);
 assert(deck_model_rail_from_json(R"({"rail":[{"k":"agents"}]})"));updates();
 tap(42,84+1*60+27);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
 assert(deck_model_rail_from_json(R"({"rail":[{"k":"keys"},{"k":"agents"},{"k":"mixer"},{"k":"status"}]})"));updates();ui_show_view(0);updates();}

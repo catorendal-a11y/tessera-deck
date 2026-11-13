@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rail: after a shortcut, the Keys button on the panel seemed dead (the keys already showed, so nothing changed). A tap on Keys while the keys show now goes back to the page you came from, or to the profile's first page (panel firmware and host).
 - Panel (new firmware): a key sinks under the finger and pulses while the PC runs its action; the second line of a wide key, the corner marks, the clock and *NO PC* are larger; the mixer has bigger mute buttons and knobs; without the PC the agents, mixer and status screens show a clear *PC not connected* card; a task that hangs the panel for 5 s restarts it.
 - Editor: `/` jumps to the action search, Enter adds the first match and the arrow keys walk the list; a cleared key comes back with the Undo button in the message; the key menu shows its shortcuts, and `?` (or **⋯ → Keyboard shortcuts**) lists them all.
 - Tray: the Tessera and panel versions in the menu; **Help** opens the host log, saves diagnostics for a bug report, opens the data folder and checks for updates when you ask; a problem that lasts 30 seconds (a port held by another program, a stopped host) gets a notice; the first start asks whether Tessera should start with Windows.

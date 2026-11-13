@@ -88,13 +88,19 @@ class RailTests(HostCase):
         daemon.device_info = {'protocol': 4}
         daemon.config['panel'] = {'shortcuts': [{'profile': 'main', 'page': 'system', 'icon': 'lc:e0ff'}]}
         daemon.cockpit_tick(100.0)
+        start = (daemon.profile, daemon.page)
         index = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'page')
         daemon.handle_job(('rail', index))
         self.assertEqual((daemon.profile, daemon.page), ('main', 'system'))
-        daemon.page = 'main'
-        for nothing in (0, 99, -1):
+        for nothing in (99, -1):
             daemon.handle_job(('rail', nothing))
-        self.assertEqual(daemon.page, 'main')
+        self.assertEqual(daemon.page, 'system')
+        keys = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'keys')
+        daemon.handle_job(('rail', keys))  # Keys tapped while the keys show: back to the page before the shortcut
+        self.assertEqual((daemon.profile, daemon.page), start)
+        daemon.switch_page('system')
+        daemon.handle_job(('rail', keys))  # without a shortcut before it, Keys goes to the profile's first page
+        self.assertEqual(daemon.page, next(iter(daemon.config['profiles'][daemon.profile]['pages'])))
 
 
 

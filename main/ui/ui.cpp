@@ -502,9 +502,14 @@ void set_view(int next) {
 void rail_pressed(lv_event_t *event) {
     const int index=slot_of(event);
     if(index<0||index>=rail_count)return;
-    if(rail_list[index].kind<4){set_view(rail_list[index].kind);return;}
     char line[40];
     snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",index);
+    if(rail_list[index].kind<4) {
+        /* Keys while the keys already show: back to the page before a shortcut (or the first page). Without
+           this the tap changed nothing after a shortcut, and the keys button seemed dead. */
+        if(rail_list[index].kind==ViewKeys&&view==ViewKeys)deck_model_queue_line(line);
+        set_view(rail_list[index].kind);return;
+    }
     deck_model_queue_line(line);
     set_view(ViewKeys);
 }

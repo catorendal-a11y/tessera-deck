@@ -131,9 +131,19 @@ class BackgroundMixin:
     def use_rail_shortcut(self, index):
         """A shortcut button on the panel's rail: go to that page of that profile (the panel already shows the keys)."""
         items = getattr(self, 'rail_items', [])
-        if not 0 <= index < len(items) or items[index].get('k') != 'page':
+        if not 0 <= index < len(items) or items[index].get('k') not in ('page', 'keys'):
             return
-        profile, page = items[index]['p'], items[index]['g']
+        if items[index]['k'] == 'keys':  # Keys tapped while the keys show: back to where a shortcut came from
+            profile, page = getattr(self, 'before_shortcut', None) or (self.profile, None)
+            self.before_shortcut = None
+            if profile not in self.config['profiles']:
+                profile = self.profile
+            pages = self.config['profiles'][profile]['pages']
+            page = page if page in pages else next(iter(pages))
+        else:
+            profile, page = items[index]['p'], items[index]['g']
+            if getattr(self, 'before_shortcut', None) is None:
+                self.before_shortcut = (self.profile, self.page)
         if profile in self.config['profiles'] and page in self.config['profiles'][profile]['pages']:
             self.switch_profile(profile)
             if self.page != page:
