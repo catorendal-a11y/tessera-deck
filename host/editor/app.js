@@ -424,7 +424,7 @@ function renderStatus() {
   $('#led').classList.toggle('connected',!!connected);$('#led').classList.toggle('waiting',dashboard.running&&!connected);
   const context=[dashboard.device?.profile,dashboard.device?.page].filter(Boolean).join(' / ');
   $('#connection').textContent=connected?[dashboard.device.port,context].filter(Boolean).join(' · '):dashboard.running?(dashboard.connection||'Waiting for the panel'):'The host has stopped';
-  const layoutBytes=dashboard.device?.layout_bytes||0,offlineLimit=3800;
+  const layoutBytes=dashboard.device?.layout_bytes||0,offlineLimit=8192;
   $('#connection').title=dashboard.device?.error||(connected&&dashboard.device?.sensor_hint?dashboard.device.sensor_hint:connected&&layoutBytes>offlineLimit?`This page is ${layoutBytes} bytes. The panel keeps at most ${offlineLimit} for use without the PC, so it will show the older saved layout offline.`:'');
   if(connected&&layoutBytes>offlineLimit)$('#connection').textContent+=' · too big to keep offline';
   const memory=$('#memory');

@@ -1,5 +1,8 @@
 # Name,   Type, SubType, Offset,  Size, Flags
-nvs,      data, nvs,     0x9000,  0x6000,
+# A/B application slots for over-USB updates with rollback. ota_0 stays at 0x10000, where esptool writes the app.
+nvs,      data, nvs,     0x9000,  0x4000,
+otadata,  data, ota,     0xd000,  0x2000,
 phy_init, data, phy,     0xf000,  0x1000,
-factory,  app,  factory, ,        8M,
-storage,  data, spiffs,  ,        7M,
+ota_0,    app,  ota_0,   0x10000, 6M,
+ota_1,    app,  ota_1,   ,        6M,
+storage,  data, spiffs,  ,        0x3F0000,

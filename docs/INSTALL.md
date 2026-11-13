@@ -61,8 +61,10 @@ remembers the board's USB serial number and follows it if Windows renumbers the 
 
 **From a release (no developer tools):** the release zip includes the firmware, so choose it in **Panel → Panel firmware …** and press *Install*. Newer firmware comes with *Check for updates*, or put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder, choose it there and press *Install*.
 On a new board that does not answer yet, choose *Everything* under *What to write* and tick *Install anyway*. The installer verifies the
-package, the board and the protocol before writing. See [`docs/RELEASING.md`](RELEASING.md) for how updates
-and the lack of an automatic rollback work.
+package, the board and the protocol before writing. The first firmware with A/B update slots must also be
+installed once with *Everything*, as it changes the partition table (the installer says so); after that
+*Application only* goes over the panel's USB connection and is undone automatically if the new firmware fails
+to start. See [`docs/RELEASING.md`](RELEASING.md) for how updates and the rollback work.
 
 **From source:** install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html).
 Stop the host from the tray first (*Stop host*); it owns the port. Then:
@@ -75,8 +77,10 @@ idf.py -B build/idf6 -p COM4 flash          # first time: bootloader, partition 
 To update only the application — which keeps the bootloader, partition table and stored settings — write the app image:
 
 ```powershell
-python -m esptool --chip esp32p4 -p COM4 -b 460800 write-flash 0x10000 build\idf6\tessera.bin
+python -m esptool --chip esp32p4 -p COM4 -b 460800 write-flash 0xd000 build\idf6\ota_data_initial.bin 0x10000 build\idf6\tessera.bin
 ```
+
+The OTA data image makes the bootloader start `ota_0` again, even if an over-USB update left the other slot active.
 
 ### 3. Make it yours
 

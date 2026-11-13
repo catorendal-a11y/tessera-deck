@@ -47,7 +47,7 @@ from daemon_presses import (BLOCKING_ACTIONS, DOUBLE_PRESS_SECONDS, PressMixin, 
                             action_list_name)
 from daemon_ticks import BackgroundMixin
 from panel_serial import (BOARD_ID, OFFLINE_LAYOUT_BYTES, SUPPORTED_PROTOCOLS, DeviceRejected,  # noqa: F401
-                          PanelSerial, layout_bytes, layout_payload)
+                          PanelSerial, layout_bytes, layout_payload, restart_report)
 
 JOB_QUEUE_SIZE = 128
 SLOW_LANE_LIMIT = 4
@@ -812,6 +812,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             fallback = self.config.get('default_profile', next(iter(self.config['profiles'])))
             self.enqueue(('focus-profile', before if before in self.config['profiles'] else fallback))
 
+    def note_panel_restart(self, previous_boot):
+        # A new bootId on reconnect means the panel itself restarted; a crash or power dip is worth telling the user.
+        report = restart_report(previous_boot, self.device_info)
+        if report:
+            self.log(report[0])
+            if report[1]:
+                self.notify('Tessera panel', report[1])
+
     def open_panel(self):
         """Open the first candidate port that completes the identity and protocol handshake."""
         failures = []
@@ -851,7 +859,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     self.panel = None
                     try:
                         self.panel, self.port = self.open_panel()
+                        previous_boot = self.device_info.get('bootId')
                         self.device_info = getattr(self.panel, 'info', {}) or {}
+                        self.note_panel_restart(previous_boot)
                         self.cockpit_sent = {}
                         if self.question_open():
                             self.enqueue(('question',))

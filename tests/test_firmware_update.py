@@ -16,17 +16,21 @@ from tessera_app import Editor
 SUPPORTED = (1, 2)
 
 
-def fake_build(folder: Path) -> Path:
+def fake_build(folder: Path, slots: bool = False) -> Path:
+    """An ESP-IDF build folder; slots=True is the A/B partition table with its OTA data image."""
     build = folder / 'build'
     (build / 'bootloader').mkdir(parents=True)
     (build / 'partition_table').mkdir()
     (build / 'bootloader/bootloader.bin').write_bytes(b'boot' * 100)
     (build / 'partition_table/partition-table.bin').write_bytes(b'part' * 50)
     (build / 'tessera.bin').write_bytes(b'app!' * 1000)
+    files = {'0x2000': 'bootloader/bootloader.bin', '0x8000': 'partition_table/partition-table.bin',
+             '0x10000': 'tessera.bin'}
+    if slots:
+        (build / 'ota_data_initial.bin').write_bytes(bytes([255]) * 8192)
+        files['0xd000'] = 'ota_data_initial.bin'
     (build / 'flasher_args.json').write_text(json.dumps({
-        'flash_settings': {'flash_mode': 'dio', 'flash_size': '16MB', 'flash_freq': '80m'},
-        'flash_files': {'0x2000': 'bootloader/bootloader.bin', '0x8000': 'partition_table/partition-table.bin',
-                        '0x10000': 'tessera.bin'}}))
+        'flash_settings': {'flash_mode': 'dio', 'flash_size': '16MB', 'flash_freq': '80m'}, 'flash_files': files}))
     return build
 
 
@@ -105,6 +109,16 @@ class PackageTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             fw.command_line(package, 'COM4', Path('x'), 'erase')
 
+    def test_an_ab_package_carries_the_ota_data_and_app_mode_resets_it(self):
+        path = fw.build_package(fake_build(self.folder / 'ab', slots=True), self.folder / 'ab-dist', '2.0.0', 4)
+        package = fw.load_package(path, (4,))
+        self.assertTrue(package.needs_full)
+        self.assertEqual(package.otadata.offset, 0xd000)
+        app = fw.command_line(package, 'COM4', Path('x'), 'app')
+        self.assertEqual([part for part in app if part.startswith('0x')], ['0xd000', '0x10000'])
+        self.assertFalse(fw.load_package(self.package_path, SUPPORTED).needs_full)
+        self.assertTrue(fw.find_packages([path.parent], (4,))[0]['needs_full'])
+
     def test_find_packages_lists_valid_and_damaged_ones(self):
         (self.package_path.parent / 'tessera-firmware-9.9.9.zip').write_bytes(b'broken')
         found = fw.find_packages([self.package_path.parent, self.folder / 'nowhere'], SUPPORTED)
@@ -158,6 +172,55 @@ class InstallTests(unittest.TestCase):
                        runner=lambda arguments, progress: (2, 'A fatal error occurred: timed out'))
         self.assertIn('retry', str(raised.exception))
         self.assertIn('timed out', str(raised.exception))
+
+    def ab_package(self):
+        folder = Path(tempfile.mkdtemp(dir=self.temp.name))
+        return fw.load_package(fw.build_package(fake_build(folder, slots=True), folder / 'dist', '2.0.0', 2), SUPPORTED)
+
+    def test_the_first_ab_install_needs_everything(self):
+        runner, ota = Mock(return_value=(0, '')), Mock()
+        for answer in ({'firmwareVersion': '1.0.0'}, None):
+            with self.assertRaises(fw.InstallError) as raised:
+                fw.install(self.ab_package(), 'COM4', lambda port, answer=answer: answer, force=True, runner=runner, ota=ota)
+            self.assertIn('Everything', str(raised.exception))
+        runner.assert_not_called()
+        ota.assert_not_called()
+        fw.install(self.ab_package(), 'COM4', lambda port: {'firmwareVersion': '1.0.0'}, mode='full', runner=runner)
+        runner.assert_called_once()
+
+    def test_a_panel_with_slots_is_updated_over_usb_not_with_esptool(self):
+        runner, sent, stages = Mock(return_value=(0, '')), [], []
+
+        def ota(port, data, progress):
+            sent.append((port, data))
+            progress(50.0)
+
+        package = self.ab_package()
+        result = fw.install(package, 'COM4', lambda port: {'firmwareVersion': '1.9.0', 'ota': 1}, runner=runner,
+                            ota=ota, progress=lambda stage, percent: stages.append((stage, percent)))
+        self.assertEqual(sent, [('COM4', package.app.data)])
+        runner.assert_not_called()
+        self.assertEqual(result, {'previous': '1.9.0', 'installed': '2.0.0', 'mode': 'app'})
+        self.assertIn(('writing', 50.0), stages)
+        self.assertEqual(stages[-1], ('done', 100))
+
+    def test_a_failed_usb_update_keeps_the_old_firmware_and_says_so(self):
+        def ota(port, data, progress):
+            raise OSError('AD_OTA_END FAIL checksum')
+
+        with self.assertRaises(fw.InstallError) as raised:
+            fw.install(self.ab_package(), 'COM4', lambda port: {'ota': 1}, ota=ota)
+        self.assertIn('FAIL checksum', str(raised.exception))
+        self.assertIn('current firmware', str(raised.exception))
+
+    def test_an_older_single_slot_firmware_goes_back_only_with_everything(self):
+        runner, ota = Mock(return_value=(0, '')), Mock()
+        with self.assertRaises(fw.InstallError):
+            fw.install(self.package, 'COM4', lambda port: {'ota': 1}, runner=runner, ota=ota)
+        ota.assert_not_called()
+        fw.install(self.package, 'COM4', lambda port: {'ota': 1}, mode='full', runner=runner, ota=ota)
+        runner.assert_called_once()
+        ota.assert_not_called()
 
     def test_esptool_progress_lines_are_parsed(self):
         self.assertEqual(fw.PROGRESS.findall('Writing at 0x0002bf4c [=====>   ]  42.5% 16.00kB/1.42MB'), ['42.5'])

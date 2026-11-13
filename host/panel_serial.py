@@ -1,5 +1,6 @@
 """The USB link to the panel: identity handshake, line framing, layout and image transfer."""
 from collections import OrderedDict
+import hashlib
 import json
 import threading
 import time
@@ -15,7 +16,23 @@ BOARD_ID = 'tessera-p4'
 SUPPORTED_PROTOCOLS = (1, 2, 3, 4)
 HANDSHAKE_SECONDS = 2.5
 PANEL_CACHE_BYTES = 8 * 1024 * 1024  # decoded images the panel keeps; CacheLimit in main/deck_images.cpp
-OFFLINE_LAYOUT_BYTES = 3800  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
+OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
+OTA_CHUNK = 512  # image bytes per AD_OTA_DATA line; OTA_CHUNK in main/main.cpp
+OTA_WINDOW = 2048  # the panel acknowledges every OTA_WINDOW bytes; OTA_ACK_BYTES in main/main.cpp
+# Handshake "reset" reasons that mean the panel crashed or lost power rather than being restarted on purpose.
+CRASH_RESETS = {'panic': 'a crash', 'int_wdt': 'a hang (interrupt watchdog)', 'task_wdt': 'a hang (task watchdog)',
+                'wdt': 'a hang (watchdog)', 'brownout': 'a power dip (brownout)'}
+
+
+def restart_report(previous_boot, info):
+    """(log line, notice text or None) when the panel booted again since `previous_boot`; None when it did not."""
+    boot = info.get('bootId')
+    if previous_boot is None or boot is None or boot == previous_boot:
+        return None
+    reason = info.get('reset') if isinstance(info.get('reset'), str) else 'unknown'
+    cause = CRASH_RESETS.get(reason)
+    notice = f'The panel restarted after {cause}. It is running again.' if cause else None
+    return f'Panel restarted ({reason})', notice
 
 
 def layout_payload(buttons):
@@ -108,11 +125,39 @@ class PanelSerial:
             del self.rx[:end + 1]
         return result
 
+    def expect(self, command, wanted, seconds):
+        """Read until the panel answers `command`; anything but `command wanted` raises OSError with its answer.
+
+        Only for a port no reader thread owns (the firmware installer opens its own connection).
+        """
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            for line in self.read_lines():
+                if line == f'{command} {wanted}':
+                    return
+                if line.startswith(command + ' '):
+                    raise OSError(line)
+        raise TimeoutError(f'The panel did not answer {command}')
+
+    def ota_upload(self, data, progress=lambda percent: None):
+        """Stream an application image into the panel's idle slot; the panel verifies it and restarts into it."""
+        with self.write_lock:
+            self.send_line(f'AD_OTA_BEGIN {len(data)} {hashlib.sha256(data).hexdigest()}')
+            self.expect('AD_OTA_BEGIN', 'OK', 30)
+            for offset in range(0, len(data), OTA_CHUNK):
+                self.send_line(f'AD_OTA_DATA {offset} ' + data[offset:offset + OTA_CHUNK].hex())
+                done = min(len(data), offset + OTA_CHUNK)
+                if done % OTA_WINDOW == 0 or done == len(data):  # wait while the panel erases and writes flash
+                    self.expect('AD_OTA_DATA', f'OK {done}', 15)
+                    progress(done * 100 / len(data))
+            self.send_line('AD_OTA_END')
+            self.expect('AD_OTA_END', 'OK', 60)  # the panel checks the whole image before it answers
+
     ack_seconds = 4
 
     def push_buttons(self, buttons):
         payload = layout_payload(buttons)
-        if len(payload.encode()) > 8192:
+        if len(payload.encode()) > OFFLINE_LAYOUT_BYTES:
             raise ValueError('The button layout is too large')
         try:
             self.push_payload(payload)
