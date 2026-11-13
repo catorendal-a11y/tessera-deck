@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Security: the editor's address holds a one-time code instead of its session key, so a copy in the browser's history no longer opens the editor, and the session key no longer travels in a cookie that other programs on 127.0.0.1 could receive. A second editor tab opened from an old address asks you to start Tessera again.
 - Panel: the idle clock is bigger, in deeper colors, with a larger date and weather line, and an icon for the weather (sun, cloud, fog, drizzle, rain, snow or thunder).
 - Panel: a 12-hour clock with AM/PM. *Clock format* in Panel → Display is *Same as Windows* by default, or 24-hour or 12-hour.
 - Windows notifications can be switched off: *Show Windows notifications* in Program settings, or *Show notifications* in the tray menu. Answers to a tray click still show, and switching it in the tray while the editor is open no longer makes the next save conflict.

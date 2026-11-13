@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -13,6 +14,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+import tessera_app
 from tessera_app import Editor, make_server
 
 
@@ -30,6 +32,7 @@ class EditorTests(unittest.TestCase):
         self.thread.start()
         self.url = f'http://127.0.0.1:{self.server.server_port}'
         self.client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
+        self.session = ''
 
     def tearDown(self):
         self.server.shutdown()
@@ -38,7 +41,7 @@ class EditorTests(unittest.TestCase):
         self.temp.cleanup()
 
     def request(self, path, data=None, headers=None):
-        h = {'Content-Type': 'application/json', 'X-Deck-Request': '1'}
+        h = {'Content-Type': 'application/json', 'X-Deck-Request': '1', 'X-Deck-Session': self.session}
         h.update(headers or {})
         request = urllib.request.Request(self.url + path, headers=h,
             data=None if data is None else json.dumps(data).encode())
@@ -71,10 +74,57 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(Editor(upgraded / 'profiles.json', dashboard=lambda: {}).command('setup-state', {}),
                          {'welcome_done': True})
 
+    def launch_code(self):
+        address = self.server.launch_url()
+        self.assertTrue(address.startswith(self.url + '/#'))
+        return address.split('#', 1)[1]
+
     def login(self):
-        with self.request('/api/session', {}, {'X-Deck-Token': 'test-session-only'}) as reply:
+        with self.request('/api/session', {}, {'X-Deck-Launch': self.launch_code()}) as reply:
             self.assertIn('HttpOnly', reply.headers['Set-Cookie'])
             self.assertIn('SameSite=Strict', reply.headers['Set-Cookie'])
+            self.session = json.load(reply)['session']
+
+    def refused(self, path, data=None, headers=None):
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            self.request(path, data, headers)
+        error.exception.close()
+        return error.exception.code
+
+    def test_the_launch_address_works_once_and_never_carries_the_launcher_token(self):
+        code = self.launch_code()
+        self.assertNotIn('test-session-only', self.server.launch_url())
+        self.assertEqual(self.refused('/api/session', {}, {'X-Deck-Launch': 'test-session-only'}), 403)
+        with self.request('/api/session', {}, {'X-Deck-Launch': code}) as reply:
+            self.assertTrue(json.load(reply)['session'])
+        self.assertEqual(self.refused('/api/session', {}, {'X-Deck-Launch': code}), 403, 'a copy in the history is spent')
+        # The launcher (its token is in the private record) asks for a fresh code to open a window
+        with self.request('/api/session', {'launch': True}, {'X-Deck-Token': 'test-session-only'}) as reply:
+            fresh = json.load(reply)['launch']
+        self.assertNotEqual(fresh, code)
+        with self.request('/api/session', {}, {'X-Deck-Launch': fresh}):
+            pass
+        self.assertEqual(self.refused('/api/session', {'launch': True}, {'X-Deck-Token': 'wrong'}), 403)
+
+    def test_an_old_launch_code_expires(self):
+        code = self.launch_code()
+        with patch('tessera_app.time.monotonic', return_value=time.monotonic() + tessera_app.LAUNCH_CODE_SECONDS + 1):
+            self.assertEqual(self.refused('/api/session', {}, {'X-Deck-Launch': code}), 403)
+
+    def test_the_cookie_alone_is_not_a_session(self):
+        # Cookies reach every port on 127.0.0.1: one leaked to another listener must not open the API.
+        self.login()
+        with self.request('/api/session', {}, {'X-Deck-Launch': self.launch_code()}) as reply:
+            cookie = reply.headers['Set-Cookie']
+        self.assertIn('Path=/api/image/', cookie)
+        value = cookie.split(';', 1)[0].split('=', 1)[1]
+        self.assertNotEqual(value, self.session)
+        for header in ({'X-Deck-Session': ''}, {'X-Deck-Session': value}, {'X-Deck-Session': 'test-session-only'}):
+            raw = {'Cookie': cookie.split(';', 1)[0], **header}
+            self.assertEqual(self.refused('/api/config', headers=raw), 401)
+            self.assertEqual(self.refused('/api/command/activate', {}, raw), 403)
+        with self.request('/api/config') as reply:
+            self.assertEqual(reply.status, 200)
 
     def test_a_body_that_is_not_json_is_refused_in_english(self):
         self.login()
