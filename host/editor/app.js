@@ -521,7 +521,7 @@ function renderStatusBar() {
 }
 let polling=false,lastScreenLive='';
 async function pollStatus(timer) {if(timer===true&&(document.hidden||polling))return;polling=true;  /* a hidden tab does not poll */
-  try{dashboard=await api('status');editorOffline=false;renderStatus();if(typeof renderRail==='function'){renderRail();const live=JSON.stringify([dashboard,editorView]);
+  try{dashboard=await api('status');editorOffline=false;renderStatus();renderWelcome();if(typeof renderRail==='function'){renderRail();const live=JSON.stringify([dashboard,editorView]);
     if(editorView!=='keys'&&live!==lastScreenLive&&!document.activeElement?.closest('#screens-view')){lastScreenLive=live;renderScreen();}}}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');editorOffline=true;renderStatusBar();}finally{polling=false;}}
 document.addEventListener('keydown',event=>{
   if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}

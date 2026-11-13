@@ -626,7 +626,37 @@ class Editor:
         # The raw hash, not read(): the file being replaced may be the broken one this restore is for.
         return self.save({'config': config, 'revision': hashlib.sha256(self._raw()).hexdigest()}, force_backup=True)
 
+    SETUP_KEYS = {'welcome_done': bool, 'key_edited': bool, 'key_pressed': bool, 'firmware_hint_dismissed': str}
+
+    def setup_state(self, changes=None):
+        """First-run flags in setup.local.json. The first read writes the file, so the answer stays put:
+        a deck that still equals the starter set is a first run, an edited one (an upgrade) is not."""
+        path = self.path.with_name('setup.local.json')
+        with self.lock:
+            try:
+                state = json.loads(path.read_text(encoding='utf-8'))
+                if not isinstance(state, dict):
+                    raise ValueError
+            except (OSError, ValueError):
+                seed = self.path.with_name('profiles.default.json')
+                state = {'welcome_done': not seed.exists() or self._raw() != seed.read_bytes()}
+                changes = changes or {}
+            state = {key: value for key, value in state.items() if type(value) is self.SETUP_KEYS.get(key)}
+            if changes is not None:
+                for key, value in changes.items():
+                    if type(value) is not self.SETUP_KEYS.get(key):
+                        raise ValueError('Unknown setup setting')
+                state.update(changes)
+                temporary = path.with_suffix('.tmp')
+                temporary.write_text(json.dumps(state), encoding='utf-8')
+                temporary.replace(path)
+            return state
+
     def command(self, command, data):
+        if command == 'setup-state':
+            return self.setup_state()
+        if command == 'setup-done':
+            return self.setup_state(data)
         if command == 'host-log':
             return {'log': diagnostics.log_tail(ROOT / 'host/deck.local.log', int(data.get('lines', 200)) if isinstance(data.get('lines', 200), int) else 200)}
         if command == 'update-check':

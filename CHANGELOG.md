@@ -8,6 +8,11 @@
 - Editor: dim and secondary text has more contrast, and Windows' high-contrast setting raises lines and text further.
 - Editor: long profile and page names and tab labels are cut with an ellipsis instead of wrapping; many pages scroll sideways.
 - Editor window: the first window fits the screen, including a 1366x768 laptop, and the editor reopens at the size and place you left it.
+- Getting started: on a first run the editor shows a live checklist (Host running, Panel connected, Firmware up to date, Put an action on a key, Press it on the panel) that ticks itself off from the host status. *Install firmware …* sits on the panel step, and closing the card is remembered by the host (`host/setup.local.json`).
+- The first key press that reaches the PC says "It works" and lights up that key in the editor.
+- New installs start with a lean home page (volume, mute, play/pause, Explorer, Terminal, screenshot, calculator, show desktop, lock) and the Status, Desktop, Audio and Tools folders, without the author's own apps.
+- `Tessera.cmd` shows numbered progress lines (1/3 … 3/3) on the first start.
+- The tray asks about *Start with Windows* only after the panel first connects, and that first connection says to open the editor to set up your keys.
 
 ## 0.7.0
 

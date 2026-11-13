@@ -51,6 +51,26 @@ class EditorTests(unittest.TestCase):
         editor = Editor(folder / 'profiles.json', dashboard=lambda: {})
         self.assertEqual(list(editor.read()['config']['profiles']), ['Main'])
 
+    def test_setup_state_marks_a_fresh_deck_as_a_first_run_and_remembers_flags(self):
+        folder = Path(self.temp.name) / 'setup'
+        folder.mkdir()
+        (folder / 'profiles.default.json').write_text(json.dumps(self.config))
+        editor = Editor(folder / 'profiles.json', dashboard=lambda: {})
+        self.assertEqual(editor.command('setup-state', {}), {'welcome_done': False})
+        editor.command('setup-done', {'key_edited': True, 'firmware_hint_dismissed': '0.7.0'})
+        (folder / 'profiles.json').write_text('{}')  # a later edit does not turn the first run off
+        self.assertEqual(editor.command('setup-state', {}),
+                         {'welcome_done': False, 'key_edited': True, 'firmware_hint_dismissed': '0.7.0'})
+        for bad in ({'welcome_done': 'yes'}, {'anything': True}):
+            with self.assertRaises(ValueError):
+                editor.command('setup-done', bad)
+        upgraded = Path(self.temp.name) / 'upgraded'
+        upgraded.mkdir()
+        (upgraded / 'profiles.default.json').write_text(json.dumps(self.config))
+        (upgraded / 'profiles.json').write_text(json.dumps(dict(self.config, auto_profiles=False)))
+        self.assertEqual(Editor(upgraded / 'profiles.json', dashboard=lambda: {}).command('setup-state', {}),
+                         {'welcome_done': True})
+
     def login(self):
         with self.request('/api/session', {}, {'X-Deck-Token': 'test-session-only'}) as reply:
             self.assertIn('HttpOnly', reply.headers['Set-Cookie'])

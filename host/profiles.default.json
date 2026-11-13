@@ -8,132 +8,6 @@
         "main": [
           {
             "id": 1,
-            "label": "Chrome",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%ProgramFiles%\\Google\\Chrome\\Application\\chrome.exe",
-                "process": "chrome.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 2,
-            "label": "Claude",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "shell:AppsFolder\\Claude_pzs8sxrjxfjjc!Claude",
-                "process": "claude.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 3,
-            "label": "ChatGPT",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "shell:AppsFolder\\OpenAI.Codex_2p2nqsd0c76g0!App",
-                "process": "ChatGPT.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 4,
-            "label": "ZCode",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\Programs\\ZCode\\ZCode.exe",
-                "process": "ZCode.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 5,
-            "label": "LM Studio",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\Programs\\LM Studio\\LM Studio.exe",
-                "process": "LM Studio.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 6,
-            "label": "Obsidian",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\Programs\\Obsidian\\Obsidian.exe",
-                "process": "Obsidian.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 7,
-            "label": "VS Code",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\Programs\\Microsoft VS Code\\Code.exe",
-                "process": "Code.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 8,
-            "label": "GitHub Desktop",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\GitHubDesktop\\GitHubDesktop.exe",
-                "process": "GitHubDesktop.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 9,
-            "label": "Terminal",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "wt.exe",
-                "process": "WindowsTerminal.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 10,
             "label": "Explorer",
             "icon": "app",
             "color": "#35D07F",
@@ -147,32 +21,154 @@
             ]
           },
           {
-            "id": 11,
-            "label": "Discord",
+            "id": 2,
+            "label": "Terminal",
             "icon": "app",
             "color": "#35D07F",
             "actions": [
               {
                 "type": "open",
-                "target": "%LOCALAPPDATA%\\DiscordCanary\\DiscordCanary.exe",
-                "process": "DiscordCanary.exe",
+                "target": "wt.exe",
+                "process": "WindowsTerminal.exe",
                 "reuse": true
               }
             ]
           },
           {
-            "id": 12,
-            "label": "Steam",
-            "icon": "app",
-            "color": "#35D07F",
+            "id": 3,
+            "label": "Calculator",
+            "icon": "lc:e1bc",
+            "color": "#90A4AE",
             "actions": [
               {
                 "type": "open",
-                "target": "%ProgramFiles(x86)%\\Steam\\steam.exe",
-                "process": "steam.exe",
-                "reuse": true
+                "target": "calc.exe"
               }
             ]
+          },
+          {
+            "id": 4,
+            "label": "Screenshot",
+            "icon": "lc:e064",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+shift+s"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Show desktop",
+            "icon": "lc:e11d",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+d"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Lock PC",
+            "icon": "lc:e10b",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+l"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Volume -",
+            "icon": "lc:e1aa",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "volumedown"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Volume +",
+            "icon": "lc:e1ab",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "volumeup"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Mute",
+            "icon": "lc:e1ac",
+            "color": "#FFB74D",
+            "states": [
+              {
+                "label": "Mute",
+                "icon": "lc:e1ab",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
+              },
+              {
+                "label": "Muted",
+                "icon": "lc:e1ac",
+                "color": "#FF5252",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
+              }
+            ],
+            "bind": "speaker_muted"
+          },
+          {
+            "id": 10,
+            "label": "Play / pause",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
+            "states": [
+              {
+                "label": "Play",
+                "icon": "lc:e13c",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
+              },
+              {
+                "label": "Pause",
+                "icon": "lc:e12e",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
+              }
+            ],
+            "bind": "media_playing"
           },
           {
             "id": 13,
@@ -219,18 +215,6 @@
               {
                 "type": "folder",
                 "page": "tools"
-              }
-            ]
-          },
-          {
-            "id": 17,
-            "label": "Apps",
-            "icon": "lc:e0ff",
-            "color": "#64B5F6",
-            "actions": [
-              {
-                "type": "folder",
-                "page": "apps"
               }
             ]
           }
@@ -1272,153 +1256,6 @@
               {
                 "type": "hotkey",
                 "keys": "win+ctrl+grave"
-              }
-            ]
-          },
-          {
-            "id": 17,
-            "label": "Back",
-            "icon": "lc:e048",
-            "color": "#64B5F6",
-            "actions": [
-              {
-                "type": "back"
-              }
-            ]
-          }
-        ],
-        "apps": [
-          {
-            "id": 1,
-            "label": "Codex",
-            "icon": "lc:e1bb",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "profile",
-                "profile": "Codex"
-              }
-            ]
-          },
-          {
-            "id": 2,
-            "label": "Claude Code",
-            "icon": "lc:e412",
-            "color": "#E69A6E",
-            "actions": [
-              {
-                "type": "profile",
-                "profile": "Claude Code"
-              }
-            ]
-          },
-          {
-            "id": 3,
-            "label": "ZCode",
-            "icon": "lc:e3c6",
-            "color": "#8B7CF6",
-            "actions": [
-              {
-                "type": "profile",
-                "profile": "ZCode"
-              }
-            ]
-          },
-          {
-            "id": 4,
-            "label": "Xbox",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "shell:AppsFolder\\Microsoft.GamingApp_8wekyb3d8bbwe!Microsoft.Xbox.App",
-                "process": "XboxPcApp.exe",
-                "reuse": true
-              }
-            ]
-          },
-          {
-            "id": 5,
-            "label": "KiCad",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%ProgramFiles%\\KiCad\\10.0\\bin\\kicad.exe"
-              }
-            ]
-          },
-          {
-            "id": 6,
-            "label": "Unity Hub",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%ProgramFiles%\\Unity Hub\\Unity Hub.exe"
-              }
-            ]
-          },
-          {
-            "id": 7,
-            "label": "Fusion",
-            "icon": "im:b3220d6faba8",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%LOCALAPPDATA%\\Autodesk\\webdeploy\\production\\6a0c9611291d45bb9226980209917c3d\\FusionLauncher.exe"
-              }
-            ]
-          },
-          {
-            "id": 8,
-            "label": "Word",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%ProgramFiles%\\Microsoft Office\\root\\Office16\\WINWORD.EXE"
-              }
-            ]
-          },
-          {
-            "id": 9,
-            "label": "Excel",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%ProgramFiles%\\Microsoft Office\\root\\Office16\\EXCEL.EXE"
-              }
-            ]
-          },
-          {
-            "id": 10,
-            "label": "Outlook",
-            "icon": "app",
-            "color": "#35D07F",
-            "actions": [
-              {
-                "type": "open",
-                "target": "%ProgramFiles%\\Microsoft Office\\root\\Office16\\OUTLOOK.EXE"
-              }
-            ]
-          },
-          {
-            "id": 11,
-            "label": "GitHub",
-            "icon": "lc:e0e8",
-            "color": "#FFA868",
-            "actions": [
-              {
-                "type": "open",
-                "target": "https://github.com"
               }
             ]
           },

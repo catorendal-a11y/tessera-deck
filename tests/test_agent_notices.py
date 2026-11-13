@@ -68,12 +68,19 @@ class NoticeTests(HostCase):
         controller.status.return_value = {'running': False}
         app = tessera_tray.TrayApp(controller)
         app.icon = Mock()
+        app.ask_about_autostart, app.asked_autostart = Mock(), False  # never a real message box in a test
         app.refresh()
         app.refresh()
         self.assertEqual(app.icon.update_menu.call_count, 1, 'an unchanged status does not rebuild the menu')
         controller.status.return_value = {'running': True, 'device': {'connected': True, 'port': 'COM4', 'profile': 'main', 'page': 'main'}}
         app.refresh()
         self.assertEqual(app.icon.update_menu.call_count, 2, 'a new status rebuilds it')
+        app.icon.notify.assert_called_with('Panel connected. Open the editor to set up your keys.', 'Tessera')
+        for _ in range(50):  # the autostart question runs in the background, once, after the first connection
+            if app.ask_about_autostart.called:
+                break
+            time.sleep(0.02)
+        app.ask_about_autostart.assert_called_once()
         self.assertLessEqual(len(app.icon.title), 120)
 
         release, running = threading.Event(), threading.Event()

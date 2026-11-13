@@ -136,6 +136,7 @@ class TrayApp:
         self.restarts = 0  # automatic restarts in this burst
         self.restart_at = None  # when the next automatic restart runs (monotonic), while the host is down
         self.running_since = None  # since when the host has been seen running (monotonic)
+        self.asked_autostart = FIRST_RUN_PATH.exists()  # the question waits for the first panel connection
         self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
                                  menu=pystray.Menu(self.menu_items))
 
@@ -241,7 +242,7 @@ class TrayApp:
         self.background(work)
 
     def ask_about_autostart(self):
-        """Once, on the first run: the panel does nothing after a restart until Tessera runs, so ask."""
+        """Once, at the first panel connection: the panel does nothing after a restart until Tessera runs, so ask."""
         if FIRST_RUN_PATH.exists() or os.name != 'nt':
             return
         write_command({'asked': 'autostart'}, FIRST_RUN_PATH)
@@ -329,7 +330,12 @@ class TrayApp:
         if state != self.state:
             previous, self.state = self.state, state
             self.icon.icon = make_icon(state)
-            if previous == 'connected':
+            if state == 'connected' and not self.asked_autostart:
+                # the first connection ever: say what comes next, then ask about autostart now that it works
+                self.asked_autostart = True
+                self.icon.notify('Panel connected. Open the editor to set up your keys.', 'Tessera')
+                self.background(self.ask_about_autostart)
+            elif previous == 'connected':
                 self.icon.notify('The panel was disconnected.', 'Tessera')
             elif previous and state == 'connected':
                 self.icon.notify('The panel is connected.', 'Tessera')
@@ -401,7 +407,6 @@ class TrayApp:
 
     def run(self):
         self.start_host()
-        self.background(self.ask_about_autostart)
         threading.Thread(target=self.poll, daemon=True).start()
         self.icon.run()
 
