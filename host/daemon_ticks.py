@@ -138,7 +138,9 @@ class BackgroundMixin:
             self.start_actions(items[index]['a'])
             return
         if items[index]['k'] == 'keys':  # Keys tapped while the keys show: back to where a shortcut came from
-            profile, page = getattr(self, 'before_shortcut', None) or (self.profile, None)
+            if getattr(self, 'before_shortcut', None) is None:
+                return  # no shortcut was used: stay on the page you are on
+            profile, page = self.before_shortcut
             self.before_shortcut = None
             if profile not in self.config['profiles']:
                 profile = self.profile
@@ -149,11 +151,19 @@ class BackgroundMixin:
             if getattr(self, 'before_shortcut', None) is None:
                 self.before_shortcut = (self.profile, self.page)
         if profile in self.config['profiles'] and page in self.config['profiles'][profile]['pages']:
-            self.switch_profile(profile)
-            if self.page != page:
-                self.switch_page(page)
-            else:
-                self.push_page(force=True)
+            remember, self.rail_moving = self.before_shortcut, True
+            try:
+                self._go_to(profile, page)
+            finally:
+                self.rail_moving = False
+            self.before_shortcut = remember
+
+    def _go_to(self, profile, page):
+        self.switch_profile(profile)
+        if self.page != page:
+            self.switch_page(page)
+        else:
+            self.push_page(force=True)
 
     def panel_takes_questions(self):
         return self.panel is not None and not self.connection_failed.is_set() and self.uses_cockpit()

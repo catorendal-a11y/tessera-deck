@@ -340,6 +340,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.log(f'{self.profile} / {self.page}: {len(buttons)} buttons acknowledged')
 
     def switch_page(self, page, folder=False):
+        if not getattr(self, 'rail_moving', False):
+            self.before_shortcut = None  # you moved on your own: Keys no longer goes back to before a shortcut
         if page not in self.config['profiles'][self.profile]['pages']:
             raise ValueError(f'Unknown page: {page}')
         if folder:
@@ -354,6 +356,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         return True
 
     def switch_profile(self, profile, auto=False):
+        if not getattr(self, 'rail_moving', False):
+            self.before_shortcut = None
         if profile not in self.config['profiles']:
             raise ValueError(f'Unknown profile: {profile}')
         resume, self.resume_view = self.resume_view, None
@@ -643,7 +647,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.show_question()
         elif kind == 'rail':
             self.last_activity = time.monotonic()
-            self.use_rail_shortcut(job[1])
+            if self.dimmed:  # the first touch on a dimmed panel only wakes it, like a key
+                self.wake_display()
+            else:
+                self.use_rail_shortcut(job[1])
         elif kind in ('fader', 'mute', 'agent'):
             self.last_activity = time.monotonic()
             if kind == 'fader':

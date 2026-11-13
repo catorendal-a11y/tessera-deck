@@ -316,7 +316,7 @@ function renameProfile(old,name) {
   if(!name||config.profiles[name])throw new Error('Choose a new profile name.');
   const entries=Object.entries(config.profiles);config.profiles=Object.fromEntries(entries.map(([key,value])=>[key===old?name:key,value]));
   if(config.default_profile===old)config.default_profile=name;
-  for(const item of Object.values(config.profiles))rewriteActions(profileButtons(item),a=>a.type==='profile'&&a.profile===old?{...a,profile:name}:a);
+  for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?{...a,profile:name}:a);
   for(const t of config.triggers||[])for(const a of t.actions||[])if(a.type==='profile'&&a.profile===old)a.profile=name;
   for(const s of config.panel?.shortcuts||[])if(s.profile===old)s.profile=name;
 }
@@ -333,7 +333,7 @@ async function profileSettings() {
       if(Object.keys(config.profiles).length===1)throw new Error('Keep at least one profile.');
       if(!confirm(`Delete profile “${profile}” and actions that point to it?`))return;
       mutate(()=>{const old=profile;delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
-        for(const item of Object.values(config.profiles))rewriteActions(profileButtons(item),a=>a.type==='profile'&&a.profile===old?null:a);
+        for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
         for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
         if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);});renderAll();return;
     }
@@ -371,7 +371,7 @@ function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',
     if(values.remove){delete pages[old];page=Object.keys(pages)[0];}
     else {config.profiles[profile].pages=Object.fromEntries(Object.entries(pages).map(([key,value])=>[key===old?name:key,value]));page=name;}
     const update=a=>['page','folder'].includes(a.type)&&a.page===old?(values.remove?null:{...a,page:name}):a;
-    rewriteActions(profileButtons(config.profiles[profile]),update);
+    rewriteActions(profileButtons(config.profiles[profile]),update);rewriteActions(railSteps(),update);
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:values.remove?[]:[{...s,page:name}]);
     if(config.default_profile===profile)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
   });renderAll();

@@ -71,6 +71,12 @@ class ReviewTests(unittest.TestCase):
         timer = strip_executable(config)['profiles']['Main']['pages']['First'][0]['actions'][-1]
         self.assertEqual(timer['actions'], [])
 
+    def test_a_rail_shortcut_with_a_command_is_listed_and_stripped(self):
+        config = bundle()
+        config['panel'] = {'shortcuts': [{'type': 'actions', 'label': 'Build', 'icon': 'lc:e0ff', 'actions': [{'type': 'shell', 'command': 'calc'}]}]}
+        self.assertIn('Rail shortcut 1', ' '.join(item['where'] for item in review(config)))
+        self.assertEqual(strip_executable(config)['panel']['shortcuts'][0]['actions'], [])
+
     def test_original_bundle_is_not_modified_by_review_strip_or_redaction(self):
         original = bundle()
         snapshot = copy.deepcopy(original)

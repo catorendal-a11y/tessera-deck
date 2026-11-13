@@ -54,7 +54,8 @@ def rail_items(choice: dict, profiles: dict, actions: bool = True) -> list[dict]
 
 
 def rail_payload(items: list[dict]) -> str:
-    return _line({'rail': [{key: value for key, value in item.items() if key != 'a'} for item in items]})
+    return _line({'rail': [{key: (value[:31] if key in ('p', 'g') else value) for key, value in item.items() if key != 'a'}
+                           for item in items]})
 
 
 def agents_payload(variables: dict, running: dict, asking: dict | None = None, shown: list | None = None) -> str:

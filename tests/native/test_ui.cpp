@@ -141,6 +141,7 @@ assert(!deck_model_faders_from_json(R"({"faders":[{"id":"x","name":"x","color":"
 assert(deck_model_rail_from_json(R"({"rail":[{"k":"keys"},{"k":"agents"},{"k":"status"},{"k":"page","i":"lc:e0e8","p":"Chrome","g":"main"},{"k":"page","i":"lc:e093","p":"coding","g":"main"}]})"));
 assert(!deck_model_rail_from_json(R"({"rail":[{"k":"weather"}]})")&&!deck_model_rail_from_json(R"({"rail":[{"k":"page","i":"lc:e0e8"}]})"));
 ui_show_view(1);updates();capture(output/"rail.ppm");
+deck_model_note_host();  /* a shortcut does something only with the PC there */
 tap(42,84+3*60+27);
 assert(taken()==R"({"type":"rail","i":3})"&&taken().empty());
 assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"keys\""));

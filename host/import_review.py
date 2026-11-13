@@ -38,6 +38,9 @@ def iter_actions(config):
             for number, state in enumerate(button.get('states', []), 1):
                 if isinstance(state.get('actions'), list):
                     yield from _with_timers(f'{name} state {number}', state, 'actions', False)
+    for number, shortcut in enumerate((config.get('panel') or {}).get('shortcuts') or [], 1):
+        if isinstance(shortcut, dict) and isinstance(shortcut.get('actions'), list):
+            yield from _with_timers(f"Rail shortcut {number} '{shortcut.get('label', '')}'", shortcut, 'actions', False)
     for number, trigger in enumerate(config.get('triggers', []), 1):
         if isinstance(trigger.get('actions'), list):
             yield from _with_timers(f'Automatic rule {number} ({trigger.get("when", {}).get("type", "?")})', trigger, 'actions', True)

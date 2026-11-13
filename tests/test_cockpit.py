@@ -122,8 +122,17 @@ class RailTests(HostCase):
         daemon.handle_job(('rail', keys))  # Keys tapped while the keys show: back to the page before the shortcut
         self.assertEqual((daemon.profile, daemon.page), start)
         daemon.switch_page('system')
-        daemon.handle_job(('rail', keys))  # without a shortcut before it, Keys goes to the profile's first page
-        self.assertEqual(daemon.page, next(iter(daemon.config['profiles'][daemon.profile]['pages'])))
+        daemon.handle_job(('rail', keys))  # without a shortcut before it, Keys keeps the page you are on
+        self.assertEqual(daemon.page, 'system')
+        daemon.handle_job(('rail', index))
+        daemon.switch_page('main')  # moved on by hand: the shortcut is forgotten
+        daemon.handle_job(('rail', keys))
+        self.assertEqual(daemon.page, 'main')
+        daemon.dimmed = True
+        with unittest.mock.patch.object(daemon, 'wake_display') as wake:
+            daemon.handle_job(('rail', index))
+        wake.assert_called_once()
+        self.assertEqual(daemon.page, 'main', 'a tap on a dimmed panel only wakes it')
 
 
 

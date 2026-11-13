@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rail fixes: Keys goes back only after a shortcut and keeps your page otherwise; a shortcut is forgotten once you move on your own; a tap on a dimmed panel only wakes it; without the PC a shortcut does nothing instead of flashing; the steps of rail shortcuts are reviewed on import, stripped by *Import without commands* and follow renamed or deleted pages and profiles; long page names no longer push the rail past the panel's line limit.
 - Rail shortcuts can run steps like a key (copy them from one of your keys, give the shortcut a name) without leaving the screen, and any icon from the library can be used (panel firmware 0.6.3; an older panel simply leaves such shortcuts out).
 - Rail dialog: the preview names every place and shows the free ones, a shortcut shows its profile and page, shortcuts are numbered and can be moved, the icon row is labelled, and a line says what a shortcut does and how Keys brings you back.
 - Editor: on a large screen the deck grows with the window (bounded by its height) instead of stopping at a fixed width.

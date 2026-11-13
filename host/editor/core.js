@@ -154,6 +154,8 @@ async function api(path, data) {
 }
 function buttons() {return config.profiles[profile].pages[page];}
 function profileButtons(item) {return [...Object.values(item.pages).flat(),...(item.pinned||[])];}
+/* Rail shortcuts that run steps hold actions too, so renames and deletes reach them like keys. */
+function railSteps() {return (config.panel?.shortcuts||[]).filter(s=>s.type==='actions');}
 function rewriteActions(items,transform) {
   const rewrite=list=>list.flatMap(action=>{const changed=transform(action);return changed?[changed]:[];});
   for(const b of items){for(const holder of [b,...(b.states||[])])holder.actions=rewrite(holder.actions||[]);
