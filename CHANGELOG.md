@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Import: *Without commands* also removes text typed after a hotkey (Win+R, a command and Enter runs it), and the review lists such keys.
+- Images: a dropped image is only read as PNG, JPEG, GIF or WebP, so Pillow's other decoders never see it.
+- CI: every GitHub Action is pinned to a commit SHA, and a test keeps it that way.
 - Sensors: Libre Hardware Monitor now runs with administrator rights only from a verified copy in `%ProgramFiles%\Tessera`, which other programs cannot change, and a firewall rule keeps its port 8085 off the network. Run `Tessera.cmd --sensors` again to move the sign-in task there.
 - Panel: a brightness change is saved to the panel's flash at most once a minute (it still applies at once), and the panel refuses JSON nested more than 16 levels deep, so a bad message can no longer crash it or make it restart in a loop.
 - Security: a key whose program is on a network share (`\\server\…`) or a web address no longer reads its *app* icon from there, which sent your Windows sign-in to that server without a key press. The key shows the default icon.

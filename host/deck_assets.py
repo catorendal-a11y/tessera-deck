@@ -178,7 +178,8 @@ class Assets:
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter('error', Image.DecompressionBombWarning)
-                with Image.open(BytesIO(raw)) as image:
+                # formats= keeps every other Pillow decoder (EPS, TGA, ...) away from a file the user drops in
+                with Image.open(BytesIO(raw), formats=('PNG', 'JPEG', 'GIF', 'WEBP')) as image:
                     if image.format not in ('PNG', 'JPEG', 'GIF', 'WEBP') or image.width * image.height > 16_000_000:
                         raise ValueError('Use PNG, JPEG, GIF or WebP, at most 16 megapixels')
                     count = getattr(image, 'n_frames', 1)

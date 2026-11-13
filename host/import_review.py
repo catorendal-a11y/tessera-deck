@@ -12,6 +12,13 @@ WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:
 EXECUTABLE_KINDS = ('shell', 'http', 'plugin')
 SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
+TYPED = ('text', 'clipboard')  # after a hotkey (Win+R, a terminal) typed text is a command
+
+
+def _typed_after_hotkey(actions) -> bool:
+    """A hotkey and typed text in one list: Win+R, a command and Enter runs it, though no step is a command."""
+    kinds = {action.get('type') for action in actions if isinstance(action, dict)}
+    return 'hotkey' in kinds and bool(kinds & set(TYPED))
 
 
 def _button_lists(config):
@@ -84,6 +91,9 @@ def review(config: dict) -> list[dict]:
             findings.append({'where': 'Plugins', 'kind': 'plugins', 'risk': 'medium', 'automatic': False,
                              'detail': f'turns on plugin {str(plugin_id)[:60]}' + (f' with settings: {settings[:160]}' if settings else '')})
     for where, owner, key, automatic in iter_actions(config):
+        if _typed_after_hotkey(owner[key]):
+            findings.append({'where': where, 'kind': 'hotkey', 'risk': 'high' if automatic else 'medium', 'automatic': automatic,
+                             'detail': 'presses a hotkey and types text, which can run a command (for example Win+R)'})
         for action in owner[key]:
             if not isinstance(action, dict):
                 continue
@@ -103,12 +113,15 @@ def review(config: dict) -> list[dict]:
 
 
 def strip_executable(config: dict) -> dict:
-    """A copy without shell, HTTP and plugin actions, program launches that are not web links, automatic rules and plugin setup."""
+    """A copy without shell, HTTP and plugin actions, program launches that are not web links, text typed after a
+    hotkey, automatic rules and plugin setup."""
     safe = copy.deepcopy(config)
     for _, owner, key, _ in list(iter_actions(safe)):
+        typed = _typed_after_hotkey(owner[key])
         owner[key] = [action for action in owner[key]
                       if not (isinstance(action, dict)
                               and (action.get('type') in EXECUTABLE_KINDS
+                                   or (typed and action.get('type') in TYPED)
                                    or (action.get('type') == 'open' and _classify(action))))]
     safe['triggers'] = []
     # Plugin setup turns code on; the editor keeps the plugins already set up on this PC instead.

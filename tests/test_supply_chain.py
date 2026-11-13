@@ -69,9 +69,18 @@ class SensorScriptTests(unittest.TestCase):
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_every_action_is_pinned_to_a_commit(self):
+        """A tag can be moved to other code; a commit SHA cannot. Dependabot keeps the SHA and the version comment current."""
+        for path in sorted((ROOT / '.github/workflows').glob('*.yml')):
+            for line in path.read_text(encoding='utf-8').splitlines():
+                found = re.search(r'uses:\s*([^\s#]+)', line)
+                if found and not found.group(1).startswith(('./', 'docker://')):
+                    self.assertRegex(found.group(1), r'@[0-9a-f]{40}$', f'{path.name}: {line.strip()}')
+                    self.assertRegex(line, r'#\s*v\d', f'{path.name}: say which version the SHA is')
+
     def test_release_checkouts_do_not_leave_the_token_in_git_config(self):
         release = read('.github/workflows/release.yml')
-        checkouts = re.findall(r'- uses: actions/checkout@\S+\n((?: {8,}\S[^\n]*\n)*)', release)
+        checkouts = re.findall(r'- uses: actions/checkout@\S+[^\n]*\n((?: {8,}\S[^\n]*\n)*)', release)
         self.assertEqual(len(checkouts), 3)
         for block in checkouts:
             self.assertIn('persist-credentials: false', block)

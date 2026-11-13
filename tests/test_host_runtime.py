@@ -322,6 +322,16 @@ class HostRuntimeTests(HostCase):
                 Assets(Path(directory) / 'profiles.json').import_image(
                     base64.b64encode(b'not an image').decode())
 
+    def test_only_png_jpeg_gif_and_webp_reach_a_decoder(self):
+        import base64
+        from io import BytesIO
+        from PIL import Image
+        for kind in ('TGA', 'BMP'):  # Pillow can read them, but its other decoders are not exposed to dropped files
+            output = BytesIO()
+            Image.new('RGB', (8, 8), 'red').save(output, kind)
+            with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(ValueError, 'could not be read'):
+                Assets(Path(directory) / 'profiles.json').import_image(base64.b64encode(output.getvalue()).decode())
+
     def test_failed_actions_give_negative_feedback(self):
         daemon = self.daemon()
         daemon.run_action = Mock(side_effect=RuntimeError('blocked'))

@@ -71,6 +71,18 @@ class ReviewTests(unittest.TestCase):
         timer = strip_executable(config)['profiles']['Main']['pages']['First'][0]['actions'][-1]
         self.assertEqual(timer['actions'], [])
 
+    def test_text_typed_after_a_hotkey_is_listed_and_stripped(self):
+        config = bundle()
+        keys = config['profiles']['Main']['pages']['First']
+        keys[0]['actions'] = [{'type': 'hotkey', 'keys': 'win+r'}, {'type': 'text', 'text': 'powershell -c calc'},
+                              {'type': 'hotkey', 'keys': 'enter'}]
+        found = [item for item in review(config) if 'types text' in item['detail']]
+        self.assertEqual([(item['kind'], item['risk']) for item in found], [('hotkey', 'medium')])
+        safe = strip_executable(config)['profiles']['Main']['pages']['First'][0]['actions']
+        self.assertEqual([action['type'] for action in safe], ['hotkey', 'hotkey'], 'the typed command is gone')
+        keys[0]['actions'] = [{'type': 'text', 'text': 'Kind regards'}]  # a text snippet on its own stays
+        self.assertEqual(strip_executable(config)['profiles']['Main']['pages']['First'][0]['actions'], keys[0]['actions'])
+
     def test_a_rail_shortcut_with_a_command_is_listed_and_stripped(self):
         config = bundle()
         config['panel'] = {'shortcuts': [{'type': 'actions', 'label': 'Build', 'icon': 'lc:e0ff', 'actions': [{'type': 'shell', 'command': 'calc'}]}]}
