@@ -20,6 +20,15 @@
 - Editor: the LED and connection text open a *Panel status* window with the port, firmware, Tessera version, the next step and *Panel firmware …*.
 - Panel firmware: with no panel connected the dialog chooses the full install and shows *Install anyway* at once; the choices are now *Update (keeps settings)* and *Full install (new or blank panel)*, and the protocol number shows only when it does not match.
 - Panel firmware: a panel that does not answer is told to choose *Full install* and tick *Install anyway*.
+- Editor: a click on an action in the list always makes a new key, on the selected slot when it is empty or else on the first free slot; drop an action on a key to add a step to it. A toast says which key got it.
+- Editor: a new key opens on the Look tab with the cursor in Title, so you name it first.
+- Editor: pasting a key or placing a program on a key that is in use says "Replaced key N" with an Undo button.
+- Editor: an unfinished key gets a yellow dot and a tooltip, and the sync line links to it. The other keys keep saving; the panel gets the unfinished key without its unfinished part.
+- Editor: adding Open folder opens Create a subpage with the key name filled in. The key gets the page as its name and target, the editor opens the new page, and a toast says Back is on slot 17. The list names are now "Open folder (with Back key)" and "Go to page (no Back key)".
+- Editor: a step's action type is a menu in the step title, so a wrong pick changes in place.
+- Editor and host: a key with Position set to Hide text may have an empty name (icon only).
+- Editor: drag a key onto a page tab to move it to that page. Each page remembers its selected key.
+- Editor: the sync line has a "Show this page on the panel" button when the panel shows another page, and says "✓ On the panel" after a save. The checkbox is now "Panel follows the page I edit".
 
 ## 0.7.0
 

@@ -30,7 +30,7 @@ function renderLibrary() {
   if(('installed programs app launcher'.includes(search)||!search))put('apps',button('Installed programs …',openProgramPicker,'program-launcher'));
   const ready=WIDGETS.map(w=>{const item=make(w.name,'widget',w.sub,'widget:'+w.kind);if(item)item.querySelector('.action-symbol').innerHTML=`<svg viewBox="0 0 24 24">${w.path}</svg>`;return item;}).filter(Boolean);
   if(ready.length){if(searching)list.append(category('Widgets',ready,0,true));else if(libraryTab==='widgets')list.append(text('p','A widget is a wide key that shows something live. Drag one to a key with a free slot to its right.','hint library-note'),element('div',{class:'lib-items lib-flat'},...ready));}
-  const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='page'?'Folders and subpages':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
+  const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
   [...groups].forEach(([group,items],index)=>put('basics',category(group,items,index%4,searching)));
   if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
   else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)put('ready',category('Ready to use',ready,0,searching));}
@@ -65,6 +65,7 @@ async function installProgram(target,id=selected) {
   placeProgram(result,id);
 }
 function placeProgram(result,id=selected) {
+  const replaced=owner(id).some(item=>item.id===id);
   mutate(()=>{
     selected=id;editState=0;
     const list=owner(id),old=list.findIndex(item=>item.id===id);
@@ -73,7 +74,7 @@ function placeProgram(result,id=selected) {
       actions:[{type:'open',target:result.target,process:result.process||'',reuse:result.reuse!==false}]});
   });
   $('#program-dialog').close();
-  toast(`“${result.name}” was placed on key ${id}.`);
+  toast(replaced?`Replaced key ${id} with “${result.name}”.`:`“${result.name}” was placed on key ${id}.`,replaced);
 }
 function renderProgramResults() {
   const query=$('#program-search').value.trim().toLocaleLowerCase();
@@ -122,7 +123,7 @@ function renderInspector() {
   const updateMeter=()=>{const full=expandLabel(appearance()?.label),bytes=new TextEncoder().encode(full).length,variable=/[$][(]/.test(appearance()?.label||'');
     meter.classList.toggle('over',bytes>LABEL_BYTES);
     meter.textContent=bytes>LABEL_BYTES?`Too long for the panel: it shows “${panelLabel(full)}”`:`${bytes} / ${LABEL_BYTES} bytes on the panel${variable?' with the current values':''}`;};
-  const nameInput=element('input',{type:'text',placeholder:'A short, clear name','aria-label':'Key name'});nameInput.value=b.label??'';
+  const nameInput=element('input',{type:'text',placeholder:'Name (leave empty for icon only)','aria-label':'Key name'});nameInput.value=b.label??'';
   nameInput.addEventListener('input',()=>{mutate(()=>appearance().label=nameInput.value,false,editKey('label'));updateMeter();previewLabel.textContent=resolveLabel(nameInput.value)||' ';});
   updateMeter();
   const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Icon color',title:'Icon color'});
@@ -162,7 +163,7 @@ function renderInspector() {
   panel.append(renderTriggers(base));
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+(activeActions()?.length===1?' STEP':' STEPS'),'section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
-  const addSelect=element('select',{'aria-label':'Add a new action step'});addSelect.append(element('option',{value:'',text:'＋ Add action …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));addSelect.addEventListener('change',()=>{if(addSelect.value)addAction(addSelect.value);});panel.append(addSelect);
+  const addSelect=element('select',{'aria-label':'Add a new action step'});addSelect.append(element('option',{value:'',text:'＋ Add action …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));addSelect.addEventListener('change',()=>{if(addSelect.value)addAction(addSelect.value,selected);});panel.append(addSelect);
   panel.append(element('div',{class:'inspector-tools'},button('Test (nothing runs)',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear key',clearButton,'quiet danger')));
   panel.append(field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}));
   panel.append(text('p','Changes are saved automatically. The key action runs only when you press the panel.','hint'));
@@ -240,7 +241,10 @@ function renderStep(action,index,count) {
   step.addEventListener('drop',event=>{const value=event.dataTransfer.getData('application/x-deck-step');if(value==='')return;event.preventDefault();const source=Number(value);mutate(()=>{const actions=activeActions();actions.splice(index,0,actions.splice(source,1)[0]);});});
   const move=delta=>{if(index+delta<0||index+delta>=count)return;mutate(()=>{const a=activeActions();[a[index],a[index+delta]]=[a[index+delta],a[index]];});};
   const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.disabled=index===0;down.disabled=index===count-1;
-  step.append(element('div',{class:'step-header'},text('strong',`${index+1}. ${k.name}`),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
+  // The title is the step type: a wrong pick changes in place and keeps the step's position.
+  const type=element('select',{class:'step-type','aria-label':`Step ${index+1} action type`});options(type,Object.entries(kinds).map(([key,item])=>[key,item.name]),action.type);
+  type.addEventListener('change',()=>{const fresh=actionTemplate(type.value)?.actions[0];if(fresh)mutate(()=>{activeActions()[index]=fresh;});});
+  step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,type),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
   let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
@@ -325,7 +329,8 @@ function renderTimerStep(step,action,index) {
     text('p',`Show the time in a key name with $(timer:${action.name||'name'}) or as a ring on a wide key (Shows). The timer keeps running while Tessera is closed.`,'hint'));
 }
 function copyButton() {if(!current())return;clipboard=clone(current());toast('The key was copied. Choose a slot and press Ctrl+V.');}
-function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&(!spanFits(selected,copy.span,[old])||(old&&isPinned(old)&&!freeOnAllPages(selected,copy.span,[old])))){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
+function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};let note='';if((copy.span||1)>1&&(!spanFits(selected,copy.span,[old])||(old&&isPinned(old)&&!freeOnAllPages(selected,copy.span,[old])))){delete copy.span;delete copy.live;note=' The wide key did not fit here and was pasted as a normal key.';}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});
+  if(old)toast(`Replaced key ${selected}.${note}`,true);else if(note)toast(note.trim());}
 function dialog(title,fields,onSave,saveLabel='Save') {
   const d=$('#form-dialog');$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
   $('#dialog-fields').replaceChildren(...fields.map(f=>{const label=element('label',{class:'form-field'},text('span',f.label));const input=f.options?element('select',{name:f.name}):element(f.multiline?'textarea':'input',{name:f.name,type:f.type||'text',required:f.required?'required':undefined,placeholder:f.placeholder});if(f.options)options(input,f.options,f.value||f.options[0][0]);else if(f.type==='checkbox')input.checked=!!f.value;else input.value=f.value||'';label.append(input);if(f.note)label.append(text('small',f.note,'hint'));return label;}));
@@ -341,11 +346,15 @@ function openTemplates() {
     mutate(()=>{config.profiles[name]=clone(template.profile);profile=name;page=Object.keys(config.profiles[name].pages)[0];selected=1;editState=0;});renderAll();toast(`Profile “${name}” was added.`);
   },'Add profile');
 }
-function newPage(link=false,index=0) {dialog(link?'Create a subpage':'New page',[{name:'name',label:'Page name',required:true}],values=>{
+/* link: the step at `index` becomes a folder to the new page, which gets a Back key; either way the editor opens the new page. */
+function newPage(link=false,index=0,suggested='') {dialog(link?'Create a subpage':'New page',[{name:'name',label:'Page name',required:true,value:suggested}],values=>{
   const name=values.name.trim();if(!name||config.profiles[profile].pages[name])throw new Error('Choose a new page name.');
   mutate(()=>{config.profiles[profile].pages[name]=[];if(link){activeActions()[index].page=name;activeActions()[index].type='folder';
-    config.profiles[profile].pages[name].push({id:17,label:'Back',icon:'home',color:'#A3B2BC',actions:[{type:'back'}]});}else page=name;});renderPages();
-});}
+    const view=appearance();if(!view.label?.trim()||['Folder','Go to page',kinds.folder.name,kinds.page.name].includes(view.label))view.label=name;  // a default name becomes the page name
+    config.profiles[profile].pages[name].push({id:17,label:'Back',icon:'home',color:'#A3B2BC',actions:[{type:'back'}]});}
+    showPage(profile,name);},false);renderAll();
+  if(link)toast(`Subpage “${name}” created. Back is on slot 17.`);
+});setTimeout(()=>$('#dialog-fields input')?.select(),40);}
 function renameProfile(old,name) {
   if(name===old)return;
   if(!name||config.profiles[name])throw new Error('Choose a new profile name.');
@@ -439,7 +448,7 @@ async function importConfig(file) {
   if(data.assets){const replacements={};for(const [id,image] of Object.entries(data.assets)){const result=await api('image',{data:image});replacements[id]=result.id;}const visit=value=>{if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')for(const [key,item] of Object.entries(value)){if(key==='icon'&&replacements[item])value[key]=replacements[item];else visit(item);}};delete data.assets;visit(data);}
   const added=choice.mode==='add'?addProfiles(data.profiles):null;
   const previous=clone(config),wasDirty=dirty;remember();const mark=history.length-1;config=added?added.config:data;if(added)profile=added.names[0];let importVersion=-1;
-  try {ensureSelection();const error=draftError();if(error)throw new Error(error);importVersion=++version;dirty=true;await save();renderAll();toast(added?`${added.names.length} profile(s) were added: ${added.names.join(', ')}.`:'The configuration was imported.',true);}
+  try {ensureSelection();importVersion=++version;dirty=true;await save();renderAll();toast(added?`${added.names.length} profile(s) were added: ${added.names.join(', ')}.`:'The configuration was imported.',true);}
   catch(error){
     // Undo the import only when nothing was edited while the save ran; edits made on top of it stay, with their undo steps.
     if(importVersion<0||version===importVersion){config=previous;history.length=Math.min(mark,history.length);dirty=wasDirty;if(!dirty&&!conflicted)setSaveState('✓ Saved on the PC');}
@@ -631,8 +640,9 @@ document.addEventListener('pointermove',event=>{
   if(!drag.active){drag.active=true;drag.label=drag.source.dataset.slot?'Move key '+drag.source.dataset.slot:drag.source.dataset.label||drag.source.innerText.split('\n')[0];drag.ghost=text('div',drag.label,'drag-ghost');document.body.append(drag.ghost);document.body.classList.add('dragging');if(drag.source.dataset.program!==undefined)$('#program-dialog').classList.add('drag-through');}
   drag.ghost.style.left=(event.clientX+15)+'px';drag.ghost.style.top=(event.clientY+15)+'px';
   document.querySelectorAll('.drag-over').forEach(n=>n.classList.remove('drag-over'));
-  const over=document.elementFromPoint(event.clientX,event.clientY)?.closest(drag.source.dataset.step!==undefined?'[data-step]':'[data-slot]');over?.classList.add('drag-over');
-  if(drag.source.dataset.step===undefined)drag.ghost.textContent=over?dropHint(drag.source,Number(over.dataset.slot)):drag.label;
+  const targets=drag.source.dataset.step!==undefined?'[data-step]':drag.source.dataset.slot?'[data-slot],[data-page]':'[data-slot]';  // a key can also go to a page tab
+  const over=document.elementFromPoint(event.clientX,event.clientY)?.closest(targets);over?.classList.add('drag-over');
+  if(drag.source.dataset.step===undefined)drag.ghost.textContent=over?.dataset.page!==undefined?`Move to page ${over.dataset.page}`:over?dropHint(drag.source,Number(over.dataset.slot)):drag.label;
 });
 /* What a drop on `slot` does, shown in the ghost: a taken key is swapped, gets the action as its next step, or is replaced. */
 function dropHint(source,slot) {
@@ -648,8 +658,9 @@ function endDrag(event,cancel=false) {
   if(!value.active||cancel)return;
   suppressClick=true;setTimeout(()=>suppressClick=false,0);
   const target=document.elementFromPoint(event.clientX,event.clientY);
-  const slot=Number(target?.closest('[data-slot]')?.dataset.slot);
-  if(value.source.dataset.program!==undefined&&slot){const program=installedPrograms[Number(value.source.dataset.program)];if(program)installProgram(program.target,slot).catch(showError);}
+  const slot=Number(target?.closest('[data-slot]')?.dataset.slot),pageTab=target?.closest('[data-page]')?.dataset.page;
+  if(value.source.dataset.slot&&pageTab!==undefined)moveToPage(Number(value.source.dataset.slot),pageTab);
+  else if(value.source.dataset.program!==undefined&&slot){const program=installedPrograms[Number(value.source.dataset.program)];if(program)installProgram(program.target,slot).catch(showError);}
   else if(value.source.dataset.action&&slot)addAction(value.source.dataset.action,slot);
   else if(value.source.dataset.slot&&slot)moveSlot(Number(value.source.dataset.slot),slot);
   else if(value.source.dataset.step!==undefined){const step=target?.closest('[data-step]');if(step){const from=Number(value.source.dataset.step),to=Number(step.dataset.step);if(from!==to)mutate(()=>{const a=activeActions();a.splice(to,0,a.splice(from,1)[0]);});}}
@@ -664,7 +675,7 @@ async function start() {
   const state=await api('config');config=state.config;revision=state.revision;savedBase=clone(config);if(state.error)setTimeout(()=>{setSaveState('Not saved · '+state.error,'Your configuration file could not be read; open More → Restore a backup …');configError=state.error;renderStatusBar();},0);profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
   try{const [,catalog]=await Promise.all([loadIconPack(),api('action-packs')]);actionCatalog=catalog;}catch(error){toast('The add-on packs could not be loaded. '+error.message);}
   renderAll();renderLibrary();setSaveState('✓ Configuration ready');await pollStatus();
-  $('#profile').onchange=()=>{profile=$('#profile').value;page=Object.keys(config.profiles[profile].pages)[0];selected=1;editState=0;renderAll();syncPanel();};
+  $('#profile').onchange=()=>{const next=$('#profile').value;showPage(next,Object.keys(config.profiles[next].pages)[0]);renderAll();syncPanel();};
   $('#action-search').oninput=renderLibrary;
   // Enter adds the first match; the arrow keys walk the list, Escape goes back to the search box.
   $('#action-search').addEventListener('keydown',event=>{const items=[...$('#actions-library').querySelectorAll('.action-preset')];
