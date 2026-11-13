@@ -337,3 +337,11 @@ html body .toolbar .more+.more{margin-left:6px}
 .rail-icons{align-items:center}
 .rail-icons-label{font-size:12px;color:var(--muted);margin-right:4px}
 .rail-lists h3 small{display:block;margin:4px 0 0;line-height:1.4}
+
+.rail-kind{flex:1;height:36px}
+.rail-short>select,.rail-steps{display:flex;flex-direction:column;gap:6px;margin:0 0 10px}
+.rail-short>select{width:100%;height:36px}
+.rail-steps input,.rail-steps select{height:34px}
+.rail-more-icons{height:36px;padding:0 12px;border-radius:11px;border:1px dashed var(--line2);background:transparent;color:var(--text);cursor:pointer}
+.rail-more-icons:hover{border-color:var(--accent);color:var(--accent)}
+.rail-ic img,.rail-ic .key-symbol,span.rail-ic{max-width:22px;max-height:22px}

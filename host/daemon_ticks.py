@@ -1,4 +1,5 @@
 """What the host does on its own every second: triggers, timers, plugins, sensors and reloading the configuration."""
+import re
 import os
 from pathlib import Path
 import struct
@@ -131,7 +132,10 @@ class BackgroundMixin:
     def use_rail_shortcut(self, index):
         """A shortcut button on the panel's rail: go to that page of that profile (the panel already shows the keys)."""
         items = getattr(self, 'rail_items', [])
-        if not 0 <= index < len(items) or items[index].get('k') not in ('page', 'keys'):
+        if not 0 <= index < len(items) or items[index].get('k') not in ('page', 'keys', 'act'):
+            return
+        if items[index]['k'] == 'act':  # a shortcut that runs steps, like a key
+            self.start_actions(items[index]['a'])
             return
         if items[index]['k'] == 'keys':  # Keys tapped while the keys show: back to where a shortcut came from
             profile, page = getattr(self, 'before_shortcut', None) or (self.profile, None)
@@ -180,7 +184,8 @@ class BackgroundMixin:
             return
         self.cockpit_at = now
         choice = self.config.get('panel', {})
-        self.rail_items = cockpit.rail_items(choice, {name: item for name, item in self.config['profiles'].items()})
+        version = tuple(int(part) for part in re.findall(r'\d+', str(self.device_info.get('firmwareVersion') or ''))[:3])
+        self.rail_items = cockpit.rail_items(choice, self.config['profiles'], actions=version >= (0, 6, 3))
         lines = {'AD_RAIL': cockpit.rail_payload(self.rail_items), 'AD_AGENTS': cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(),
                                                      choice.get('agents')),
                  'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}

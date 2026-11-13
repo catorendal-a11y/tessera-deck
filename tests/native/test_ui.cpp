@@ -147,6 +147,9 @@ assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":
 /* Keys while the keys show (after a shortcut) asks the host to go back; from another screen it only switches. */
 tap(42,84+0*60+27);assert(taken()==R"({"type":"rail","i":0})"&&taken().empty());
 tap(42,84+2*60+27);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"status\""));
+/* A shortcut that runs steps tells the host and keeps the screen: here, status. */
+assert(deck_model_rail_from_json(R"({"rail":[{"k":"keys"},{"k":"agents"},{"k":"status"},{"k":"act","i":"lc:e09e"}]})"));updates();
+tap(42,84+3*60+27);assert(taken()==R"({"type":"rail","i":3})"&&ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"status\""));
 tap(42,84+0*60+27);assert(taken().empty()&&ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"keys\""));
 tap(42,84+2*60+27);
 assert(deck_model_rail_from_json(R"({"rail":[{"k":"agents"}]})"));updates();

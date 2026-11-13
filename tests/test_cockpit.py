@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+import unittest.mock
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
@@ -82,6 +83,28 @@ class RailTests(HostCase):
                     {'shortcuts': [{'profile': 'a'}]}, {'shortcuts': [{'profile': 'a', 'page': 'b', 'icon': 'globe'}]}, {'shortcuts': 'x'}):
             with self.assertRaises(ValueError, msg=bad):
                 deck.validate_config(dict(config, panel=bad))
+
+    def test_a_shortcut_can_run_steps_and_an_older_panel_does_not_get_it(self):
+        daemon = self.daemon()
+        daemon.device_info = {'protocol': 4, 'firmwareVersion': '0.6.3'}
+        steps = [{'type': 'hotkey', 'keys': 'ctrl+c'}]
+        daemon.config['panel'] = {'shortcuts': [{'type': 'actions', 'actions': steps, 'label': 'Copy', 'icon': 'lc:e09e'}]}
+        deck.validate_config(daemon.config)
+        daemon.cockpit_tick(100.0)
+        index = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'act')
+        sent = [call.args[0] for call in daemon.panel.send_line.call_args_list if call.args[0].startswith('AD_RAIL')][-1]
+        self.assertIn('"k":"act"', sent.replace(' ', ''))
+        self.assertNotIn('ctrl+c', sent, 'the steps stay on the PC')
+        with unittest.mock.patch.object(daemon, 'start_actions') as run:
+            daemon.handle_job(('rail', index))
+        run.assert_called_once_with(steps)
+        daemon.device_info = {'protocol': 4, 'firmwareVersion': '0.6.2'}
+        daemon.cockpit_at = 0.0
+        daemon.cockpit_tick(200.0)
+        self.assertNotIn('act', [item['k'] for item in daemon.rail_items], 'firmware before 0.6.3 would refuse the whole rail')
+        for bad in ({'type': 'actions', 'actions': []}, {'type': 'actions', 'actions': steps, 'label': 'x' * 41}, {'type': 'other', 'profile': 'a', 'page': 'b'}):
+            with self.assertRaises(ValueError, msg=bad):
+                deck.validate_config(dict(daemon.config, panel={'shortcuts': [bad]}))
 
     def test_a_shortcut_on_the_panel_goes_to_that_page_and_nonsense_does_nothing(self):
         daemon = self.daemon()

@@ -485,7 +485,7 @@ function savePanel(change) {
 function renderRail() {
   const waiting = Object.values(dashboard.agent_states || {}).includes('waiting');
   const choice = panelChoice();
-  const shortcuts = (choice.shortcuts || []).filter(s => config?.profiles?.[s.profile]?.pages?.[s.page]);
+  const shortcuts = (choice.shortcuts || []).filter(s => s.type === 'actions' || config?.profiles?.[s.profile]?.pages?.[s.page]);
   $('#rail').replaceChildren(
     element('span', {class: 'rail-logo', 'aria-hidden': 'true'}),
     ...((ids => (ids.includes('keys') ? ids : ['keys', ...ids]).map(id => RAIL.find(r => r[0] === id)).filter(Boolean))(choice.screens || RAIL.map(r => r[0]))).map(([id, name, path]) => {
@@ -496,12 +496,12 @@ function renderRail() {
     }),
     ...(shortcuts.length ? [element('span', {class: 'rail-sep'})] : []),
     ...shortcuts.map(shortcut => {
-      const icon = SHORTCUT_ICONS.find(i => i.code === shortcut.icon) || SHORTCUT_ICONS[0];
-      const label = `${shortcut.profile} › ${shortcut.page}`;
+      const runs = shortcut.type === 'actions';
+      const label = runs ? `${shortcut.label || 'Steps'}: runs on the panel` : `${shortcut.profile} › ${shortcut.page}`;
       const item = element('button', {class: 'rail-item', type: 'button', title: label, 'aria-label': label, onclick: () => {
+        if (runs) return railSettings();  // steps run from the panel; here the shortcut opens its settings
         profile = shortcut.profile; page = shortcut.page; selected = 1; editState = 0; setEditorView('keys'); renderAll();
-      }});
-      item.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${icon.path}</svg>`;
+      }}, shortcutIcon(shortcut.icon));
       return item;
     }),
     (() => {
@@ -589,6 +589,8 @@ renderRail();
 const SCREEN_INFO = {keys: ['Keys', 'Your pages and keys'], agents: ['Agents', 'Claude Code, Codex and ZCode'], mixer: ['Mixer', 'Sound per program and the microphone'], status: ['Status', 'CPU, GPU, RAM, disk and network']};
 let railDraft = null;
 const railIcon = path => { const node = element('span', {class: 'rail-ic', 'aria-hidden': 'true'}); node.innerHTML = `<svg viewBox="0 0 24 24">${path}</svg>`; return node; };
+/* A shortcut's icon: one of the quick icons, or any icon from the library. */
+function shortcutIcon(code) { const quick = SHORTCUT_ICONS.find(icon => icon.code === code); return quick ? railIcon(quick.path) : iconVisual(code, 'currentColor', 'rail-ic'); }
 function railTotal() { return railDraft.order.filter(id => railDraft.on.has(id)).length + railDraft.shortcuts.length; }
 function railSettings() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
@@ -596,7 +598,7 @@ function railSettings() {
   railDraft = {
     order: [...new Set([...screens.filter(id => SCREEN_INFO[id]), ...RAIL.map(r => r[0])])],
     on: new Set(['keys', ...screens]),
-    shortcuts: (choice.shortcuts || []).filter(s => config.profiles[s.profile]?.pages[s.page]).map(s => ({...s}))
+    shortcuts: (choice.shortcuts || []).filter(s => s.type === 'actions' || config.profiles[s.profile]?.pages[s.page]).map(s => clone(s))
   };
   drawRail();
   $('#rail-dialog').showModal();
@@ -609,7 +611,7 @@ function drawRail() {
     element('span', {class: 'rail-logo'}),
     ...d.order.filter(id => d.on.has(id)).map(id => slot(railIcon(RAIL.find(r => r[0] === id)[2]), SCREEN_INFO[id][0], id === 'keys' ? 'home' : '')),
     ...(d.shortcuts.length ? [element('span', {class: 'rail-sep'})] : []),
-    ...d.shortcuts.map(s => slot(railIcon((SHORTCUT_ICONS.find(i => i.code === s.icon) || SHORTCUT_ICONS[0]).path), s.page, 'shortcut')),
+    ...d.shortcuts.map(s => slot(shortcutIcon(s.icon), s.type === 'actions' ? (s.label || 'Steps') : s.page, 'shortcut')),
     ...Array.from({length: Math.max(0, 7 - total)}, () => slot(element('span'), 'Free', 'free')));
   // screens
   $('#rail-screens').replaceChildren(...d.order.map((id, index) => {
@@ -618,19 +620,37 @@ function drawRail() {
     const toggle = element('button', {class: 'rail-switch' + (on ? ' on' : ''), type: 'button', role: 'switch', 'aria-checked': String(on), 'aria-label': `Show ${name} on the rail`, disabled: id === 'keys', onclick: () => { on ? d.on.delete(id) : d.on.add(id); drawRail(); }});
     return element('div', {class: 'rail-row' + (on ? '' : ' off')}, railIcon(RAIL.find(r => r[0] === id)[2]), element('div', {class: 'rail-text'}, text('strong', name), text('small', id === 'keys' ? note + ' · always on' : note)), move(-1, 'Move up'), move(1, 'Move down'), toggle);
   }));
-  // shortcuts
+  // shortcuts: open a page, or run steps like a key; any icon from the library
   const targets = Object.entries(config.profiles).map(([profileName, item]) => element('optgroup', {label: profileName}, ...Object.keys(item.pages).map(pageName => element('option', {value: profileName + '\u0001' + pageName}, `${profileName} › ${pageName}`))));
+  const sources = Object.entries(config.profiles).flatMap(([profileName, item]) => Object.entries(item.pages).flatMap(([pageName, keys]) =>
+    keys.filter(key => key.actions?.length).map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
   $('#rail-shortcuts').replaceChildren(...d.shortcuts.map((s, index) => {
-    const pick = element('select', {'aria-label': `Shortcut ${index + 1}: page`, onchange: event => { const [p, g] = event.target.value.split('\u0001'); s.profile = p; s.page = g; drawRail(); }}, ...targets.map(group => group.cloneNode(true)));
-    pick.value = s.profile + '\u0001' + s.page;
-    const icons = element('div', {class: 'rail-icons', role: 'radiogroup', 'aria-label': 'Icon'}, text('span', 'Icon', 'rail-icons-label'), ...SHORTCUT_ICONS.map(icon => {
-      const choose = element('button', {class: 'rail-icon-pick' + (icon.code === s.icon ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': String(icon.code === s.icon), title: icon.name, onclick: () => { s.icon = icon.code; drawRail(); }}, railIcon(icon.path));
-      return choose;
-    }));
+    const runs = s.type === 'actions';
+    const kind = element('select', {'aria-label': `Shortcut ${index + 1}: what it does`, class: 'rail-kind', onchange: event => {
+      if (event.target.value === 'actions') { const [, , key] = sources[0] || []; Object.assign(s, {type: 'actions', actions: clone(key?.actions || []), label: key?.label || 'Actions'}); delete s.profile; delete s.page; }
+      else { const [firstProfile] = Object.keys(config.profiles); Object.assign(s, {profile: firstProfile, page: Object.keys(config.profiles[firstProfile].pages)[0]}); delete s.type; delete s.actions; delete s.label; }
+      drawRail(); }}, element('option', {value: 'page'}, 'Opens a page'), element('option', {value: 'actions'}, 'Runs steps'));
+    kind.value = runs ? 'actions' : 'page';
+    let what;
+    if (runs) {
+      const copy = element('select', {'aria-label': `Shortcut ${index + 1}: copy the steps of a key`, onchange: event => {
+        const found = sources.find(([value]) => value === event.target.value);
+        if (found) { s.actions = clone(found[2].actions); s.label = found[2].label || s.label; }
+        drawRail(); }}, element('option', {value: ''}, 'Copy the steps of a key …'), ...sources.map(([value, name]) => element('option', {value}, name)));
+      const name = element('input', {type: 'text', maxlength: '40', value: s.label || '', placeholder: 'A name for this shortcut', 'aria-label': `Shortcut ${index + 1}: name`, oninput: event => { s.label = event.target.value; $('#rail-preview').querySelectorAll('.rail-slot.shortcut small')[index].textContent = s.label || 'Steps'; }});
+      what = element('div', {class: 'rail-steps'}, name, copy, text('small', s.actions?.length ? stepSummary(s.actions) : 'No steps yet: copy them from a key', 'hint'));
+    } else {
+      what = element('select', {'aria-label': `Shortcut ${index + 1}: page`, onchange: event => { const [p, g] = event.target.value.split('\u0001'); s.profile = p; s.page = g; drawRail(); }}, ...targets.map(group => group.cloneNode(true)));
+      what.value = s.profile + '\u0001' + s.page;
+    }
+    const quick = SHORTCUT_ICONS.some(icon => icon.code === s.icon) ? [] : [element('button', {class: 'rail-icon-pick on', type: 'button', role: 'radio', 'aria-checked': 'true', title: 'Chosen from the library'}, iconVisual(s.icon, '#58E09B', 'rail-ic'))];
+    const icons = element('div', {class: 'rail-icons', role: 'radiogroup', 'aria-label': 'Icon'}, text('span', 'Icon', 'rail-icons-label'), ...quick, ...SHORTCUT_ICONS.map(icon =>
+      element('button', {class: 'rail-icon-pick' + (icon.code === s.icon ? ' on' : ''), type: 'button', role: 'radio', 'aria-checked': String(icon.code === s.icon), title: icon.name, onclick: () => { s.icon = icon.code; drawRail(); }}, railIcon(icon.path))),
+      element('button', {class: 'rail-more-icons', type: 'button', onclick: () => { iconPick = id => { s.icon = id; drawRail(); }; openIcons(); }}, 'All icons …'));
     const shift = (delta, label) => element('button', {class: 'rail-move', type: 'button', title: label, 'aria-label': `${label}: shortcut ${index + 1}`, disabled: index + delta < 0 || index + delta >= d.shortcuts.length,
       onclick: () => { [d.shortcuts[index], d.shortcuts[index + delta]] = [d.shortcuts[index + delta], d.shortcuts[index]]; drawRail(); }}, delta < 0 ? '▲' : '▼');
-    const chosen = (SHORTCUT_ICONS.find(icon => icon.code === s.icon) || SHORTCUT_ICONS[0]).name;
-    return element('div', {class: 'rail-short'}, element('div', {class: 'rail-short-top'}, element('span', {class: 'rail-short-number'}, String(index + 1)), pick, shift(-1, 'Move up'), shift(1, 'Move down'), element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': 'Remove shortcut', onclick: () => { d.shortcuts.splice(index, 1); drawRail(); }}, '✕')), icons);
+    return element('div', {class: 'rail-short'}, element('div', {class: 'rail-short-top'}, element('span', {class: 'rail-short-number'}, String(index + 1)), kind, shift(-1, 'Move up'), shift(1, 'Move down'),
+      element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': 'Remove shortcut', onclick: () => { d.shortcuts.splice(index, 1); drawRail(); }}, '✕')), what, icons);
   }), ...(d.shortcuts.length < 3 ? [element('button', {class: 'rail-add-short', type: 'button', onclick: () => {
     const [firstProfile] = Object.keys(config.profiles), firstPage = Object.keys(config.profiles[firstProfile].pages)[0];
     d.shortcuts.push({profile: firstProfile, page: firstPage, icon: SHORTCUT_ICONS[d.shortcuts.length % SHORTCUT_ICONS.length].code}); drawRail();
@@ -642,7 +662,10 @@ function drawRail() {
 $('#rail-close').onclick = $('#rail-cancel').onclick = () => $('#rail-dialog').close();
 $('#rail-apply').onclick = () => {
   const d = railDraft;
-  savePanel({screens: d.order.filter(id => d.on.has(id)), shortcuts: d.shortcuts.map(s => ({profile: s.profile, page: s.page, icon: s.icon}))});
+  if (d.shortcuts.some(s => s.type === 'actions' && !s.actions?.length)) { toast('A shortcut that runs steps needs steps: copy them from a key.'); return; }
+  savePanel({screens: d.order.filter(id => d.on.has(id)), shortcuts: d.shortcuts.map(s => s.type === 'actions'
+    ? {type: 'actions', actions: s.actions, label: (s.label || '').slice(0, 40), icon: s.icon}
+    : {profile: s.profile, page: s.page, icon: s.icon})});
   renderRail();
   $('#rail-dialog').close();
   toast('The rail was updated.');

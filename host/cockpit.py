@@ -36,13 +36,17 @@ MAX_SHORTCUTS = 3
 MAX_RAIL = 7
 
 
-def rail_items(choice: dict, profiles: dict) -> list[dict]:
+def rail_items(choice: dict, profiles: dict, actions: bool = True) -> list[dict]:
     """The rail's buttons: the chosen screens (Keys is always there) and shortcuts to pages that still exist."""
     screens = [name for name in choice.get('screens', SCREENS) if name in SCREENS]
     if 'keys' not in screens:
         screens.insert(0, 'keys')
     items = [{'k': name} for name in screens]
     for shortcut in choice.get('shortcuts', [])[:MAX_SHORTCUTS]:
+        if shortcut.get('type') == 'actions':  # 'a' stays on the host; panel firmware before 0.6.3 refuses 'act'
+            if actions:
+                items.append({'k': 'act', 'i': shortcut.get('icon') or 'lc:e0ff', 'a': shortcut['actions']})
+            continue
         profile = profiles.get(shortcut.get('profile'))
         if profile and shortcut.get('page') in profile.get('pages', {}):
             items.append({'k': 'page', 'i': shortcut.get('icon') or 'lc:e0ff', 'p': shortcut['profile'], 'g': shortcut['page']})
@@ -50,7 +54,7 @@ def rail_items(choice: dict, profiles: dict) -> list[dict]:
 
 
 def rail_payload(items: list[dict]) -> str:
-    return _line({'rail': items})
+    return _line({'rail': [{key: value for key, value in item.items() if key != 'a'} for item in items]})
 
 
 def agents_payload(variables: dict, running: dict, asking: dict | None = None, shown: list | None = None) -> str:

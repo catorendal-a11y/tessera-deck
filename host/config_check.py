@@ -336,7 +336,7 @@ def _check_display(display):
             raise ValueError(f'display.{key} must be a whole number from {low} to {high}')
 
 
-def _check_panel(panel):
+def _check_panel(panel, pages=(), profiles=None):
     """The `panel` block: which agents, programs and readings the cockpit screens show."""
     import cockpit
     if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts'}:
@@ -348,7 +348,14 @@ def _check_panel(panel):
     if not isinstance(shortcuts, list) or len(shortcuts) > cockpit.MAX_SHORTCUTS:
         raise ValueError(f'panel.shortcuts holds at most {cockpit.MAX_SHORTCUTS} shortcuts')
     for shortcut in shortcuts:
-        if (not isinstance(shortcut, dict) or set(shortcut) - {'profile', 'page', 'icon'}
+        if isinstance(shortcut, dict) and shortcut.get('type') == 'actions':
+            # a shortcut that runs steps, like a key, instead of opening a page
+            if (set(shortcut) - {'type', 'actions', 'label', 'icon'} or not isinstance(shortcut.get('label', ''), str)
+                    or len(shortcut.get('label', '')) > 40 or not re.fullmatch(r'lc:[0-9a-f]{4}', shortcut.get('icon', 'lc:e0ff'))
+                    or not isinstance(shortcut.get('actions'), list) or not shortcut['actions']):
+                raise ValueError('an action shortcut needs its steps, an icon like lc:e0ff and a name of at most 40 characters')
+            _check_actions(shortcut['actions'], pages, profiles or {})
+        elif (not isinstance(shortcut, dict) or set(shortcut) - {'profile', 'page', 'icon', 'type'} or shortcut.get('type', 'page') != 'page'
                 or any(not isinstance(shortcut.get(key), str) or not 0 < len(shortcut[key]) <= 100 for key in ('profile', 'page'))
                 or not re.fullmatch(r'lc:[0-9a-f]{4}', shortcut.get('icon', 'lc:e0ff'))):
             raise ValueError('a shortcut needs a profile, a page and an icon like lc:e0ff')
@@ -391,7 +398,7 @@ def _validate_config(config):
     for key, value in theme.items():
         _check_color(value, f'Invalid theme {key.replace("_", " ")}')
     if 'panel' in config:
-        _check_panel(config['panel'])
+        _check_panel(config['panel'], {page for profile in profiles.values() for page in profile['pages']}, profiles)
     if 'plugins' in config:
         check_plugin_config(config['plugins'])
     triggers = config.get('triggers', [])

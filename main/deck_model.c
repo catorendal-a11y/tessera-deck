@@ -734,16 +734,18 @@ bool deck_model_rail_from_json(const char *json_text)
     if (!json) return false;
     deck_rail_item_t parsed[DECK_RAIL_MAX];
     memset(parsed, 0, sizeof(parsed));
-    static const char *const kinds[] = {"keys", "agents", "mixer", "status", "page"};
+    static const char *const kinds[] = {"keys", "agents", "mixer", "status", "page", "act"};
     int count = 0;
     bool valid = true;
     for (const cJSON *item = list->child; item; item = item->next) {
         const char *kind = text_of(item, "k");
         int found = -1;
-        for (int i = 0; i < 5; ++i) if (!strcmp(kind, kinds[i])) found = i;
+        for (int i = 0; i < 6; ++i) if (!strcmp(kind, kinds[i])) found = i;
         if (found < 0) { valid = false; break; }
         parsed[count].kind = (uint8_t)found;
-        if (found == 4) {
+        if (found == 5) {  /* a shortcut that runs steps on the PC: only its icon is drawn */
+            copy_text(parsed[count].icon, sizeof(parsed[count].icon), text_of(item, "i"));
+        } else if (found == 4) {
             if (!text_of(item, "p")[0] || !text_of(item, "g")[0]) { valid = false; break; }
             copy_text(parsed[count].icon, sizeof(parsed[count].icon), text_of(item, "i"));
             copy_text(parsed[count].profile, sizeof(parsed[count].profile), text_of(item, "p"));

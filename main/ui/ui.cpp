@@ -499,6 +499,14 @@ void set_view(int next) {
     for(int i=0;i<ViewCount;++i)lv_obj_set_hidden(views[i],i!=view);
     refresh_rail();
 }
+/* A short light on a rail button that ran something, so the tap is seen. */
+void flash_rail(int index) {
+    auto *button=rail_btn[index];if(!button)return;
+    lv_obj_set_style_bg_opa(button,LV_OPA_COVER,0);lv_obj_set_style_bg_color(button,lv_color_hex(OkBg),0);
+    lv_timer_t *back=lv_timer_create([](lv_timer_t *timer){auto *target=static_cast<lv_obj_t*>(lv_timer_get_user_data(timer));
+        lv_obj_set_style_bg_color(target,lv_color_hex(RailOn),0);lv_timer_delete(timer);refresh_rail();},400,button);
+    lv_timer_set_repeat_count(back,1);
+}
 void rail_pressed(lv_event_t *event) {
     const int index=slot_of(event);
     if(index<0||index>=rail_count)return;
@@ -511,6 +519,7 @@ void rail_pressed(lv_event_t *event) {
         set_view(rail_list[index].kind);return;
     }
     deck_model_queue_line(line);
+    if(rail_list[index].kind==5){flash_rail(index);return;}  /* runs steps on the PC: the screen stays */
     set_view(ViewKeys);
 }
 void build_rail() {

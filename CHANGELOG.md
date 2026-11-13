@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Rail shortcuts can run steps like a key (copy them from one of your keys, give the shortcut a name) without leaving the screen, and any icon from the library can be used (panel firmware 0.6.3; an older panel simply leaves such shortcuts out).
 - Rail dialog: the preview names every place and shows the free ones, a shortcut shows its profile and page, shortcuts are numbered and can be moved, the icon row is labelled, and a line says what a shortcut does and how Keys brings you back.
 - Editor: on a large screen the deck grows with the window (bounded by its height) instead of stopping at a fixed width.
 - Editor: the bare ⋯ button is now four named buttons above the deck, **Profile**, **Page**, **Panel** and **More**, each with a short menu where every entry says in one line what it does; a menu opens right under its button, fits the window, and the arrow keys move through it. Clearer names: *Profile from a template*, *Page from a template*, *Clock when idle*, *Key colors*, *Save diagnostics*.

@@ -87,6 +87,8 @@ async function loadIconPack() {
   renderGrid();renderInspector();
 }
 function saveIconPreferences() {api('icon-preferences',iconPreferences).catch(error=>toast('Icon choice kept, but the favorites list could not be saved: '+error.message));}
+let iconPick = null;  // when set, a chosen icon goes here instead of to the selected key
+document.getElementById('icon-dialog')?.addEventListener('close',()=>{iconPick=null;});  // closed without a choice
 async function openIcons() {
   try {
     await loadIconPack();iconReturnFocus=document.activeElement;iconPage=0;$('#icon-search').value='';renderIconResults();$('#icon-dialog').showModal();$('#icon-search').focus();
@@ -105,7 +107,7 @@ function renderIconResults() {
   $('#icon-results').replaceChildren(...shown.map(item=>{
     const selected=current()?.icon===item.id,favorite=iconPreferences.favorites.includes(item.id);
     const choose=button('',()=>{
-      mutate(()=>{if(current())appearance().icon=item.id;});
+      if(iconPick){const pick=iconPick;iconPick=null;pick(item.id);}else mutate(()=>{if(current())appearance().icon=item.id;});
       iconPreferences.recent=[item.id,...iconPreferences.recent.filter(id=>id!==item.id)].slice(0,24);saveIconPreferences();$('#icon-dialog').close();
     },'catalog-choice'+(selected?' selected':''),item.name);
     choose.setAttribute('aria-label','Choose icon '+item.name);choose.setAttribute('aria-pressed',selected);
