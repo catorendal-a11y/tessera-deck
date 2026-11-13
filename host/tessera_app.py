@@ -31,7 +31,7 @@ import plugins
 import updates
 from host_runtime import InstanceLock
 from action_preview import preview
-from import_review import redact_secrets, review, strip_executable
+from import_review import export_left_out, redact_secrets, review, strip_executable
 
 WEB = Path(__file__).with_name('editor')
 
@@ -749,7 +749,8 @@ def make_server(editor, port=0, token=None):
                     if self.path == '/api/export':
                         config = editor.read()['config']
                         shared, secrets_used = redact_secrets(config)
-                        return self.json(dict(shared, assets=editor.assets.export(config), redacted=secrets_used))
+                        return self.json(dict(shared, assets=editor.assets.export(config), redacted=secrets_used,
+                                              left_out=export_left_out(config)))
                     if self.path == '/api/processes':
                         import psutil
                         names = set()

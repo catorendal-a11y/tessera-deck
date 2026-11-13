@@ -123,6 +123,15 @@ def env_name(header: str) -> str:
     return 'TESSERA_' + re.sub(r'[^A-Z0-9]+', '_', header.upper()).strip('_')
 
 
+def export_left_out(config: dict) -> list[str]:
+    """What redact_secrets drops, in plain words, so the editor can say so after an export."""
+    out = ['the calendar address'] if 'calendar' in config else []
+    for name, plugin in sorted((config.get('plugins') or {}).items()):
+        settings = plugin.get('settings') if isinstance(plugin, dict) else None
+        out += [f'plugin {name}: {key}' for key in (settings or {}) if SECRET_SETTING.search(key)]
+    return out
+
+
 def redact_secrets(config: dict) -> tuple[dict, list[str]]:
     """A copy for export: credentials in HTTP headers become $(env:NAME) references. Returns it and the names used.
 

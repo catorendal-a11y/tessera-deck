@@ -151,6 +151,22 @@ const text=(tag,value,cls) => element(tag,{text:value,class:cls||''});
 function toast(message,undoable=false) {const host=document.querySelector('dialog:modal')||document.body;if($('#toast').parentNode!==host){host.append($('#toast'));if(host!==document.body)host.addEventListener('close',()=>document.body.append($('#toast')),{once:true});}
   $('#toast').textContent=message;
   if(undoable)$('#toast').append(button('Undo',()=>{undo();$('#toast').hidden=true;},'toast-undo'));$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
+/* In-page confirm and prompt: the same look as the form dialog, and a Promise for the answer instead of a blocked page.
+   cancel:null shows only the OK button, for a notice. */
+function askDialog(title,message,{ok='OK',cancel='Cancel',danger=false,input=null}={}) {
+  const d=$('#ask-dialog'),field=$('#ask-input'),back=document.activeElement;
+  $('#ask-title').textContent=title;$('#ask-message').textContent=message;
+  field.hidden=input===null;field.value=input??'';
+  $('#ask-ok').textContent=ok;$('#ask-ok').classList.toggle('danger-button',danger);
+  $('#ask-cancel').hidden=cancel===null;$('#ask-cancel').textContent=cancel||'';$('#ask-cancel').onclick=()=>d.close('cancel');
+  d.returnValue='';
+  return new Promise(resolve=>{
+    d.addEventListener('close',()=>{back?.focus?.();const yes=d.returnValue==='ok';resolve(input===null?yes:yes?field.value:null);},{once:true});
+    d.showModal();(input===null?$('#ask-ok'):field).focus();if(input!==null)field.select();
+  });
+}
+const confirmDialog=(title,message,options={})=>askDialog(title,message,options);
+const promptDialog=(title,label,value='',options={})=>askDialog(title,label,{...options,input:value});
 async function api(path, data) {
   const response=await fetch('/api/'+path, {method:data===undefined?'GET':'POST',credentials:'same-origin',
     headers:{'Content-Type':'application/json','X-Deck-Request':'1'},body:data===undefined?undefined:JSON.stringify(data)});
@@ -252,7 +268,7 @@ function changed() {
   if(!error&&!conflicted)saveTimer=setTimeout(()=>save().catch(showError),650);
 }
 function mutate(fn,refresh=true,key=null) {remember(key);fn();changed();if(refresh)renderInspector();}
-function showError(error) {toast(error.message);if(error.status===409){conflicted=true;$('#reload').hidden=false;}}
+function showError(error) {toast(error.message);if(error.status===409){conflicted=true;$('#reload').hidden=false;renderStatusBar();}}
 let savedBase=null;  // the configuration as the PC last had it: lets a change made elsewhere be merged in
 /* Another program (the tray's brightness, the terminal editor) saved meanwhile: take its changes where this
    editor changed nothing, and give up only when both changed the same part. */
@@ -276,7 +292,7 @@ async function save() {
   saving=true;const sentVersion=version;
   try {
     const sent=clone(config);saveInFlight=api('config',{config:sent,revision});
-    const result=await saveInFlight;revision=result.revision;savedBase=sent;
+    const result=await saveInFlight;revision=result.revision;savedBase=sent;if(configError){configError='';renderStatusBar();}  // the file is whole again
     if(version===sentVersion){dirty=false;const same=dashboard.device?.profile===profile&&dashboard.device?.page===page;
       setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Turn on Mirror on panel to show this page.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
   } catch(error){

@@ -162,6 +162,15 @@ class EditorTests(unittest.TestCase):
                 self.request(path, {} if '/api/' in path else None)
             error.exception.close()
 
+    def test_export_reports_what_it_left_out(self):
+        self.path.write_text(json.dumps(dict(self.config, calendar={'url': 'https://example.invalid/basic.ics'})))
+        self.login()
+        with self.request('/api/export') as reply:
+            bundle = json.load(reply)
+        self.assertNotIn('calendar', bundle)
+        self.assertEqual(bundle['left_out'], ['the calendar address'])
+        self.assertEqual(bundle['redacted'], [])
+
     def test_large_icon_catalog_and_persistent_preferences(self):
         self.login()
         with self.request('/api/icons') as reply:

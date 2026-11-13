@@ -60,7 +60,7 @@ async function refreshFirmware() {
 }
 async function installFirmware() {
   const path = $('#firmware-package').value;
-  if (!path || !confirm('Write the firmware now? Do not unplug the panel until it has finished.')) return;
+  if (!path || !await confirmDialog('Write the firmware now?', 'Do not unplug the panel until it has finished.', {ok: 'Write firmware'})) return;
   const force = $('#firmware-force').checked;
   $('#firmware-force').checked = false;
   $('.firmware-force').hidden = true;
@@ -295,10 +295,11 @@ async function openBackups() {
   $('#backup-dialog').showModal();
 }
 async function restoreBackup(item) {
-  if (!confirm(`Replace the current configuration with the backup from ${item.saved}? The current one is kept as a backup.`)) return;
+  if (!await confirmDialog('Restore this backup?', `The current configuration is replaced by the backup from ${item.saved}. The current one is kept as a backup.`, {ok: 'Restore'})) return;
   const state = await api('command/restore-backup', {name: item.name});
   config = state.config; revision = state.revision;
-  dirty = false; conflicted = false; history = []; future = [];
+  dirty = false; conflicted = false; configError = ''; history = []; future = [];
+  renderStatusBar();
   $('#reload').hidden = true;
   $('#backup-dialog').close();
   renderAll();
@@ -458,8 +459,22 @@ async function claudeSettings() {
 }
 $('#claude-open').onclick = () => claudeSettings().catch(showError);
 
+/* Getting started: shown when no profile has a key yet and it was not closed before; More → Getting started opens it again. */
+const WELCOME_CLOSED = 'tessera-welcome-closed';
+function showWelcome(force) {
+  let closed = false;
+  try { closed = localStorage.getItem(WELCOME_CLOSED) === '1'; } catch {}
+  const empty = !Object.values(config.profiles).some(p => profileButtons(p).length);
+  $('#welcome').hidden = force !== true && (closed || !empty);
+  if (force === true) { $('#welcome').scrollIntoView({block: 'nearest'}); $('#welcome-close').focus(); }
+}
+$('#welcome-close').onclick = () => { $('#welcome').hidden = true; try { localStorage.setItem(WELCOME_CLOSED, '1'); } catch {} };
+$('#welcome-open').onclick = () => showWelcome(true);
+$('#welcome-template').onclick = () => openGallery();
+$('#welcome-test').onclick = () => testButton(selected).catch(showError);
+
 // Everything is defined now: start the editor.
-start().catch(error=>{setSaveState('The editor could not start',error.message);toast(error.message);});
+start().then(showWelcome).catch(error=>{setSaveState('The editor could not start',error.message);startError=error.message;renderStatusBar();});
 
 /* Page templates: a ready-made page (Meetings, Coding, Media, Browser) is shown as it will look, then added. */
 let galleryChoice = 0;

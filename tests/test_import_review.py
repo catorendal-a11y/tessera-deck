@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
 import host_support  # noqa: E402
-from import_review import redact_secrets, review, strip_executable
+from import_review import export_left_out, redact_secrets, review, strip_executable
 from tessera_app import Editor
 
 
@@ -110,6 +110,16 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(headers['Content-Type'], 'application/json')
         self.assertEqual(names, ['TESSERA_AUTHORIZATION'])
         self.assertNotIn('secret123', json.dumps(shared))
+
+    def test_export_names_what_it_leaves_out(self):
+        config = bundle()
+        self.assertEqual(export_left_out(config), [])
+        config['calendar'] = {'url': 'https://example.invalid/basic.ics'}
+        config['plugins'] = {'obs': {'enabled': True, 'settings': {'host': 'localhost', 'password': 'x', 'api_key': 'y'}}}
+        self.assertEqual(export_left_out(config), ['the calendar address', 'plugin obs: password', 'plugin obs: api_key'])
+        shared, _ = redact_secrets(config)
+        self.assertNotIn('calendar', shared)
+        self.assertEqual(shared['plugins']['obs']['settings'], {'host': 'localhost'})
 
 
 class EditorCommandTests(unittest.TestCase):
