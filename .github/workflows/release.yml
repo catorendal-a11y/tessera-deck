@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     container: espressif/idf:v6.1
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check the tag matches VERSION
         shell: bash
         run: |
@@ -43,7 +43,7 @@ jobs:
           git archive --format=zip --prefix="tessera-${GITHUB_REF_NAME}/" -o "dist/tessera-host-${GITHUB_REF_NAME}.zip" HEAD
           python3 -c "import glob,os,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'a'); f=glob.glob('dist/tessera-firmware-*.zip')[0]; z.write(f,'tessera-'+sys.argv[2]+'/firmware/'+os.path.basename(f)); z.close()" "dist/tessera-host-${GITHUB_REF_NAME}.zip" "${GITHUB_REF_NAME}"
           (cd dist && rm -f *.sha256 && sha256sum *.zip > SHA256SUMS)
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -54,8 +54,8 @@ jobs:
     name: Host tests
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install the host dependencies from the lock file
@@ -74,8 +74,8 @@ jobs:
       id-token: write      # signs the build provenance
       attestations: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist
@@ -85,7 +85,7 @@ jobs:
           awk -v heading="## ${version}" '{sub(/\r$/, "")} $0 == heading {found = 1; next} found && /^## / {exit} found' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
           grep -q . "${RUNNER_TEMP}/notes.md" || { echo "The CHANGELOG.md section for ${version} is empty"; exit 1; }
       # Lets anyone check a download came from this workflow: gh attestation verify <file> --repo <owner>/tessera-deck
-      - uses: actions/attest-build-provenance@v3
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/*.zip
       - name: Publish the release
