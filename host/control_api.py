@@ -2,7 +2,8 @@
 
 Listens on 127.0.0.1 only. Every request needs the per-run token that is written to
 deck-api.local.json (readable by the same Windows user only), and browser requests
-(anything with an Origin header) are rejected so a web page cannot reach it.
+(anything with an Origin header) are rejected so a web page cannot reach it. Each token is rate-limited, and every
+call that changes something is logged with the caller's grant name.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import re
 import secrets
 import subprocess
 import threading
+import time
 from action_runner import Busy
 import permission
 from dataclasses import dataclass
@@ -22,6 +24,9 @@ from urllib.parse import parse_qs, urlparse
 MAX_BODY = 64 * 1024
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 MAX_VALUE = 200
+# Per token: a runaway script or plugin is slowed down instead of flooding the panel's work queue.
+RATE_PER_SECOND = 20
+RATE_BURST = 40
 
 
 class ApiError(ValueError):
@@ -76,6 +81,8 @@ class ControlServer:
         self.grants = {self.token: Grant('owner')}
         self.grant_lock = threading.Lock()
         self.server: ThreadingHTTPServer | None = None
+        self.buckets: dict[str, tuple[float, float]] = {}  # token -> (calls left, when counted)
+        self.clock = time.monotonic
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display,
                        'permission': self.ask_permission}
@@ -91,6 +98,7 @@ class ControlServer:
         with self.grant_lock:
             if token != self.token:
                 self.grants.pop(token, None)
+                self.buckets.pop(token, None)
 
     def grant_for(self, supplied):
         with self.grant_lock:
@@ -99,6 +107,22 @@ class ControlServer:
                 if secrets.compare_digest(supplied, token):
                     found = grant
             return found
+
+    def allow(self, token) -> bool:
+        """Token bucket: RATE_BURST calls at once, then RATE_PER_SECOND."""
+        now = self.clock()
+        with self.grant_lock:
+            left, then = self.buckets.get(token, (RATE_BURST, now))
+            left = min(RATE_BURST, left + (now - then) * RATE_PER_SECOND)
+            allowed = left >= 1
+            self.buckets[token] = (left - 1 if allowed else left, now)
+            return allowed
+
+    def audit(self, who, method, path, code) -> None:
+        # Who changed what, never the body: values and texts can hold private data.
+        log = getattr(self.daemon, 'log', None)
+        if callable(log):
+            log(f'API {who} {method} {path} -> {code}')
 
     @staticmethod
     def check_scope(grant, route, data):
@@ -197,6 +221,8 @@ class ControlServer:
                 pass
 
             def reply(self, code, payload):
+                if self.command != 'GET':
+                    api.audit(getattr(self, 'caller', 'unknown'), self.command, urlparse(self.path).path[:64], code)
                 raw = json.dumps(payload).encode('utf-8')
                 self.send_response(code)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -210,9 +236,15 @@ class ControlServer:
                 if self.headers.get('Host') != host or self.headers.get('Origin'):
                     self.reply(403, {'error': 'Forbidden'})
                     return None
-                grant = api.grant_for(self.headers.get('X-Deck-Token', ''))
+                token = self.headers.get('X-Deck-Token', '')
+                grant = api.grant_for(token)
                 if grant is None:
                     self.reply(401, {'error': 'Invalid token'})
+                    return None
+                self.caller = grant.name
+                if not api.allow(token):
+                    self.reply(429, {'error': 'Too many requests', 'retry': True})
+                    return None
                 return grant
 
             def do_GET(self):

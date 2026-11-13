@@ -16,6 +16,8 @@ import plugins
 import tesserad as deck
 import host_support  # noqa: E402
 from control_api import ControlServer
+import deck_control
+import secrets_store
 
 
 def write_plugin(root: Path, plugin_id='demo', **changes) -> Path:
@@ -73,7 +75,7 @@ class ManifestTests(unittest.TestCase):
         plugins.check_plugin_config({'demo': {'enabled': True, 'settings': {'interval': 5, 'name': 'x', 'on': True}}})
         for bad in ([], {'Demo': {}}, {'demo': {'enabled': 'yes'}}, {'demo': {'enabled': True, 'settings': []}},
                     {'demo': {'enabled': True, 'settings': {'a': [1]}}},
-                    {'demo': {'enabled': True, 'settings': {'a': 'x' * 5000}}}):
+                    {'demo': {'enabled': True, 'settings': {'a': 'x' * (plugins.MAX_SETTINGS_BYTES + 1)}}}):
             with self.assertRaises(ValueError, msg=repr(bad)):
                 plugins.check_plugin_config(bad)
 
@@ -229,6 +231,15 @@ class ManagerTests(unittest.TestCase):
         self.assertNotIn('GITHUB_TOKEN', environment)
         self.assertEqual(self.grants[0][:5], ('demo', frozenset({'var', 'vars'}), 'demo.', True, False))
         self.assertEqual(Path(kwargs['cwd']).name, 'demo')
+
+    @unittest.skipUnless(os.name == 'nt', 'DPAPI is Windows only')
+    def test_an_encrypted_secret_reaches_the_plugin_in_plain_text_only(self):
+        sealed = secrets_store.protect('abc123')
+        self.manager.sync(self.enabled(token=sealed, interval=7))
+        self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123', 'interval': 7})
+        self.assertEqual(self.manager.status(self.enabled(token=sealed))[0]['values'], {'token': sealed})
+        self.manager.sync(self.enabled(token=sealed, interval=7))
+        self.assertEqual(len(self.spawned), 1)  # the same blob is the same setting: no restart
 
     def test_disabling_stops_the_process_and_revokes_its_token(self):
         self.manager.sync(self.enabled())
@@ -428,6 +439,56 @@ class ProcessTreeTests(unittest.TestCase):
                 manager.stop('tree')
             _, alive = psutil.wait_procs([child], timeout=5)
             self.assertEqual(alive, [], 'the program the plugin started is still running')
+
+
+@unittest.skipUnless(os.name == 'nt', 'DPAPI is Windows only')
+class SecretSettingTests(unittest.TestCase):
+    def config(self, **settings):
+        config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        config['plugins'] = {'demo': {'enabled': True, 'settings': settings}}
+        return config
+
+    def test_secret_settings_are_sealed_for_this_user_and_others_stay_plain(self):
+        config = self.config(password='hunter2', api_key='k', url='http://x', port=1, token='')
+        sealed = secrets_store.seal_plugins(config)
+        settings = sealed['plugins']['demo']['settings']
+        self.assertEqual(config['plugins']['demo']['settings']['password'], 'hunter2')  # the input is not changed
+        self.assertTrue(secrets_store.is_sealed(settings['password']) and secrets_store.is_sealed(settings['api_key']))
+        self.assertEqual((settings['url'], settings['port'], settings['token']), ('http://x', 1, ''))
+        self.assertNotIn('hunter2', json.dumps(sealed))
+        self.assertEqual(secrets_store.open_settings(settings)['password'], 'hunter2')
+        self.assertEqual(secrets_store.unprotect('$(dpapi:not-base64!)'), '')
+
+    def test_an_unchanged_secret_keeps_its_saved_blob(self):
+        first = secrets_store.seal_plugins(self.config(token='abc'))
+        again = secrets_store.seal_plugins(self.config(token='abc'), first)
+        self.assertEqual(again['plugins'], first['plugins'])
+        changed = secrets_store.seal_plugins(self.config(token='new'), first)
+        self.assertEqual(secrets_store.unprotect(changed['plugins']['demo']['settings']['token']), 'new')
+
+    def test_saving_migrates_a_plain_secret_out_of_the_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(self.config(token='plain-token')), encoding='utf-8')
+            deck_control.save_profiles(json.loads(path.read_text(encoding='utf-8')), path)
+            text = path.read_text(encoding='utf-8')
+            self.assertNotIn('plain-token', text)
+            saved = json.loads(text)['plugins']['demo']['settings']['token']
+            self.assertEqual(secrets_store.unprotect(saved), 'plain-token')
+            deck_control.save_profiles(json.loads(text), path)
+            self.assertEqual(path.read_text(encoding='utf-8'), text)  # saving again changes nothing
+
+
+class ConsentTests(unittest.TestCase):
+    def test_the_editor_asks_before_a_plugin_first_runs_and_sees_its_program(self):
+        with tempfile.TemporaryDirectory() as folder:
+            write_plugin(Path(folder))
+            manager = plugins.PluginManager(Path(folder), Path(folder) / 'logs', str, Mock(), Mock())
+            manager.refresh()
+            self.assertEqual(manager.status()[0]['command'], ['python', 'main.py'])
+        source = (ROOT / 'host/editor/dialogs.js').read_text(encoding='utf-8')
+        self.assertIn("if (check.checked && !pluginConsent(plugin))", source)
+        self.assertIn("[plugin.id]: plugin.version", source)  # remembered per id and manifest version
 
 
 if __name__ == '__main__':

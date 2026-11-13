@@ -53,6 +53,10 @@ Each plugin's `main.py` starts with the key actions and names it understands. A 
 
 Turn a plugin on in the editor (**More → Plugins …**) or in `profiles.json`:
 `"plugins": { "my-plugin": { "enabled": true, "settings": { "interval": 10 } } }`.
+The first time a plugin is turned on (and again for a new manifest version) the editor lists what it may do and
+the program it runs, and asks first. A setting whose name contains `token`, `secret`, `password` or `api key` is
+stored encrypted for your Windows account (`"$(dpapi:…)"` in `profiles.json` and its backups) and reaches your
+program in plain text through `TESSERA_SETTINGS` only.
 
 ## What your program receives
 
@@ -68,6 +72,9 @@ Environment variables (nothing else from your environment is passed on except ba
 Output goes to `host/plugins/<id>.log`. Tessera restarts a plugin that stops, waiting 1, 2, 4 … up to 60 seconds,
 and gives up after five quick crashes until the plugin is turned off and on again. Changing a plugin's settings
 restarts it.
+
+Each token may make 20 API calls a second (40 at once); more are answered with `429` and `"retry": true`.
+Every call that changes something is written to the host log with the plugin's id (never the body).
 
 ## Permissions
 
