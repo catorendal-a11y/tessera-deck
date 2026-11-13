@@ -128,7 +128,7 @@ function ambientSettings() {
   const afterChoices = [30, 60, 120, 300, 600].map(v => [String(v), v < 60 ? `${v} seconds` : `${v / 60} min`]);
   if (!afterChoices.some(([v]) => Number(v) === ambient.after)) afterChoices.push([String(ambient.after), `${ambient.after} seconds`]);
   const where = weather ? `Currently ${weather.name} in ${weather.unit === 'fahrenheit' ? 'Fahrenheit' : 'Celsius'}. ` : '';
-  dialog('Ambient screen', [
+  dialog('Clock when idle', [
     {name: 'enabled', label: 'Show a big clock when the panel has been idle', type: 'checkbox', value: ambient.enabled, note: 'Touch the panel to get your keys back. Needs the firmware that ships with this version.'},
     {name: 'after', label: 'Show it after', options: afterChoices, value: String(ambient.after)},
     {name: 'city', label: 'Weather for (city, optional)', value: weather?.name || '', note: `${where}Weather comes from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use.`},
@@ -255,7 +255,7 @@ function themeSettings() {
   $('#more-menu').hidden = true;
   const theme = config.theme || {};
   const current = Object.entries(THEMES).find(([, preset]) => preset.bg === theme.bg && preset.text_color === theme.text_color && preset.border === theme.border)?.[0] || (Object.keys(theme).length ? 'custom' : 'default');
-  dialog('Key theme', [
+  dialog('Key colors', [
     {name: 'preset', label: 'Theme', options: [['default', 'Default'], ...Object.entries(THEMES).map(([id, preset]) => [id, preset.name]), ['custom', 'Custom colors below']], value: current},
     {name: 'bg', label: 'Key background (custom)', type: 'color', value: theme.bg || '#172329'},
     {name: 'text_color', label: 'Label text (custom)', type: 'color', value: theme.text_color || '#E8F4EF'},

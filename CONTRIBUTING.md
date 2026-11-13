@@ -4,7 +4,7 @@ Thanks for wanting to help. Bug reports, ideas, ports to other boards and pull r
 
 ## Before you start
 
-- **A bug or an idea:** open an [issue](https://github.com/catorendal-a11y/tessera-deck/issues). For a bug, say what you did, what you expected and what happened, and attach the file that **⋯ → Export diagnostics** in the editor makes (it leaves out your keys' contents and redacts secrets).
+- **A bug or an idea:** open an [issue](https://github.com/catorendal-a11y/tessera-deck/issues). For a bug, say what you did, what you expected and what happened, and attach the file that **⋯ → Save diagnostics** in the editor makes (it leaves out your keys' contents and redacts secrets).
 - **A first contribution:** issues marked [good first issue](https://github.com/catorendal-a11y/tessera-deck/labels/good%20first%20issue) are small and well described; [help wanted](https://github.com/catorendal-a11y/tessera-deck/labels/help%20wanted) needs someone with the hardware or the skills.
 - **A larger change:** open an issue first, so we can agree on the approach before you write the code.
 - **A security problem:** do not open a public issue. See [SECURITY.md](SECURITY.md).

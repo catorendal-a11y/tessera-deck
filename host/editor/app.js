@@ -300,7 +300,7 @@ function dialog(title,fields,onSave,saveLabel='Save') {
 function openTemplates() {
   if(!actionCatalog.templates.length)return toast('No templates are available.');
   const choices=actionCatalog.templates.map((template,index)=>[String(index),`${template.name} · ${template.description}`]);
-  dialog('Profile templates',[{name:'template',label:'Choose template',options:choices,value:'0',note:'The template is added as a new profile. Your existing profiles are kept.'}],values=>{
+  dialog('Profile from a template',[{name:'template',label:'Choose template',options:choices,value:'0',note:'The template is added as a new profile. Your existing profiles are kept.'}],values=>{
     const template=actionCatalog.templates[Number(values.template)];if(!template)throw new Error('Choose a valid template.');
     let name=template.name,suffix=2;while(config.profiles[name])name=`${template.name} ${suffix++}`;
     mutate(()=>{config.profiles[name]=clone(template.profile);profile=name;page=Object.keys(config.profiles[name].pages)[0];selected=1;editState=0;});renderAll();toast(`Profile “${name}” was added.`);

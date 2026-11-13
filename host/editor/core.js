@@ -371,7 +371,19 @@ function tickClock() {const clock=$('#screen-clock');if(clock)clock.textContent=
 function setupMoreMenu() {
   const toggle=$('#more-toggle'),menu=$('#more-menu');
   const close=()=>{menu.hidden=true;toggle.setAttribute('aria-expanded','false');};
-  toggle.onclick=event=>{event.stopPropagation();menu.hidden=!menu.hidden;toggle.setAttribute('aria-expanded',String(!menu.hidden));};
+  // The button sits in the middle of the window: open the menu where it has room, and never past the edge.
+  const place=()=>{
+    Object.assign(menu.style,{position:'fixed',top:'0px',left:'0px',right:'auto',bottom:'auto',maxHeight:''});
+    const origin=menu.getBoundingClientRect(),scale=origin.width/menu.offsetWidth||1,button=toggle.getBoundingClientRect();
+    const left=Math.max(16,Math.min(button.left,innerWidth-origin.width-16)),top=button.bottom+6;
+    // fixed coordinates inside a zoomed part of the page are in its own units: undo the zoom and the origin
+    menu.style.left=(left-origin.left)/scale+'px';menu.style.top=(top-origin.top)/scale+'px';
+    menu.style.maxHeight=Math.max(220,(innerHeight-top-16)/scale)+'px';};
+  toggle.onclick=event=>{event.stopPropagation();menu.hidden=!menu.hidden;toggle.setAttribute('aria-expanded',String(!menu.hidden));
+    if(!menu.hidden){place();menu.querySelector('[role=menuitem]')?.focus();}};
+  menu.addEventListener('keydown',event=>{const items=[...menu.querySelectorAll('[role=menuitem]')],at=items.indexOf(document.activeElement);
+    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();items[(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length].focus();}
+    else if(event.key==='Escape'){close();toggle.focus();}});
   menu.addEventListener('click',event=>{if(event.target.closest('button'))close();});
   document.addEventListener('click',event=>{if(!event.target.closest('.more'))close();});
   document.addEventListener('keydown',event=>{if(event.key==='Escape')close();});
