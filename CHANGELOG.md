@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Editor: questions and name prompts open in the editor's own dialog instead of the browser's; deleting a profile or a page no longer asks first and offers Undo instead.
+- Editor: a bar at the bottom stays while something blocks you (host stopped, no panel, a save conflict, an unreadable configuration file) and has the button that fixes it (Start host, Reload, Restore a backup).
+- Editor: a Getting started card (choose a template, drag an action onto a key, test it) shows while no key is set up, and More → Getting started opens it again.
+- Editor: importing a file first shows its profiles, pages and keys and the risky actions it holds, then adds them as new profiles or replaces the configuration; an export says what it left out (calendar address, plugin passwords, web request credentials).
 - Docs: new panel and editor images, and a longer demo animation (17 scenes: folders, window and meeting keys, pages that follow the app, the idle clock and the editor). In the editor a long widget description no longer runs past the settings panel.
 - Long runs: the panel tells the host which screen shows, so the sound mixer is read every second only on its screen (otherwise every 5 s). Plugin folders are read again only when they change, the AI session history is walked every 10 s instead of 2 s, an unchanged status file is not rewritten, and the host log is kept under 5 MB while the host runs.
 - Performance: images reach the panel about 4 times faster, and the panel reads USB in 2 KB blocks instead of locking per byte. Hidden screens, a dark screen and the clock no longer redraw or animate keys. The host stops refreshing keys under a dark screen, skips nvidia-smi when a sensor tool has the GPU, and caches the program list. The editor stops polling in a hidden tab and redraws the rail only when it changes.

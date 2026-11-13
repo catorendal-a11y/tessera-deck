@@ -176,14 +176,19 @@ function renderTriggers(base) {
   const hints={actions:'Runs when you tap the key.',hold_actions:'Runs when you hold the key for about half a second instead of the normal actions.',double_actions:'Runs when you tap twice quickly. A key with a double-press waits a moment before its normal actions run.'};
   return element('div',{class:'triggers'},tabs,text('p',hints[editList],'hint'));
 }
+/* A timer name typed in a prompt: null when cancelled or not a valid name (the reason is shown). */
+async function askTimerName(title,label,value) {
+  const name=((await promptDialog(title,label,value))||'').trim();if(!name)return null;
+  if(/^[A-Za-z0-9_.-]{1,64}$/.test(name))return name;toast('Use letters, digits, dots, dashes or underscores.');return null;
+}
 function activeActionsOf(base) {return base.states?base.states[Math.min(editState,base.states.length-1)].actions||[]:base.actions||[];}
 function renderBind(panel,base) {
   if(!base.states)return;
   const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing'],['__timer','A timer is running …']];
   if(base.bind?.startsWith('timer-running:'))choices.splice(-1,0,[base.bind,`Timer “${base.bind.slice(14)}” is running`]);
-  panel.append(field('Follow PC state',base.bind||'',value=>mutate(()=>{
-    if(value==='__timer'){const name=(prompt('Name of the timer to follow')||'').trim();if(/^[A-Za-z0-9_.-]{1,64}$/.test(name))base.bind=`timer-running:${name}`;else if(name)toast('Use letters, digits, dots, dashes or underscores.');}
-    else if(value)base.bind=value;else delete base.bind;}),{values:choices}));
+  panel.append(field('Follow PC state',base.bind||'',value=>{
+    if(value==='__timer')return askTimerName('Follow a timer','Name of the timer to follow','').then(name=>{if(name&&current()===base)mutate(()=>{base.bind=`timer-running:${name}`;});else renderInspector();});
+    mutate(()=>{if(value)base.bind=value;else delete base.bind;});},{values:choices}));
   if(base.bind)panel.append(text('p','State 1 shows while the condition is off, state 2 while it is on.','hint'));
 }
 function renderGauge(panel,base) {
@@ -331,11 +336,11 @@ async function profileSettings() {
   {name:'remove',label:'Delete the profile and remove actions that point to it',type:'checkbox'}],values=>{
     if(values.remove){
       if(Object.keys(config.profiles).length===1)throw new Error('Keep at least one profile.');
-      if(!confirm(`Delete profile “${profile}” and actions that point to it?`))return;
+      const deleted=profile;  // no confirm: the toast offers Undo
       mutate(()=>{const old=profile;delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
         for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
         for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
-        if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);});renderAll();return;
+        if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);});renderAll();toast(`Profile “${deleted}” was deleted.`,true);return;
     }
     const name=values.name.trim();if(!name||(name!==profile&&config.profiles[name]))throw new Error('The profile name is already in use.');
     mutate(()=>{renameProfile(profile,name);profile=name;const rules=values.match.split(',').map(s=>s.trim()).filter(Boolean);if(values.program&&!rules.includes(values.program))rules.push(values.program);config.profiles[profile].match=rules;if(values.default)config.default_profile=profile;});renderAll();
@@ -366,8 +371,7 @@ function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',
   const pages=config.profiles[profile].pages,name=values.name.trim(),old=page;
   if(values.remove&&Object.keys(pages).length===1)throw new Error('Keep at least one page.');
   if(!values.remove&&(!name||(name!==old&&pages[name])))throw new Error('Choose a new page name.');
-  if(values.remove&&!confirm(`Delete “${old}” and remove actions in this profile that point to the page?`))return;
-  mutate(()=>{
+  mutate(()=>{  // a delete needs no confirm: the toast below offers Undo
     if(values.remove){delete pages[old];page=Object.keys(pages)[0];}
     else {config.profiles[profile].pages=Object.fromEntries(Object.entries(pages).map(([key,value])=>[key===old?name:key,value]));page=name;}
     const update=a=>['page','folder'].includes(a.type)&&a.page===old?(values.remove?null:{...a,page:name}):a;
@@ -376,35 +380,67 @@ function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',
     if(!Object.entries(config.profiles).some(([name,p])=>name!==profile&&p.pages?.[old]))rewriteActions(railSteps(),update);
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:values.remove?[]:[{...s,page:name}]);
     if(config.default_profile===profile)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
-  });renderAll();
+  });renderAll();if(values.remove)toast(`Page “${old}” was deleted.`,true);
 });}
-async function exportConfig() {await save();const bundle=await api('export');const blob=new Blob([JSON.stringify(bundle,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=element('a',{href:url,download:'tessera-profiles.json'});a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+async function exportConfig() {await save();const {left_out:leftOut=[],...bundle}=await api('export');const blob=new Blob([JSON.stringify(bundle,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=element('a',{href:url,download:'tessera-profiles.json'});a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);exportSummary(bundle,leftOut);}
+/* After an export: what the file holds, and what stayed on this PC. */
+function exportSummary(bundle,leftOut) {
+  const keys=Object.values(bundle.profiles||{}).reduce((n,p)=>n+profileButtons(p).length,0);
+  const kept=`tessera-profiles.json holds ${Object.keys(bundle.profiles||{}).length} profile(s) with ${keys} key(s).`;
+  const notes=[...leftOut.map(item=>`Left out: ${item}.`),...(bundle.redacted||[]).map(name=>`A credential in a web request became $(env:${name}); set that environment variable on the PC that imports the file.`)];
+  if(!notes.length)return toast(kept+' Nothing was left out.');
+  askDialog('Exported',[kept,...notes].join('\n'),{cancel:null});
+}
 async function importConfig(file) {
   if(!file)return;if(file.size>16*1024*1024)throw new Error('The configuration is too large.');const data=JSON.parse(await file.text());
   if(!data.profiles||!Object.keys(data.profiles).length)throw new Error('The file contains no profiles.');
-  const names=Object.keys(data.profiles);if(!confirm(`Replace the configuration with ${names.length} profiles from “${file.name}”? ${(data.triggers||[]).length} automatic rules are included. You can undo.`))return;
+  delete data.left_out;
   const {assets:bundledAssets,redacted,...bundle}=data;
   const {findings}=await api('command/review',{config:bundle});
-  if(findings.length){
-    const listed=findings.slice(0,8).map(f=>`• ${f.risk.toUpperCase()}${f.automatic?' (automatic)':''}: ${f.where} ${f.detail}`).join('\n');
-    const more=findings.length>8?`\n… and ${findings.length-8} more`:'';
-    if(!confirm(`This file contains ${findings.length} action(s) that run programs, run commands or use the network:\n\n${listed}${more}\n\nOnly keep them if you trust the source.\nOK = import with these actions. Cancel = choose again.`)){
-      if(!confirm('Import without those actions? Commands, web requests, program launches and automatic rules are removed.'))return;
-      // Take every section the host cleaned, the rail shortcuts in panel too, not only profiles and rules.
-      const safe=await api('command/sanitize',{config:bundle});Object.assign(data,safe.config);
-      // A rail shortcut left without steps is refused on save, so it goes, like its commands did.
-      if(data.panel?.shortcuts)data.panel.shortcuts=data.panel.shortcuts.filter(s=>s?.type!=='actions'||s.actions?.length);
-      // Plugins run code: the file may not switch them on or set them up, so the ones set up here stay as they are.
-      if(config.plugins)data.plugins=clone(config.plugins);else delete data.plugins;
-    }
+  const choice=await importPreview(file.name,data,findings);if(!choice)return;
+  if(findings.length&&!choice.keepRisky){
+    // Take every section the host cleaned, the rail shortcuts in panel too, not only profiles and rules.
+    const safe=await api('command/sanitize',{config:bundle});Object.assign(data,safe.config);
+    // A rail shortcut left without steps is refused on save, so it goes, like its commands did.
+    if(data.panel?.shortcuts)data.panel.shortcuts=data.panel.shortcuts.filter(s=>s?.type!=='actions'||s.actions?.length);
+    // Plugins run code: the file may not switch them on or set them up, so the ones set up here stay as they are.
+    if(config.plugins)data.plugins=clone(config.plugins);else delete data.plugins;
   }
   if(data.assets){const replacements={};for(const [id,image] of Object.entries(data.assets)){const result=await api('image',{data:image});replacements[id]=result.id;}const visit=value=>{if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')for(const [key,item] of Object.entries(value)){if(key==='icon'&&replacements[item])value[key]=replacements[item];else visit(item);}};delete data.assets;visit(data);}
-  const previous=clone(config),wasDirty=dirty;remember();const mark=history.length-1;config=data;let importVersion=-1;
-  try {ensureSelection();const error=draftError();if(error)throw new Error(error);importVersion=++version;dirty=true;await save();renderAll();toast('The configuration was imported.');}
+  const added=choice.mode==='add'?addProfiles(data.profiles):null;
+  const previous=clone(config),wasDirty=dirty;remember();const mark=history.length-1;config=added?added.config:data;if(added)profile=added.names[0];let importVersion=-1;
+  try {ensureSelection();const error=draftError();if(error)throw new Error(error);importVersion=++version;dirty=true;await save();renderAll();toast(added?`${added.names.length} profile(s) were added: ${added.names.join(', ')}.`:'The configuration was imported.',true);}
   catch(error){
     // Undo the import only when nothing was edited while the save ran; edits made on top of it stay, with their undo steps.
     if(importVersion<0||version===importVersion){config=previous;history.length=Math.min(mark,history.length);dirty=wasDirty;if(!dirty&&!conflicted)setSaveState('✓ Saved on the PC');}
     renderAll();throw error;}
+}
+/* Import as new: the file's profiles join the current ones, renamed where a name is taken; their profile switches follow the rename. */
+function addProfiles(profiles) {
+  const merged=clone(config),renames={},names=[];
+  for(const [name,item] of Object.entries(profiles)){const taken=Object.keys(merged.profiles),next=taken.includes(name)?uniqueName(name,taken):name;renames[name]=next;merged.profiles[next]=clone(item);names.push(next);}
+  for(const name of names)rewriteActions(profileButtons(merged.profiles[name]),a=>a.type==='profile'&&renames[a.profile]?{...a,profile:renames[a.profile]}:a);
+  return {config:merged,names};
+}
+/* What a file brings before anything changes: its profiles, pages and keys, what the host flagged, and add or replace. */
+function importPreview(fileName,data,findings) {
+  const d=$('#import-dialog'),count=list=>Array.isArray(list)?list.length:0,plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`;
+  $('#import-source').textContent=`From “${fileName}”: ${plural(Object.keys(data.profiles).length,'profile')}, ${plural(count(data.triggers),'automatic rule')}.`;
+  $('#import-contents').replaceChildren(...Object.entries(data.profiles).map(([name,item])=>{
+    const pages=Object.entries(item?.pages||{}).map(([page,keys])=>`${page} (${plural(count(keys),'key')})`).join(', '),pinned=count(item?.pinned);
+    return element('div',{class:'backup-row'},element('div',{},text('strong',name+(config.profiles[name]?' · this name is in use here':'')),text('small',(pages||'No pages')+(pinned?` · ${pinned} pinned`:''))));
+  }));
+  const keep=element('input',{type:'checkbox'});
+  $('#import-findings').replaceChildren(...(findings.length?[
+    text('p',`${plural(findings.length,'action')} in the file run programs, run commands or use the network. They are removed unless you keep them.`,'error'),
+    element('ul',{class:'import-findings'},...findings.map(f=>text('li',`${f.risk.toUpperCase()}${f.automatic?' (automatic)':''}: ${f.where} ${f.detail}`))),
+    element('label',{class:'check-option'},keep,element('span',{},text('strong','Keep these actions'),text('small','Only if you trust where the file came from.')))]
+    :[text('p','Nothing in the file runs programs, runs commands or uses the network.','hint')]));
+  $('#import-cancel').onclick=()=>d.close('cancel');d.returnValue='';
+  return new Promise(resolve=>{
+    d.addEventListener('close',()=>resolve(d.returnValue==='ok'?{mode:d.querySelector('[name=import-mode]:checked').value,keepRisky:keep.checked}:null),{once:true});
+    d.showModal();$('#import-ok').focus();
+  });
 }
 async function command(name,data={}) {const result=await api('command/'+name,data);if(result.message)toast(result.message);await pollStatus();}
 function titleCase(value) { return String(value).replace(/(^|[ _\/-])([a-z])/g, (m, p, c) => p + c.toUpperCase()); }
@@ -429,7 +465,7 @@ function renderStatus() {
   $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);
   const last=dashboard.device?.last_action;
   if(last?.at>lastActionAt){if(lastActionAt)toast(`${last.ok?'✓':'✕'} ${last.label}${last.error?' · '+last.error:''}`);lastActionAt=last.at;}
-  if(dashboard.running&&!connected&&!panelHintShown&&performance.now()>15000){panelHintShown=true;toast('No panel found. Check the USB cable; a new panel needs its firmware from Panel → Panel firmware.');}
+  renderStatusBar();  // a stopped host or a missing panel stays in the bar instead of a toast that goes away
   document.title=connected&&context?`Tessera · ${context}`:'Tessera';
   followDevice();
   const usesStats=visibleButtons().some(b=>[b,...(b.states||[])].some(v=>v.label?.includes('$(stat:')));
@@ -437,11 +473,26 @@ function renderStatus() {
   // Never rebuild keys under a finger: the press or drag would lose its key. The next poll catches up.
   if(live!==lastLive&&!drag){lastLive=live;renderGrid();}
 }
-let lastLive='',panelHintShown=false;
+let lastLive='';
+let configError='',editorOffline=false,startError='';
+/* Blocking states sit in a fixed bar until they clear; toasts stay for passing news. The first state that applies wins. */
+function renderStatusBar() {
+  const d=dashboard||{},reload=['Reload',()=>location.reload()],states=[
+    [startError,'The editor could not start: '+startError,reload],
+    [editorOffline,'The editor lost contact with Tessera. If this does not clear, open Tessera again.',reload],
+    [configError,'Your configuration file could not be read: '+configError,['Restore a backup …',()=>openBackups().catch(showError)]],
+    [conflicted,'The configuration was changed in another window. Reload it to go on; the changes made here since then are lost.',['Reload',()=>$('#reload').click()]],
+    [d.running===false,'The USB host has stopped, so the panel does not react to presses.',['Start host',()=>$('#host-toggle').click()]],
+    [d.running&&!d.device?.connected&&performance.now()>15000,'No panel found. Check the USB cable; a new panel needs its firmware from Panel → Panel firmware.',['Panel firmware …',()=>openFirmware().catch(showError)]]];
+  const state=states.find(s=>s[0]),bar=$('#status-bar'),action=$('#status-bar-action');
+  bar.hidden=!state;document.body.classList.toggle('has-status-bar',!!state);if(!state)return;
+  if($('#status-bar-text').textContent!==state[1])$('#status-bar-text').textContent=state[1];  // unchanged text is not announced again
+  action.textContent=state[2][0];action.onclick=state[2][1];
+}
 let polling=false,lastScreenLive='';
 async function pollStatus(timer) {if(timer===true&&(document.hidden||polling))return;polling=true;  /* a hidden tab does not poll */
-  try{dashboard=await api('status');renderStatus();if(typeof renderRail==='function'){renderRail();const live=JSON.stringify([dashboard,editorView]);
-    if(editorView!=='keys'&&live!==lastScreenLive&&!document.activeElement?.closest('#screens-view')){lastScreenLive=live;renderScreen();}}}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}finally{polling=false;}}
+  try{dashboard=await api('status');editorOffline=false;renderStatus();if(typeof renderRail==='function'){renderRail();const live=JSON.stringify([dashboard,editorView]);
+    if(editorView!=='keys'&&live!==lastScreenLive&&!document.activeElement?.closest('#screens-view')){lastScreenLive=live;renderScreen();}}}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');editorOffline=true;renderStatusBar();}finally{polling=false;}}
 document.addEventListener('keydown',event=>{
   if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}
     if(['Control','Shift','Alt','Meta'].includes(event.key))return;
@@ -523,7 +574,7 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
 async function start() {
   const token=location.hash.slice(1);
   if(token){const response=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json','X-Deck-Token':token},body:'{}'});if(!response.ok)throw new Error('Open the program with Tessera.cmd.');window.history.replaceState(null,'',location.pathname);}
-  const state=await api('config');config=state.config;revision=state.revision;savedBase=clone(config);if(state.error)setTimeout(()=>{setSaveState('Not saved · '+state.error,'Your configuration file could not be read; open More → Restore a backup …');toast(state.error);},0);profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
+  const state=await api('config');config=state.config;revision=state.revision;savedBase=clone(config);if(state.error)setTimeout(()=>{setSaveState('Not saved · '+state.error,'Your configuration file could not be read; open More → Restore a backup …');configError=state.error;renderStatusBar();},0);profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
   try{const [,catalog]=await Promise.all([loadIconPack(),api('action-packs')]);actionCatalog=catalog;}catch(error){toast('The add-on packs could not be loaded. '+error.message);}
   renderAll();renderLibrary();setSaveState('✓ Configuration ready');await pollStatus();
   $('#profile').onchange=()=>{profile=$('#profile').value;page=Object.keys(config.profiles[profile].pages)[0];selected=1;editState=0;renderAll();syncPanel();};
@@ -556,7 +607,7 @@ async function start() {
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
   $('#host-toggle').onclick=async()=>{const b=$('#host-toggle');b.disabled=true;try{await command('start');}catch(error){showError(error);}finally{b.disabled=false;}};
-  $('#reload').onclick=async()=>{if(dirty&&!confirm('Discard unsaved changes and reload the configuration from disk?'))return;try{const state=await api('config');config=state.config;savedBase=clone(config);revision=state.revision;dirty=false;conflicted=false;history=[];future=[];$('#reload').hidden=true;renderAll();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
+  $('#reload').onclick=async()=>{if(dirty&&!await confirmDialog('Reload the configuration?','Your unsaved changes here are discarded and the configuration is read again from the PC.',{ok:'Discard and reload',danger:true}))return;try{const state=await api('config');config=state.config;savedBase=clone(config);revision=state.revision;dirty=false;conflicted=false;configError=state.error||'';history=[];future=[];$('#reload').hidden=true;renderAll();renderStatusBar();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
   setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);
   $('#sync').onchange=()=>{if($('#sync').checked)syncPanel();};
   pollStatus();setInterval(()=>pollStatus(true),1500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollStatus(true);});
@@ -593,9 +644,10 @@ function wideRows(base, row) {
     const kind = String(base.live || '').startsWith('timer:') ? 'timer' : base.live || '';
     rows.push(row('Shows', field('Shows', kind, v => {
       if (v === 'timer') {
-        const name = (prompt('Name of the timer to show (the same name as in the timer action)', base.live?.slice(6) || 'timer') || '').trim();
-        if (!/^[A-Za-z0-9_.-]{1,64}$/.test(name)) { toast('Use letters, digits, dots, dashes or underscores.'); return renderInspector(); }
-        mutate(() => { base.live = 'timer:' + name; });
+        return askTimerName('Show a timer', 'Name of the timer to show (the same name as in the timer action)', base.live?.startsWith('timer:') ? base.live.slice(6) : 'timer').then(name => {
+          if (name && current() === base) mutate(() => { base.live = 'timer:' + name; });
+          renderGrid(); renderInspector();
+        });
       } else mutate(() => { if (v === 'media' || WIDGETS.some(w => w.kind === v)) base.live = v; else delete base.live; });
       renderGrid(); renderInspector();
     }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['timer', 'A timer (time left, ring) …'], ...WIDGETS.map(w => [w.kind, `${w.name}: ${w.sub}`])]})));

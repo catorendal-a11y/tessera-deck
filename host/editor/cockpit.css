@@ -348,3 +348,28 @@ html body .toolbar .more+.more{margin-left:6px}
 /* A long choice (a widget's description) shrinks to the panel instead of running past its edge. */
 html body #inspector .prop-value>label{flex:1 1 auto;min-width:0}
 html body #inspector .prop-value>label>select{width:100%;max-width:100%}
+/* Blocking states: a fixed bar at the bottom until the state clears; the toast moves up above it. */
+.status-bar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 20px;background:#2A1F12;border-top:1px solid var(--amber);color:var(--text);font-size:13px}
+.status-bar::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0}
+.status-bar .outline{padding:7px 14px;font-size:12px;border-color:var(--amber)}
+body.has-status-bar #toast{bottom:76px}
+body.has-status-bar{padding-bottom:52px}
+/* In-page confirm and prompt; a message may hold several lines. */
+.ask-message{white-space:pre-line;line-height:1.6;color:var(--soft)}
+#ask-input{margin-top:14px}
+html body .primary.danger-button{background:var(--red);color:#1A0707}
+/* Import preview: the file's profiles, what the host flagged, and add or replace. */
+.import-dialog{width:560px}
+.import-contents{max-height:200px;overflow:auto;margin:12px 0}
+.import-findings{max-height:140px;overflow:auto;margin:6px 0;padding-left:18px;font-size:12px;line-height:1.6;color:var(--soft)}
+.import-mode{border:0;padding:0;margin:14px 0 0}
+.import-mode legend{font-size:12px;color:var(--muted);margin-bottom:4px}
+/* Getting started card above the deck: never over the keys, so an action can still be dropped on them. */
+.welcome-card{margin:0 0 14px;padding:16px 18px;border:1px solid var(--line2);border-radius:16px;background:var(--card)}
+.welcome-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.welcome-head h2{font-size:18px}
+.welcome-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0 0;padding:0;list-style:none;counter-reset:step}
+.welcome-steps li{counter-increment:step;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:12px;background:var(--card2)}
+.welcome-steps li::before{content:counter(step);font-weight:700;color:var(--accent)}
+.welcome-steps small{color:var(--muted);line-height:1.5}
+.welcome-steps .outline{margin-top:auto;align-self:flex-start;font-size:12px;padding:7px 12px}
