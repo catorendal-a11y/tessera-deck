@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import time
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import calendar_feed  # noqa: E402
@@ -44,6 +45,21 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(summaries(every), [('Fri 10:00', 'Every Friday')])
         both = ics(['DTSTART:20261001T100000', 'RRULE:FREQ=MONTHLY;BYDAY=3FR,2FR;COUNT=4', 'SUMMARY:Second and third'])
         self.assertEqual([event['start'].day for event in calendar_feed.upcoming(both, datetime(2026, 11, 12, 9))], [13])
+
+    def test_an_ancient_monthly_or_yearly_start_jumps_to_the_window_and_a_hostile_feed_stays_cheap(self):
+        # A start in year 1 used to walk 5000 months (never reaching today) at seconds of CPU per event.
+        old = ics(['UID:m', 'DTSTART:00010113T100000', 'RRULE:FREQ=MONTHLY;BYDAY=2FR', 'SUMMARY:Monthly'],
+                  ['UID:y', 'DTSTART:00011113T110000', 'RRULE:FREQ=YEARLY', 'SUMMARY:Yearly'])
+        self.assertEqual(summaries(old), [('Fri 10:00', 'Monthly'), ('Fri 11:00', 'Yearly')])
+        # COUNT needs the walk, so the whole feed shares a budget; an event past it shows its first start only.
+        hostile = {'start': datetime(1, 1, 1), 'rrule': {'FREQ': 'MONTHLY', 'COUNT': '999999999',
+                                                          'BYDAY': ','.join(['MO', 'TU', '1MO', '01MO', '+1MO'] * 2000)}}
+        budget = [calendar_feed.MAX_STEPS]
+        with self.assertRaises(OverflowError):
+            for _ in range(30):
+                list(calendar_feed._starts(hostile, NOW, budget))
+        with self.assertRaises(ValueError):  # BYDAY=99MO is no rule
+            list(calendar_feed._starts({'start': NOW, 'rrule': {'FREQ': 'MONTHLY', 'BYDAY': '99MO'}}, NOW))
 
     def test_utc_times_are_shown_in_local_time(self):
         utc = datetime(2026, 11, 13, 9, 0, tzinfo=timezone.utc)
@@ -190,8 +206,14 @@ class PrivacyAndDaemonTests(unittest.TestCase):
         daemon.config = dict(daemon.config, calendar={'url': 'https://example.com/basic.ics'})
         daemon.calendar.events = lambda settings, now: ([{'start': now + timedelta(minutes=20), 'end': now + timedelta(minutes=50),
                                                           'summary': 'Retro', 'all_day': False}], '')
-        self.assertEqual(daemon.live_content('calendar')['label'], 'Retro')
-        self.assertEqual(daemon.live_content('calendar')['sub'][-9:], 'in 20 min')
+        class Morning(datetime):  # a fixed clock: after 23:40 the meeting would be "Tomorrow 00:0x"
+            @classmethod
+            def now(cls, tz=None):
+                return NOW
+
+        with patch('tesserad.datetime', Morning):
+            self.assertEqual(daemon.live_content('calendar')['label'], 'Retro')
+            self.assertEqual(daemon.live_content('calendar')['sub'][-9:], 'in 20 min')
 
 
 if __name__ == '__main__':

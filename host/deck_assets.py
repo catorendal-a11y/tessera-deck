@@ -45,6 +45,19 @@ def resolve_program_target(target):
     return target
 
 
+def is_remote_target(target):
+    r"""A share (\\host\s, //host/s, \\host@80\s), \\?\UNC\ path or URL, which the shell reaches over the network.
+
+    Looking one up sends the user's Windows (NTLM) sign-in to that host, so icons are never read from one.
+    """
+    import os
+    text = os.path.expandvars(target.strip()).replace('/', '\\')
+    if text.startswith('\\\\'):
+        return not re.match(r'\\\\\?\\[A-Za-z]:\\', text)  # \\?\C:\... is a long local path
+    scheme = re.match(r'([A-Za-z][A-Za-z0-9+.-]+):', text)  # one letter is a drive
+    return bool(scheme) and scheme.group(1).lower() != 'shell'
+
+
 def _com_guid(text):
     import uuid
 
@@ -227,7 +240,8 @@ class Assets:
         """Import the program icon of the button's open action, else None."""
         target = next((a['target'] for a in button.get('actions', [])
                        if a.get('type') == 'open' and isinstance(a.get('target'), str)), None)
-        if target is None:
+        # Runs on every push without a key press, for imported profiles too: no network shares or URLs.
+        if target is None or is_remote_target(target):
             return None
         try:
             return self.import_program_icon(target)['id']

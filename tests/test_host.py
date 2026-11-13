@@ -309,6 +309,22 @@ class HostTests(HostCase):
         with self.assertRaises(ValueError):
             resolve_program_target('  ')
 
+    def test_an_app_icon_is_never_looked_up_on_a_network_share_or_url(self):
+        # The lookup runs on every push, so an imported key could otherwise leak the NTLM sign-in to any host.
+        from deck_assets import is_remote_target
+        remote = [r'\\evil.example@80\s\notes.pdf', r'\\1.2.3.4\s\a.md', '//host/share/a.exe',
+                  r'\\?\UNC\host\s\a.exe', 'file://host/s/a.exe', 'https://evil.example/a.exe', r'%DECK_TEST_SHARE%\a.exe']
+        local = [r'C:\Apps\a.exe', 'notepad.exe', r'\\?\C:\Apps\a.exe', r'shell:AppsFolder\X!App', 'C:/Apps/a.exe']
+        with patch.dict('os.environ', {'DECK_TEST_SHARE': r'\\host\s'}):
+            self.assertEqual([t for t in remote if not is_remote_target(t)], [])
+            self.assertEqual([t for t in local if is_remote_target(t)], [])
+        with tempfile.TemporaryDirectory() as directory:
+            assets = Assets(Path(directory) / 'profiles.json')
+            with patch.object(assets, 'import_program_icon') as lookup:
+                button = {'icon': 'app', 'actions': [{'type': 'open', 'target': remote[0]}]}
+                self.assertEqual(assets.icon_for(button), 'ok')
+                lookup.assert_not_called()
+
     @unittest.skipUnless(sys.platform == 'win32', 'shell icons need Windows')
     def test_program_icon_is_extracted_from_the_shell_at_full_quality(self):
         from deck_assets import shell_item_image
