@@ -251,7 +251,9 @@ async function iconifySearch() {
   $('#iconify-note').hidden = false;
   box.hidden = false;
   box.replaceChildren(text('p', 'Searching …', 'hint'));
-  const {icons} = await api('command/iconify-search', {query});
+  let icons;
+  try { ({icons} = await api('command/iconify-search', {query})); }
+  catch (error) { if (run === iconifyRun) box.replaceChildren(text('p', error.message, 'hint')); throw error; }  // the toast fades; the box must not stay on Searching
   if (run !== iconifyRun) return;
   box.replaceChildren();
   if (!icons.length) { box.append(text('p', 'Nothing found online.', 'hint')); return; }
@@ -324,7 +326,7 @@ async function openBackups() {
 async function restoreBackup(item) {
   if (!await confirmDialog('Restore this backup?', `The current configuration is replaced by the backup from ${item.saved}. The current one is kept as a backup.`, {ok: 'Restore'})) return;
   const state = await api('command/restore-backup', {name: item.name});
-  config = state.config; revision = state.revision;
+  config = state.config; revision = state.revision; savedBase = clone(state.config);  // a later merge compares against the restored file
   dirty = false; conflicted = false; configError = ''; history = []; future = [];
   renderStatusBar();
   $('#reload').hidden = true;
@@ -417,16 +419,17 @@ const SECRET_SETTING = /token|secret|password|api.?key/i;  // as import_review.p
 const PLUGIN_RIGHTS = {vars: 'set values shown on keys (names starting with the plugin id)', press: 'press keys',
   feedback: 'flash keys green or red', state: 'change the state of keys', events: 'read key presses, page changes and its commands',
   read: 'read the panel state and all values'};
-/* Ask once per plugin id and manifest version before it first runs: a new version may ask for more. */
+/* Ask once per plugin id, version, command and permissions before it first runs: a changed manifest may ask for more under the same version. */
 async function pluginConsent(plugin) {
   let given = {};
   try { given = JSON.parse(localStorage.getItem('tessera-plugin-consent') || '{}'); } catch {}
-  if (given[plugin.id] === plugin.version) return true;
+  const seal = JSON.stringify([plugin.version, plugin.permissions, plugin.command || []]);
+  if (given[plugin.id] === seal) return true;
   const rights = plugin.permissions.map(name => `• ${PLUGIN_RIGHTS[name] || name}`).join('\n') || '• nothing in Tessera';
   if (!await confirmDialog(`Turn on ${plugin.name} ${plugin.version}?`, `In Tessera it may:\n${rights}\n\nIt runs this program: ${(plugin.command || []).join(' ')}\n\n`
     + 'The program runs with your own Windows rights: it can use the network and read your files. Only turn it on if you trust where it came from.',
     {ok: 'Turn on'})) return false;
-  try { localStorage.setItem('tessera-plugin-consent', JSON.stringify({...given, [plugin.id]: plugin.version})); } catch {}
+  try { localStorage.setItem('tessera-plugin-consent', JSON.stringify({...given, [plugin.id]: seal})); } catch {}
   return true;
 }
 function setPlugin(id, change) {

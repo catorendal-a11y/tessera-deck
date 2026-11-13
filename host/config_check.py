@@ -99,6 +99,15 @@ def _check_toggle(action, pages, profiles):
         raise ValueError('toggle: values must be two different texts')
 
 
+def _check_set(action, pages, profiles):
+    # $(var:NAME) and the control API only read names like this, so any other name could never be read back.
+    value = action.get('value', '')
+    if not VARIABLE_NAME.fullmatch(action['variable']):
+        raise ValueError('set: variable must be 1-64 letters, digits, _ . or -')
+    if not isinstance(value, (str, int, float)) or isinstance(value, bool) or len(str(value)) > 1000:
+        raise ValueError('set: value must be text of at most 1000 characters')
+
+
 SCREEN_CHOICES = ('clock', 'keys', 'toggle')
 
 
@@ -157,7 +166,7 @@ ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _c
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
                  'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
                  'shell': _check_shell, 'http': _check_http_action, 'clipboard': _check_clipboard,
-                 'window': _check_window, 'toggle': _check_toggle, 'panel_lock': _check_panel_lock}
+                 'window': _check_window, 'toggle': _check_toggle, 'set': _check_set, 'panel_lock': _check_panel_lock}
 
 
 def _check_action(action, pages, profiles):

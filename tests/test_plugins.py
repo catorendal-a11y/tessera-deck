@@ -496,7 +496,7 @@ class ConsentTests(unittest.TestCase):
             self.assertEqual(manager.status()[0]['command'], ['python', 'main.py'])
         source = (ROOT / 'host/editor/dialogs.js').read_text(encoding='utf-8')
         self.assertIn("if (check.checked && !await pluginConsent(plugin))", source)
-        self.assertIn("[plugin.id]: plugin.version", source)  # remembered per id and manifest version
+        self.assertIn("[plugin.id]: seal", source)  # remembered per id, version, command and permissions
 
 
 if __name__ == '__main__':

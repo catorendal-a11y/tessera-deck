@@ -155,7 +155,7 @@ function renderInspector() {
   confirmBox.disabled=!base.confirm&&!!(base.hold_actions?.length||base.double_actions?.length);  /* the host refuses the mix */
   confirmBox.onchange=()=>mutate(()=>{if(confirmBox.checked)base.confirm=true;else delete base.confirm;});
   const typeStart=panel.children.length;
-  panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;}editState=0;}),{values:['Normal key','Toggle key']}));
+  panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;delete base.bind;}  /* the host refuses a bind without two states */editState=0;}),{values:['Normal key','Toggle key']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local key state, not confirmed app status.','hint'));}
   const bindStart=panel.children.length;
   renderGauge(panel,base);
@@ -186,8 +186,6 @@ function renderInspector() {
   if(focusAt>=0)panel.querySelectorAll(controls)[focusAt]?.focus();
 }
 const ICON_COLORS=[['#35D07F','Green'],['#4DD0E1','Cyan'],['#64B5F6','Blue'],['#B388FF','Purple'],['#FF80AB','Pink'],['#FF5252','Red'],['#FFB74D','Orange'],['#E8F4EF','White']];
-/* A new key opens with its name ready to type. */
-function focusKeyTitle() {const input=$('#inspector .prop-row-title input');if(input){input.focus();input.select();}}
 /* The Look tab's Action row: the field a key needs most (Record for a hotkey, Choose program for open), else a summary that opens the steps. */
 function actionRow(first,toActions,row) {
   const all=activeActions()||[],k=first&&kinds[first.type];
@@ -351,7 +349,7 @@ function pasteButton() {if(!clipboard)return toast('Copy a key first.');const ol
   if(old)toast(`Replaced key ${selected}.${note}`,true);else if(note)toast(note.trim());}
 function dialog(title,fields,onSave,saveLabel='Save') {
   const d=$('#form-dialog');$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
-  $('#dialog-fields').replaceChildren(...fields.map(f=>{const label=element('label',{class:'form-field'},text('span',f.label));const input=f.options?element('select',{name:f.name}):element(f.multiline?'textarea':'input',{name:f.name,type:f.type||'text',required:f.required?'required':undefined,placeholder:f.placeholder});if(f.options)options(input,f.options,f.value||f.options[0][0]);else if(f.type==='checkbox')input.checked=!!f.value;else input.value=f.value||'';label.append(input);if(f.note)label.append(text('small',f.note,'hint'));return label;}));
+  $('#dialog-fields').replaceChildren(...fields.map(f=>{const label=element('label',{class:'form-field'},text('span',f.label));const input=f.options?element('select',{name:f.name}):element(f.multiline?'textarea':'input',{name:f.name,type:f.type||'text',required:f.required?'required':undefined,placeholder:f.placeholder,maxlength:f.maxLength});if(f.options)options(input,f.options,f.value||f.options[0][0]);else if(f.type==='checkbox')input.checked=!!f.value;else input.value=f.value||'';label.append(input);if(f.note)label.append(text('small',f.note,'hint'));return label;}));
   d.querySelector('form').onsubmit=event=>{event.preventDefault();const form=new FormData(event.target);const values={};for(const f of fields)values[f.name]=f.type==='checkbox'?form.has(f.name):form.get(f.name);try{onSave(values);d.close();}catch(error){$('#dialog-error').textContent=error.message;}};
   d.showModal();setTimeout(()=>d.querySelector('input,textarea')?.focus(),30);
 }
@@ -365,7 +363,7 @@ function openTemplates() {
   },'Add profile');
 }
 /* link: the step at `index` becomes a folder to the new page, which gets a Back key; either way the editor opens the new page. */
-function newPage(link=false,index=0,suggested='') {dialog(link?'Create a subpage':'New page',[{name:'name',label:'Page name',required:true,value:suggested}],values=>{
+function newPage(link=false,index=0,suggested='') {dialog(link?'Create a subpage':'New page',[{name:'name',label:'Page name',required:true,value:suggested,maxLength:100}],values=>{
   const name=values.name.trim();if(!name||config.profiles[profile].pages[name])throw new Error('Choose a new page name.');
   mutate(()=>{config.profiles[profile].pages[name]=[];if(link){activeActions()[index].page=name;activeActions()[index].type='folder';
     const view=appearance();if(!view.label?.trim()||['Folder','Go to page',kinds.folder.name,kinds.page.name].includes(view.label))view.label=name;  // a default name becomes the page name
@@ -386,7 +384,7 @@ async function profileSettings() {
   let running=[];try{running=(await api('processes')).names||[];}catch(error){}
   const processChoices=[['','— Choose a running program —'],...running.map(name=>[name,name])];
   dialog('Profile settings',[
-  {name:'name',label:'Profile name',value:profile,required:true},
+  {name:'name',label:'Profile name',value:profile,required:true,maxLength:100},
   {name:'program',label:'Add a running program',options:processChoices,value:'',note:'Choose the program that activates the profile.'},
   {name:'match',label:'Automatic profile switching rules',value:(config.profiles[profile].match||[]).join(', '),note:(config.profiles[profile].match||[]).length?'This profile shows '+(config.profiles[profile].match||[]).map(describeRule).join(', or ')+'. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.':'No rules yet: this profile is only used when you choose it. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.'},
   {name:'default',label:'Use as default profile',type:'checkbox',value:profile===config.default_profile}],values=>{
@@ -427,10 +425,11 @@ function changePage(name) {
     else {config.profiles[profile].pages=Object.fromEntries(Object.entries(pages).map(([key,value])=>[key===old?name:key,value]));page=name;}
     const update=a=>['page','folder'].includes(a.type)&&a.page===old?(remove?null:{...a,page:name}):a;
     rewriteActions(profileButtons(config.profiles[profile]),update);
-    // Rail steps are shared by all profiles: leave them alone while another profile still has a page with this name.
-    if(!Object.entries(config.profiles).some(([name,p])=>name!==profile&&p.pages?.[old]))rewriteActions(railSteps(),update);
+    // Rail steps and triggers are shared by all profiles (the host checks them against every page): leave them alone while another profile still has a page with this name.
+    const shared=!Object.entries(config.profiles).some(([name,p])=>name!==profile&&p.pages?.[old]);
+    if(shared)rewriteActions(railSteps(),update);
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:remove?[]:[{...s,page:name}]);
-    if(config.default_profile===profile)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
+    if(shared)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
   });renderAll();
 }
 /* Page → Delete this page: no confirm, the toast offers Undo. */
@@ -438,7 +437,7 @@ function deletePage() {
   if(Object.keys(config.profiles[profile].pages).length===1)return toast('Keep at least one page.');
   const old=page;changePage(null);toast(`Page “${old}” was deleted.`,true);
 }
-function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',value:page,required:true}],values=>{
+function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',value:page,required:true,maxLength:100}],values=>{
   const name=values.name.trim();
   if(!name||(name!==page&&config.profiles[profile].pages[name]))throw new Error('Choose a new page name.');
   if(name!==page)changePage(name);
@@ -619,7 +618,7 @@ document.addEventListener('keydown',event=>{
   if(event.key==='F2'&&onDeck&&current()){event.preventDefault();renameButton();return;}
   if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Key ${selected} was cleared.`,true);return;}
   if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&editorView==='keys'&&current()){event.preventDefault();openKeyMenu(selected);return;}
-  if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y'].includes(key)||editorView==='keys'&&['c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}
+  if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y'].includes(key)||editorView==='keys'&&['c','v','d'].includes(key)&&!String(getSelection()).trim()){  /* selected text copies as text */event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}
 });
 function hideKeyMenu(restore=false) {$('#key-menu').hidden=true;if(restore)keyMenuReturnFocus?.focus();keyMenuReturnFocus=null;}
 function renameButton(id=selected) {
@@ -722,7 +721,7 @@ async function start() {
   $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=appSettings;
   $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='move')moveToSlot();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
   $('#profile-templates').onclick=openTemplates;
-  $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
+  $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true,maxLength:100}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
   $('#host-toggle').onclick=startHost;
   api('command/setup-state',{}).then(state=>{setupState=state;renderStatusBar();}).catch(()=>{});  // without it the firmware hint just shows
@@ -761,6 +760,10 @@ function setSpan(base, span) {
   const taken = Array.from({length: span - 1}, (_, i) => base.id + 1 + i).filter(id => visibleButtons().some(b => b.id === id));
   if (Math.floor((base.id - 1 + span - 1) / 6) !== row || taken.length) {
     toast(taken.length ? `Slot ${taken[0]} is in use: move that key first.` : 'A wide key must fit on its row.');
+    return renderInspector();
+  }
+  if (span > 1 && isPinned(base) && !freeOnAllPages(base.id, span, [base])) {  // a pinned key shows on every page
+    toast('A pinned key shows on every page, and another page has a key there.');
     return renderInspector();
   }
   mutate(() => { if (span === 1) { delete base.span; delete base.live; } else base.span = span; });
