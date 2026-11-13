@@ -389,6 +389,7 @@ function renderPages() {
     item.setAttribute('aria-current',page===name?'page':'false');return item;
   }));
   rovingTabs('#page-list',false);
+  $('#page-list .page-chip.active')?.scrollIntoView({block:'nearest',inline:'nearest'});  // a long row of pages scrolls; keep the open one in view
 }
 const DEVICE={cell:150,gap:17,x:19,y:17};
 function tileGeometry(b) {
@@ -646,7 +647,7 @@ function widgetText(b) {
   const now=new Date(),date=options=>now.toLocaleDateString('en-GB',options);
   if(b.live==='clock')return {label:now.toTimeString().slice(0,5),sub:date({weekday:'long',day:'numeric',month:'short'})};
   if(b.live==='date')return {label:date({day:'numeric',month:'short'}),sub:date({weekday:'long'})};
-  return {label:liveName(b.live),sub:b.live==='media'?'Shows the music that plays':'Fills in when the panel shows this page'};
+  return {label:liveName(b.live),sub:''};  // the real text comes once the panel shows this page; a stand-in sentence on every tile was noise
 }
 /* Put a widget on a slot: an empty slot gets a new wide key, a key that is already there starts showing the widget. */
 function addWidget(kind,id=selected) {
