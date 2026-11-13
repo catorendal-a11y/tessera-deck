@@ -148,6 +148,17 @@ static void test_wide_keys(){
     assert(visible("Nightcall")&&visible("Kavinsky")&&visible("02:00")&&!find(lv_screen_active(),"Midnight City"));
     deck_model_replace_buttons(saved,saved_count);deck_model_note_host();updates();
 }
+/* cJSON recurses once per level on small task stacks: a deeply nested key in a pushed layout (which is also saved
+ * and parsed again at boot) must be refused, while the protocol's real depth still parses. */
+static void test_deep_nesting_refused(){
+    deck_button_t keys[2]{};int n=0;
+    assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Top","title":{"size":24,"x":[[1]]}}]})",keys,2,&n)&&n==1);
+    std::string deep=R"({"buttons":[{"id":1,"label":"x","junk":)";
+    for(int i=0;i<64;++i)deep+='[';
+    for(int i=0;i<64;++i)deep+=']';
+    deep+="}]}";
+    assert(!deck_model_buttons_from_json(deep.c_str(),keys,2,&n));
+}
 static void test_long_labels_stay_inside(){
     /* The longest label and second line the panel keeps end in dots on one line, inside their key. */
     deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
@@ -435,7 +446,7 @@ int main(int argc,char** argv){
      {"text contrast",test_text_contrast},{"keys layout",test_keys_layout},{"titles",test_titles},
      {"tap lands in its slot",test_tap_lands_in_slot},{"long press reports a hold",test_long_press_reports_hold},
      {"a dimmed touch only wakes",test_dimmed_touch_only_wakes},{"pending key times out",test_pending_key_times_out},
-     {"live update in place",test_live_update_in_place},{"wide keys",test_wide_keys},{"long labels stay inside",test_long_labels_stay_inside},
+     {"live update in place",test_live_update_in_place},{"wide keys",test_wide_keys},{"deep nesting refused",test_deep_nesting_refused},{"long labels stay inside",test_long_labels_stay_inside},
      {"confirm key",test_confirm_key},{"swipe goes back",test_swipe_goes_back},{"feedback queue",test_feedback_queue},
      {"feedback after a page change",test_feedback_after_page_change},
      {"host disconnect and reconnect",test_host_disconnect_reconnect},{"agents",test_agents},{"agent allow and deny",test_agent_allow_deny},

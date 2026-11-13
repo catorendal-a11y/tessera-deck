@@ -65,6 +65,27 @@ static void save_brightness(int level)
     nvs_close(handle);
 }
 
+/* The level is applied at once but written to NVS at most once per BRIGHTNESS_SAVE_INTERVAL_US: a port writer
+ * looping AD_BRIGHTNESS 10/11 would otherwise commit on every line and wear out the small NVS partition. */
+static constexpr int64_t BRIGHTNESS_SAVE_INTERVAL_US = 60LL * 1000000;
+static int s_brightness_pending = 0;  /* 0 while nothing waits to be saved */
+static int64_t s_brightness_saved_at = -BRIGHTNESS_SAVE_INTERVAL_US;
+
+static void brightness_save_soon(int level)
+{
+    s_brightness_pending = level;
+}
+
+static void brightness_flush_if_due(void)
+{
+    if (s_brightness_pending == 0) return;
+    const int64_t now = esp_timer_get_time();
+    if (now - s_brightness_saved_at < BRIGHTNESS_SAVE_INTERVAL_US) return;
+    s_brightness_saved_at = now;
+    save_brightness(s_brightness_pending);
+    s_brightness_pending = 0;
+}
+
 /* Offline resilience: the last layout the host pushed is kept as a file on the storage partition, with the
  * previous good copy beside it, so a panel that boots without the PC shows its keys instead of the factory sample.
  * Flash is written rarely: only when the key structure changed (not for every live label) and at most once per
@@ -202,7 +223,10 @@ static void app_confirm(void)
 
 /* Over-USB update: AD_OTA_BEGIN <size> <sha256hex>, AD_OTA_DATA <offset> <hex> (in order, at most OTA_CHUNK bytes),
  * AD_OTA_END. The image goes into the idle slot; only a complete image with the right SHA-256 that ESP-IDF also
- * verifies becomes the boot slot. Data is acknowledged every OTA_ACK_BYTES, which paces the host. */
+ * accepts as a well-formed app image becomes the boot slot. Both checks are integrity only, not authenticity: the
+ * sender supplies the SHA-256 itself and secure boot / signed apps are off, so anyone who can open the COM port can
+ * install any firmware (as esptool can over the same port). Signed updates would need secure boot v2 and eFuses.
+ * Data is acknowledged every OTA_ACK_BYTES, which paces the host. */
 static constexpr size_t OTA_CHUNK = 512, OTA_ACK_BYTES = 2048;  /* OTA_CHUNK, OTA_WINDOW in host/panel_serial.py */
 struct OtaJob {
     esp_ota_handle_t handle = 0;
@@ -385,6 +409,7 @@ static void usb_console_task(void *)
             fflush(stdout);
         }
         layout_flush_if_due();
+        brightness_flush_if_due();
         /* The about sheet's slider: apply at once, save and tell the host when the finger lifts. */
         int wanted_level = 0;
         bool save_level = false;
@@ -392,7 +417,7 @@ static void usb_console_task(void *)
             s_brightness = wanted_level;
             if (!deck_model_dimmed()) bsp_display_brightness_set(s_brightness);
             if (save_level) {
-                save_brightness(s_brightness);
+                brightness_save_soon(s_brightness);
                 printf("{\"type\":\"brightness\",\"level\":%d}\n", s_brightness);
                 fflush(stdout);
             }
@@ -609,7 +634,7 @@ static void usb_console_task(void *)
             int level = 0;
             if (parse_percent(line + 14, 1, 100, &level)) {
                 s_brightness = level;
-                save_brightness(level);
+                brightness_save_soon(level);
                 deck_model_set_brightness(level);
                 deck_model_set_dimmed(false);
                 esp_err_t result = bsp_display_brightness_set(s_brightness);
