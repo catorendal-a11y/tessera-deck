@@ -121,8 +121,11 @@ function renderIconResults() {
   $('#icon-results').replaceChildren(...shown.map(item=>{
     const selected=current()?.icon===item.id,favorite=iconPreferences.favorites.includes(item.id);
     const choose=button('',()=>{
-      if(iconPick){const pick=iconPick;iconPick=null;pick(item.id);}else mutate(()=>{if(current())appearance().icon=item.id;});
-      iconPreferences.recent=[item.id,...iconPreferences.recent.filter(id=>id!==item.id)].slice(0,24);saveIconPreferences();$('#icon-dialog').close();
+      iconPreferences.recent=[item.id,...iconPreferences.recent.filter(id=>id!==item.id)].slice(0,24);saveIconPreferences();
+      if(iconPick){const pick=iconPick;iconPick=null;pick(item.id);$('#icon-dialog').close();return;}
+      // a key's icon: the library stays open, so trying a few icons costs one click each
+      mutate(()=>{if(current())appearance().icon=item.id;});renderIconResults();
+      document.querySelector(`#icon-results [aria-label="${CSS.escape('Choose icon '+item.name)}"]`)?.focus();
     },'catalog-choice'+(selected?' selected':''),item.name);
     choose.setAttribute('aria-label','Choose icon '+item.name);choose.setAttribute('aria-pressed',selected);
     choose.append(iconVisual(item.id,color,'catalog-symbol'),text('span',item.name,'catalog-name'));
@@ -423,10 +426,11 @@ function renderGrid() {
         tile.append(symbol);
       }
       const label=text('span',resolveLabel(b.label),'key-label');
+      const shows=b.span>1&&b.live?widgetText(b):null;if(shows)label.textContent=shows.label;
       label.style.top=geometry.labelTop+'px';label.style.fontSize=geometry.px+'px';
       if(b.title?.bold)label.style.fontWeight='700';label.hidden=geometry.hidden;tile.append(label);
       tile.append(...gestureMarks(base));
-      if(b.span>1&&b.live)tile.append(text('span',b.live==='media'?'♪ shows the music that plays':b.live.startsWith('timer:')?'◔ shows timer '+b.live.slice(6):'▣ '+(WIDGETS.find(w=>w.kind===b.live)?.name||b.live)+' widget','key-live'));
+      if(shows)tile.append(text('span',shows.sub||'','key-live'));
     }
     if(base&&config.profiles[profile].pinned?.includes(base))tile.append(text('span','◆','pin-badge'));
     tile.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});
@@ -562,6 +566,15 @@ const WIDGETS = [
   {kind: 'agents', name: 'AI agents', sub: 'Who works and who waits for you', icon: 'lc:e1bb', span: 3, color: '#58E09B', path: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'},
   {kind: 'calendar', name: 'Next meeting', sub: 'Your next meeting from your calendar (set it in Program settings)', icon: 'lc:e304', span: 3, color: '#64B5F6', path: '<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>'}
 ];
+function liveName(live) {return live==='media'?'Music':String(live).startsWith('timer:')?`Timer “${live.slice(6)}”`:WIDGETS.find(w=>w.kind===live)?.name||String(live);}
+/* What a widget key shows: the host's text while the panel shows this page, otherwise a stand-in. */
+function widgetText(b) {
+  const shown=deviceShowsSelection()&&dashboard.device?.widgets?.[b.id];if(shown)return shown;
+  const now=new Date(),date=options=>now.toLocaleDateString('en-GB',options);
+  if(b.live==='clock')return {label:now.toTimeString().slice(0,5),sub:date({weekday:'long',day:'numeric',month:'short'})};
+  if(b.live==='date')return {label:date({day:'numeric',month:'short'}),sub:date({weekday:'long'})};
+  return {label:liveName(b.live),sub:b.live==='media'?'Shows the music that plays':'Fills in when the panel shows this page'};
+}
 /* Put a widget on a slot: an empty slot gets a new wide key, a key that is already there starts showing the widget. */
 function addWidget(kind,id=selected) {
   const widget=WIDGETS.find(w=>w.kind===kind);if(!widget)return;

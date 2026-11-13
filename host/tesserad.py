@@ -229,8 +229,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             return
         buttons = self.current_buttons()
         gauges = {str(item['id']): dict(item['gauge'], color=item['color']) for item in buttons if 'gauge' in item}
+        # what each widget key shows, so the editor tile can show the same text
+        widgets = {str(item['id']): {key: item[key] for key in ('label', 'sub', 'progress') if key in item}
+                   for item in buttons if 'span' in item and 'sub' in item}
         state = {'pid': os.getpid(), 'updated': now, 'connected': bool(connected),
-                 'port': self.port, 'profile': self.profile, 'page': self.page, 'gauges': gauges,
+                 'port': self.port, 'profile': self.profile, 'page': self.page, 'gauges': gauges, 'widgets': widgets,
                  'dimmed': self.dimmed,
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
@@ -928,6 +931,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('profile', command['profile']))
                             if command.get('page') in self.config['profiles'][command['profile']]['pages']:
                                 self.enqueue(('page', command['page']))
+                                # the editor's Run now: a press the host finds more than 10 s late is skipped, not run by surprise
+                                if type(command.get('press')) is int and 1 <= command['press'] <= 18                                         and abs(time.time() - float(command.get('at', 0))) < 10:
+                                    self.enqueue(('api-press', command['press']))
                         command_path.unlink()
                     except (OSError, ValueError, AttributeError, TypeError, KeyError):
                         command_path.unlink(missing_ok=True)  # an unreadable command is dropped, not retried forever

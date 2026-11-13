@@ -91,16 +91,17 @@ $('#firmware-open').onclick = openFirmware;
 $('#firmware-close').onclick = () => $('#firmware-dialog').close();
 $('#firmware-install').onclick = installFirmware;
 
-/* Key colors: an own background, label color and outline per button (or per state of a toggle button). */
-function renderStyle(panel) {
+/* Key colors: an own background, label color and outline per button (or per state of a toggle button), as a Look row. */
+function renderStyle(propRow) {
   const row = (label, key, fallback) => {
     const input = element('input', {type: 'color', value: appearance()[key] || fallback, 'aria-label': label});
     input.addEventListener('input', () => mutate(() => { appearance()[key] = input.value.toUpperCase(); }, false, editKey('style', key)));
     return element('div', {class: 'appearance-row'}, text('span', label, 'hint'), input,
       button('Default', () => mutate(() => { delete appearance()[key]; }), 'text-button'));
   };
-  panel.append(element('details', {class: 'quick-icons'}, text('summary', 'Key colors'),
-    row('Background', 'bg', '#172329'), row('Label text', 'text_color', '#E8F4EF'), row('Outline', 'border', '#31444D')));
+  const result = propRow('Key colors', row('Background', 'bg', '#172329'), row('Label text', 'text_color', '#E8F4EF'), row('Outline', 'border', '#31444D'));
+  result.classList.add('prop-row-colors');
+  return result;
 }
 
 /* Test mode: what pressing a key would do, explained by the host without running anything. */
@@ -124,7 +125,16 @@ async function testButton(id = selected) {
   section('When pressed', result.actions || {steps: [], wait_seconds: 0});
   if (result.hold_actions) section('When held', result.hold_actions);
   if (result.double_actions) section('When double-pressed', result.double_actions);
+  $('#test-run').onclick = () => runKey(id, payload.actions).catch(showError);
   $('#test-dialog').showModal();
+}
+/* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */
+async function runKey(id, actions) {
+  const risky = {shell: 'runs a command', http: 'sends a web request', text: 'types text'};
+  const effects = [...new Set(actions.map(a => risky[a.type]).filter(Boolean))];
+  if (effects.length && !await confirmDialog('Run this key now?', `This key ${effects.join(', ')} on this PC.`, {ok: 'Run now'})) return;
+  await save();  // the host runs what is saved
+  toast((await api('command/run-key', {profile, page, button: id})).message);
 }
 
 /* Ambient screen: a big clock (and optional weather) when the panel is idle. */

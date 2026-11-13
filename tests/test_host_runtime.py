@@ -40,6 +40,23 @@ class HostRuntimeTests(HostCase):
             daemon.publish_runtime(True, force=True)
             self.assertEqual(json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['gauges'], {})
 
+    def test_runtime_file_publishes_widget_text_for_the_editor_tile(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+            profile = config['default_profile']
+            page = next(iter(config['profiles'][profile]['pages']))
+            config['profiles'][profile]['pages'][page] = [{'id': 1, 'label': 'Clock', 'icon': 'ok', 'span': 2, 'live': 'clock', 'actions': []},
+                                                          {'id': 4, 'label': 'Mute', 'icon': 'ok', 'actions': []}]
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.panel, daemon.log = Mock(), Mock()
+            daemon.profile, daemon.page = profile, page
+            daemon.publish_runtime(True, force=True)
+            widgets = json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['widgets']
+            self.assertEqual(list(widgets), ['1'])  # a normal key is not a widget
+            self.assertRegex(widgets['1']['label'], r'^\d\d:\d\d$')
+
     def test_libre_hardware_monitor_tree_maps_to_the_right_cpu_and_gpu_metrics(self):
         from sensor_sources import flatten_sensor_tree
         def sensor(text, sensor_id, value):
