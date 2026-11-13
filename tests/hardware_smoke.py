@@ -72,12 +72,64 @@ class Panel:
         self.wait_for('config')
 
 
+def wifi_status(panel, seconds=2):
+    panel.send_line('AD_WIFI_STATUS')
+    try:
+        return panel.wait_for('wifi', seconds=seconds)
+    except TimeoutError:
+        return None
+
+
+def wifi_check(panel):
+    """--wifi: join a network typed here (the password only through getpass), check USB still works, then forget it."""
+    import getpass
+    import sys
+    sys.path.insert(0, str(ROOT / 'host'))
+    from panel_serial import wifi_line
+    panel.send_line('{"cmd":"get_info","heartbeat":true}')
+    before = panel.wait_for('info')
+    assert before.get('protocol', 1) >= 5, 'This firmware has no Wi-Fi (protocol 5 is needed)'
+    ssid = input('Wi-Fi network name: ')
+    line = wifi_line(ssid, getpass.getpass('Wi-Fi password (empty for an open network): '))
+    reply = panel.request(line, 'AD_WIFI_SET ')
+    line = ''
+    assert reply == 'AD_WIFI_SET OK', reply
+    status, end = None, time.monotonic() + 30
+    while time.monotonic() < end:
+        status = wifi_status(panel) or status
+        if status and status['state'] in ('connected', 'failed'):
+            break
+        time.sleep(1)
+    print('Wi-Fi:', status)
+    if status and status['state'] == 'connected':
+        print('IP', status.get('ip'), '·', status.get('rssi'), 'dBm · C6', status.get('cp'))
+    panel.config([{'id': 1, 'label': 'Wi-Fi test', 'icon': 'ok', 'color': '#35D07F'}])
+    panel.send_line('AD_PRESS 1')
+    assert panel.wait_for('deck_event')['button'] == 1, 'A key press did not come back over USB'
+    panel.send_line('{"cmd":"get_info","heartbeat":true}')
+    after = panel.wait_for('info')
+    assert after['bootId'] == before['bootId'], 'The panel restarted during the Wi-Fi test'
+    print('Memory before', before.get('heap'), 'after', after.get('heap'), 'bytes internal')
+    assert panel.request('AD_WIFI_CLEAR', 'AD_WIFI_CLEAR ') == 'AD_WIFI_CLEAR OK'
+    status = wifi_status(panel)
+    assert status and status['state'] == 'off', status
+    print('Wi-Fi passed: stored, reported, keys and layout over USB still work, cleared to off.')
+    print('Start the host again to push the full layout back to the panel')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', default='COM4')
     parser.add_argument('--soak-seconds', type=int, default=20)
+    parser.add_argument('--wifi', action='store_true', help='join Wi-Fi (asks for the password), then forget it')
     args = parser.parse_args()
     panel = Panel(args.port)
+    if args.wifi:
+        try:
+            return wifi_check(panel)
+        finally:
+            (ROOT / 'build/hardware-serial.log').write_text('\n'.join(panel.lines), encoding='utf-8')
+            panel.ser.close()
     # profiles.json exists only after the host has run once; a fresh clone has the defaults.
     path = ROOT / 'host/profiles.json'
     if not path.exists():

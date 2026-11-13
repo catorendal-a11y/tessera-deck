@@ -36,6 +36,13 @@ def _no_labels(text: str) -> str:
     return PAGE.sub(r'\1<profile> / <page>\2', PRESS.sub(r'\1<label>\2', text))
 
 
+def redact_wifi(wifi):
+    """The panel's Wi-Fi status without the network name, address and MAC (state, reason, RSSI and C6 version stay)."""
+    if not isinstance(wifi, dict):
+        return None
+    return {key: f'<{key}>' if key in ('ssid', 'ip', 'mac') else value for key, value in wifi.items()}
+
+
 def _versions() -> dict:
     from importlib import metadata
     found = {}
@@ -59,7 +66,8 @@ def _counts(config: dict) -> dict:
                 kinds[kind] = kinds.get(kind, 0) + 1
     return {'profiles': len(profiles), 'pages': sum(len(p.get('pages', {})) for p in profiles.values()),
             'buttons': len(buttons), 'triggers': len(config.get('triggers', [])), 'action_types': kinds,
-            'ambient_enabled': bool(config.get('ambient', {}).get('enabled')), 'version': config.get('version')}
+            'ambient_enabled': bool(config.get('ambient', {}).get('enabled')), 'version': config.get('version'),
+            'wifi_ssid': '<ssid>' if (config.get('panel') or {}).get('wifi') else None}  # panel.wifi.ssid, redacted
 
 
 def log_tail(path: Path, lines: int = 200) -> str:
@@ -97,7 +105,8 @@ def build(folder: Path, config: dict, status: dict, version: str, log_path: Path
               'packages': _versions(), 'configuration': _counts(config),
               'host': {'running': bool(status.get('running')), 'connection': status.get('connection'),
                        'device': {key: device.get(key) for key in ('connected', 'firmware', 'protocol', 'profile',
-                                                                   'page', 'buttons', 'error')},
+                                                                   'page', 'buttons', 'error')}
+                       | {'wifi': redact_wifi(device.get('wifi'))},
                        'queue': status.get('queue')},
               'recent_problems': [_no_labels(line) for line in recent_problems(log_path)],
               'created': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now()))}

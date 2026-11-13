@@ -21,6 +21,7 @@ import webbrowser
 from deck_control import (FIRMWARE_FLAG_PATH, ROOT, Controller, autostart_enabled,
                           save_profiles, set_autostart)
 from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, bring_to_front, validate_config
+from panel_serial import WIFI_REPLY_SECONDS, check_wifi_credentials
 from deck_assets import Assets
 import ambient
 import config_store
@@ -35,6 +36,7 @@ from action_preview import preview
 from import_review import export_left_out, redact_secrets, review, strip_executable
 
 WEB = Path(__file__).with_name('editor')
+WIFI_CALL_SECONDS = WIFI_REPLY_SECONDS + 4  # the host waits WIFI_REPLY_SECONDS for the panel's answer
 
 
 def editor_build_id():
@@ -470,6 +472,28 @@ class Editor:
             temporary.replace(path)
         return result
 
+    # --- panel Wi-Fi ---------------------------------------------------------------------
+    def panel_wifi(self, data):
+        """Pass {do: set|clear|status, ssid?, password?} to the running host's /v1/wifi with the owner token.
+
+        Unlike activate and run-key this never goes through deck-command.local.json: that file would put the
+        Wi-Fi password on disk. The password lives only in this request and the host's serial write.
+        """
+        import deckctl
+        if data.get('do') not in ('set', 'clear', 'status'):
+            raise ValueError("do must be 'set', 'clear' or 'status'")
+        body = {'do': data['do']}
+        if data['do'] == 'set':
+            check_wifi_credentials(data.get('ssid'), data.get('password', ''))
+            body.update(ssid=data['ssid'], password=data.get('password', ''))
+        try:
+            return deckctl.call(deckctl.load_info(self.path.with_name('deck-api.local.json')), 'POST', '/v1/wifi',
+                                body, timeout=WIFI_CALL_SECONDS)
+        except deckctl.DeckctlError as exc:
+            raise ValueError(str(exc).removeprefix('The host rejected the request: ')) from None
+        finally:
+            body.clear()
+
     # --- firmware installation -----------------------------------------------------------
     def firmware_folders(self):
         return [ROOT / 'dist', ROOT / 'firmware', ROOT / 'host/firmware']
@@ -703,6 +727,8 @@ class Editor:
                 return {'places': ambient.search_places(str(data.get('query', '')))}
             except OSError as exc:
                 raise ValueError('The city search could not be reached. Check your internet connection.') from exc
+        if command == 'panel-wifi':
+            return self.panel_wifi(data)
         if command == 'firmware-list':
             return self.firmware_list()
         if command == 'firmware-install':

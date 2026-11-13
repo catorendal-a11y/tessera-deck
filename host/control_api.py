@@ -52,6 +52,14 @@ class Forbidden(ApiError):
     """A request the caller's token does not allow (HTTP 403)."""
 
 
+class Conflict(ApiError):
+    """A request the panel cannot take right now: none connected, or its firmware is too old (HTTP 409)."""
+
+
+# Routes only the owner token may use, whatever a plugin grant lists: Wi-Fi carries the network password.
+OWNER_ROUTES = frozenset({'wifi'})
+
+
 @dataclass(frozen=True)
 class Grant:
     """What one token may do: routes (None = everything), a variable-name prefix, and the two read routes."""
@@ -111,7 +119,7 @@ class ControlServer:
         self.clock = time.monotonic
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display,
-                       'permission': self.ask_permission}
+                       'permission': self.ask_permission, 'wifi': self.wifi}
 
     # --- scoped tokens for plugins -----------------------------------------------------
     def add_grant(self, name, routes, prefix=None, events=False, read=False) -> str:
@@ -154,7 +162,7 @@ class ControlServer:
 
     @staticmethod
     def check_scope(grant, route, data):
-        if grant.routes is not None and route not in grant.routes:
+        if grant.routes is not None and (route not in grant.routes or route in OWNER_ROUTES):
             raise Forbidden(f'This token may not use {route}')
         if grant.prefix and route in ('var', 'vars'):
             names = [data.get('name')] if route == 'var' else list(data.get('set') or {}) if isinstance(data.get('set'), dict) else []
@@ -231,6 +239,29 @@ class ControlServer:
                 or not permission.printable(text)):
             raise ApiError('permission needs a known agent and a short, printable text')
         return {'ok': True, 'decision': self.daemon.ask_permission(agent, text)}
+
+    def wifi(self, data):
+        """Set, clear or read the panel's Wi-Fi. Runs here on the HTTP thread, never through the job queue, so the
+        password is never held in a job an error path could log. Answers the last status the panel reported."""
+        action = data.get('do')
+        if action not in ('set', 'clear', 'status'):
+            raise ApiError("do must be 'set', 'clear' or 'status'")
+        daemon = self.daemon
+        panel = daemon.panel
+        if panel is None or daemon.connection_failed.is_set():
+            raise Conflict('The panel is not connected')
+        if not callable(getattr(panel, 'supports_wifi', None)) or not panel.supports_wifi():
+            raise Conflict('The panel firmware does not support Wi-Fi; update it')
+        try:
+            if action == 'set':
+                panel.wifi_set(data.get('ssid'), data.get('password', ''))
+            elif action == 'clear':
+                panel.wifi_clear()
+            else:
+                panel.wifi_status()  # the answer arrives as a {"type":"wifi"} line; the editor polls for it
+        except OSError as exc:  # the panel's answer (FAILED storage, INVALID ...) or none; it never holds the password
+            raise Conflict(f'The panel refused the Wi-Fi change: {exc}') from exc
+        return {'wifi': dict(daemon.wifi or {})}
 
     def snapshot(self):
         daemon = self.daemon
@@ -317,6 +348,8 @@ class ControlServer:
                     return self.reply(503, {'error': str(exc), 'retry': True})
                 except Forbidden as exc:
                     return self.reply(403, {'error': str(exc)})
+                except Conflict as exc:
+                    return self.reply(409, {'error': str(exc)})
                 except (ValueError, TypeError) as exc:
                     return self.reply(400, {'error': str(exc)})
                 self.reply(200, result if isinstance(result, dict) else {'ok': True, 'queued': True})

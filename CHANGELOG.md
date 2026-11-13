@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wi-Fi (host side, needs panel firmware with protocol 5): **Panel → Wi-Fi and Home Assistant …** sends a network name and password to the panel over USB, shows the live state, address and signal, and can forget the network. The password is never stored on the PC; only `panel.wifi.ssid` is saved. The control API gets `POST /v1/wifi` for the owner token only (never for plugins), and diagnostics hide the network name, address and MAC. Older firmware is told to update and gets nothing sent. `tests/hardware_smoke.py --wifi` checks it on a real panel, asking for the password with `getpass`.
 - Import: *Without commands* also removes text typed after a hotkey (Win+R, a command and Enter runs it), and the review lists such keys.
 - Images: a dropped image is only read as PNG, JPEG, GIF or WebP, so Pillow's other decoders never see it.
 - CI: every GitHub Action is pinned to a commit SHA, and a test keeps it that way.

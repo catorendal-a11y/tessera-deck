@@ -411,8 +411,18 @@ def _check_display(display):
 def _check_panel(panel, pages=(), profiles=None):
     """The `panel` block: which agents, programs and readings the cockpit screens show."""
     import cockpit
-    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts'}:
-        raise ValueError('panel may only set agents, apps, mic, stats, screens and shortcuts')
+    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts', 'wifi'}:
+        raise ValueError('panel may only set agents, apps, mic, stats, screens, shortcuts and wifi')
+    if 'wifi' in panel:
+        # Only the name of the last network sent from this PC: the password is never stored on the PC.
+        from panel_serial import check_wifi_ssid
+        wifi = panel['wifi']
+        try:
+            if not isinstance(wifi, dict) or set(wifi) != {'ssid'}:
+                raise ValueError
+            check_wifi_ssid(wifi['ssid'])
+        except ValueError:
+            raise ValueError('panel.wifi.ssid must be 1-32 bytes of text') from None
     screens = panel.get('screens', list(cockpit.SCREENS))
     if not isinstance(screens, list) or len(set(screens)) != len(screens) or any(item not in cockpit.SCREENS for item in screens):
         raise ValueError('panel.screens must list keys, agents, mixer or status once each')

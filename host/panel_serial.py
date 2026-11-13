@@ -2,6 +2,7 @@
 from collections import OrderedDict
 import hashlib
 import json
+import re
 import threading
 import time
 import zlib
@@ -12,8 +13,18 @@ except ImportError:
     serial = None
 
 BOARD_ID = 'tessera-p4'
-# 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status)
-SUPPORTED_PROTOCOLS = (1, 2, 3, 4)
+# 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status),
+# 5: Wi-Fi (AD_WIFI_SET, AD_WIFI_CLEAR, AD_WIFI_STATUS, {"type":"wifi"} and "wifi" in get_info)
+SUPPORTED_PROTOCOLS = (1, 2, 3, 4, 5)
+WIFI_PROTOCOL = 5
+WIFI_STATES = ('off', 'connecting', 'connected', 'failed')
+WIFI_REASONS = ('no_coprocessor', 'init', 'no_ap', 'auth', 'no_ip', 'lost', 'crashed', 'storage')
+WIFI_SSID_MAX = 32  # bytes of UTF-8; WIFI_SSID_MAX in main/wifi_config.h
+WIFI_REPLY_SECONDS = 4
+WIFI_UNSUPPORTED = 'The panel firmware does not support Wi-Fi; update it (protocol 5)'
+_HEX64 = re.compile(r'[0-9A-Fa-f]{64}')
+_IPV4 = re.compile(r'(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})', re.ASCII)
+_MAC = re.compile(r'[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}')
 HANDSHAKE_SECONDS = 2.5
 PANEL_CACHE_BYTES = 8 * 1024 * 1024  # decoded images the panel keeps; CacheLimit in main/deck_images.cpp
 OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
@@ -33,6 +44,61 @@ def restart_report(previous_boot, info):
     cause = CRASH_RESETS.get(reason)
     notice = f'The panel restarted after {cause}. It is running again.' if cause else None
     return f'Panel restarted ({reason})', notice
+
+
+def check_wifi_ssid(ssid) -> None:
+    """1-32 bytes of UTF-8 without control characters, as main/wifi_config.c checks it."""
+    try:
+        size = len(ssid.encode('utf-8'))  # a lone surrogate cannot be encoded and is refused here
+    except (AttributeError, UnicodeEncodeError):
+        size = 0
+    if not 0 < size <= WIFI_SSID_MAX or any(ord(c) < 0x20 or ord(c) == 0x7F for c in ssid):
+        raise ValueError('ssid: the network name must be 1-32 bytes of text without control characters')
+
+
+def check_wifi_credentials(ssid, password) -> None:
+    """The firmware's rules: ValueError('ssid: ...') or ValueError('password: ...'). No message holds the password."""
+    check_wifi_ssid(ssid)
+    if not isinstance(password, str):
+        raise ValueError('password: the password must be text')
+    if password == '' or _HEX64.fullmatch(password):
+        return
+    if not 8 <= len(password) <= 63 or any(not 0x20 <= ord(c) <= 0x7E for c in password):
+        raise ValueError('password: use 8-63 printable ASCII characters, 64 hex digits, or none for an open network')
+
+
+def wifi_line(ssid, password) -> str:
+    """'AD_WIFI_SET {"ssid":...,"password":...}' in pure ASCII. Raises ValueError on the firmware's rules."""
+    check_wifi_credentials(ssid, password)
+    return 'AD_WIFI_SET ' + json.dumps({'ssid': ssid, 'password': password}, ensure_ascii=True, separators=(',', ':'))
+
+
+def parse_wifi_status(message):
+    """A {"type":"wifi"} line reduced to {state, reason?, ssid?, ip?, rssi?, mac?, cp?}; None when malformed."""
+    if not isinstance(message, dict) or message.get('type') != 'wifi' or message.get('state') not in WIFI_STATES:
+        return None
+    result = {'state': message['state']}
+    if message.get('reason') in WIFI_REASONS:
+        result['reason'] = message['reason']
+    try:
+        check_wifi_ssid(message.get('ssid'))
+        result['ssid'] = message['ssid']
+    except ValueError:
+        pass
+    connected = result['state'] == 'connected'
+    ip = message.get('ip')
+    match = _IPV4.fullmatch(ip) if connected and isinstance(ip, str) else None
+    if match and all(int(part) <= 255 for part in match.groups()):
+        result['ip'] = ip
+    rssi = message.get('rssi')
+    if connected and type(rssi) is int and -127 <= rssi <= 0:
+        result['rssi'] = rssi
+    if isinstance(message.get('mac'), str) and _MAC.fullmatch(message['mac']):
+        result['mac'] = message['mac'].upper()
+    cp = message.get('cp')
+    if isinstance(cp, str) and 0 < len(cp) <= 15 and cp.isascii() and cp.isprintable():
+        result['cp'] = cp
+    return result
 
 
 def layout_payload(buttons):
@@ -64,6 +130,8 @@ class PanelSerial:
         self.cfg_reply = ''
         self.asset_done = threading.Event()
         self.asset_reply = ''
+        self.wifi_done = threading.Event()  # set by the reader loop on an AD_WIFI_SET / AD_WIFI_CLEAR answer
+        self.wifi_reply = ''
         self.assets_sent = OrderedDict()  # name -> decoded bytes on the panel, oldest first
         self.ser = serial.Serial()
         self.ser.port, self.ser.baudrate = port, 115200
@@ -154,6 +222,39 @@ class PanelSerial:
             self.expect('AD_OTA_END', 'OK', 60)  # the panel checks the whole image before it answers
 
     ack_seconds = 4
+
+    def supports_wifi(self) -> bool:
+        protocol = self.info.get('protocol', 1)
+        return type(protocol) is int and protocol >= WIFI_PROTOCOL
+
+    def _wifi_command(self, command, line) -> None:
+        """Send `line`, wait for `command OK`; OSError with the panel's answer otherwise. The line is never logged."""
+        with self.write_lock:
+            self.wifi_done.clear()
+            self.wifi_reply = ''
+            self.send_line(line)
+            if not self.wifi_done.wait(WIFI_REPLY_SECONDS):
+                raise TimeoutError(f'The panel did not answer {command}')
+            if self.wifi_reply != f'{command} OK':
+                raise OSError(self.wifi_reply)
+
+    def wifi_set(self, ssid, password) -> None:
+        """Store the network on the panel and start a connect; the result arrives as {"type":"wifi"} lines."""
+        if not self.supports_wifi():  # nothing reaches an older panel, which would not answer
+            raise RuntimeError(WIFI_UNSUPPORTED)
+        self._wifi_command('AD_WIFI_SET', wifi_line(ssid, password))
+
+    def wifi_clear(self) -> None:
+        """Erase the stored network on the panel and turn its Wi-Fi off."""
+        if not self.supports_wifi():
+            raise RuntimeError(WIFI_UNSUPPORTED)
+        self._wifi_command('AD_WIFI_CLEAR', 'AD_WIFI_CLEAR')
+
+    def wifi_status(self) -> None:
+        """Ask for a {"type":"wifi"} line; the reader loop stores it."""
+        if not self.supports_wifi():
+            raise RuntimeError(WIFI_UNSUPPORTED)
+        self.send_line('AD_WIFI_STATUS')
 
     def push_buttons(self, buttons):
         payload = layout_payload(buttons)
