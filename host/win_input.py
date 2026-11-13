@@ -75,6 +75,21 @@ if IS_WINDOWS:
     kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD,
                                                   wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
     kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    # 64-bit handles: without these ctypes would cut them to a 32-bit int
+    user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+    user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int, wintypes.UINT]
+    user32.OpenClipboard.argtypes = [wintypes.HWND]
+    user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+    user32.SetClipboardData.restype = wintypes.HANDLE
+    kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+    kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+    kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
 
 
 def _key(vk=0, scan=0, flags=0):
@@ -279,8 +294,17 @@ def bring_to_front(user32, hwnd):
 
 def focus_existing_process(process_name):
     """Restore the first visible window owned by process_name."""
-    if not IS_WINDOWS or not process_name:
+    hwnd = process_window(process_name)
+    if not hwnd:
         return False
+    bring_to_front(user32, hwnd)
+    return True
+
+
+def process_window(process_name):
+    """The first visible, titled window owned by process_name, or None."""
+    if not IS_WINDOWS or not process_name:
+        return None
     wanted = process_name.lower()
     pids = set()
     try:
@@ -288,9 +312,9 @@ def focus_existing_process(process_name):
             if (process.info.get('name') or '').lower() == wanted:
                 pids.add(process.info['pid'])
     except (psutil.Error, OSError):
-        return False
+        return None
     if not pids:
-        return False
+        return None
     found = []
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
@@ -304,10 +328,65 @@ def focus_existing_process(process_name):
         return True
 
     user32.EnumWindows(visit, 0)
-    if not found:
+    return found[0] if found else None
+
+
+WINDOW_OPERATIONS = ('minimize', 'maximize', 'restore', 'close', 'topmost', 'next_monitor', 'focus')
+SHOW_COMMANDS = {'minimize': 6, 'maximize': 3, 'restore': 9}  # SW_MINIMIZE, SW_MAXIMIZE, SW_RESTORE
+WM_CLOSE, GWL_EXSTYLE, WS_EX_TOPMOST = 0x10, -20, 0x8
+SWP_KEEP = 0x1 | 0x2 | 0x10  # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE: only the z-order changes
+
+
+def window_action(op, process=''):
+    """Do `op` to the first window of `process`, or to the window in front. Returns False when there is none."""
+    if op not in WINDOW_OPERATIONS:
+        raise ValueError(f'Unknown window operation: {op}')
+    if not IS_WINDOWS:
         return False
-    bring_to_front(user32, found[0])
+    hwnd = process_window(process) if process else user32.GetForegroundWindow()
+    if not hwnd:
+        return False
+    if op in SHOW_COMMANDS:
+        user32.ShowWindow(hwnd, SHOW_COMMANDS[op])
+    elif op == 'close':
+        user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)  # like its own close button: the program may still ask to save
+    elif op == 'topmost':
+        on_top = user32.GetWindowLongW(hwnd, GWL_EXSTYLE) & WS_EX_TOPMOST
+        user32.SetWindowPos(hwnd, -2 if on_top else -1, 0, 0, 0, 0, SWP_KEEP)  # HWND_NOTOPMOST / HWND_TOPMOST
+    else:
+        bring_to_front(user32, hwnd)
+        if op == 'next_monitor':
+            send_hotkey('win+shift+right')  # Windows' own move keeps the window's size and snap state right
     return True
+
+
+CF_UNICODETEXT, GMEM_MOVEABLE = 13, 0x2
+
+
+def set_clipboard(text, tries=10, wait=time.sleep):
+    """Put `text` on the Windows clipboard; another program can hold it open for a moment, so try a few times."""
+    if not IS_WINDOWS:
+        raise OSError('The clipboard action needs Windows')
+    data = (text.replace('\r\n', '\n').replace('\n', '\r\n') + '\0').encode('utf-16-le')
+    for _ in range(tries):
+        if user32.OpenClipboard(None):
+            break
+        wait(0.02)
+    else:
+        raise OSError('The clipboard is busy in another program')
+    try:
+        user32.EmptyClipboard()
+        handle = kernel32.GlobalAlloc(GMEM_MOVEABLE, len(data))
+        pointer = kernel32.GlobalLock(handle) if handle else None
+        if not pointer:
+            raise OSError('No memory for the clipboard text')
+        ctypes.memmove(pointer, data, len(data))
+        kernel32.GlobalUnlock(handle)
+        if not user32.SetClipboardData(CF_UNICODETEXT, handle):  # on success the clipboard owns the memory
+            kernel32.GlobalFree(handle)
+            raise OSError('Windows did not take the clipboard text')
+    finally:
+        user32.CloseClipboard()
 
 
 def matches_foreground(pattern, context):

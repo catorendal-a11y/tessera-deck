@@ -20,6 +20,7 @@ from plugins import EventLog, PluginManager
 from live_state import LiveState
 import widgets
 from action_runner import Busy, CommandFailed, run_command
+from action_preview import toggled
 from control_api import ControlServer
 import agent_activity
 from datetime import datetime
@@ -36,7 +37,8 @@ from system_stats import SystemStats, gauge_state
 # the tools and the tests.
 from win_input import (CHILD_NAMES_SECONDS, IS_WINDOWS, VK, bring_to_front, child_names, dry_hotkey,  # noqa: F401
                        focus_existing_process, foreground_context, is_neutral_window,
-                       matches_foreground, parse_hotkey, real_app_exe, send_hotkey, send_mouse, send_text)
+                       matches_foreground, parse_hotkey, real_app_exe, send_hotkey, send_mouse, send_text,
+                       set_clipboard, window_action)
 from config_check import (ACTION_FIELDS, VARIABLE_NAME, _check_display, in_quiet_hours,  # noqa: F401
                           validate_config)
 from daemon_display import DEFAULT_DIM_AFTER, DisplayMixin  # noqa: F401
@@ -509,6 +511,18 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'set':
             self.custom_vars[action['variable']] = self.substitute(str(action.get('value', '')))
             self.push_page()
+        elif kind == 'toggle':
+            self.custom_vars[action['variable']] = toggled(action, self.custom_vars.get(action['variable']))
+            self.push_page()
+        elif kind == 'clipboard':
+            with self.input_turn():  # the paste must not land in the middle of another key's typing
+                set_clipboard(self.substitute(action['text']))
+                if action.get('paste'):
+                    send_hotkey('ctrl+v')
+        elif kind == 'window':
+            with self.input_turn():
+                if not window_action(action['op'], action.get('process', '')):
+                    raise ValueError('There is no such window')
         else:
             raise ValueError(f'Unknown action: {kind}')
         return True

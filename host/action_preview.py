@@ -16,6 +16,16 @@ def _clip(text: str) -> str:
     return text if len(text) <= MAX_TEXT else text[:MAX_TEXT - 1] + '…'
 
 
+def toggled(action: dict, current) -> str:
+    """The value a toggle action sets: the second value after the first, else the first (also when unset)."""
+    first, second = action.get('values', ['on', 'off'])
+    return second if current == first else first
+
+
+WINDOW_WORDS = {'minimize': 'Minimize', 'maximize': 'Maximize', 'restore': 'Restore', 'close': 'Close',
+                'topmost': 'Toggle always on top for', 'next_monitor': 'Move to the next monitor:', 'focus': 'Bring to the front'}
+
+
 def _step(action: dict, variables: dict[str, str], environment, locator) -> tuple[bool, str]:
     kind = action.get('type')
     if kind == 'hotkey':
@@ -104,6 +114,16 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, f'Timer {action["name"]}: {action.get("op", "toggle")}{seconds}{notify}'
     if kind == 'profile_lock':
         return True, 'Lock or unlock automatic profile switching'
+    if kind == 'clipboard':
+        paste = ' and paste it' if action.get('paste') else ''
+        return True, f'Copy "{_clip(substitute(action["text"], variables))}" to the clipboard{paste}'
+    if kind == 'window':
+        process = action.get('process', '')
+        who = f'the window of {process}' if process else 'the window in front'
+        return True, f'{WINDOW_WORDS[action["op"]]} {who}'
+    if kind == 'toggle':
+        name = action['variable']
+        return True, f'Switch variable {name} to "{toggled(action, variables.get("var:" + name))}"'
     if kind == 'plugin':
         return True, f'Send the command {action["command"]} to the plugin {action["plugin"]}'
     return False, f'Unknown action type {kind!r}'

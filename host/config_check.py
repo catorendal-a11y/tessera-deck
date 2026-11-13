@@ -11,12 +11,13 @@ import widgets
 from pc_state import FLAG_SOURCES, check_audio
 from plugins import PLUGIN_ID, check_plugin_config
 from substitution import check_web_url
-from win_input import MOUSE_OPERATIONS, parse_hotkey
+from win_input import MOUSE_OPERATIONS, WINDOW_OPERATIONS, parse_hotkey
 
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
-                 'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None}
+                 'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None,
+                 'clipboard': 'text', 'window': 'op', 'toggle': 'variable'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
@@ -73,6 +74,31 @@ def _check_plugin(action, pages, profiles):
         raise ValueError('plugin: needs a plugin id, a command name and small arguments')
 
 
+def _check_clipboard(action, pages, profiles):
+    if type(action.get('paste', False)) is not bool:
+        raise ValueError('clipboard: paste must be true or false')
+
+
+def _check_window(action, pages, profiles):
+    process = action.get('process', '')
+    if action['op'] not in WINDOW_OPERATIONS:
+        raise ValueError(f'window: op must be one of {", ".join(WINDOW_OPERATIONS)}')
+    if not isinstance(process, str) or len(process) > 260:
+        raise ValueError('window: process must be a program name like notepad.exe')
+    if action['op'] == 'focus' and not process.strip():
+        raise ValueError('window: focus needs a process name')
+
+
+def _check_toggle(action, pages, profiles):
+    # Flips a variable between two values; a toggle key's own states (states + 'state' actions) cover alternating lists.
+    values = action.get('values', ['on', 'off'])
+    if not VARIABLE_NAME.fullmatch(action['variable']):
+        raise ValueError('toggle: variable must be 1-64 letters, digits, _ . or -')
+    if (not isinstance(values, list) or len(values) != 2 or any(not isinstance(v, str) or len(v) > 64 for v in values)
+            or values[0] == values[1]):
+        raise ValueError('toggle: values must be two different texts')
+
+
 SCREEN_CHOICES = ('clock', 'keys', 'toggle')
 
 
@@ -122,7 +148,8 @@ ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _c
                  'page': _check_page, 'folder': _check_page, 'profile': _check_profile_action, 'text': _check_text,
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
                  'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
-                 'shell': _check_shell, 'http': _check_http_action}
+                 'shell': _check_shell, 'http': _check_http_action, 'clipboard': _check_clipboard,
+                 'window': _check_window, 'toggle': _check_toggle}
 
 
 def _check_action(action, pages, profiles):
