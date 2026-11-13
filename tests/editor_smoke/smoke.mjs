@@ -33,7 +33,9 @@ const check = (ok, message) => { if (!ok) problems.push(message); console.log(`$
 const browser = await chromium.launch();
 try {
   // The editor's CSP forbids eval; Playwright's waitForFunction and axe need it, so the test context bypasses it.
-  const page = await browser.newPage({viewport: {width: 1450, height: 900}, bypassCSP: true});
+  // axe needs a page from an explicit context, not browser.newPage().
+  const context = await browser.newContext({viewport: {width: 1450, height: 900}, bypassCSP: true});
+  const page = await context.newPage();
   page.on('pageerror', error => check(false, `no script error (${error.message})`));
   await page.goto(address);
   await page.waitForFunction(() => document.querySelectorAll('#deck-grid .deck-key').length === 18, null, {timeout: 20000});
