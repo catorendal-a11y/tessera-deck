@@ -157,6 +157,7 @@ function displaySettings() {
     {name: 'dimLevel', label: 'Brightness when dimmed', options: displayChoices(dimLevelChoices, display.dim_level, v => v ? `${v}%` : 'Off'), value: String(display.dim_level)},
     {name: 'nightWindow', label: 'Quiet hours', options: nightChoices(display.night), value: nightWindowValue(display.night), note: 'Between these times the panel uses the lower brightness below instead of the normal one.'},
     {name: 'nightLevel', label: 'Brightness during quiet hours', options: displayChoices(nightLevelChoices, display.night?.brightness || 10, v => `${v}%`), value: String(display.night?.brightness || 10)},
+    {name: 'clock', label: 'Clock format', options: [['auto', 'Same as Windows'], ['24h', '24-hour (14:32)'], ['12h', '12-hour (2:32 PM)']], value: display.clock || 'auto', note: 'For the idle clock and the clock on the rail.'},
     {name: 'enabled', label: 'Show a big clock when the panel has been idle', type: 'checkbox', value: ambient.enabled, note: 'Touch the panel to get your keys back. Needs the firmware that ships with this version.'},
     {name: 'after', label: 'Show it after', options: afterChoices, value: String(ambient.after)},
     {name: 'city', label: 'Weather for (city, optional)', value: weather?.name || '', note: `${where}Weather comes from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use.`},
@@ -165,6 +166,7 @@ function displaySettings() {
     const city = values.city.trim(), keep = weather && weather.name === city;
     mutate(() => {
       config.display = {brightness: Number(values.brightness), dim_after: Number(values.dimAfter), dim_level: Number(values.dimLevel)};
+      if (values.clock !== 'auto') config.display.clock = values.clock;
       const night = nightFromValues(values.nightWindow, values.nightLevel);
       if (night) config.display.night = night;
       config.ambient = {enabled: values.enabled, after: Number(values.after)};

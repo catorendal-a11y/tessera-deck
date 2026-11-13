@@ -188,6 +188,20 @@ class EditorTests(unittest.TestCase):
         again = self.editor.command('backups', {})['backups']
         self.assertEqual(len(again), 2, 'restoring keeps the configuration it replaced')
 
+    def test_the_tray_notification_switch_does_not_conflict_with_the_editor(self):
+        from tessera_tray import set_notifications
+        state = self.editor.read()
+        changed = json.loads(json.dumps(state['config']))
+        changed['profiles']['Main']['pages']['First'][0]['label'] = 'changed'
+        set_notifications(False, self.path)  # the tray menu, while the editor is open
+        saved = self.editor.save({'config': changed, 'revision': state['revision']})
+        self.assertEqual(saved['config']['profiles']['Main']['pages']['First'][0]['label'], 'changed')
+        self.assertIs(saved['config']['notifications'], False, 'the tray switch stays')
+        mine = json.loads(json.dumps(saved['config']))
+        mine['notifications'] = True  # switched back on in Program settings: the editor's choice wins
+        again = self.editor.save({'config': mine, 'revision': saved['revision']})
+        self.assertIs(again['config']['notifications'], True)
+
     def test_a_tray_brightness_change_does_not_conflict_with_the_editor(self):
         from tessera_app import Conflict
         from tessera_tray import set_brightness

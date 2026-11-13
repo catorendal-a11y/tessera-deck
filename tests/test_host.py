@@ -434,13 +434,32 @@ class HostTests(HostCase):
 
     def test_heartbeat_pings_every_beat_and_sends_the_clock_every_ten_minutes(self):
         daemon = self.daemon()
+        daemon.config['display'] = {'clock': '24h'}
         with patch.object(deck.time, 'strftime', return_value='2026-10-20T14:05:33'):
             daemon.heartbeat(daemon.panel, 1000.0)
             daemon.heartbeat(daemon.panel, 1001.0)
             daemon.heartbeat(daemon.panel, 1000.0 + deck.CLOCK_INTERVAL)
+            daemon.config['display'] = {'clock': '12h'}  # a new format is sent at the next beat
+            daemon.heartbeat(daemon.panel, 1002.0 + deck.CLOCK_INTERVAL)
         sent = [call.args[0] for call in daemon.panel.send_line.call_args_list]
-        self.assertEqual(sent, ['AD_PING', 'AD_TIME 2026-10-20T14:05:33', 'AD_PING',
-                                'AD_PING', 'AD_TIME 2026-10-20T14:05:33'])
+        self.assertEqual(sent, ['AD_PING', 'AD_TIME 2026-10-20T14:05:33 24h', 'AD_PING',
+                                'AD_PING', 'AD_TIME 2026-10-20T14:05:33 24h', 'AD_PING', 'AD_TIME 2026-10-20T14:05:33 12h'])
+
+    def test_the_clock_format_follows_windows_unless_it_is_set(self):
+        import daemon_display
+        daemon = self.daemon()
+        daemon.config['display'] = {}
+        with patch.object(daemon_display, 'windows_clock', return_value='12h'):
+            self.assertEqual(daemon.clock_format(), '12h')
+            daemon.config['display'] = {'clock': '24h'}
+            self.assertEqual(daemon.clock_format(), '24h')
+        self.assertIn(daemon_display.windows_clock(), ('12h', '24h'))
+        config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        config['display'] = {'clock': '12h'}
+        deck.validate_config(config)
+        config['display'] = {'clock': 'am/pm'}
+        with self.assertRaises(ValueError):
+            deck.validate_config(config)
 
     def test_dimming_can_be_turned_off_and_page_pushes_do_not_undo_it(self):
         daemon = self.daemon()

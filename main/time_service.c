@@ -10,6 +10,12 @@
 static const char *TAG = "fq_time";
 static char s_date_text[24] = "";
 static char s_time_text[12] = "--:--";
+static bool s_12h;
+
+void time_service_set_12h(bool twelve)
+{
+    s_12h = twelve;
+}
 
 static int month_days(int year, int month)
 {
@@ -79,6 +85,19 @@ const char *time_service_time_text(void)
     if (!local_time(&tm_now)) {
         return "--:--";
     }
-    snprintf(s_time_text, sizeof(s_time_text), "%02d:%02d", tm_now.tm_hour, tm_now.tm_min);
+    if (s_12h) {
+        snprintf(s_time_text, sizeof(s_time_text), "%d:%02d", tm_now.tm_hour % 12 ? tm_now.tm_hour % 12 : 12, tm_now.tm_min);
+    } else {
+        snprintf(s_time_text, sizeof(s_time_text), "%02d:%02d", tm_now.tm_hour, tm_now.tm_min);
+    }
     return s_time_text;
+}
+
+const char *time_service_meridiem(void)
+{
+    struct tm tm_now = {0};
+    if (!s_12h || !local_time(&tm_now)) {
+        return "";
+    }
+    return tm_now.tm_hour < 12 ? "AM" : "PM";
 }

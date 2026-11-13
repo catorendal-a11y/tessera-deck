@@ -6,6 +6,7 @@
 #include "time_service.h"
 #include "ui_palette.h"
 #include <Arduino.h>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -19,6 +20,7 @@ extern const lv_font_t fq_font_dejavu_28;
 extern const lv_font_t fq_font_dejavu_bold_20;
 extern const lv_font_t fq_font_dejavu_bold_24;
 extern const lv_font_t fq_font_dejavu_bold_28;
+extern const lv_font_t fq_font_dejavu_bold_40;
 
 namespace {
 constexpr int W=1024,H=600,Rail=84,Pad=26,Top=22,ContentW=W-Rail-2*Pad,HeadH=50,RailTop=84,RailPitch=60;
@@ -699,6 +701,12 @@ uint32_t mix(uint32_t from,uint32_t to,float t) {
     auto channel=[&](int shift){return static_cast<uint32_t>(((from>>shift)&0xFF)+(static_cast<int>((to>>shift)&0xFF)-static_cast<int>((from>>shift)&0xFF))*t+.5f)&0xFF;};
     return channel(16)<<16|channel(8)<<8|channel(0);
 }
+/* The clock's tiles: the same hue, pushed away from grey so it reads deeper without going dark. */
+uint32_t vivid(uint32_t c) {
+    const float r=(c>>16)&0xFF,g=(c>>8)&0xFF,b=c&0xFF,grey=.3f*r+.59f*g+.11f*b;
+    auto push=[&](float v){v=grey+(v-grey)*1.6f;return static_cast<uint32_t>(v<0?0:v>255?255:v+.5f);};
+    return push(r)<<16|push(g)<<8|push(b);
+}
 /* The brand gradient: mint -> cyan -> purple, t in 0..1. */
 uint32_t sweep(float t) {return t<.5f?mix(Accent,Cyan,t*2):mix(Cyan,Purple,(t-.5f)*2);}
 
@@ -713,8 +721,24 @@ void make_logo(lv_obj_t *parent,int x,int y) {
 }
 
 /* ---- Ambient clock: a big clock built from brand-gradient tiles, the date and a host-supplied line. ---- */
-lv_obj_t *ambient,*ambient_clock,*ambient_date,*ambient_line;
-char ambient_time[8]="";uint32_t ambient_seen=0;
+lv_obj_t *ambient,*ambient_clock,*ambient_date,*ambient_line,*ambient_icon;
+const char *weather_shown="";  /* the icon on the clock now, for the tests */
+/* The host sends words ("12 C, Light rain - Oslo"), not a code: the first word that matches picks the icon.
+ * Precipitation goes before cloud, so "Rain showers" is rain and "Snow showers" is snow. */
+void show_weather_icon(const char *line) {
+    static const struct {const char *word,*icon;uint32_t color;} Icons[]={{"thunder","lc:e08c",Purple},{"hail","lc:e08b",Text},
+        {"snow","lc:e090",Text},{"drizzle","lc:e08a",Cyan},{"rain","lc:e08e",Cyan},{"shower","lc:e08e",Cyan},
+        {"fog","lc:e214",Soft},{"overcast","lc:e088",Soft},{"cloud","lc:e216",Amber},{"clear","lc:e178",Amber}};
+    char lower[DECK_AMBIENT_MAX+1];size_t n=0;
+    for(;line[n]&&n<DECK_AMBIENT_MAX;++n)lower[n]=static_cast<char>(tolower(static_cast<unsigned char>(line[n])));
+    lower[n]='\0';
+    if(char *city=strstr(lower," - "))*city='\0';  /* "12 C, Light rain - Oslo": the place is not the weather */
+    char packed[5]{};weather_shown="";
+    for(const auto& item:Icons)if(strstr(lower,item.word)&&deck_lucide_glyph(item.icon,packed)){set_color(ambient_icon,LV_STYLE_TEXT_COLOR,item.color);weather_shown=item.icon;break;}
+    lv_label_set_text(ambient_icon,packed);
+    if(packed[0])lv_obj_remove_flag(ambient_icon,LV_OBJ_FLAG_HIDDEN);else lv_obj_add_flag(ambient_icon,LV_OBJ_FLAG_HIDDEN);
+}
+char ambient_time[12]="";uint32_t ambient_seen=0;lv_obj_t *ambient_meridiem=nullptr;
 const char *const DigitGlyphs[11][7]={
     {"01110","10001","10011","10101","11001","10001","01110"},{"00100","01100","00100","00100","00100","00100","01110"},
     {"01110","10001","00001","00010","00100","01000","11111"},{"11110","00001","00001","01110","00001","00001","11110"},
@@ -722,19 +746,33 @@ const char *const DigitGlyphs[11][7]={
     {"00110","01000","10000","11110","10001","10001","01110"},{"11111","00001","00010","00100","01000","01000","01000"},
     {"01110","10001","10001","01110","10001","10001","01110"},{"01110","10001","10001","01111","00001","00010","01100"},
     {"0","0","1","0","1","0","0"}};
-void draw_big_clock(const char *text) {
-    constexpr int Dot=26,Pitch=31,Space=22;
+void draw_big_clock(const char *text,const char *meridiem) {
+    const bool twelve=meridiem[0]!='\0';
+    const int Dot=twelve?32:36,Pitch=twelve?37:42,Space=twelve?24:28,Gap=20;  /* Gap: digits to AM/PM */
     lv_obj_clean(ambient_clock);
-    int width=0,glyphs=0;
-    for(const char *c=text;*c;++c){width+=(*c==':'?1:5)*Pitch-(Pitch-Dot)+Space;++glyphs;}
-    width-=Space;int x=(W-width)/2,index=0;
-    for(const char *c=text;*c;++c,++index) {
-        const int digit=*c==':'?10:(*c>='0'&&*c<='9'?*c-'0':-1);
-        const int columns=*c==':'?1:5;
-        if(digit>=0)for(int row=0;row<7;++row)for(int col=0;col<columns;++col)
-            if(DigitGlyphs[digit][row][col]=='1')box(ambient_clock,x+col*Pitch,row*Pitch,Dot,Dot,5,sweep((index+col/5.f)/(glyphs>0?glyphs:1)));
-        x+=columns*Pitch-(Pitch-Dot)+Space;
-    }
+    lv_label_set_text(ambient_meridiem,meridiem);lv_obj_update_layout(ambient_meridiem);
+    const int suffix=twelve?Gap+lv_obj_get_width(ambient_meridiem):0;
+    int glyphs=0;for(const char *c=text;*c;++c)++glyphs;
+    /* Two passes: measure the tiles that are lit (a "1" leaves its outer columns empty), then draw them centred. */
+    int left=W,right=0;
+    auto tiles=[&](int x0,bool draw) {
+        int x=x0,index=0;
+        for(const char *c=text;*c;++c,++index) {
+            const int digit=*c==':'?10:(*c>='0'&&*c<='9'?*c-'0':-1);
+            const int columns=*c==':'?1:5;
+            if(digit>=0)for(int row=0;row<7;++row)for(int col=0;col<columns;++col) {
+                if(DigitGlyphs[digit][row][col]!='1')continue;
+                const int at=x+col*Pitch;
+                if(draw)box(ambient_clock,at,row*Pitch,Dot,Dot,7,vivid(sweep((index+col/5.f)/(glyphs>0?glyphs:1))));
+                else{if(at<left)left=at;if(at+Dot>right)right=at+Dot;}
+            }
+            x+=columns*Pitch-(Pitch-Dot)+Space;
+        }
+    };
+    tiles(0,false);
+    const int shift=(W-(right-left)-suffix)/2-left;
+    tiles(shift,true);
+    lv_obj_set_pos(ambient_meridiem,right+shift+Gap,lv_obj_get_y(ambient_clock)+7*Pitch-(Pitch-Dot)-48);  /* on the digits' baseline */
 }
 void show_ambient(bool on) {
     if(!ambient||on==(deck_model_screen()==DECK_SCREEN_AMBIENT))return;
@@ -748,10 +786,16 @@ void ambient_touched(lv_event_t *) {
 }
 void build_ambient() {
     ambient=lv_obj_create(nullptr);flat(ambient,Bg);
-    ambient_clock=box(ambient,0,120,W,7*31,0,Bg);
-    ambient_date=label(ambient,"",0,360,W,&fq_font_dejavu_bold_28,Text);lv_obj_set_style_text_align(ambient_date,LV_TEXT_ALIGN_CENTER,0);
-    ambient_line=label(ambient,"",60,420,W-120,&fq_font_dejavu_24,Muted);lv_obj_set_style_text_align(ambient_line,LV_TEXT_ALIGN_CENTER,0);
-    lv_obj_set_height(ambient_line,LV_SIZE_CONTENT);lv_label_set_long_mode(ambient_line,LV_LABEL_LONG_WRAP);  /* a long weather line wraps */
+    ambient_clock=box(ambient,0,80,W,7*42,0,Bg);
+    ambient_meridiem=label(ambient,"",0,0,LV_SIZE_CONTENT,&fq_font_dejavu_bold_40,Soft);
+    ambient_date=label(ambient,"",0,404,W,&fq_font_dejavu_bold_40,Text);lv_obj_set_style_text_align(ambient_date,LV_TEXT_ALIGN_CENTER,0);
+    /* The weather: an icon and the host's line side by side, centred together. */
+    auto *row=clear_box(ambient,0,466,W,LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(row,LV_FLEX_FLOW_ROW);lv_obj_set_flex_align(row,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER,LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(row,16,0);
+    ambient_icon=label(row,"",0,0,60,&deck_lucide_60,Soft);lv_obj_set_style_text_align(ambient_icon,LV_TEXT_ALIGN_CENTER,0);lv_obj_add_flag(ambient_icon,LV_OBJ_FLAG_HIDDEN);
+    ambient_line=label(row,"",0,0,LV_SIZE_CONTENT,&fq_font_dejavu_28,Soft);lv_obj_set_style_max_width(ambient_line,W-200,0);
+    lv_label_set_long_mode(ambient_line,LV_LABEL_LONG_WRAP);  /* a long weather line wraps */
     lv_obj_add_event_cb(ambient,ambient_touched,LV_EVENT_PRESSED,nullptr);
 }
 void update_ambient() {
@@ -759,8 +803,9 @@ void update_ambient() {
     if(request==DECK_SCREEN_AMBIENT)show_ambient(true);else if(request==DECK_SCREEN_DECK)show_ambient(false);
     if(deck_model_screen()!=DECK_SCREEN_AMBIENT)return;
     const char *now=time_service_time_text();
-    if(strcmp(now,ambient_time)){snprintf(ambient_time,sizeof(ambient_time),"%s",now);draw_big_clock(ambient_time);lv_label_set_text(ambient_date,time_service_date_text());}
-    if(ambient_seen!=deck_model_ambient_version()){char line[DECK_AMBIENT_MAX+1];deck_model_ambient(line,sizeof(line));lv_label_set_text(ambient_line,line);ambient_seen=deck_model_ambient_version();}
+    char shown[sizeof(ambient_time)];snprintf(shown,sizeof(shown),"%s%s",now,time_service_meridiem());  /* "12:00" AM and PM differ */
+    if(strcmp(shown,ambient_time)){snprintf(ambient_time,sizeof(ambient_time),"%s",shown);draw_big_clock(now,time_service_meridiem());lv_label_set_text(ambient_date,time_service_date_text());}
+    if(ambient_seen!=deck_model_ambient_version()){char line[DECK_AMBIENT_MAX+1];deck_model_ambient(line,sizeof(line));lv_label_set_text(ambient_line,line);show_weather_icon(line);ambient_seen=deck_model_ambient_version();}
 }
 
 int view_before_question=-1;  /* the screen a permission question took the panel away from */
@@ -853,8 +898,8 @@ extern "C" int ui_debug_visible_text(char *out,size_t size) {
     const auto context=deck_model_context();
     char profile[2*sizeof(context.profile)],page[2*sizeof(context.page)];
     json_escape(context.profile,profile,sizeof(profile));json_escape(context.page,page,sizeof(page));
-    const int n=snprintf(out,size,"{\"screen\":\"%s\",\"view\":\"%s\",\"buttons\":%d,\"profile\":\"%s\",\"page\":\"%s\",\"canBack\":%s,\"pc\":%s}",
-                         deck_model_screen()==DECK_SCREEN_AMBIENT?"ambient":"deck",ViewNames[view],deck_model_button_count(),profile,page,context.can_go_back?"true":"false",link_shown==1?"true":"false");
+    const int n=snprintf(out,size,"{\"screen\":\"%s\",\"view\":\"%s\",\"buttons\":%d,\"profile\":\"%s\",\"page\":\"%s\",\"canBack\":%s,\"pc\":%s,\"weather\":\"%s\"}",
+                         deck_model_screen()==DECK_SCREEN_AMBIENT?"ambient":"deck",ViewNames[view],deck_model_button_count(),profile,page,context.can_go_back?"true":"false",link_shown==1?"true":"false",weather_shown);
     return n>0&&n<static_cast<int>(size)?0:-1;
 }
 extern "C" void ui_set_firmware_version(const char *version) {

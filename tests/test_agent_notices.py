@@ -68,6 +68,7 @@ class NoticeTests(HostCase):
         controller.status.return_value = {'running': False}
         app = tessera_tray.TrayApp(controller)
         app.icon = Mock()
+        self.enterContext(unittest.mock.patch.object(tessera_tray, 'notifications_enabled', return_value=True))
         app.ask_about_autostart, app.asked_autostart = Mock(), False  # never a real message box in a test
         app.refresh()
         app.refresh()
@@ -109,6 +110,7 @@ class NoticeTests(HostCase):
         self.assertIn('panel 0.6.2', tessera_tray.version_text(status))
         app = tessera_tray.TrayApp(Mock())
         app.icon, app.status = Mock(), status
+        self.enterContext(unittest.mock.patch.object(tessera_tray, 'notifications_enabled', return_value=True))
         text = tessera_tray.trouble_text(status)
         app.report_trouble(text, 100.0)
         app.report_trouble(text, 110.0)
@@ -153,6 +155,39 @@ class NoticeTests(HostCase):
             self.assertFalse(deck_control.firmware_installing(flag), 'a flag left by a crashed editor expires')
             with unittest.mock.patch.object(deck_control, 'firmware_installing', return_value=True),                     self.assertRaises(RuntimeError):
                 deck_control.Controller().start()
+
+    @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
+    def test_notifications_off_keeps_the_tray_quiet_but_answers_a_click(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        from unittest.mock import Mock, patch
+        import tesserad as deck
+        import tessera_tray
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text((Path(__file__).resolve().parents[1] / 'host/profiles.default.json').read_text(encoding='utf-8'), encoding='utf-8')
+            with patch.object(tessera_tray, 'PROFILES_PATH', path):
+                self.assertTrue(tessera_tray.notifications_enabled(), 'on unless switched off')
+                tessera_tray.set_notifications(False)
+                self.assertFalse(tessera_tray.notifications_enabled())
+                app = tessera_tray.TrayApp(Mock())
+                app.icon = Mock()
+                app.last_notice = 0
+                app.show_notices([{'id': 5, 'title': 'Claude', 'message': 'Waiting for you'}])
+                app.tell('The panel was disconnected.')
+                app.icon.notify.assert_not_called()
+                app.open_log()  # an answer to a click still shows
+                self.assertEqual(app.icon.notify.call_count, int(not tessera_tray.LOG_PATH.is_file()))
+                tessera_tray.set_notifications(True)
+                app.tell('The panel is connected.')
+                app.icon.notify.assert_called_with('The panel is connected.', 'Tessera')
+        config = json.loads((Path(__file__).resolve().parents[1] / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        config['notifications'] = False
+        deck.validate_config(config)
+        config['notifications'] = 'no'
+        with self.assertRaises(ValueError):
+            deck.validate_config(config)
 
 if __name__ == '__main__':
     unittest.main()

@@ -654,6 +654,9 @@ static void usb_console_task(void *)
             const bool parsed = sscanf(line + 8, "%4d-%2d-%2dT%2d:%2d:%2d", &year, &month, &day,
                                        &hour, &minute, &second) == 6;
             const bool set = parsed && time_service_set_from_host(year, month, day, hour, minute, second);
+            /* An optional " 12h" or " 24h" after the time; an older host sends none and the clock stays as it is. */
+            const char *format = strchr(line + 8, ' ');
+            if (set && format && (!strcmp(format, " 12h") || !strcmp(format, " 24h"))) time_service_set_12h(format[1] == '1');
             printf("AD_TIME %s\n", set ? "OK" : "INVALID");
             fflush(stdout);
         }

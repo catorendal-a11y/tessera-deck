@@ -13,6 +13,7 @@ idf_component_register(
         "ui/fonts/fq_dejavu_bold_20.c"
         "ui/fonts/fq_dejavu_bold_24.c"
         "ui/fonts/fq_dejavu_bold_28.c"
+        "ui/fonts/fq_dejavu_bold_40.c"
     INCLUDE_DIRS
         "."
         "ui"

@@ -33,7 +33,7 @@ Nothing runs in the editor. Keys run only when you press them on the panel. The 
 | **Panel** | *Display …*, *Panel firmware and updates …*, *Rail …*, *Key colors …* |
 | **More** | *Getting started*, *Connect Claude Code …*, *Plugins …*, *Export to a file*, *Import from a file …*, *Restore a backup …*, *Host log …*, *Save diagnostics* |
 
-**Program settings** in the top bar holds only what the PC does: starting the host at sign-in, switching profiles by program, and the calendar for the Next meeting widget.
+**Program settings** in the top bar holds only what the PC does: starting the host at sign-in, Windows notifications, switching profiles by program, and the calendar for the Next meeting widget.
 
 A profile holds pages. A page holds up to 18 keys, and slot 18 is the pinned **Home** key. Changes save by themselves; the line under the deck says when the panel has them. The editor keeps your edits as you make them, and Undo (Ctrl+Z) takes back the last one, including a deleted page or profile.
 
@@ -159,10 +159,13 @@ Open **Panel → Display …** (or the tray's *Brightness* menu).
 | *Dim the panel after* | How long without a press before it dims, or *Never*. It also dims when Windows locks. |
 | *Brightness when dimmed* | The level while dimmed, or *Off* |
 | *Quiet hours* and *Brightness during quiet hours* | A lower level between two times, for example at night |
+| *Clock format* | *Same as Windows* (the default), *24-hour* or *12-hour* with AM/PM, for the idle clock and the rail |
 | *Show a big clock when the panel has been idle* and *Show it after* | The idle clock. Touch the panel to get the keys back. |
-| *Weather for (city, optional)* and *Temperature unit* | Weather on the idle clock from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use. |
+| *Weather for (city, optional)* and *Temperature unit* | Weather on the idle clock from open-meteo.com every 15 minutes, with an icon for sun, cloud, fog, drizzle, rain, snow or thunder. Leave the city empty for no weather and no internet use. |
 
 The first touch on a dimmed panel only wakes it; it does not press a key. A long press on the panel's logo opens an About sheet with a brightness slider. The panel keeps its brightness across restarts.
+
+Windows notifications (panel connected or disconnected, a host that stopped, an agent waiting or done, a timer that ends) can be switched off with *Show Windows notifications* in **Program settings** or *Show notifications* in the tray menu. Answers to what you click in the tray still show.
 
 **Panel → Key colors …** sets the default background, text and outline for every key without colors of its own.
 

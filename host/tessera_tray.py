@@ -121,6 +121,20 @@ def set_brightness(level: int, path: Path = PROFILES_PATH) -> None:
     save_profiles(config, path)
 
 
+def notifications_enabled(path: Path | None = None) -> bool:
+    """Windows notifications the user did not ask for (panel connected, agents, timers); on unless switched off."""
+    try:
+        return load_config(path or PROFILES_PATH).get('notifications', True) is not False
+    except (OSError, ValueError):
+        return True
+
+
+def set_notifications(enabled: bool, path: Path | None = None) -> None:
+    config = load_config(path or PROFILES_PATH)
+    config['notifications'] = enabled
+    save_profiles(config, path or PROFILES_PATH)
+
+
 class TrayApp:
     def __init__(self, controller: Controller | None = None):
         self.controller = controller or Controller()
@@ -199,6 +213,14 @@ class TrayApp:
 
     def toggle_autostart(self, *_):
         self.background(lambda: set_autostart(not autostart_enabled()))
+
+    def toggle_notifications(self, *_):
+        self.background(lambda: set_notifications(not notifications_enabled()))
+
+    def tell(self, message, title='Tessera'):
+        """A notice the user did not click for: kept quiet when notifications are off. Answers to a click use notify."""
+        if notifications_enabled():
+            self.icon.notify(message, title)
 
     # --- help: what a user needs to report a problem ---------------------------
     def open_log(self, *_):
@@ -304,6 +326,7 @@ class TrayApp:
         yield pystray.MenuItem('Stop host', self.stop_host, enabled=running)
         yield pystray.Menu.SEPARATOR
         yield pystray.MenuItem('Start with Windows', self.toggle_autostart, checked=lambda item: autostart_enabled())
+        yield pystray.MenuItem('Show notifications', self.toggle_notifications, checked=lambda item: notifications_enabled())
         yield pystray.MenuItem('Help', pystray.Menu(
             pystray.MenuItem('Open the host log', self.open_log),
             pystray.MenuItem('Recent problems', lambda *_: self.background(self.show_problems)),
@@ -333,12 +356,12 @@ class TrayApp:
             if state == 'connected' and not self.asked_autostart:
                 # the first connection ever: say what comes next, then ask about autostart now that it works
                 self.asked_autostart = True
-                self.icon.notify('Panel connected. Open the editor to set up your keys.', 'Tessera')
+                self.tell('Panel connected. Open the editor to set up your keys.', 'Tessera')
                 self.background(self.ask_about_autostart)
             elif previous == 'connected':
-                self.icon.notify('The panel was disconnected.', 'Tessera')
+                self.tell('The panel was disconnected.', 'Tessera')
             elif previous and state == 'connected':
-                self.icon.notify('The panel is connected.', 'Tessera')
+                self.tell('The panel is connected.', 'Tessera')
 
     def watch_host(self, running, now):
         """Start a host again that died without the user pressing Stop: after 5 s, 15 s, 60 s, then every 5 min.
@@ -357,7 +380,7 @@ class TrayApp:
             return
         if self.restart_at is None:
             if self.restarts == 0:
-                self.icon.notify('The host stopped unexpectedly. Tessera starts it again in a moment.', 'Tessera')
+                self.tell('The host stopped unexpectedly. Tessera starts it again in a moment.', 'Tessera')
             self.restart_at = now + RESTART_WAITS[min(self.restarts, len(RESTART_WAITS) - 1)]
         elif now >= self.restart_at:
             self.restarts += 1
@@ -383,7 +406,7 @@ class TrayApp:
         if self.trouble is None or self.trouble[0] != text:
             self.trouble = (text, now, False)
         elif not self.trouble[2] and now - self.trouble[1] >= TROUBLE_SECONDS:
-            self.icon.notify(text, 'Tessera')
+            self.tell(text, 'Tessera')
             self.trouble = (text, self.trouble[1], True)
 
     def show_notices(self, notices):
@@ -393,7 +416,7 @@ class TrayApp:
             return
         for item in notices:
             if isinstance(item.get('id'), int) and item['id'] > self.last_notice:
-                self.icon.notify(str(item.get('message', '')), str(item.get('title', 'Tessera')))
+                self.tell(str(item.get('message', '')), str(item.get('title', 'Tessera')))
         self.last_notice = max([self.last_notice, *ids])
 
     def poll(self):

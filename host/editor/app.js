@@ -415,9 +415,10 @@ function displayChoices(values,current,format) {
 function appSettings() {
   dialog('Program settings',[
   {name:'autostart',label:'Start the USB host automatically when I sign in',type:'checkbox',value:!!dashboard.autostart,note:'The panel is ready without opening the editor window. You can still open Tessera from the desktop to edit.'},
+  {name:'notifications',label:'Show Windows notifications',type:'checkbox',value:config.notifications!==false,note:'When a panel connects or disconnects, an agent waits for you or a timer ends. The tray menu has the same switch.'},
   {name:'autoProfiles',label:'Switch profile automatically by active program',type:'checkbox',value:config.auto_profiles!==false,note:'Turn off if the panel should stay on the program launcher until you switch profile yourself.'},
   {name:'calendar',label:'Calendar for the Next meeting widget (iCal address, optional)',value:config.calendar?.url||'',placeholder:'https://calendar.google.com/calendar/ical/…/basic.ics',note:'Paste the secret iCal address of your Google, Outlook or iCloud calendar. Tessera reads it every five minutes and leaves it out when you export your keys.'}
-],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;const calendar=values.calendar.trim();if(calendar)config.calendar={url:calendar};else delete config.calendar;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
+],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.notifications=values.notifications;const calendar=values.calendar.trim();if(calendar)config.calendar={url:calendar};else delete config.calendar;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
 /* Rename (name) or delete (null) the current page and fix every action, rail step, shortcut and trigger that points to it. */
 function changePage(name) {
   const pages=config.profiles[profile].pages,old=page,remove=name===null;

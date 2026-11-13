@@ -168,6 +168,7 @@ class TrayRestartTests(unittest.TestCase):
         app = tessera_tray.TrayApp(Mock())
         app.icon = Mock()
         app.host = Mock()  # records each restart instead of starting a thread
+        self.enterContext(patch.object(tessera_tray, 'notifications_enabled', return_value=True))  # not the user's own switch
         return app
 
     def test_a_host_that_died_is_restarted_with_backoff_and_one_notice_per_burst(self):

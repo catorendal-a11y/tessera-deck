@@ -318,29 +318,41 @@ class Editor:
         return {'config': self.assets.heal(config), 'revision': revision}
 
     def rebase(self, data, raw):
-        """`data` on top of a file changed only in display.brightness since the editor read it (the tray's
-        Brightness menu writes the file): the editor keeps its edits, the tray's level stays. Anything else conflicts."""
+        """`data` on top of a file changed only in what the tray menu writes (display.brightness and
+        notifications) since the editor read it: the editor keeps its edits, and the tray's value stays
+        for each one the editor did not change itself. Anything else conflicts."""
         base = self.served.get(data.get('revision'))
         try:
             disk = config_store.migrate(json.loads(raw))
         except (ValueError, TypeError, KeyError, AttributeError):
             disk = None
-        def without_brightness(config):
-            config = copy.deepcopy(config)
-            display = config.get('display') if isinstance(config, dict) else None
-            level = display.pop('brightness', None) if isinstance(display, dict) else None
-            if display == {}:
-                del config['display']
-            return config, level
-        if base is None or disk is None or without_brightness(base)[0] != without_brightness(disk)[0]:
+        def without_tray(config):
+            config, taken = copy.deepcopy(config), {}
+            if not isinstance(config, dict):
+                return config, taken
+            display = config.get('display')
+            if isinstance(display, dict) and 'brightness' in display:
+                taken['brightness'] = display.pop('brightness')
+                if display == {}:
+                    del config['display']
+            if 'notifications' in config:
+                taken['notifications'] = config.pop('notifications')
+            return config, taken
+        if base is None or disk is None or without_tray(base)[0] != without_tray(disk)[0]:
             raise Conflict('The configuration was changed in another window. Reload before saving.')
-        config, level = copy.deepcopy(data['config']), without_brightness(disk)[1]
-        if isinstance(config, dict) and without_brightness(config)[1] == without_brightness(base)[1]:
-            display = config.get('display') if isinstance(config.get('display'), dict) else {}
-            if level is None:
-                display.pop('brightness', None)
-            else:
-                config['display'] = dict(display, brightness=level)
+        config = copy.deepcopy(data['config'])
+        if isinstance(config, dict):
+            mine, before, tray = without_tray(config)[1], without_tray(base)[1], without_tray(disk)[1]
+            for key in ('brightness', 'notifications'):
+                if mine.get(key, Conflict) != before.get(key, Conflict):
+                    continue  # changed in the editor: the editor's value wins
+                target = config.setdefault('display', {}) if key == 'brightness' else config
+                if not isinstance(target, dict):
+                    continue
+                if key in tray:
+                    target[key] = tray[key]
+                else:
+                    target.pop(key, None)
         return dict(data, config=config, revision=hashlib.sha256(raw).hexdigest())
 
     def read_for_editor(self):

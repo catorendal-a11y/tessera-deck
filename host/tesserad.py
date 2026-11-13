@@ -190,6 +190,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.locked = False
         self.last_activity = time.monotonic()
         self.clock_sent_at = float('-inf')
+        self.clock_hours_sent = None
         self.device_state_path = Path(args.profiles).with_name('deck-device.local.json')
 
     @staticmethod
@@ -558,9 +559,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
     def heartbeat(self, panel, now):
         """One beat: keeps the panel's PC indicator lit and its clock right without Wi-Fi."""
         panel.send_line('AD_PING')
-        if now - self.clock_sent_at >= CLOCK_INTERVAL:
-            panel.send_line('AD_TIME ' + time.strftime('%Y-%m-%dT%H:%M:%S'))
-            self.clock_sent_at = now
+        hours = self.clock_format()
+        if now - self.clock_sent_at >= CLOCK_INTERVAL or hours != self.clock_hours_sent:  # a new format shows at once
+            panel.send_line(f'AD_TIME {time.strftime("%Y-%m-%dT%H:%M:%S")} {hours}')
+            self.clock_sent_at, self.clock_hours_sent = now, hours
 
     def heartbeat_loop(self, panel):
         # A thread of its own: slow sensor or focus ticks must not make the

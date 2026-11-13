@@ -368,6 +368,9 @@ def in_quiet_hours(night, minute_of_day):
     return start <= minute_of_day < end if start < end else minute_of_day >= start or minute_of_day < end
 
 
+CLOCK_FORMATS = ('auto', '12h', '24h')  # auto: the time format Windows uses
+
+
 def _check_display(display):
     if not isinstance(display, dict):
         raise ValueError('display must be an object')
@@ -375,6 +378,10 @@ def _check_display(display):
     for key, value in display.items():
         if key == 'night':
             _check_night(value)
+            continue
+        if key == 'clock':
+            if value not in CLOCK_FORMATS:
+                raise ValueError('display.clock must be auto, 12h or 24h')
             continue
         if key not in limits:
             raise ValueError(f'Unknown display setting: {key}')
@@ -434,6 +441,8 @@ def _validate_config(config):
         _check_profile(name, profile, profiles)
     if type(config.get('auto_profiles', True)) is not bool:
         raise ValueError('auto_profiles must be on or off')
+    if type(config.get('notifications', True)) is not bool:
+        raise ValueError('notifications must be on or off')
     _check_display(config.get('display', {}))
     if 'ambient' in config:
         check_ambient(config['ambient'])

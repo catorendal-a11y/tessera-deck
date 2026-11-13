@@ -8,6 +8,16 @@ from config_check import in_quiet_hours
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
 
 
+def windows_clock() -> str:
+    """'12h' when Windows shows the time with AM/PM (Region settings), else '24h'."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Control Panel\International') as key:
+            return '12h' if str(winreg.QueryValueEx(key, 'iTime')[0]) == '0' else '24h'
+    except (ImportError, OSError):
+        return '24h'
+
+
 class DisplayMixin:
     """Methods of the Daemon; they use its state."""
 
@@ -46,6 +56,11 @@ class DisplayMixin:
         config['display'] = display
         save_profiles(config, path)
         self.sent_brightness = level
+
+    def clock_format(self):
+        """'12h' or '24h' for the panel's clocks: the Display setting, or the format Windows uses."""
+        choice = self.config.get('display', {}).get('clock', 'auto')
+        return choice if choice in ('12h', '24h') else windows_clock()
 
     def brightness_tick(self):
         """Quiet hours: change the brightness when the clock enters or leaves the night window."""

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Panel: the idle clock is bigger, in deeper colors, with a larger date and weather line, and an icon for the weather (sun, cloud, fog, drizzle, rain, snow or thunder).
+- Panel: a 12-hour clock with AM/PM. *Clock format* in Panel → Display is *Same as Windows* by default, or 24-hour or 12-hour.
+- Windows notifications can be switched off: *Show Windows notifications* in Program settings, or *Show notifications* in the tray menu. Answers to a tray click still show, and switching it in the tray while the editor is open no longer makes the next save conflict.
+
 ## 0.8.0
 
 - Firmware update over USB: when the panel stops acknowledging partway, the host aborts and starts the upload once more by itself. The panel keeps its running firmware either way.

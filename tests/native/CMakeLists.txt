@@ -16,7 +16,7 @@ add_executable(test_ui test_ui.cpp "${ROOT}/main/deck_model.c" "${ROOT}/main/dec
   "${ROOT}/main/ui/fonts/deck_lucide_60.c" "${ROOT}/main/ui/fonts/fq_dejavu_16.c"
   "${ROOT}/main/ui/fonts/fq_dejavu_20.c" "${ROOT}/main/ui/fonts/fq_dejavu_24.c"
   "${ROOT}/main/ui/fonts/fq_dejavu_28.c" "${ROOT}/main/ui/fonts/fq_dejavu_bold_20.c"
-  "${ROOT}/main/ui/fonts/fq_dejavu_bold_24.c" "${ROOT}/main/ui/fonts/fq_dejavu_bold_28.c")
+  "${ROOT}/main/ui/fonts/fq_dejavu_bold_24.c" "${ROOT}/main/ui/fonts/fq_dejavu_bold_28.c" "${ROOT}/main/ui/fonts/fq_dejavu_bold_40.c")
 target_include_directories(test_ui PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/main"
   "${ROOT}/managed_components/espressif__cjson/cJSON")
 target_link_libraries(test_ui PRIVATE lvgl_native)

@@ -19,7 +19,9 @@
 static uint32_t tick=10000;static std::vector<uint8_t> pixels;static unsigned flushes=0;
 uint32_t millis(){return tick;}
 extern "C" int64_t esp_timer_get_time(){return static_cast<int64_t>(tick)*1000;}
-extern "C" const char* time_service_time_text(){return "14:32";}
+static const char *clock_text="14:32",*clock_meridiem="";
+extern "C" const char* time_service_time_text(){return clock_text;}
+extern "C" const char* time_service_meridiem(){return clock_meridiem;}
 extern "C" const char* time_service_date_text(){return "Tue 20 Oct 2026";}
 static void flush(lv_display_t* display,const lv_area_t* area,uint8_t* data){++flushes;const auto* source=reinterpret_cast<const uint32_t*>(data);int offset=0;for(int y=area->y1;y<=area->y2;++y)for(int x=area->x1;x<=area->x2;++x){const uint32_t v=source[offset++];const int at=(y*1024+x)*3;pixels[at]=v&255;pixels[at+1]=(v>>8)&255;pixels[at+2]=(v>>16)&255;}lv_display_flush_ready(display);}
 static void step(uint32_t ms=40){lv_timer_handler();tick+=ms;lv_tick_inc(ms);}
@@ -364,7 +366,21 @@ static void test_ambient_clock(){
     /* Ambient clock: shown on request, rendered, and a touch returns to the deck and tells the host once. */
     deck_model_set_ambient("12 C, clear sky - Oslo");deck_model_request_screen(DECK_SCREEN_AMBIENT);updates();
     assert(deck_model_screen()==DECK_SCREEN_AMBIENT);capture("ambient.ppm");
-    assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"screen\":\"ambient\""));
+    assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"screen\":\"ambient\"")&&strstr(status,"\"weather\":\"lc:e178\""));
+    /* Precipitation wins over cloud, and the place after " - " never picks the icon. */
+    const char *const lines[][2]={{"3 C, Snow showers - Oslo","lc:e090"},{"8 C, Rain showers - Oslo","lc:e08e"},{"1 C, Freezing rain - Oslo","lc:e08e"},
+        {"9 C, Light drizzle - Oslo","lc:e08a"},{"20 C, Thunderstorm with hail - Oslo","lc:e08c"},{"5 C, Rime fog - Oslo","lc:e214"},
+        {"7 C, Partly cloudy - Oslo","lc:e216"},{"7 C, Overcast - Snowflake","lc:e088"},{"7 C - Rainham","",}};
+    for(const auto& line:lines){
+        char want[40];snprintf(want,sizeof(want),"\"weather\":\"%s\"",line[1]);
+        deck_model_set_ambient(line[0]);updates();
+        assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,want));
+    }
+    deck_model_set_ambient("12 C, clear sky - Oslo");updates();
+    /* 12-hour clocks with PM beside them, centred on the lit tiles: a leading "1" has empty outer columns. */
+    const char *const twelve[][2]={{"2:32","ambient-12h.ppm"},{"10:49","ambient-12h-10.ppm"},{"12:59","ambient-12h-12.ppm"}};
+    for(const auto& item:twelve){clock_text=item[0];clock_meridiem="PM";updates();capture(item[1]);}
+    clock_text="14:32";clock_meridiem="";updates();
     tap(512,300);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return()&&!deck_model_take_touch_return());
     assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"screen\":\"deck\""));
 }
