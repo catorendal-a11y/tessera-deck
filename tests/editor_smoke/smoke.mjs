@@ -56,6 +56,21 @@ try {
   await dialogRoundTrip('Page settings from the Page menu', async () => { await page.click('#page-menu-toggle'); await page.click('#page-options'); },
     '#form-dialog', () => page.keyboard.press('Escape'), 'page-menu-toggle');
 
+  // Wi-Fi: no panel is connected here, so the form is disabled with a hint; axe checks the open dialog too.
+  await page.click('#panel-menu-toggle');
+  await page.click('#wifi-open');
+  await page.locator('#wifi-dialog[open]').waitFor({timeout: 5000});
+  await page.waitForFunction(() => document.querySelector('#wifi-fields').disabled, null, {timeout: 5000}).catch(() => {});
+  check(await page.locator('#wifi-fields').evaluate(node => node.disabled), 'Wi-Fi: the form is disabled without a panel');
+  check(!await page.locator('#wifi-gate').isHidden(), 'Wi-Fi: it says to connect the panel over USB');
+  const wifiAxe = await new AxeBuilder({page}).include('#wifi-dialog').analyze();
+  for (const v of wifiAxe.violations.filter(item => ['serious', 'critical'].includes(item.impact) && item.id !== 'color-contrast')) {
+    check(false, `Wi-Fi axe ${v.impact} ${v.id}: ${v.help}`);
+  }
+  await page.keyboard.press('Escape');
+  await page.locator('#wifi-dialog:not([open])').waitFor({state: 'attached', timeout: 5000});
+  check(await focused() === 'panel-menu-toggle', `Wi-Fi: closes and gives the focus back to #panel-menu-toggle (focus is on “${await focused()}”)`);
+
   // The action tabs are one Tab stop; the right arrow opens and focuses the next tab.
   const tabs = page.locator('#library-tabs [role=tab]');
   check(await page.locator('#library-tabs [role=tab][tabindex="0"]').count() === 1, 'one action tab is in the Tab order');

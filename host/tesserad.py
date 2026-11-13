@@ -45,7 +45,7 @@ from daemon_display import DisplayMixin
 from daemon_presses import DOUBLE_PRESS_SECONDS, PressMixin  # noqa: F401
 from daemon_ticks import BackgroundMixin
 from panel_serial import (OFFLINE_LAYOUT_BYTES, SUPPORTED_PROTOCOLS, DeviceRejected,  # noqa: F401
-                          PanelSerial, layout_bytes, restart_report)
+                          WIFI_PROTOCOL, PanelSerial, layout_bytes, parse_wifi_status, restart_report)
 
 JOB_QUEUE_SIZE = 128
 SLOW_LANE_LIMIT = 4
@@ -148,6 +148,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.local = threading.local()
         self.dropped_jobs = 0
         self.device_info = {}
+        self.wifi = None  # the panel's last {"type":"wifi"} line, parsed; it never holds a password
         self.weather = Weather()
         self.ambient_active = False
         self.ambient_sent = ''
@@ -237,7 +238,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
-                 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
+                 'wifi': self.wifi, 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}
@@ -636,6 +637,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     if line.startswith('AD_IMG_END '):
                         panel.asset_reply = line
                         panel.asset_done.set()
+                    if line.startswith(('AD_WIFI_SET ', 'AD_WIFI_CLEAR ')):
+                        panel.wifi_reply = line
+                        panel.wifi_done.set()
                     if line.startswith('{'):
                         try:
                             message = json.loads(line)
@@ -647,6 +651,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             if type(message.get('button')) is int:
                                 self.enqueue(('press', message['button'], message.get('label'),
                                               message.get('hold') is True, time.monotonic()))
+                        elif message.get('type') == 'wifi':
+                            status = parse_wifi_status(message)
+                            if status is not None:
+                                self.wifi = status
+                                self.runtime_written = 0.0  # the main loop writes the runtime file on its next turn
                         elif message.get('type') == 'wake':
                             self.enqueue(('panel-woke',))
                         elif message.get('type') == 'unlocked':
@@ -902,6 +911,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.push_page(force=True)
                             if (self.device_info.get('protocol') or 1) >= 3:
                                 self.panel.send_line('AD_SCREEN deck')  # a restarted host may find the ambient clock showing
+                        self.wifi = None  # another panel, or a restarted one, reports its own
+                        if (self.device_info.get('protocol') or 1) >= WIFI_PROTOCOL:
+                            self.panel.send_line('AD_WIFI_STATUS')  # the answer arrives as a {"type":"wifi"} line
                         self.publish_runtime(True, force=True)
                         missed = self.reconnect.recovered()
                         self.log(f'USB ready on {self.port}' + (f' after {missed} failed attempts' if missed > 1 else ''))

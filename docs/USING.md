@@ -169,6 +169,16 @@ Windows notifications (panel connected or disconnected, a host that stopped, an 
 
 **Panel → Key colors …** sets the default background, text and outline for every key without colors of its own.
 
+### Wi-Fi and Home Assistant
+
+The panel can join your Wi-Fi so Home Assistant finds it as an ESPHome device. It needs panel firmware with Wi-Fi (protocol 5); on older firmware the dialog says so and offers **Panel firmware …**. USB to the PC keeps working exactly as before, and Wi-Fi stays off until you set it up.
+
+1. Connect the panel over USB and start the host.
+2. Open **Panel → Wi-Fi and Home Assistant …**, type the network name and password (or tick *Open network*), and choose **Connect**.
+3. The dialog shows *Connecting …*, then *Connected to …* with the panel's address and signal. A wrong password, a network that is not found or a missing Wi-Fi chip are named there and on the panel's About sheet.
+
+**Forget Wi-Fi** erases the network on the panel and turns Wi-Fi off. The password travels to the panel over USB only: the PC never stores it (not in `profiles.json`, backups, exports, logs or diagnostics). Only the network name is kept, to fill in the dialog next time. The panel keeps the password in its flash, which is not encrypted, so someone holding the board could read it; put the panel on a guest or IoT network if that matters to you.
+
 ### Back up, export and import
 
 - **Automatic backups:** Tessera keeps the latest 30 while you edit. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.

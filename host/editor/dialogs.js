@@ -374,6 +374,95 @@ $('#log-open').onclick = () => openLog().catch(showError);
 $('#log-close').onclick = () => $('#log-dialog').close();
 $('#log-dialog').addEventListener('close', () => clearInterval(logTimer));
 
+/* Wi-Fi: the panel joins the network (protocol 5). The password goes to the panel over USB and is never stored here. */
+const WIFI_PROTOCOL = 5;
+const WIFI_FAILED = {auth: 'Wrong password', no_ap: 'Network not found', no_ip: 'Joined the network, but got no address',
+  no_coprocessor: 'No Wi-Fi chip answered (the C6 may need new firmware)', crashed: 'Turned off after a crash. Connect again to retry.',
+  lost: 'The connection was lost', storage: 'The panel could not save the network', init: 'Wi-Fi setup failed'};
+let wifiTimer = null;
+function wifiReady() {
+  const device = dashboard?.device || {};
+  return !!device.connected && (device.protocol || 0) >= WIFI_PROTOCOL;
+}
+function wifiStatusText(wifi) {
+  if (!wifi) return 'Waiting for the panel to report its Wi-Fi …';
+  if (wifi.state === 'connected') return ['Connected to ' + (wifi.ssid || 'the network'), wifi.ip, wifi.rssi != null ? `${wifi.rssi} dBm` : '', wifi.cp ? `C6 ${wifi.cp}` : ''].filter(Boolean).join(' · ');
+  if (wifi.state === 'connecting') return `Connecting${wifi.ssid ? ' to ' + wifi.ssid : ''} …`;
+  if (wifi.state === 'failed') return WIFI_FAILED[wifi.reason] || 'Wi-Fi setup failed';
+  return 'Wi-Fi is off';
+}
+async function refreshWifi() {
+  await pollStatus();
+  const device = dashboard?.device || {}, ready = wifiReady(), wifi = device.wifi || null;
+  $('#wifi-fields').disabled = !ready;
+  $('#wifi-gate').hidden = ready;
+  $('#wifi-firmware').hidden = !device.connected;
+  $('#wifi-gate-text').textContent = !device.connected ? 'Connect the panel over USB.' : 'Update the panel firmware to use Wi-Fi.';
+  $('#wifi-status').textContent = ready ? wifiStatusText(wifi) : !device.connected ? 'The panel is not connected' : 'This firmware has no Wi-Fi';
+  $('#wifi-forget').disabled = !ready || !wifi || (wifi.state === 'off' && !wifi.ssid);
+  const ssid = $('#wifi-ssid');
+  if (!ssid.value && document.activeElement !== ssid) ssid.value = wifi?.ssid || config?.panel?.wifi?.ssid || '';
+}
+async function openWifi() {
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
+  $('#wifi-error').textContent = '';
+  $('#wifi-password').value = '';
+  $('#wifi-password').type = 'password';
+  $('#wifi-show').checked = false;
+  $('#wifi-open-network').checked = false;
+  $('#wifi-password').disabled = false;
+  $('#wifi-ssid').value = '';
+  $('#wifi-dialog').showModal();
+  await refreshWifi();
+  if (wifiReady()) api('command/panel-wifi', {do: 'status'}).catch(() => {});
+  clearInterval(wifiTimer);
+  wifiTimer = setInterval(() => refreshWifi().catch(() => {}), 2000);
+}
+async function sendWifi(event) {
+  event?.preventDefault();
+  const error = $('#wifi-error'), ssid = $('#wifi-ssid').value, open = $('#wifi-open-network').checked;
+  let password = open ? '' : $('#wifi-password').value;
+  error.textContent = '';
+  const bytes = new TextEncoder().encode(ssid).length;
+  if (!bytes || bytes > 32 || /[\u0000-\u001f\u007f]/.test(ssid)) { error.textContent = 'The network name must be 1-32 bytes of text.'; return; }
+  if (!open && !/^[\x20-\x7e]{8,63}$/.test(password) && !/^[0-9A-Fa-f]{64}$/.test(password)) {
+    error.textContent = 'The password needs 8-63 characters (letters, digits and symbols), or tick Open network.';
+    return;
+  }
+  $('#wifi-connect').disabled = true;
+  try {
+    await api('command/panel-wifi', {do: 'set', ssid, password});
+    toast('The panel is connecting to ' + ssid);
+    if (config?.panel?.wifi?.ssid !== ssid) savePanel({wifi: {ssid}});
+  } catch (failure) {
+    error.textContent = failure.message || String(failure);
+  } finally {
+    password = '';  // the password exists only between the field and the request
+    $('#wifi-password').value = '';
+    $('#wifi-connect').disabled = false;
+  }
+  await refreshWifi().catch(() => {});
+}
+async function forgetWifi() {
+  if (!await confirmDialog('Forget the Wi-Fi network?', 'The panel erases the network and its password and turns Wi-Fi off. USB keeps working.', {ok: 'Forget Wi-Fi'})) return;
+  $('#wifi-error').textContent = '';
+  try { await api('command/panel-wifi', {do: 'clear'}); $('#wifi-ssid').value = ''; }
+  catch (failure) { $('#wifi-error').textContent = failure.message || String(failure); }
+  await refreshWifi().catch(() => {});
+}
+$('#wifi-open').onclick = () => openWifi().catch(showError);
+$('#wifi-close').onclick = () => $('#wifi-dialog').close();
+$('#wifi-form').addEventListener('submit', event => { sendWifi(event); });
+$('#wifi-forget').onclick = () => forgetWifi();
+$('#wifi-show').onchange = event => { $('#wifi-password').type = event.target.checked ? 'text' : 'password'; };
+$('#wifi-open-network').onchange = event => { $('#wifi-password').disabled = event.target.checked; if (event.target.checked) $('#wifi-password').value = ''; };
+$('#wifi-firmware').onclick = () => { $('#wifi-dialog').close(); openFirmware().catch(showError); };
+$('#wifi-dialog').addEventListener('close', () => {
+  clearInterval(wifiTimer);
+  $('#wifi-password').value = '';
+  $('#panel-menu-toggle').focus();
+});
+
 /* Plugins: turn integrations on and off and set their options; the host starts and stops them. */
 async function openPlugins() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });

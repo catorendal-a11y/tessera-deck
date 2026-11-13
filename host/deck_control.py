@@ -148,6 +148,8 @@ class Controller:
             result['stats'] = runtime.get('stats', {})
             result['device']['gauges'] = runtime.get('gauges', {})
             result['device']['widgets'] = runtime.get('widgets', {})
+            wifi = runtime.get('wifi')  # the panel's Wi-Fi state (protocol 5); never a password
+            result['device']['wifi'] = wifi if isinstance(wifi, dict) else None
             result['connection'] = ('Panel connected' if runtime.get('connected')
                                     else runtime.get('error') or 'Waiting for the panel')
         except (OSError, ValueError, TypeError):
