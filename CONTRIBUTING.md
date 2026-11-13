@@ -2,20 +2,23 @@
 
 Thanks for wanting to help. Bug reports, ideas, ports to other boards and pull requests are all welcome.
 
-## Before you start
+## Propose a change
 
-- **A bug or an idea:** open an [issue](https://github.com/catorendal-a11y/tessera-deck/issues). For a bug, say what you did, what you expected and what happened, and attach the file that **More → Save diagnostics** in the editor makes (it leaves out your keys' contents and redacts secrets).
-- **A first contribution:** issues marked [good first issue](https://github.com/catorendal-a11y/tessera-deck/labels/good%20first%20issue) are small and well described; [help wanted](https://github.com/catorendal-a11y/tessera-deck/labels/help%20wanted) needs someone with the hardware or the skills.
-- **A larger change:** open an issue first, so we can agree on the approach before you write the code.
-- **A security problem:** do not open a public issue. See [SECURITY.md](SECURITY.md).
+| You have | Do this |
+|---|---|
+| A bug | Open an [issue](https://github.com/catorendal-a11y/tessera-deck/issues). Say what you did, what you expected and what happened. Attach the file from **More → Save diagnostics** in the editor. It leaves out your keys' contents and redacts secrets. |
+| An idea | Open an issue and describe the problem it solves. |
+| A first contribution | Pick an issue marked [good first issue](https://github.com/catorendal-a11y/tessera-deck/labels/good%20first%20issue). Issues marked [help wanted](https://github.com/catorendal-a11y/tessera-deck/labels/help%20wanted) need the hardware or special skills. |
+| A larger change | Open an issue first, so we agree on the approach before you write code. |
+| A security problem | Do not open a public issue. Follow [SECURITY.md](SECURITY.md). |
 
-## Setting up
+## Set up
 
-You need Windows 10 or 11 and Python 3.11 or newer. `Tessera.cmd --setup` creates `host\.venv` with everything the host needs. The firmware builds with ESP-IDF 6.1; the native UI tests need CMake, Ninja and a C/C++ compiler such as MinGW. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) describes the project layout and every tool.
+You need Windows 10 or 11 and Python 3.11 or newer. `Tessera.cmd --setup` creates `host\.venv` with the host's packages. For firmware work you also need ESP-IDF 6.1. For the native UI tests you need CMake and a C/C++ compiler such as MinGW. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) describes the project layout and every tool.
 
-## Checks to run
+## Run the checks
 
-CI runs these on every pull request and every push to main; the versions are pinned there (`.github/workflows/ci.yml`):
+CI runs these on every pull request and every push to main. The tool versions are pinned in `.github/workflows/ci.yml`. Run them from the repository root:
 
 ```powershell
 host\.venv\Scripts\python.exe -m pip install ruff==0.17.2 coverage==7.17.0
@@ -25,13 +28,9 @@ host\.venv\Scripts\python.exe -m coverage report --fail-under=73
 host\.venv\Scripts\python.exe host\tessera_terminal.py --check
 ```
 
-If you changed the editor, `node --check host/editor/core.js host/editor/app.js host/editor/dialogs.js` catches a
-syntax error before the tests load the page.
+CI also audits `host/requirements.txt` with `pip-audit`, runs the tests from the lock file, builds the firmware, runs `cppcheck` on it and runs the native UI tests. After an editor change, `node --check host/editor/core.js host/editor/app.js host/editor/dialogs.js` catches a syntax error early.
 
-**UI changes without a board.** The panel's LVGL UI and its model build natively from `tests/native` and draw every
-screen to PNG files, so you can check a change to `main/ui/ui.cpp` or `main/deck_model.c` without hardware. The
-build needs the LVGL sources in `managed_components/`, which are not in git: run `idf.py reconfigure` once (or link
-the folder from a checkout where ESP-IDF already fetched it), then:
+**UI changes without a board.** If you change `main/ui/ui.cpp` or `main/deck_model.c`, build and run the native tests. They need `managed_components/`, which is not in git: run `idf.py -B build/idf6 build` or `idf.py reconfigure` once. Then:
 
 ```powershell
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -39,28 +38,32 @@ cmake --build build/native
 build\native\test_ui.exe build\previews
 ```
 
-CI also builds the firmware and runs `cppcheck` on it.
+The editor smoke test and the hardware smoke test are explained in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-**Dependencies.** `host/requirements.txt` names the packages; `host/requirements.lock` pins every package with its
-hashes, and `Tessera.cmd` installs from the lock file with `--require-hashes`. After changing `requirements.txt`,
-make the lock file again with Python 3.12 (the version `Tessera.cmd` installs):
+## Change the dependencies
+
+`host/requirements.txt` names the packages. `host/requirements.lock` pins every package with its hashes, and `Tessera.cmd` installs from it with `--require-hashes`. After you change `requirements.txt`, make the lock file again with Python 3.12, the version `Tessera.cmd` installs:
 
 ```powershell
 py -3.12 -m venv build\piptools
 build\piptools\Scripts\python.exe -m pip install pip-tools
-cd host; ..\build\piptools\Scripts\pip-compile --generate-hashes --strip-extras --no-emit-index-url -o requirements.lock requirements.txt
+cd host
+..\build\piptools\Scripts\pip-compile --generate-hashes --strip-extras --no-emit-index-url -o requirements.lock requirements.txt
 ```
+
+Commit both files. CI installs from the lock file on Python 3.11 and 3.14, so a lock that does not install fails there.
 
 ## What makes a pull request easy to merge
 
 - One change per pull request, with a test that fails without it.
-- The smallest change that solves the problem; reuse what is already there before adding a dependency.
-- Text the user sees is plain English and says what to do next.
-- A line in `CHANGELOG.md` under the next version, and the docs updated if behaviour changed.
-- Nothing that sends data off the PC without the user asking for it. Tessera runs locally.
+- The smallest change that solves the problem. Reuse what exists before you add a dependency.
+- User-facing text is plain English and says what to do next.
+- A line in `CHANGELOG.md` under `## Unreleased`, and updated docs if behavior changed.
+- Nothing that sends data off the PC unless the user asks for it. Tessera runs locally.
+- The pull request template's test list filled in. Say which firmware you tried it on, or that you did not try it on a panel.
 
-## Porting to another board
+## Port to another board
 
-Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and the layout constants in `main/ui/ui.cpp` if the resolution differs. Open an issue with the board's name and resolution and we can work out what it takes.
+Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and new layout constants in `main/ui/ui.cpp` if the resolution differs. Open an issue with the board's name and resolution and we can work out what it takes.
 
 By contributing you agree that your work is released under the [MIT License](LICENSE).
