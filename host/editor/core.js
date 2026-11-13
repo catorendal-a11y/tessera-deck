@@ -8,9 +8,9 @@ const kinds = {
   hotkey:{name:'Hotkey',icon:'bolt',field:'keys',label:'Key combination',placeholder:'ctrl+shift+b',group:'On the computer'},
   open:{name:'Open program / file',icon:'folder',field:'target',label:'Program, file or web address',placeholder:'Choose a program or paste a path',group:'On the computer'},
   text:{name:'Type text',icon:'edit',field:'text',label:'Text to type',placeholder:'Type the text here …',group:'On the computer'},
-  folder:{name:'Open folder',icon:'folder',field:'page',label:'Folder',group:'Navigation'},
+  folder:{name:'Open folder (with Back key)',icon:'folder',field:'page',label:'Folder',group:'Navigation'},
   back:{name:'Back',icon:'home',field:null,label:'Back to the previous folder',group:'Navigation'},
-  page:{name:'Switch page',icon:'folder',field:'page',label:'Go to page',group:'Navigation'},
+  page:{name:'Go to page (no Back key)',icon:'folder',field:'page',label:'Go to page',group:'Navigation'},
   profile:{name:'Switch profile',icon:'list',field:'profile',label:'Go to profile',group:'Navigation'},
   profile_lock:{name:'Lock profile',icon:'settings',field:null,label:'Lock or unlock automatic profile switching',group:'Navigation'},
   panel_lock:{name:'Lock panel',icon:'settings',field:null,label:'Lock or unlock the panel against stray taps',group:'Navigation'},
@@ -250,17 +250,47 @@ async function uploadImage(file,id=selected) {if(!file)return;if(file.size>8*102
   mutate(()=>{if(moved||id!==selected)editState=0;selected=id;if(!current())buttons().push({id,label:file.name.replace(/\.[^.]+$/,''),icon:'ok',color:'#35D07F',actions:[]});appearance().icon=result.id;});if(moved)renderAll();if(result.sampled)toast('The animation was reduced to 12 frames for the panel.');}
 
 function setSaveState(message,note='Changes are saved automatically.') {$('#save-state').textContent=message;$('#save-note').textContent=note;}
-function draftError() {
-  for(const item of Object.values(config.profiles)) for(const b of profileButtons(item)) {
-    if(!b.label?.trim()) return 'Give the key a name';
-    if((b.states||[]).some(state=>state.label!==undefined&&!String(state.label).trim()))return 'Give every state of the toggle key a name';
-    for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {
-      const kind=kinds[a.type];
-      if(!kind) return 'Unknown action';
-      if(kind.field && a.type!=='text' && (a[kind.field]===undefined || String(a[kind.field]).trim()==='')) return `${b.label}: fill in ${kind.label.toLowerCase()}`;
-    }
-  }
+/* An unfinished key stays in the editor; only its finished parts reach the panel, so one draft never stops the others saving. */
+function nameProblem(b) {
+  if(b.title?.position==='hidden')return '';  // icon only: no name needed
+  if(!b.label?.trim())return 'give the key a name, or set Position to Hide text for an icon-only key';
+  if((b.states||[]).some(state=>state.label!==undefined&&!String(state.label).trim()))return 'give every state of the toggle key a name';
   return '';
+}
+function stepProblem(a) {
+  const kind=kinds[a.type];if(!kind)return '';  // a type the editor does not know (a plugin's, say) goes as it is: the host checks it
+  return kind.field&&a.type!=='text'&&(a[kind.field]===undefined||String(a[kind.field]).trim()==='')?'fill in '+kind.label.toLowerCase():'';
+}
+function keyProblem(b) {
+  const name=nameProblem(b);if(name)return name;
+  for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {const step=stepProblem(a);if(step)return step;}
+  return '';
+}
+function draftProblems() {
+  const found=[];
+  for(const [name,item] of Object.entries(config.profiles)){
+    for(const [pageName,list] of Object.entries(item.pages))for(const b of list){const problem=keyProblem(b);if(problem)found.push({profile:name,page:pageName,id:b.id,problem});}
+    for(const b of item.pinned||[]){const problem=keyProblem(b);if(problem)found.push({profile:name,page:null,id:b.id,problem});}
+  }
+  return found;
+}
+/* What the PC gets: keys without a name stay out, and so do steps with an empty field. */
+function savable(source) {
+  const sent=clone(source);
+  for(const item of Object.values(sent.profiles)){
+    for(const name of Object.keys(item.pages))item.pages[name]=item.pages[name].filter(b=>!nameProblem(b));
+    if(item.pinned)item.pinned=item.pinned.filter(b=>!nameProblem(b));
+    rewriteActions(profileButtons(item).filter(keyProblem),a=>stepProblem(a)?null:a);  // finished keys go as they are, so a merge sees no change
+  }
+  return sent;
+}
+function renderDraft(problems=draftProblems()) {
+  const link=$('#draft-link');if(!link)return;const first=problems[0];link.hidden=!first;if(!first)return;
+  link.textContent=`Finish key ${first.id}${first.page&&first.page!==page||first.profile!==profile?` on ${first.page||'every page'}`:''}: ${first.problem}${problems.length>1?` (+${problems.length-1} more)`:''}`;
+  link.onclick=()=>{
+    const target=first.page||(first.profile===profile?page:Object.keys(config.profiles[first.profile].pages)[0]);  // a pinned key shows on any page
+    if(first.profile!==profile||target!==page)showPage(first.profile,target);
+    selected=first.id;editState=0;renderAll();$(`[data-slot="${first.id}"]`)?.focus();};
 }
 // Typing in one field becomes a single undo step; a pause or another edit starts a new one.
 let lastEdit={key:null,at:0};
@@ -272,8 +302,9 @@ function remember(key=null) {
 const editKey=(...parts)=>[profile,page,selected,editState,...parts].join('\u0000');
 function changed() {
   dirty=true;version++;clearTimeout(saveTimer);renderGrid();updateHistory();
-  const error=draftError();if(conflicted)setSaveState('Not saved · press Reload','The configuration was changed in another window.');else setSaveState(error?'Draft · '+error:'Saving …',error?'Fill in the field, or undo the change.':'The change is sent automatically to the active page.');
-  if(!error&&!conflicted)saveTimer=setTimeout(()=>save().catch(showError),650);
+  const problems=draftProblems();renderDraft(problems);
+  if(conflicted)setSaveState('Not saved · press Reload','The configuration was changed in another window.');else setSaveState('Saving …',problems.length?'A key with a yellow dot is not finished: the panel gets it without the unfinished part.':'The change is sent automatically to the active page.');
+  if(!conflicted)saveTimer=setTimeout(()=>save().catch(showError),650);
 }
 function mutate(fn,refresh=true,key=null) {remember(key);fn();changed();if(refresh)renderInspector();}
 function showError(error) {toast(error.message);if(error.status===409){conflicted=true;$('#reload').hidden=false;renderStatusBar();}}
@@ -295,14 +326,16 @@ async function save() {
   clearTimeout(saveTimer);
   if(saveInFlight){await saveInFlight;if(dirty)return save();return;}
   if(!dirty) return;
-  const invalid=draftError();if(invalid)throw new Error(invalid);
   if(conflicted)throw new Error('Reload the configuration to resolve the conflict.');
   saving=true;const sentVersion=version;
   try {
-    const sent=clone(config);saveInFlight=api('config',{config:sent,revision});
+    const sent=savable(config);saveInFlight=api('config',{config:sent,revision});
     const result=await saveInFlight;revision=result.revision;savedBase=sent;if(configError){configError='';renderStatusBar();}  // the file is whole again
     if(version===sentVersion){dirty=false;const same=dashboard.device?.profile===profile&&dashboard.device?.page===page;
-      setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Turn on Show on panel to show this page.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
+      const onPanel=same&&dashboard.device?.connected;
+      setSaveState(onPanel?'✓ On the panel':'✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');
+      if(onPanel)setTimeout(()=>{if($('#save-state').textContent==='✓ On the panel')$('#save-state').textContent='✓ Saved on the PC';},2000);
+      renderShowHere();}
   } catch(error){
     if(error.status===409&&savedBase&&await mergeFromDisk().catch(()=>false)){saving=false;saveInFlight=null;return save();}
     setSaveState('Not saved · '+error.message);throw error;
@@ -339,10 +372,17 @@ function moveKey(id,delta) {
   const wide=visibleButtons().find(b=>b.id!==id&&b.id<target&&target<b.id+(b.span||1));if(wide)target=wide.id;
   moveSlot(id,target);$(`[data-slot="${selected}"]`)?.focus();
 }
-function renderAll() {ensureSelection();options($('#profile'),Object.keys(config.profiles),profile);renderPages();renderGrid();renderInspector();updateHistory();renderStatus();}
+function renderAll() {ensureSelection();options($('#profile'),Object.keys(config.profiles),profile);renderPages();renderGrid();renderInspector();updateHistory();renderStatus();renderDraft();}
+// Each page remembers its selected key, so going back to a page picks up where you left it.
+const selectedOnPage=new Map();
+function showPage(nextProfile,nextPage) {
+  selectedOnPage.set(profile+'\u0000'+page,selected);
+  profile=nextProfile;page=nextPage;selected=selectedOnPage.get(profile+'\u0000'+page)||1;editState=0;
+}
 function renderPages() {
   $('#page-list').replaceChildren(...Object.keys(config.profiles[profile].pages).map(name=>{
-    const item=button(name,()=>{page=name;selected=1;editState=0;renderAll();syncPanel();},'page-chip'+(page===name?' active':''));
+    const item=button(name,()=>{showPage(profile,name);renderAll();syncPanel();},'page-chip'+(page===name?' active':''));
+    item.dataset.page=name;  // a key dragged here moves to that page
     item.setAttribute('aria-current',page===name?'page':'false');return item;
   }));
   rovingTabs('#page-list',false);
@@ -429,6 +469,8 @@ function renderGrid() {
       if(b.span>1&&b.live)tile.append(text('span',b.live==='media'?'♪ shows the music that plays':b.live.startsWith('timer:')?'◔ shows timer '+b.live.slice(6):'▣ '+(WIDGETS.find(w=>w.kind===b.live)?.name||b.live)+' widget','key-live'));
     }
     if(base&&config.profiles[profile].pinned?.includes(base))tile.append(text('span','◆','pin-badge'));
+    const problem=base&&keyProblem(base);
+    if(problem){tile.append(element('span',{class:'draft-dot','aria-hidden':'true'}));tile.title='Not finished: '+problem;tile.setAttribute('aria-label',`${tile.getAttribute('aria-label')}. Not finished: ${problem}`);}
     tile.addEventListener('dragover',event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();});
     tile.addEventListener('drop',event=>{if(event.dataTransfer.files.length){event.preventDefault();chooseImage(event.dataTransfer.files[0],id).catch(showError);}});
     tile.addEventListener('dragstart',event=>{if(!b)return event.preventDefault();event.dataTransfer.setData('application/x-deck-slot',String(id));event.dataTransfer.effectAllowed='move';});
@@ -487,9 +529,27 @@ async function syncPanel() {
 }
 let lastDevicePath='';
 function followDevice() {
+  renderShowHere();  // runs on every status poll, like this check
   const d=dashboard.device;if(!$('#sync').checked||!d?.connected||!d.profile||document.querySelector('dialog[open]'))return;
   const path=d.profile+'|'+d.page;if(path===lastDevicePath)return;lastDevicePath=path;
-  if(config.profiles[d.profile]?.pages?.[d.page]&&(d.profile!==profile||d.page!==page)){profile=d.profile;page=d.page;selected=1;editState=0;renderAll();}
+  if(config.profiles[d.profile]?.pages?.[d.page]&&(d.profile!==profile||d.page!==page)){showPage(d.profile,d.page);renderAll();}
+}
+/* The button in the sync line: shown while the panel is on another page than the one being edited. */
+function renderShowHere() {
+  const d=dashboard.device,show=$('#show-here');if(!show)return;
+  show.hidden=!(dashboard.running&&d?.connected&&d.profile&&(d.profile!==profile||d.page!==page));
+  show.onclick=()=>api('command/activate',{profile,page}).then(()=>pollStatus()).catch(showError);
+}
+function moveToPage(id,name) {
+  if(name===page)return;
+  const p=config.profiles[profile],b=buttons().find(v=>v.id===id);
+  if(!b)return toast('A pinned key is on every page already.');
+  const span=b.span||1,there=[...p.pages[name],...(p.pinned||[])];
+  const free=slot=>slot+span-1<=18&&Math.floor((slot-1)/6)===Math.floor((slot+span-2)/6)&&!there.some(v=>overlaps(v,slot,span));
+  const slot=[id,...Array.from({length:18},(_,i)=>i+1)].find(free);
+  if(!slot)return toast(`Page “${name}” has no free slot for this key.`);
+  mutate(()=>{buttons().splice(buttons().indexOf(b),1);b.id=slot;p.pages[name].push(b);});
+  toast(`Moved key ${id} to page “${name}”, slot ${slot}.`,true);
 }
 function actionTemplate(key) {
   if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',actions:clone(pack.actions)};}
@@ -499,15 +559,27 @@ function actionTemplate(key) {
     profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',clipboard:'',window:'minimize',toggle:'mode'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
     ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
-  const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':k.name;
+  // The long list names do not fit on a key (24 bytes).
+  const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':key==='folder'?'Folder':key==='page'?'Go to page':k.name;
   return {label,icon:k.icon,actions:[action]};
 }
-function addAction(key,id=selected) {
+/* A click in the action list (no id) always makes a new key: on the selected slot when it is empty, else on the first
+   free slot. A drop on a key, or Add action in the inspector, passes the slot and adds a step to the key there. */
+function addAction(key,id=null) {
+  const fresh=id===null;
+  if(fresh){
+    const span=key.startsWith('widget:')?WIDGETS.find(w=>w.kind===key.slice(7))?.span||2:1;
+    id=[selected,...Array.from({length:18},(_,i)=>i+1)].find(slot=>spanFits(slot,span));
+    if(!id)return toast('This page has no free slot. Drop the action on a key to add it as a step.');
+  }
   if(key.startsWith('widget:'))return addWidget(key.slice(7),id);
   const item=actionTemplate(key);if(!item)return;
-  inspectorTab='actions';
+  const made=!visibleButtons().some(b=>b.id===id);
+  inspectorTab=made?'look':'actions';
   mutate(()=>{selected=id;syncEditList();let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
-  toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust its settings under the keys.');
+  if(made){const title=$('#inspector .prop-row-title input');title?.focus();title?.select();}  // name the new key first
+  if(key==='folder')return newPage(true,activeActions().length-1,appearance().label);  // a folder needs its page: make it now
+  toast(made?`Added to key ${id}. Drop on a key to add a step.`:'Action added. Steps run from top to bottom.');
 }
 
 /* The steps of a key as one readable line: "1 Open program: chrome.exe → 2 Hotkey: ctrl+t". */

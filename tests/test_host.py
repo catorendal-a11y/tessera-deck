@@ -164,6 +164,15 @@ class HostTests(HostCase):
         with self.assertRaises(ValueError):
             deck.validate_config(config)
 
+    def test_only_an_icon_only_key_may_go_without_a_name(self):
+        config = deck.Daemon.load_profiles(ROOT / 'host/profiles.default.json')
+        button = config['profiles']['main']['pages']['main'][0]
+        button['label'] = ''
+        with self.assertRaisesRegex(ValueError, 'name'):
+            deck.validate_config(config)
+        button['title'] = {'position': 'hidden'}
+        deck.validate_config(config)
+
     def test_empty_pages_are_valid(self):
         config = deck.Daemon.load_profiles(ROOT / 'host/profiles.default.json')
         config['profiles']['main']['pages']['empty'] = []

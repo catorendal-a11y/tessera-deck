@@ -254,7 +254,9 @@ def _check_wide(button):
 
 
 def _check_button(button, pages, profiles):
-    if not isinstance(button.get('label'), str) or not button['label'].strip():
+    # A key with hidden text is icon only and may go without a name.
+    icon_only = isinstance(button.get('title'), dict) and button['title'].get('position') == 'hidden'
+    if not isinstance(button.get('label'), str) or not (button['label'].strip() or icon_only):
         raise ValueError('The button needs a name')
     if not isinstance(button.get('icon', 'ok'), str) or len(button.get('icon', 'ok')) > 100:
         raise ValueError('Invalid button icon')
