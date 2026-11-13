@@ -13,8 +13,7 @@ body:
     id: version
     attributes:
       label: Tessera version
-      description: The editor's status line shows the firmware version; the host version is in the VERSION file.
-      placeholder: "0.6.2"
+      description: The editor's status line shows the firmware version; the host version is in the VERSION file. Write both if they differ.
     validations:
       required: true
   - type: dropdown
@@ -35,8 +34,17 @@ body:
       label: Board
       description: Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). Say so if yours is different.
       placeholder: GUITION JC1060P470C
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Press Win+R, type winver and press Enter. For example "Windows 11 24H2".
+    validations:
+      required: true
   - type: textarea
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: In the editor, open ⋯ → Export diagnostics and attach the file. It leaves out the contents of your keys and redacts secrets. The host log (⋯ → Host log …) also helps.
+      description: In the editor, open **More → Save diagnostics** (or run `Tessera.cmd --diagnostics`) and attach the file it makes. It leaves out the contents of your keys and redacts secrets. If the editor does not open, say so here.
+    validations:
+      required: true

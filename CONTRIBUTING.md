@@ -15,12 +15,23 @@ You need Windows 10 or 11 and Python 3.11 or newer. `Tessera.cmd --setup` create
 
 ## Checks to run
 
+CI runs these on every pull request and every push to main; the versions are pinned there (`.github/workflows/ci.yml`):
+
 ```powershell
-host\.venv\Scripts\python.exe -m unittest discover -s tests -p test_*.py
+host\.venv\Scripts\python.exe -m pip install ruff==0.17.2 coverage==7.17.0
+host\.venv\Scripts\python.exe -m ruff check host tests tools plugins --select E9,F,B --exclude host/.venv
+host\.venv\Scripts\python.exe -m coverage run --source=host --omit="host/.venv/*,host/tessera_terminal.py" -m unittest discover -s tests -v
+host\.venv\Scripts\python.exe -m coverage report --fail-under=73
 host\.venv\Scripts\python.exe host\tessera_terminal.py --check
 ```
 
-If you changed the panel's UI or its model, also build and run the native test:
+If you changed the editor, `node --check host/editor/core.js host/editor/app.js host/editor/dialogs.js` catches a
+syntax error before the tests load the page.
+
+**UI changes without a board.** The panel's LVGL UI and its model build natively from `tests/native` and draw every
+screen to PNG files, so you can check a change to `main/ui/ui.cpp` or `main/deck_model.c` without hardware. The
+build needs the LVGL sources in `managed_components/`, which are not in git: run `idf.py reconfigure` once (or link
+the folder from a checkout where ESP-IDF already fetched it), then:
 
 ```powershell
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -28,7 +39,17 @@ cmake --build build/native
 build\native\test_ui.exe build\previews
 ```
 
-CI runs the same checks, a lint and the firmware build on every pull request and every push to main.
+CI also builds the firmware and runs `cppcheck` on it.
+
+**Dependencies.** `host/requirements.txt` names the packages; `host/requirements.lock` pins every package with its
+hashes, and `Tessera.cmd` installs from the lock file with `--require-hashes`. After changing `requirements.txt`,
+make the lock file again with Python 3.12 (the version `Tessera.cmd` installs):
+
+```powershell
+py -3.12 -m venv build\piptools
+build\piptools\Scripts\python.exe -m pip install pip-tools
+cd host; ..\build\piptools\Scripts\pip-compile --generate-hashes --strip-extras --no-emit-index-url -o requirements.lock requirements.txt
+```
 
 ## What makes a pull request easy to merge
 

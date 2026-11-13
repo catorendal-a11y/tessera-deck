@@ -1,7 +1,8 @@
 """First-run setup, dependency sync, shortcut, diagnostics and uninstall for the Windows program.
 
 Run through Tessera.cmd (`--setup`, `--uninstall`, `--diagnostics`); it is also called on every start to keep the
-virtual environment in step with host/requirements.txt without re-installing when nothing changed.
+virtual environment in step with host/requirements.txt (or its hashed lock file, host/requirements.lock, when
+there is one) without re-installing when nothing changed.
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from typing import Callable
 ROOT = Path(__file__).resolve().parents[1]
 HASH_FILE = ROOT / 'host/.venv/requirements.sha256'
 REQUIREMENTS = ROOT / 'host/requirements.txt'
+LOCK = ROOT / 'host/requirements.lock'
 MODULE_PROBE = 'import serial, psutil, PIL, webview, win32pdh, pystray, comtypes, esptool'
 MINIMUM_PYTHON = (3, 11)
 USER_DATA = ('host/profiles.json', 'host/assets', 'host/backups', 'host/state.local.json', 'host/editor.local.json',
@@ -41,22 +43,32 @@ def imports_work(python: str = sys.executable) -> bool:
     return subprocess.run([python, '-c', MODULE_PROBE], capture_output=True).returncode == 0
 
 
+def install_command(python: str, requirements: Path) -> tuple[list[str], Path]:
+    """The pip command and the file it installs: the lock file with its hashes when it sits next to requirements."""
+    lock = requirements.with_suffix('.lock')
+    base = [python, '-m', 'pip', 'install', '-q', '--disable-pip-version-check']
+    if lock.is_file():  # every download must match a pinned hash, so a tampered package is refused
+        return base + ['--require-hashes', '-r', str(lock)], lock
+    return base + ['-r', str(requirements)], requirements
+
+
 def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_work,
            install: Callable[[list[str]], int] | None = None, hash_file: Path = HASH_FILE,
            requirements: Path = REQUIREMENTS, emit: Callable[[str], None] = print) -> bool:
-    """Install host/requirements.txt when needed. Returns False (with a plain explanation) when that fails."""
+    """Install the host dependencies when needed. Returns False (with a plain explanation) when that fails."""
     if sys.version_info < MINIMUM_PYTHON:
         emit(f'Tessera needs Python {MINIMUM_PYTHON[0]}.{MINIMUM_PYTHON[1]} or newer; this is {sys.version.split()[0]}.'
              ' Install a newer Python, delete the folder host\\.venv and start Tessera again.')
         return False
-    current = requirements_hash(requirements)
+    command, source = install_command(python, requirements)
+    current = requirements_hash(source)
     stored = hash_file.read_text(encoding='utf-8').strip() if hash_file.is_file() else None
     reason = needs_install(stored, current, probe(python))
     if reason is None:
         return True
     emit(f'Installing the Windows host dependencies ({reason}) ...')
     run = install or (lambda command: subprocess.run(command).returncode)
-    if run([python, '-m', 'pip', 'install', '-q', '--disable-pip-version-check', '-r', str(requirements)]) != 0:
+    if run(command) != 0:
         emit('The dependencies could not be installed. Check your internet connection and try again; '
              'the error above says which package failed.')
         return False

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Install: `Tessera.cmd` installs the host packages from `host/requirements.lock`, where every package is pinned with its SHA-256 hash (`--require-hashes`), and says clearly when Python is missing or older than 3.11.
+- Releases: the notes are the matching `CHANGELOG.md` section, the host tests run before publishing, and the zips carry a build attestation (`gh attestation verify`). [Install](docs/INSTALL.md) explains the SmartScreen warning and how to check a download against `SHA256SUMS`.
+- Desk console and dock: a print table (orientation, layer height, supports, infill, walls, screws) in `hardware/README.md`, and the console in the README.
+- Bug reports ask for the Windows version and the *Save diagnostics* file; blank issues are off. Dependabot proposes weekly grouped updates for GitHub Actions and the host packages.
 - Docs: new panel and editor images, and a longer demo animation (17 scenes: folders, window and meeting keys, pages that follow the app, the idle clock and the editor). In the editor a long widget description no longer runs past the settings panel.
 - Long runs: the panel tells the host which screen shows, so the sound mixer is read every second only on its screen (otherwise every 5 s). Plugin folders are read again only when they change, the AI session history is walked every 10 s instead of 2 s, an unchanged status file is not rewritten, and the host log is kept under 5 MB while the host runs.
 - Performance: images reach the panel about 4 times faster, and the panel reads USB in 2 KB blocks instead of locking per byte. Hidden screens, a dark screen and the clock no longer redraw or animate keys. The host stops refreshing keys under a dark screen, skips nvidia-smi when a sensor tool has the GPU, and caches the program list. The editor stops polling in a hidden tab and redraws the rail only when it changes.

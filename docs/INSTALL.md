@@ -25,7 +25,20 @@
 
 ### 1. Start Tessera
 
-Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. If Windows warns about a downloaded file, choose *More info* and *Run anyway*. The first start installs Python for your user with winget if it is missing, sets up the rest and puts a shortcut on the Desktop.
+Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. If Windows warns about a downloaded file, choose *More info* and *Run anyway* (see below). The first start installs Python 3.12 for your user with winget if there is no Python 3.11 or newer, installs the packages from `host/requirements.lock` (each one must match its pinned SHA-256 hash), and puts a shortcut on the Desktop.
+
+**Why Windows warns.** SmartScreen warns about files from the internet that are not signed with a paid
+code-signing certificate and that few people have downloaded yet. Tessera is not signed (a signed installer is on
+the [roadmap](ROADMAP.md)), so the warning says nothing about the file itself. To check that your download is the
+one the release workflow built, compare its SHA-256 with the line for it in `SHA256SUMS` from the same release:
+
+```powershell
+Get-FileHash .\tessera-host-v0.6.3.zip -Algorithm SHA256
+Get-Content .\SHA256SUMS
+```
+
+The two hashes must be the same (`Get-FileHash` prints capitals, `SHA256SUMS` small letters; that does not matter).
+With the GitHub CLI you can also check where the zip was built: `gh attestation verify tessera-host-v0.6.3.zip --repo catorendal-a11y/tessera-deck`.
 
 ```powershell
 Tessera.cmd            # everything: tray icon, USB host and the editor window
@@ -39,7 +52,7 @@ Optional entry points: `Tessera.cmd --terminal` (terminal UI), `--tray` (tray an
 (editor window only). `--setup` installs the dependencies and puts a shortcut on the Desktop, `--uninstall`
 removes the autostart entry and the shortcut (add `--purge` to delete your profiles, icons and backups too) and
 `--diagnostics` writes a support bundle with versions, counts and a cleaned log tail, and no button contents.
-Dependencies are installed again only when `host/requirements.txt` changes.
+Dependencies are installed again only when `host/requirements.lock` (or, without it, `host/requirements.txt`) changes.
 
 The default port is `COM4`; set `TESSERA_PORT` to change it. After the first successful connection Tessera
 remembers the board's USB serial number and follows it if Windows renumbers the port.

@@ -57,6 +57,28 @@ class EnsureTests(unittest.TestCase):
         self.assertIn('missing', setup_tool.needs_install('a', 'a', False))
         self.assertIn('changed', setup_tool.needs_install(None, 'a', True))
 
+    def test_a_lock_file_is_installed_with_its_hashes_and_its_changes_count(self):
+        lock = self.requirements.with_suffix('.lock')
+        lock.write_text('pyserial==3.5 --hash=sha256:aa\n')
+        self.assertTrue(self.ensure(works=False))
+        self.assertIn('--require-hashes', self.installs[0])
+        self.assertEqual(self.installs[0][-1], str(lock))
+        lock.write_text('pyserial==3.5 --hash=sha256:bb\n')
+        self.assertTrue(self.ensure())
+        self.assertEqual(len(self.installs), 2, 'a new lock file is installed again')
+
+    def test_the_real_lock_file_pins_every_requirement(self):
+        import re
+        names = lambda text: {re.split(r'[<>=!;\s\[]', line, maxsplit=1)[0].lower().replace('_', '-').replace('.', '-')
+                              for line in text.splitlines() if line and line[0].isalpha()}
+        self.assertTrue(setup_tool.LOCK.is_file())
+        required = names(setup_tool.REQUIREMENTS.read_text(encoding='utf-8'))
+        locked = names(setup_tool.LOCK.read_text(encoding='utf-8'))
+        self.assertLessEqual(required, locked, 'run pip-compile --generate-hashes again (see CONTRIBUTING.md)')
+        lock_text = setup_tool.LOCK.read_text(encoding='utf-8').lower()
+        for pin in re.findall(r'^([\w.-]+==[\w.!]+)\s*$', setup_tool.REQUIREMENTS.read_text(encoding='utf-8'), re.M):
+            self.assertIn(pin.lower() + ' ', lock_text, f'{pin} changed: run pip-compile again (see CONTRIBUTING.md)')
+
     def test_the_real_requirements_file_has_a_stable_hash(self):
         self.assertEqual(setup_tool.requirements_hash(), setup_tool.requirements_hash())
         self.assertEqual(len(setup_tool.requirements_hash()), 64)

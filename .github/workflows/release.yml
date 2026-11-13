@@ -18,6 +18,11 @@ jobs:
         shell: bash
         run: |
           test "v$(tr -d '\r\n' < VERSION)" = "${GITHUB_REF_NAME}" || { echo "Tag ${GITHUB_REF_NAME} does not match VERSION"; exit 1; }
+      - name: Check CHANGELOG.md has a section for VERSION
+        shell: bash
+        run: |
+          heading="## $(tr -d '\r\n' < VERSION)"
+          tr -d '\r' < CHANGELOG.md | grep -qxF "${heading}" || { echo "CHANGELOG.md has no '${heading}' heading: rename '## Unreleased'"; exit 1; }
       - name: Build firmware
         shell: bash
         run: |
@@ -44,20 +49,46 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  # The host tests on the Windows runner, from the hashed lock file the release zip installs from.
+  host-tests:
+    name: Host tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install the host dependencies from the lock file
+        run: python -m pip install --require-hashes -r host/requirements.lock
+      - name: Unit, editor, protocol and reliability tests
+        run: python -m unittest discover -s tests
+
   # A job of its own on the plain runner, where gh is already installed. Installing it with apt inside the ESP-IDF
   # container failed the 0.6.1 release twice when the Ubuntu archive could not be reached.
   publish:
     name: Publish the release
-    needs: release
+    needs: [release, host-tests]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write      # signs the build provenance
+      attestations: write
     steps:
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v7
         with:
           name: dist
           path: dist
+      - name: Release notes from CHANGELOG.md
+        run: |
+          version="$(tr -d '\r\n' < VERSION)"
+          awk -v heading="## ${version}" '{sub(/\r$/, "")} $0 == heading {found = 1; next} found && /^## / {exit} found' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
+          grep -q . "${RUNNER_TEMP}/notes.md" || { echo "The CHANGELOG.md section for ${version} is empty"; exit 1; }
+      # Lets anyone check a download came from this workflow: gh attestation verify <file> --repo <owner>/tessera-deck
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*.zip
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "Tessera ${GITHUB_REF_NAME}" --generate-notes
+        run: gh release create "${GITHUB_REF_NAME}" dist/* --repo "${GITHUB_REPOSITORY}" --title "Tessera ${GITHUB_REF_NAME}" --notes-file "${RUNNER_TEMP}/notes.md"

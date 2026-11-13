@@ -40,6 +40,25 @@ jobs:
       - name: Dependency audit
         run: python -m pip_audit -r host/requirements.txt
 
+  host-lock:
+    name: "Windows host from the lock file (Python ${{ matrix.python }}, clean venv)"
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.14']  # oldest supported and newest: the lock must install on both
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install host/requirements.lock with its hashes, as Tessera.cmd does
+        run: |
+          python -m venv "$env:RUNNER_TEMP/venv"
+          & "$env:RUNNER_TEMP/venv/Scripts/python.exe" -m pip install --require-hashes -r host/requirements.lock
+      - name: Unit, editor, protocol and reliability tests
+        run: '& "$env:RUNNER_TEMP/venv/Scripts/python.exe" -m unittest discover -s tests'
+
   firmware-analysis:
     name: Firmware static analysis (cppcheck)
     runs-on: ubuntu-latest  # not the ESP-IDF container: apt inside it could not reach the Ubuntu archive

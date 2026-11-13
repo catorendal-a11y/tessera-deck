@@ -26,6 +26,16 @@ Tessera is refused with a clear message instead of being damaged.
    the host sources with the firmware package inside and publishes `tessera-firmware-<version>.zip`, `tessera-host-<tag>.zip` and `SHA256SUMS`. It
    refuses a tag that does not match `VERSION`.
 
+### Release notes, tests and provenance
+
+- **Notes:** rename `## Unreleased` in `CHANGELOG.md` to `## <version>` (for example `## 0.6.3`) before tagging.
+  The workflow stops if that heading is missing, and the release notes are that section, word for word.
+- **Tests:** a Windows job installs `host/requirements.lock` with `--require-hashes` and runs the host tests; the
+  release is published only when they and the firmware build pass.
+- **Provenance:** the zips get a signed build attestation (`actions/attest-build-provenance`), so anyone can check
+  that a download was built by this workflow from this repository:
+  `gh attestation verify tessera-host-v0.6.3.zip --repo catorendal-a11y/tessera-deck`.
+
 A firmware package is a zip with `manifest.json` (board, chip, version, protocol, flash settings and the SHA-256
 of every image) and the images. Build one locally with `python tools/package_firmware.py build/idf6 dist`.
 

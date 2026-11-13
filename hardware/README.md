@@ -67,9 +67,17 @@ anything touches the shell. Measured values from photos are good to about half a
 
 ## Printing
 
-Print it standing, as it stands on the desk, without supports: the front reclines 45° and the back leans 10°. 0.2 mm
-layers and 3 walls; the shell is 2.8 mm thick, so infill hardly matters. Rubber feet under the two long edges keep
-it from sliding when you press a key.
+| | Console (`tessera-enclosure.stl`) | Dock (`tessera-dock.stl`) |
+|---|---|---|
+| Orientation | Standing, as it stands on the desk (open underside on the bed) | Standing on its base frame, as it stands on the desk |
+| Layer height | 0.2 mm | 0.2 mm |
+| Supports | None: the front reclines 45° and the back leans 10° | None expected: it leans back 30° and stands on its floor and ribs; check the slicer's overhang preview |
+| Infill | 15 %; the 2.8 mm shell is nearly solid with 3 walls, so infill hardly matters | 20 %, the base frame keeps it from tipping |
+| Walls | 3 (1.2 mm with a 0.4 mm nozzle) | 3; the side walls and uprights are 3 to 4 mm thick |
+| Screws and parts | 4 × M2 × 6 mm with a washer (thread not confirmed, see above), 4 stick-on rubber feet Ø 10 mm | None: the panel drops in from the top |
+| Material | PLA or PETG, about 180 g if solid | PLA or PETG |
+
+Rubber feet under the two long edges keep the console from sliding when you press a key.
 
 ## Changing it
 

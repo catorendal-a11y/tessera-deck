@@ -1,0 +1,18 @@
+# Weekly, one pull request per ecosystem, so updates arrive together and CI checks them as a set.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+  # Reads host/requirements.txt; after merging, run pip-compile again so host/requirements.lock follows (CONTRIBUTING.md).
+  - package-ecosystem: pip
+    directory: /host
+    schedule:
+      interval: weekly
+    groups:
+      host:
+        patterns: ['*']
