@@ -51,6 +51,14 @@ assert(visible("<  Main")&&visible("Chrome")&&visible("New tab")&&visible("Home"
 char status[256];assert(ui_debug_visible_text(status,sizeof(status))==0);
 assert(strstr(status,"\"screen\":\"deck\"")&&strstr(status,"\"view\":\"keys\"")&&strstr(status,"\"pc\":true"));
 capture(output/"keys.ppm");
+{/* The editor's text size, position and bold reach the panel; a hidden title is not drawn. */
+deck_button_t titled[3]{};int titled_count=0;
+assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Top","icon":"lc:e13d","title":{"size":24,"position":"top","bold":true}},
+ {"id":2,"label":"Middle","title":{"size":20,"position":"middle"}},{"id":3,"label":"Hidden","icon":"lc:e13d","title":{"position":"hidden"}}]})",titled,3,&titled_count));
+assert(titled_count==3&&titled[0].title_position==1&&titled[0].title_bold&&titled[0].title_size==24&&titled[1].title_position==2);
+assert(deck_model_replace_buttons(titled,titled_count));updates();
+assert(visible("Top")&&visible("Middle")&&!visible("Hidden"));capture(output/"titles.ppm");
+assert(deck_model_replace_buttons(parsed,count));updates();}
 {/* A tap lands on the key in that slot: id 4 is the fourth tile of the first row, id 1 the first. */
 int before=deck_model_last_event_id();tap(629,150);deck_event_t event{};
 assert(deck_model_events_since(before,&event,1)==1&&event.button_id==4&&!event.hold&&!strcmp(event.label,"New tab"));

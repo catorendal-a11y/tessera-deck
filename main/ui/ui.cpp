@@ -160,6 +160,15 @@ void wake_touch(lv_event_t *event) {
 }
 /* The deck: six by three keys, each in the slot its id names, so the panel shows what the editor shows. */
 size_t image_count=0;bool image_missing=false;  /* a key waits for an image the host has not sent yet */
+/* The editor's Text size and Bold. There is no bold 16 px font, so bold at 16 uses bold 20. */
+const lv_font_t *title_font(const deck_button_t& value) {
+    switch(value.title_size) {
+      case 20:return value.title_bold?&fq_font_dejavu_bold_20:&fq_font_dejavu_20;
+      case 24:return value.title_bold?&fq_font_dejavu_bold_24:&fq_font_dejavu_24;
+      case 28:return value.title_bold?&fq_font_dejavu_bold_28:&fq_font_dejavu_28;
+      default:return value.title_bold?&fq_font_dejavu_bold_20:&fq_font_dejavu_16;
+    }
+}
 void build_keys() {
     image_missing=false;deck_image_cache_stats(nullptr,&image_count);
     memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));memset(value_label,0,sizeof(value_label));
@@ -184,7 +193,8 @@ void build_keys() {
         flat(tile,base_bg[slot]);lv_obj_set_style_radius(tile,20,0);
         if(value.style&DECK_STYLE_BORDER){lv_obj_set_style_border_width(tile,2,0);lv_obj_set_style_border_color(tile,lv_color_hex(value.border),0);}
         lv_obj_set_style_bg_color(tile,lv_color_hex(PressedBg),LV_STATE_PRESSED);
-        const int cx=cells>1?58:KeyW/2,cy=cells>1?KeyH/2-12:60;
+        const bool title_top=cells==1&&value.title_position==1;  /* the icon moves down to make room for the title */
+        const int cx=cells>1?58:KeyW/2,cy=cells>1?KeyH/2-12:title_top?KeyH-60:60;
         auto image=deck_image_get(value.icon);
         if(!image&&!strncmp(value.icon,"im:",3))image_missing=true;
         if(cells>1&&value.ring&&value.has_progress){
@@ -202,7 +212,7 @@ void build_keys() {
             lv_obj_set_pos(target.widget,cx-image->width/2,cy-image->height/2);lv_obj_set_clickable(target.widget,false);
             image_frame(target);
         } else if(!(glyph_label[slot]=glyph(tile,value.icon,cx,cy,60,value.color))){
-            auto *symbol=glyph_label[slot]=label(tile,fallback_icon(value.icon),0,34,KeyW,&lv_font_montserrat_48,value.color);
+            auto *symbol=glyph_label[slot]=label(tile,fallback_icon(value.icon),0,cy-26,KeyW,&lv_font_montserrat_48,value.color);
             lv_obj_set_style_text_align(symbol,LV_TEXT_ALIGN_CENTER,0);
         }
         const uint32_t ink=(value.style&DECK_STYLE_TEXT)?value.text:Text;
@@ -217,7 +227,10 @@ void build_keys() {
                 bar_fill[slot]=box(track,0,0,room*value.progress/100,6,3,value.color);
             }
         } else {
-        auto *name=name_label[slot]=label(tile,value.label,4,KeyH-36,KeyW-8,&fq_font_dejavu_16,ink);
+        /* Text size, position and bold from the editor: bottom (the default), top, middle or hidden. */
+        const lv_font_t *font=title_font(value);const int px=lv_font_get_line_height(font);
+        const int y=value.title_position==1?10:value.title_position==2?(KeyH-px)/2:KeyH-px-17;
+        auto *name=name_label[slot]=label(tile,value.label,4,y,KeyW-8,font,ink);
         lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(name,value.title_position==3);
         }
         /* Small marks in the corner say what else a key does: a ring for a long press, two dots for a double tap. */
@@ -616,7 +629,6 @@ void update(lv_timer_t*) {
 }
 }
 
-extern "C" void ui_show_destination(int) {if(screen){deck_model_set_screen(DECK_SCREEN_DECK);lv_screen_load(screen);}}
 extern "C" void ui_init(void) {
     screen=lv_obj_create(nullptr);flat(screen,Bg);
     for(int i=0;i<ViewCount;++i)views[i]=clear_box(screen,Rail,0,W-Rail,H);

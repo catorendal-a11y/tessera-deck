@@ -3,13 +3,13 @@ import json
 from pathlib import Path
 import sys
 import tempfile
-import types
 import unittest
 from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+import host_support  # noqa: E402
 from live_state import LiveState, clock_text
 
 
@@ -168,8 +168,7 @@ class PersistenceTests(StateCase):
 
 class DaemonTests(StateCase):
     def daemon(self):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.live = self.state
         return daemon

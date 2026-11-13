@@ -3,21 +3,20 @@ from pathlib import Path
 import sys
 import threading
 import time
-import types
 import unittest
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+import host_support  # noqa: E402
 import win_input
 from action_runner import Busy, CommandFailed, run_command
 from host_runtime import SuspendableRLock
 
 
 def make_daemon():
-    daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                               verbose=False, no_focus=True, deck_only=True))
+    daemon = host_support.test_daemon(port='TEST', no_focus=True)
     daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
     return daemon
 

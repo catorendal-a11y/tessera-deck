@@ -2,13 +2,13 @@
 import json
 from pathlib import Path
 import sys
-import types
 import unittest
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+import host_support  # noqa: E402
 
 
 def chrome():
@@ -53,8 +53,7 @@ class ChromeProfileTests(unittest.TestCase):
             self.assertIn(wanted, combos)
 
     def test_chrome_in_front_switches_to_the_screen_and_back(self):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=False, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=False)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         shown = {'exe': 'chrome.exe', 'title': 'new tab - google chrome', 'processes': ['chrome.exe']}
         with patch.object(deck, 'foreground_context', return_value=shown):

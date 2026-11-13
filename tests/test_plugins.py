@@ -6,7 +6,6 @@ import sys
 import tempfile
 import threading
 import time
-import types
 import unittest
 from unittest.mock import Mock, patch
 
@@ -15,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 import deckctl
 import plugins
 import tesserad as deck
+import host_support  # noqa: E402
 from control_api import ControlServer
 
 
@@ -302,8 +302,7 @@ class ManagerTests(unittest.TestCase):
 
 class DaemonTests(unittest.TestCase):
     def daemon(self):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         return daemon
 

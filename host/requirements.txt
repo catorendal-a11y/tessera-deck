@@ -4,10 +4,10 @@ textual==8.2.8
 esptool==5.4.0
 Pillow>=13,<14
 pywebview>=6.1,<7
-pywin32>=311; sys_platform == "win32"
-pystray>=0.19.5
-pycaw>=20240210; sys_platform == "win32"
-winrt-runtime>=3.2; sys_platform == "win32"
-winrt-Windows.Media.Control>=3.2; sys_platform == "win32"
-winrt-Windows.Foundation>=3.2; sys_platform == "win32"
-winrt-Windows.Foundation.Collections>=3.2; sys_platform == "win32"
+pywin32>=311,<313; sys_platform == "win32"
+pystray>=0.19.5,<0.20
+pycaw>=20240210,<20270101; sys_platform == "win32"
+winrt-runtime>=3.2,<5; sys_platform == "win32"
+winrt-Windows.Media.Control>=3.2,<5!0; sys_platform == "win32"
+winrt-Windows.Foundation>=3.2,<5!0; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=3.2,<5!0; sys_platform == "win32"

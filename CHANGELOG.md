@@ -24,6 +24,11 @@
 - Panel (new firmware): long titles end in dots instead of running into the line below; the fader knob stays inside its track; a fader you touched follows the PC again afterwards (also after 25 days of uptime); picture keys appear once the images arrive after a panel restart; the corner marks sit in the corner of a wide key; without the PC the agents and status screens say *PC not connected* and Allow and Deny do nothing; a full settings partition is reset instead of disabling stored settings.
 - Host: the reason a host could not start reaches the editor; start with Windows and the file picker work with æ, ø or å in the path; the tray shows why the panel is not connected and follows brightness and profile changes; the editor's token file is private to your account; a damaged firmware zip no longer breaks the firmware list, which is sorted by version; a timer restarted without seconds keeps its notice and actions; a key that presses a slow key runs on the slow lane; a dropped press flashes red at once; the log gets one line per page instead of one per refresh; validation errors name the page and the key; widget titles fit a two-slot key.
 - Docs: actions, bind values, automatic triggers, Connect Claude Code, gauges and *NO PC* described as they are.
+- Panel (new firmware): a key's text size, position (top, middle, bottom or hidden) and bold from the editor now show on the panel; with the title on top the icon moves down.
+- The host sends an image again when the panel has dropped it from its 8 MiB cache, instead of leaving the key without its picture until the cable is reconnected.
+- `Tessera.cmd --sensors` and `--sensors-off` also work when Tessera was unpacked from a downloaded zip (Tessera's own script runs with `-ExecutionPolicy Bypass`).
+- Smaller firmware: the unused ArduinoJson library, a 14 px font, old compatibility headers and the calendar code of an earlier project are gone. `AD_TIME` answers `OK` or `INVALID`.
+- Tests no longer write icons or state into `host/`, the host's dependencies have upper version bounds, the CI tools are pinned, a release runs the native UI tests first, and the README panel images show one time.
 
 ## 0.6.1
 

@@ -1,4 +1,5 @@
 """The USB link to the panel: identity handshake, line framing, layout and image transfer."""
+from collections import OrderedDict
 import json
 import threading
 import time
@@ -13,6 +14,7 @@ BOARD_ID = 'tessera-p4'
 # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status)
 SUPPORTED_PROTOCOLS = (1, 2, 3, 4)
 HANDSHAKE_SECONDS = 2.5
+PANEL_CACHE_BYTES = 8 * 1024 * 1024  # decoded images the panel keeps; CacheLimit in main/deck_images.cpp
 OFFLINE_LAYOUT_BYTES = 3800  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
 
 
@@ -45,7 +47,7 @@ class PanelSerial:
         self.cfg_reply = ''
         self.asset_done = threading.Event()
         self.asset_reply = ''
-        self.assets_sent = set()
+        self.assets_sent = OrderedDict()  # name -> decoded bytes on the panel, oldest first
         self.ser = serial.Serial()
         self.ser.port, self.ser.baudrate = port, 115200
         self.ser.timeout, self.ser.write_timeout = 0.1, 2
@@ -137,8 +139,10 @@ class PanelSerial:
         self.send_line(f'AD_FEEDBACK {"ok" if ok else "alert"} {button_id}')
 
     def push_assets(self, buttons, assets):
-        for name in sorted({b.get('icon', '') for b in buttons if b.get('icon', '').startswith('im:')}):
+        shown = sorted({b.get('icon', '') for b in buttons if b.get('icon', '').startswith('im:')})
+        for name in shown:
             if name in self.assets_sent:
+                self.assets_sent.move_to_end(name)
                 continue
             raw = assets.read(name)
             with self.write_lock:
@@ -157,4 +161,11 @@ class PanelSerial:
                     raise TimeoutError('The panel did not acknowledge the image')
                 if self.asset_reply != 'AD_IMG_END OK ' + name:
                     raise ValueError(self.asset_reply)
-                self.assets_sent.add(name)
+                self.assets_sent[name] = raw[4] * raw[5] * 4 * raw[6]  # width x height x RGBA x frames
+            # The panel keeps PANEL_CACHE_BYTES of decoded images and drops the oldest ones no key shows; forget
+            # those here too, so they are sent again when a page needs them.
+            while sum(self.assets_sent.values()) > PANEL_CACHE_BYTES:
+                oldest = next((key for key in self.assets_sent if key not in shown), None)
+                if oldest is None:
+                    break
+                del self.assets_sent[oldest]

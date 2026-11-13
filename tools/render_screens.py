@@ -20,6 +20,21 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck  # noqa: E402
 
+# The panel's clock in the renderer is the fixed 14:32 on Tue 20 Oct 2026 (render_screens.cpp); the clock widget and
+# $(time) on the keys show the same moment, so one image never shows two different times.
+SHOWN_AT = deck.datetime(2026, 10, 20, 14, 32)
+
+
+class _Clock(deck.datetime):
+    @classmethod
+    def now(cls, tz=None):
+        return SHOWN_AT
+
+
+deck.datetime = _Clock
+_strftime = time.strftime
+time.strftime = lambda fmt, moment=None: _strftime(fmt, moment or SHOWN_AT.timetuple())
+
 
 def safe(name: str) -> str:
     return ''.join(c if c.isalnum() else '-' for c in name)

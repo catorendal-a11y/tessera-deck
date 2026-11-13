@@ -91,7 +91,8 @@ red from `critical`; the icon, how far it is filled and the badge appear in the 
 | Libre Hardware Monitor | free download, administrator rights | temperatures, CPU and GPU power, fan speed, clocks |
 | HWiNFO | running with shared memory enabled | sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
-Install the optional sensor source with `tools\setup_sensors.ps1`. It downloads the official release, verifies
+Install the optional sensor source: in the Tessera folder run
+`powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1`. It downloads the official release, verifies
 its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation
 once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
 

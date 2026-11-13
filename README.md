@@ -99,10 +99,10 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 ## Credits and license
 
 Built with [ESP-IDF](https://github.com/espressif/esp-idf), [LVGL](https://lvgl.io), the Espressif board support
-package, [Lucide](https://lucide.dev) icons (ISC), [ArduinoJson](https://arduinojson.org) (MIT) and DejaVu fonts.
+package, [cJSON](https://github.com/DaveGamble/cJSON) (MIT), [Lucide](https://lucide.dev) icons (ISC) and DejaVu fonts.
 Optional sensors come from [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor)
 (MPL-2.0). Tessera is inspired by Stream Deck and [OpenDeck](https://github.com/nekename/OpenDeck) and is not
 affiliated with Elgato or Corsair; Stream Deck is a trademark of its owner.
 
 Tessera is released under the [MIT License](LICENSE). Third-party components keep their own licenses (see
-`vendor/lucide/LICENSE`, `vendor/arduinojson/LICENSE.txt` and the component directories).
+`vendor/lucide/LICENSE` and the component directories).

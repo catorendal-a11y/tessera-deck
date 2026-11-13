@@ -21,7 +21,6 @@ static uint32_t s_context_version = 1;
 static deck_event_t s_events[DECK_EVENT_RING];
 static int s_event_next; /* next write slot */
 static int s_event_last_id;
-static uint32_t s_events_total;
 
 /* Pending key feedback: a small FIFO so two confirmations inside one UI
  * tick (a key that presses another key) both flash. */
@@ -217,7 +216,6 @@ static uint32_t record_event(int button_id, bool hold)
     slot->hold = hold;
     copy_text(slot->label, sizeof(slot->label), button->label);
     slot->timestamp_ms = esp_timer_get_time() / 1000;
-    s_events_total++;
     uint32_t id = (uint32_t)slot->id;
     char label[sizeof(slot->label)];
     memcpy(label, slot->label, sizeof(label));
@@ -258,11 +256,6 @@ int deck_model_last_event_id(void)
     int id = s_event_last_id;
     model_unlock();
     return id;
-}
-
-uint32_t deck_model_events_total(void)
-{
-    return s_events_total;
 }
 
 void deck_model_request_feedback(int button_id, deck_feedback_t kind)

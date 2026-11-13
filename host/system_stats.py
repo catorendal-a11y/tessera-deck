@@ -16,7 +16,8 @@ LHM_EXE = Path(__file__).resolve().parent / 'sensors' / 'LibreHardwareMonitor' /
 HINT_NOT_RUNNING = ('CPU temperature and power need Libre Hardware Monitor, which is installed but not running. '
                     'Run Tessera.cmd --sensors once: it starts at every sign-in after that.')
 HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. '
-                      'Run tools/setup_sensors.ps1, then Tessera.cmd --sensors.')
+                      'In the Tessera folder run powershell -ExecutionPolicy Bypass -File tools\\setup_sensors.ps1, '
+                      'then Tessera.cmd --sensors.')
 
 
 def _text(raw: bytes) -> str:

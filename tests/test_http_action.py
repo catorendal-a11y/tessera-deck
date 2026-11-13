@@ -2,13 +2,13 @@
 import json
 from pathlib import Path
 import sys
-import types
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+import host_support  # noqa: E402
 from substitution import check_web_url
 
 
@@ -41,8 +41,7 @@ class SavedProfileTests(unittest.TestCase):
 
 class RunTimeTests(unittest.TestCase):
     def make_daemon(self):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.stop.clear()
         return daemon

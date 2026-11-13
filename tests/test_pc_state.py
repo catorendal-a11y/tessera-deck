@@ -4,7 +4,6 @@ import importlib.util
 import json
 from pathlib import Path
 import sys
-import types
 import unittest
 from unittest.mock import Mock, patch
 
@@ -12,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import pc_state
 import tesserad as deck
+import host_support  # noqa: E402
 
 
 def audio(volume=40, speaker=False, mic=False):
@@ -106,8 +106,7 @@ class AudioControlTests(unittest.TestCase):
 
 class DaemonBindingTests(unittest.TestCase):
     def daemon(self, audio_reader=None, media_reader=None):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.pc = pc_state.PcState(audio_reader or audio(), media_reader or media())
         daemon.pc.poll()

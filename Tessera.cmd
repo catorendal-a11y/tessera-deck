@@ -34,10 +34,11 @@ start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_tray.py"
 start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_app.py" --editor
 exit /b 0
 :sensors
-powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "tools\enable_sensors.ps1"
+rem Bypass for Tessera's own script only: Windows marks files from a downloaded zip, and RemoteSigned refuses them
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\enable_sensors.ps1"
 exit /b 0
 :sensorsoff
-powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -File "tools\enable_sensors.ps1" -Remove
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "tools\enable_sensors.ps1" -Remove
 exit /b 0
 :tray
 start "" /b "host\.venv\Scripts\pythonw.exe" "host\tessera_tray.py"

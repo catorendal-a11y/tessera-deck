@@ -18,7 +18,7 @@ import tesserad as deck
 from system_stats import select_hwinfo_metrics
 from deck_assets import Assets
 from deck_control import Controller, autostart_enabled, set_autostart
-from host_support import HostCase, args
+from host_support import HostCase, test_daemon
 
 
 class HostRuntimeTests(HostCase):
@@ -26,7 +26,7 @@ class HostRuntimeTests(HostCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'profiles.json'
             path.write_text((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'), encoding='utf-8')
-            daemon = deck.Daemon(args(path))
+            daemon = test_daemon(path)
             daemon.panel = Mock()
             daemon.log = Mock()
             daemon.page = 'status'
@@ -445,7 +445,7 @@ class HostRuntimeTests(HostCase):
             path = Path(directory) / 'profiles.json'
             original = (ROOT / 'host/profiles.default.json').read_text(encoding='utf-8')
             path.write_text(original, encoding='utf-8')
-            daemon = deck.Daemon(args(path))
+            daemon = test_daemon(path)
             daemon.log = Mock()
             accepted = copy.deepcopy(daemon.config)
             path.write_text('{', encoding='utf-8')
@@ -457,7 +457,7 @@ class HostRuntimeTests(HostCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'profiles.json'
             path.write_text((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'), encoding='utf-8')
-            daemon = deck.Daemon(args(path))
+            daemon = test_daemon(path)
             daemon.log = Mock()
             accepted = copy.deepcopy(daemon.config)
             path.unlink()
@@ -566,7 +566,7 @@ class HostRuntimeTests(HostCase):
             config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
             config['triggers'] = [{'when': {'type': 'daily', 'at': '00:00'}, 'actions': [{'type': 'back'}]}]
             path.write_text(json.dumps(config), encoding='utf-8')
-            daemon = deck.Daemon(args(path))
+            daemon = test_daemon(path)
             daemon.log = Mock()
             daemon.trigger_tick(1)
             self.assertEqual(daemon.jobs.get_nowait()[0], 'actions')

@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 import sys
 import time
-import types
 import unittest
 from unittest.mock import Mock
 
@@ -11,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import ambient
 import tesserad as deck
+import host_support  # noqa: E402
 
 
 class FakeReply:
@@ -149,8 +149,7 @@ class WeatherTests(unittest.TestCase):
 
 class DaemonAmbientTests(unittest.TestCase):
     def daemon(self, protocol=3, **ambient_settings):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.device_info = {'protocol': protocol}
         daemon.config['ambient'] = dict({'enabled': True, 'after': 60}, **ambient_settings)

@@ -91,7 +91,6 @@ uint32_t deck_model_record_press(int button_id); /* returns new event id, 0 if u
 uint32_t deck_model_record_hold(int button_id);  /* same, flagged as a long press */
 int deck_model_events_since(int since_id, deck_event_t *out, int max_out);
 int deck_model_last_event_id(void);
-uint32_t deck_model_events_total(void);
 
 /* Key feedback (host confirms success/failure): consumed by the UI timer. */
 typedef enum {

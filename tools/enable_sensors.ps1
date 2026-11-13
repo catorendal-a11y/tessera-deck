@@ -23,7 +23,8 @@ $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $IsAdmin = ([Security.Principal.WindowsPrincipal]$Identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $IsAdmin) {
     Write-Host 'Windows will ask for permission to continue as administrator ...'
-    $Arguments = @('-NoProfile', '-ExecutionPolicy', 'RemoteSigned', '-File', "`"$PSCommandPath`"")
+    # Bypass for this script only, as in Tessera.cmd: a script from a downloaded zip is refused under RemoteSigned
+    $Arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
     if ($Remove) { $Arguments += '-Remove' }
     try { Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $Arguments -Wait }
     catch { Write-Host 'Cancelled. Nothing was changed.'; Start-Sleep -Seconds 3 }

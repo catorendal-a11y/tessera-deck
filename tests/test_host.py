@@ -13,7 +13,7 @@ import tesserad as deck
 import win_input
 from system_stats import select_hwinfo_metrics
 from deck_assets import Assets
-from host_support import HostCase, args
+from host_support import HostCase, test_daemon
 
 
 class HostTests(HostCase):
@@ -205,7 +205,7 @@ class HostTests(HostCase):
             path = Path(directory) / 'profiles.json'
             config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
             path.write_text(json.dumps(config), encoding='utf-8')
-            daemon = deck.Daemon(args(path))
+            daemon = test_daemon(path)
             daemon.log = Mock()
             config['profiles']['main']['pages']['main'][0]['color'] = 5
             path.write_text(json.dumps(config), encoding='utf-8')

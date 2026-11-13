@@ -390,7 +390,7 @@ static void usb_console_task(void *)
             const bool parsed = sscanf(line + 8, "%4d-%2d-%2dT%2d:%2d:%2d", &year, &month, &day,
                                        &hour, &minute, &second) == 6;
             const bool set = parsed && time_service_set_from_host(year, month, day, hour, minute, second);
-            printf("AD_TIME %s\n", !parsed ? "INVALID" : set ? "OK" : "KEPT");
+            printf("AD_TIME %s\n", set ? "OK" : "INVALID");
             fflush(stdout);
         }
         memset(line, 0, sizeof(line));

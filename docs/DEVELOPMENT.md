@@ -43,7 +43,7 @@ plugins/         Plugins (example-uptime is a working reference)
 docs/            Install and user guides, features, protocol, plugin guide, release process, roadmap, SmartDeck comparison, images
 tests/           Unit, editor, native render and hardware smoke tests
 tools/           Packaging, icon refresh, sensor setup, screen rendering and icon font tooling
-vendor/          Lucide icon pack (ISC) and ArduinoJson (MIT)
+vendor/          Lucide icon pack (ISC)
 ```
 
 ## Checks and tools

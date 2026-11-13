@@ -3,13 +3,13 @@ import json
 from pathlib import Path
 import sys
 import tempfile
-import types
 import unittest
 from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+import host_support  # noqa: E402
 
 
 class LayoutSizeTests(unittest.TestCase):
@@ -26,8 +26,7 @@ class LayoutSizeTests(unittest.TestCase):
         self.assertIn(f'LAYOUT_MAX = {deck.OFFLINE_LAYOUT_BYTES};', firmware)
 
     def test_the_runtime_state_carries_the_size_and_the_controller_passes_it_on(self):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.log, daemon.panel = Mock(), Mock()
         with tempfile.TemporaryDirectory() as folder:
             daemon.runtime_path = Path(folder) / 'runtime.json'

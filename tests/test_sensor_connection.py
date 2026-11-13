@@ -3,7 +3,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import sys
 import threading
-import types
 import unittest
 from unittest.mock import Mock, patch
 
@@ -11,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import psutil
 import tesserad as deck
+import host_support  # noqa: E402
 import win_input
 from sensor_sources import LibreHardwareMonitorReader
 
@@ -106,8 +106,7 @@ class ChildNameTests(unittest.TestCase):
 
 class ProfileLockColorTests(unittest.TestCase):
     def color(self, button_key):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.config['profiles'][daemon.profile]['pages'][daemon.page] = [
             {'id': 1, 'label': 'Lock', 'icon': 'ok', 'color': '#35D07F', button_key: [{'type': 'profile_lock'}]}]

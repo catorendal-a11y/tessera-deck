@@ -1,13 +1,13 @@
 """Switching profiles by the program in front: shell surfaces are ignored, the view you left is restored, Store apps match."""
 from pathlib import Path
 import sys
-import types
 import unittest
 from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
+import host_support  # noqa: E402
 from system_stats import select_presentmon_fps
 
 
@@ -62,8 +62,7 @@ class StoreAppTests(unittest.TestCase):
 
 class SwitchingTests(unittest.TestCase):
     def make_daemon(self):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=False, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=False)
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.panel.push_buttons = Mock()
         daemon.config['profiles']['coding']['match'] = ['code.exe']

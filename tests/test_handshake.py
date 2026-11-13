@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import panel_serial
 import tesserad as deck
+import host_support  # noqa: E402
 from host_runtime import candidate_ports
 
 
@@ -101,8 +102,7 @@ class HandshakeTests(unittest.TestCase):
 
 class PortSelectionTests(unittest.TestCase):
     def daemon(self):
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(ROOT / 'host/profiles.default.json'), port='COM4',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='COM4', no_focus=True)
         daemon.log = Mock()
         return daemon
 

@@ -5,6 +5,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 from tesserad import ReconnectBackoff
+import host_support  # noqa: E402
 
 
 class BackoffTests(unittest.TestCase):
@@ -33,12 +34,8 @@ class ClosedPortTests(unittest.TestCase):
     """pyserial raises odd errors when the port is closed under a reading thread; none may escape or hang the host."""
 
     def daemon(self):
-        import types
         from unittest.mock import Mock
-        import tesserad as deck
-        root = Path(__file__).resolve().parents[1]
-        daemon = deck.Daemon(types.SimpleNamespace(profiles=str(root / 'host/profiles.default.json'), port='TEST',
-                                                   verbose=False, no_focus=True, deck_only=True))
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
         daemon.log, daemon.publish_runtime = Mock(), Mock()
         return daemon
 
