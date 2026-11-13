@@ -1,7 +1,9 @@
 """Device identity and protocol handshake with a scripted serial port; no hardware."""
+import hashlib
 import json
 from pathlib import Path
 import sys
+import threading
 import types
 import unittest
 from unittest.mock import Mock, patch
@@ -98,6 +100,70 @@ class HandshakeTests(unittest.TestCase):
             with self.assertRaises(deck.DeviceRejected):
                 panel('COM4', script)
         self.assertTrue(all(port.closed for port in FakeSerial.opened))
+
+
+class RestartTests(unittest.TestCase):
+    def test_a_new_boot_id_is_a_restart_and_crashes_get_a_notice(self):
+        self.assertIsNone(panel_serial.restart_report(None, {'bootId': 7, 'reset': 'panic'}), 'first connect')
+        self.assertIsNone(panel_serial.restart_report(7, {'bootId': 7, 'reset': 'panic'}), 'same boot')
+        self.assertEqual(panel_serial.restart_report(7, {'bootId': 8, 'reset': 'sw'}), ('Panel restarted (sw)', None))
+        self.assertEqual(panel_serial.restart_report(7, {'bootId': 8})[0], 'Panel restarted (unknown)')
+        for reason in ('panic', 'int_wdt', 'task_wdt', 'wdt', 'brownout'):
+            line, notice = panel_serial.restart_report(7, {'bootId': 8, 'reset': reason})
+            self.assertEqual(line, f'Panel restarted ({reason})')
+            self.assertIn('restarted after', notice)
+
+    def test_the_daemon_logs_the_restart_and_adds_a_notice_for_a_crash(self):
+        daemon = host_support.test_daemon(port='COM4', no_focus=True)
+        daemon.log = Mock()
+        daemon.device_info = {'bootId': 8, 'reset': 'task_wdt'}
+        daemon.note_panel_restart(7)
+        daemon.log.assert_called_once_with('Panel restarted (task_wdt)')
+        self.assertEqual(list(daemon.notices)[-1]['title'], 'Tessera panel')
+        daemon.device_info = {'bootId': 9, 'reset': 'poweron'}
+        daemon.note_panel_restart(8)
+        self.assertEqual(len(daemon.notices), 1, 'a normal power-on is only logged')
+
+
+class OtaPanel(FakeSerial):
+    """Acts as the firmware's AD_OTA_* receiver and keeps the image it got."""
+    def write(self, raw):
+        self.written.extend(raw)
+        for line in raw.decode().splitlines():
+            if line.startswith('AD_OTA_BEGIN '):
+                self.size, self.image = int(line.split()[1]), bytearray()
+                self.pending.extend(b'AD_OTA_BEGIN OK\n')
+            elif line.startswith('AD_OTA_DATA '):
+                _, offset, data = line.split(' ', 2)
+                assert int(offset) == len(self.image)
+                self.image.extend(bytes.fromhex(data))
+                if len(self.image) % panel_serial.OTA_WINDOW == 0 or len(self.image) == self.size:
+                    self.pending.extend(f'{{"type":"wake"}}\nAD_OTA_DATA OK {len(self.image)}\n'.encode())
+            elif line == 'AD_OTA_END':
+                self.pending.extend(self.end_reply)
+        return len(raw)
+
+
+class OtaUploadTests(unittest.TestCase):
+    def upload(self, data, end_reply=b'AD_OTA_END OK\n'):
+        link = deck.PanelSerial.__new__(deck.PanelSerial)
+        link.write_lock, link.rx, link.ser = threading.RLock(), bytearray(), OtaPanel()
+        link.ser.end_reply = end_reply
+        percents = []
+        link.ota_upload(data, percents.append)
+        return link.ser, percents
+
+    def test_the_image_arrives_in_order_and_progress_reaches_100(self):
+        data = bytes(range(256)) * 21  # not a whole number of chunks
+        fake, percents = self.upload(data)
+        self.assertEqual(bytes(fake.image), data)
+        self.assertEqual(percents[-1], 100)
+        self.assertIn(b'AD_OTA_BEGIN 5376 ' + hashlib.sha256(data).hexdigest().encode(), fake.written)
+
+    def test_a_refused_image_raises_with_the_panels_answer(self):
+        with self.assertRaises(OSError) as raised:
+            self.upload(b'x' * 100, b'AD_OTA_END FAIL checksum\n')
+        self.assertIn('FAIL checksum', str(raised.exception))
 
 
 class PortSelectionTests(unittest.TestCase):

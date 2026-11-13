@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Firmware updates over USB with rollback: the flash now has two 6 MB app slots, *Application only* goes over the panel's own USB connection and the bootloader goes back to the previous firmware if a new one never reaches the host. The first install of this firmware must use *Everything* (the installer says so).
+- A hung screen or USB loop now restarts the panel by itself (task watchdog on both).
+- The host logs when the panel restarted and why, and shows a notice after a crash, hang or power dip.
+- The panel keeps every layout up to 8 KB for use without the PC (was 3,800 bytes), with the previous one as a backup; a layout over 8 KB gets a clear "too big" answer.
 - Docs: new panel and editor images, and a longer demo animation (17 scenes: folders, window and meeting keys, pages that follow the app, the idle clock and the editor). In the editor a long widget description no longer runs past the settings panel.
 - Long runs: the panel tells the host which screen shows, so the sound mixer is read every second only on its screen (otherwise every 5 s). Plugin folders are read again only when they change, the AI session history is walked every 10 s instead of 2 s, an unchanged status file is not rewritten, and the host log is kept under 5 MB while the host runs.
 - Performance: images reach the panel about 4 times faster, and the panel reads USB in 2 KB blocks instead of locking per byte. Hidden screens, a dark screen and the clock no longer redraw or animate keys. The host stops refreshing keys under a dark screen, skips nvidia-smi when a sensor tool has the GPU, and caches the program list. The editor stops polling in a hidden tab and redraws the rail only when it changes.

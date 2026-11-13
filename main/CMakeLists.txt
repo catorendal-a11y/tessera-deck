@@ -27,6 +27,8 @@ idf_component_register(
         nvs_flash
         mbedtls
         bootloader_support
+        app_update
+        spiffs
         esp_driver_usb_serial_jtag
 )
 
