@@ -47,7 +47,7 @@ The editor is laid out like the panel. The rail on the left switches between the
 
 The action list on the right has four tabs: **Basics** (hotkey, open, text and the other building blocks), **Widgets**, **Ready-made** (Windows, browser, meetings, media) and **Apps** (your installed programs and the app packs). The search looks in all of them. Drag an action to a key, or click it to add it to the selected key.
 
-To delete a page, open **⋯ → Page settings** and tick *Delete this page*. To delete a profile, open **⋯ → Profile settings** and tick *Delete the profile*. Ctrl+Z brings either back.
+To delete a page, open **Page → Page settings** and tick *Delete this page*. To delete a profile, open **Profile → Profile settings** and tick *Delete the profile*. Ctrl+Z brings either back.
 
 ### Wide keys and widgets
 
@@ -128,7 +128,7 @@ python host\deckctl.py status                 # also: wake, dim
 A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`.
 The Claude Code profile uses this on its first key.
 
-**Claude Code.** **⋯ → Connect Claude Code …** in the editor adds these hooks to `~/.claude/settings.json` for you
+**Claude Code.** **More → Connect Claude Code …** in the editor adds these hooks to `~/.claude/settings.json` for you
 (it keeps your other hooks and makes a backup first). To do it by hand, `python host\deckctl.py hooks claude` prints
 the `hooks` block to merge. Every hook runs `deckctl adapter claude`, which reads
 the hook's JSON from stdin and sets `$(var:claude)` (`working`, `waiting`, `idle`, `ended`), `$(var:claude.tool)`,
@@ -156,11 +156,11 @@ the key's `open` action. It is a dry run by default; add `--apply` to write the 
 
 ## The panel's four screens
 
-A rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**. Choose what the last three show under **⋯ → Panel screens …** in the editor (which agents, up to three programs for the mixer and whether the microphone is included, and which readings).
+A rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**. Choose what the last three show under **Panel → Panel screens …** in the editor (which agents, up to three programs for the mixer and whether the microphone is included, and which readings).
 
-The rail itself is yours to arrange: the **+** at the foot of the editor's rail (or **⋯ → Rail …**) turns the agents, mixer and status screens on or off, puts them in order and adds up to three shortcuts that jump straight to a page of any profile. The keys are always on the rail, and it holds seven buttons at most.
+The rail itself is yours to arrange: the **+** at the foot of the editor's rail (or **Panel → Rail …**) turns the agents, mixer and status screens on or off, puts them in order and adds up to three shortcuts that jump straight to a page of any profile. The keys are always on the rail, and it holds seven buttons at most.
 
-To answer Claude Code's permission questions on the panel, open **⋯ → Connect Claude Code …** in the editor: it adds the hooks to `~/.claude/settings.json`, keeps the hooks you already have and makes a backup of the file first. To do it by hand, add the hook that `python host\deckctl.py hooks claude-permission` prints. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
+To answer Claude Code's permission questions on the panel, open **More → Connect Claude Code …** in the editor: it adds the hooks to `~/.claude/settings.json`, keeps the hooks you already have and makes a backup of the file first. To do it by hand, add the hook that `python host\deckctl.py hooks claude-permission` prints. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
 
 ## Troubleshooting
 

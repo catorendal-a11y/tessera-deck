@@ -1,6 +1,6 @@
 """Home Assistant on the panel: show the state of lights and sensors, switch them and run scenes from a key.
 
-Settings (editor: ⋯ → Plugins … → Home Assistant): the address, a long-lived access token and the entities to show.
+Settings (editor: More → Plugins … → Home Assistant): the address, a long-lived access token and the entities to show.
 
 Show a state in a key name:  $(var:home-assistant.light.kitchen)  ->  on / off, or 21.5 for a sensor
 Colour a key by it:           "status": {"var": "home-assistant.light.kitchen", "colors": {"on": "#FFB74D"}}

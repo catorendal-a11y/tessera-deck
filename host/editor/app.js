@@ -419,7 +419,7 @@ function renderStatus() {
   $('#screen-usb').textContent=connected?'PC CONNECTED':'NO PC';$('.screen-pill')?.classList.toggle('offline',!connected);
   const last=dashboard.device?.last_action;
   if(last?.at>lastActionAt){if(lastActionAt)toast(`${last.ok?'✓':'✕'} ${last.label}${last.error?' · '+last.error:''}`);lastActionAt=last.at;}
-  if(dashboard.running&&!connected&&!panelHintShown&&performance.now()>15000){panelHintShown=true;toast('No panel found. Check the USB cable; a new panel needs its firmware from ⋯ → Panel firmware.');}
+  if(dashboard.running&&!connected&&!panelHintShown&&performance.now()>15000){panelHintShown=true;toast('No panel found. Check the USB cable; a new panel needs its firmware from Panel → Panel firmware.');}
   document.title=connected&&context?`Tessera · ${context}`:'Tessera';
   followDevice();
   const usesStats=visibleButtons().some(b=>[b,...(b.states||[])].some(v=>v.label?.includes('$(stat:')));
@@ -523,7 +523,7 @@ async function start() {
     if(at<0)return;
     if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const next=at+(event.key==='ArrowDown'?1:-1);if(next<0)$('#action-search').focus();else items[Math.min(next,items.length-1)].focus();}
     else if(event.key==='Escape'){event.preventDefault();$('#action-search').focus();}});
-  $('#shortcuts-open').onclick=()=>{$('#more-menu').hidden=true;$('#shortcuts-dialog').showModal();};
+  $('#shortcuts-open').onclick=()=>{document.querySelectorAll('.more-menu').forEach(menu=>{menu.hidden=true;});$('#shortcuts-dialog').showModal();};
   $('#shortcuts-close').onclick=()=>$('#shortcuts-dialog').close();$('#undo').onclick=()=>undo();$('#redo').onclick=()=>undo(true);
   $('#icons-close').onclick=()=>$('#icon-dialog').close();
   $('#programs-close').onclick=()=>$('#program-dialog').close();

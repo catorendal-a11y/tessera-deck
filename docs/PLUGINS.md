@@ -16,7 +16,7 @@ plugins/
     main.py         your program (any language; see "command")
 ```
 
-Three plugins come with Tessera, all using only the Python standard library. Turn them on in **⋯ → Plugins …**:
+Three plugins come with Tessera, all using only the Python standard library. Turn them on in **More → Plugins …**:
 
 | Plugin | What it does |
 |---|---|
@@ -51,7 +51,7 @@ Each plugin's `main.py` starts with the key actions and names it understands. A 
 | `permissions` | any of `vars`, `press`, `feedback`, `state`, `events`, `read` (below) |
 | `settings` | up to 20 options of type `text`, `number` or `checkbox`; the editor shows them in **Plugins …** |
 
-Turn a plugin on in the editor (**⋯ → Plugins …**) or in `profiles.json`:
+Turn a plugin on in the editor (**More → Plugins …**) or in `profiles.json`:
 `"plugins": { "my-plugin": { "enabled": true, "settings": { "interval": 10 } } }`.
 
 ## What your program receives

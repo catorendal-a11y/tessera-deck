@@ -154,7 +154,7 @@ class Controller:
         self.pid_path.write_text(json.dumps({'pid': process.pid, 'created': current.create_time()}))
         time.sleep(.3)
         if process.poll() is not None:
-            raise RuntimeError('The host stopped right after it started. Open the host log (⋯ menu) to see why.')
+            raise RuntimeError('The host stopped right after it started. Open the host log (More → Host log) to see why.')
         self.processes()
         emit(f'The deck host has started on {port}.')
 

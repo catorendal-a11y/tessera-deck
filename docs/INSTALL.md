@@ -46,7 +46,7 @@ remembers the board's USB serial number and follows it if Windows renumbers the 
 
 ### 2. Flash the firmware
 
-**From a release (no developer tools):** the release zip includes the firmware, so choose it in **⋯ → Panel firmware …** and press *Install*. Newer firmware comes with *Check for updates*, or put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder, choose it there and press *Install*.
+**From a release (no developer tools):** the release zip includes the firmware, so choose it in **Panel → Panel firmware …** and press *Install*. Newer firmware comes with *Check for updates*, or put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder, choose it there and press *Install*.
 On a new board that does not answer yet, choose *Everything* under *What to write* and tick *Install anyway*. The installer verifies the
 package, the board and the protocol before writing. See [`docs/RELEASING.md`](RELEASING.md) for how updates
 and the lack of an automatic rollback work.

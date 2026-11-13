@@ -306,10 +306,15 @@ html body .toast-undo{margin-left:14px;padding:4px 12px;border:1px solid #58e09b
 html body .toast-undo:focus-visible{outline:2px solid #58e09b;outline-offset:2px}
 
 /* The ⋯ menu: six groups with a heading, each entry with one line about what it does. */
-html body .more-menu:not([hidden]){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px;width:min(640px,calc(100vw - 32px));overflow:auto;padding:10px}
+html body .more-menu:not([hidden]){display:flex;flex-direction:column;gap:2px;width:min(340px,calc(100vw - 32px));overflow:auto;padding:8px}
 html body .more-menu .menu-group{display:flex;flex-direction:column;min-width:0}
 html body .more-menu .menu-heading{padding:10px 12px 4px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
 html body .more-menu [role=menuitem]{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;padding:8px 12px}
 html body .more-menu [role=menuitem] small{grid-column:1/-1;margin-top:2px;color:#7d8c93;font-size:11px;font-weight:400;line-height:1.3}
 html body .more-menu [role=menuitem]:focus-visible{outline:2px solid var(--accent,#58e09b);outline-offset:-2px}
-@media (max-width:720px){html body .more-menu:not([hidden]){grid-template-columns:1fr}}
+/* Named buttons instead of a bare ⋯: everyone can see what is behind them. */
+html body .toolbar .menu-button{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--card);color:var(--text);font-weight:600;font-size:13px;cursor:pointer}
+html body .toolbar .menu-button:hover,html body .toolbar .menu-button[aria-expanded=true]{background:var(--card2);border-color:var(--accent,#58e09b)}
+html body .toolbar .menu-button:focus-visible{outline:2px solid var(--accent,#58e09b);outline-offset:2px}
+html body .toolbar .menu-chevron{color:var(--muted);font-size:11px}
+html body .toolbar .more+.more{margin-left:6px}

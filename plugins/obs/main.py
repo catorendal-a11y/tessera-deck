@@ -1,7 +1,7 @@
 """OBS Studio on the panel: switch scenes, start and stop recording and streaming, mute an input.
 
 Turn on OBS's WebSocket server (Tools → WebSocket Server Settings) and put its port and password in this plugin's
-settings (editor: ⋯ → Plugins … → OBS Studio). OBS must run on the same PC.
+settings (editor: More → Plugins … → OBS Studio). OBS must run on the same PC.
 
 Keys:   {"type": "plugin", "plugin": "obs", "command": "scene", "args": {"name": "Gaming"}}
         {"type": "plugin", "plugin": "obs", "command": "record"}     (start or stop)

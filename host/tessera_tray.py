@@ -213,7 +213,7 @@ class TrayApp:
             current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
             release = updates.check(current)
             if release.get('newer'):
-                self.icon.notify(f"Tessera {release['latest']} is available. Open the editor: ⋯ → Panel firmware …", 'Tessera')
+                self.icon.notify(f"Tessera {release['latest']} is available. Open the editor: Panel → Panel firmware …", 'Tessera')
             else:
                 self.icon.notify(f'Tessera {current} is the newest version.', 'Tessera')
         self.background(work)

@@ -37,7 +37,7 @@ mountBrand();
 /* Panel firmware: list verified packages, install with progress. */
 let firmwareTimer = null;
 async function openFirmware() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   $('#firmware-dialog').showModal();
   try { await refreshFirmware(); } catch (error) { showError(error); }
 }
@@ -123,7 +123,7 @@ async function testButton(id = selected) {
 
 /* Ambient screen: a big clock (and optional weather) when the panel is idle. */
 function ambientSettings() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   const ambient = {enabled: false, after: 120, ...(config.ambient || {})}, weather = ambient.weather;
   const afterChoices = [30, 60, 120, 300, 600].map(v => [String(v), v < 60 ? `${v} seconds` : `${v / 60} min`]);
   if (!afterChoices.some(([v]) => Number(v) === ambient.after)) afterChoices.push([String(ambient.after), `${ambient.after} seconds`]);
@@ -252,7 +252,7 @@ const THEMES = {
   ember: {name: 'Ember', bg: '#2A1A14', text_color: '#FFEDE0', border: '#E8793C'}
 };
 function themeSettings() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   const theme = config.theme || {};
   const current = Object.entries(THEMES).find(([, preset]) => preset.bg === theme.bg && preset.text_color === theme.text_color && preset.border === theme.border)?.[0] || (Object.keys(theme).length ? 'custom' : 'default');
   dialog('Key colors', [
@@ -270,7 +270,7 @@ $('#theme-open').onclick = themeSettings;
 
 /* Backups: the host keeps rotating copies of profiles.json; any of them can be put back. */
 async function openBackups() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   const {backups} = await api('command/backups', {}), list = $('#backup-list');
   list.replaceChildren();
   if (!backups.length) list.append(text('p', 'No backups yet. The first one is made when you change something.', 'hint'));
@@ -309,7 +309,7 @@ async function downloadFirmware() {
 }
 $('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmware-latest').textContent = error.message; });
 $('#firmware-download').onclick = () => downloadFirmware().catch(showError);
-$('#diagnostics-export').onclick = async () => { $('#more-menu').hidden = true; try { await command('diagnostics'); } catch (error) { showError(error); } };
+$('#diagnostics-export').onclick = async () => { document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; }); try { await command('diagnostics'); } catch (error) { showError(error); } };
 /* Host log: a live tail of the host's own log, like a serial monitor for the whole product. */
 let logTimer = null;
 async function refreshLog() {
@@ -319,7 +319,7 @@ async function refreshLog() {
   if (atEnd) view.scrollTop = view.scrollHeight;
 }
 async function openLog() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   await refreshLog();
   $('#log-view').scrollTop = $('#log-view').scrollHeight;
   $('#log-dialog').showModal();
@@ -332,7 +332,7 @@ $('#log-dialog').addEventListener('close', () => clearInterval(logTimer));
 
 /* Plugins: turn integrations on and off and set their options; the host starts and stops them. */
 async function openPlugins() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   await renderPlugins();
   $('#plugins-dialog').showModal();
 }
@@ -387,7 +387,7 @@ $('#iconify-query').addEventListener('keydown', event => { if (event.key === 'En
 const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', 'ZCode']];
 const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed']];
 function panelSettings() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   const panel = {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config.panel || {})};
   const fields = [
     ...PANEL_AGENTS.map(([id, name]) => ({name: 'agent_' + id, label: `Agents: ${name}`, type: 'checkbox', value: panel.agents.includes(id), note: id === 'claude' ? 'Allow and Deny on the panel answer Claude Code’s permission questions once the hook is installed (deckctl hooks claude-permission).' : ''})),
@@ -413,7 +413,7 @@ $('#panel-open').onclick = panelSettings;
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
 async function claudeSettings() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   const now = await api('command/claude-hooks', {});
   dialog('Connect Claude Code', [
     {name: 'events', label: 'Show what Claude Code is doing (working, waiting for you, idle)', type: 'checkbox', value: now.events, note: 'Adds Tessera’s hooks to your Claude settings file. Your other hooks and settings stay as they are, and a backup of the file is kept next to it.'},
@@ -447,7 +447,7 @@ function showGallery(index) {
   [...$('#gallery-list').children].forEach((item, i) => item.setAttribute('aria-selected', String(i === index)));
 }
 function openGallery() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   $('#gallery-list').replaceChildren(...galleryTemplates().map((template, index) =>
     element('button', {class: 'gallery-item', role: 'option', type: 'button', onclick: () => showGallery(index)}, text('strong', template.name), text('small', template.description))));
   showGallery(0);
@@ -591,7 +591,7 @@ let railDraft = null;
 const railIcon = path => { const node = element('span', {class: 'rail-ic', 'aria-hidden': 'true'}); node.innerHTML = `<svg viewBox="0 0 24 24">${path}</svg>`; return node; };
 function railTotal() { return railDraft.order.filter(id => railDraft.on.has(id)).length + railDraft.shortcuts.length; }
 function railSettings() {
-  $('#more-menu').hidden = true;
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   const choice = panelChoice(), screens = choice.screens || RAIL.map(r => r[0]);
   railDraft = {
     order: [...new Set([...screens.filter(id => SCREEN_INFO[id]), ...RAIL.map(r => r[0])])],
