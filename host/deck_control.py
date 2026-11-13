@@ -8,6 +8,7 @@ import time
 import psutil
 
 from config_store import write_atomic
+import secrets_store
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LOG_BYTES = 5 * 1024 * 1024
@@ -59,8 +60,13 @@ def set_autostart(enabled, appdata=None):
 
 def save_profiles(config, path=None):
     from tesserad import validate_config
-    validate_config(config)
     path = Path(path or ROOT / 'host/profiles.json')
+    try:
+        previous = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        previous = None
+    config = secrets_store.seal_plugins(config, previous)  # plugin passwords and tokens never reach the file in plain text
+    validate_config(config)
     text = json.dumps(config, ensure_ascii=False, indent=2) + '\n'
     # A unique, flushed temp file: the editor, terminal editor and tray can all save at once.
     write_atomic(path, text.encode('utf-8'))

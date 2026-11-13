@@ -21,13 +21,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+import secrets_store
+
 API_VERSION = 1
 PLUGIN_ID = re.compile(r'[a-z][a-z0-9-]{1,31}')
 SETTING_TYPES = ('text', 'number', 'checkbox')
 # Which control-API routes each permission opens. 'events' and 'read' open the GET routes.
 PERMISSIONS = {'vars': ('var', 'vars'), 'press': ('press',), 'feedback': ('feedback',), 'state': ('state',),
                'events': (), 'read': ()}
-MAX_SETTINGS_BYTES = 4096
+MAX_SETTINGS_BYTES = 8192  # room for encrypted secrets (secrets_store)
 MAX_EVENTS = 200
 MAX_WAIT_SECONDS = 25
 BACKOFF_SECONDS = (1, 2, 4, 8, 16, 32, 60)
@@ -251,7 +253,7 @@ class PluginManager:
                             'read' in manifest.permissions)
         environment = {key: os.environ[key] for key in ENV_KEEP if key in os.environ}
         environment.update({'PYTHONUTF8': '1', 'PYTHONUNBUFFERED': '1', 'TESSERA_API': self._api_url(), 'TESSERA_TOKEN': token,
-                            'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(settings)})
+                            'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(secrets_store.open_settings(settings))})
         log_path = self.log_dir / f'{manifest.id}.log'
         try:  # keep one previous file instead of letting a chatty plugin fill the disk
             if log_path.stat().st_size > MAX_LOG_BYTES:
@@ -325,6 +327,7 @@ class PluginManager:
             report.append({'id': plugin_id, 'name': manifest.name, 'version': manifest.version, 'enabled': enabled,
                            'state': state.get('state', 'stopped') if enabled else 'disabled',
                            'error': state.get('error', '') if enabled else '', 'crashes': state.get('crashes', 0),
-                           'permissions': sorted(manifest.permissions), 'settings': manifest.settings,
+                           'permissions': sorted(manifest.permissions), 'command': list(manifest.command),
+                           'settings': manifest.settings,
                            'values': entry.get('settings', {})})
         return report
