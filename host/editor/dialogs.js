@@ -411,7 +411,7 @@ async function openWifi() {
   $('#wifi-show').checked = false;
   $('#wifi-open-network').checked = false;
   $('#wifi-password').disabled = false;
-  $('#wifi-ssid').value = '';
+  $('#wifi-ssid').value = config.panel?.wifi?.ssid || dashboard.wifi?.ssid || '';  // the network name is not secret; the password is never kept
   $('#wifi-dialog').showModal();
   await refreshWifi();
   if (wifiReady()) api('command/panel-wifi', {do: 'status'}).catch(() => {});
