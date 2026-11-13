@@ -50,9 +50,13 @@ int view=ViewKeys,link_shown=-1;
 lv_obj_t *keys_area=nullptr,*page_label=nullptr,*profile_label=nullptr;
 lv_obj_t *keys[DECK_MAX_BUTTONS]{},*name_label[DECK_MAX_BUTTONS]{},*glyph_label[DECK_MAX_BUTTONS]{},*value_label[DECK_MAX_BUTTONS]{};
 lv_obj_t *sub_label[DECK_MAX_BUTTONS]{},*bar_fill[DECK_MAX_BUTTONS]{},*ring_arc[DECK_MAX_BUTTONS]{};
+bool gauge[DECK_MAX_BUTTONS]{};  /* ring_arc shows gauge_percent, not progress */
 int bar_width[DECK_MAX_BUTTONS]{};
 int ids[DECK_MAX_BUTTONS]{};
 uint32_t flash_until[DECK_MAX_BUTTONS]{},base_bg[DECK_MAX_BUTTONS]{};
+/* By button id: a press waits for its answer; a new layout makes that answer stale, since the id then names
+ * another key (a folder key's feedback arrives after the page it opened). Feedback nobody pressed for still shows. */
+bool awaiting[DECK_MAX_BUTTONS+1]{},stale[DECK_MAX_BUTTONS+1]{};
 uint32_t button_version=0,live_version=0,context_version=0;
 struct ImageTile {
     std::shared_ptr<const DeckImage> image;
@@ -159,6 +163,7 @@ void flash(int slot,uint32_t color,uint32_t ms) {
 }
 void send_press(int slot,bool hold) {
     if(!(hold?deck_model_record_hold(ids[slot]):deck_model_record_press(ids[slot])))return;
+    awaiting[ids[slot]]=true;stale[ids[slot]]=false;
     /* Without a host nothing runs the action: say so at once instead of
      * flashing as if it worked. */
     if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
@@ -232,9 +237,10 @@ const lv_font_t *title_font(const deck_button_t& value) {
     }
 }
 void build_keys() {
+    if(button_version!=deck_model_buttons_version())for(int id=0;id<=DECK_MAX_BUTTONS;++id)if(awaiting[id]){stale[id]=true;awaiting[id]=false;}
     image_missing=false;image_generation=deck_image_generation();
     memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));memset(value_label,0,sizeof(value_label));
-    memset(sub_label,0,sizeof(sub_label));memset(bar_fill,0,sizeof(bar_fill));memset(ring_arc,0,sizeof(ring_arc));
+    memset(sub_label,0,sizeof(sub_label));memset(bar_fill,0,sizeof(bar_fill));memset(ring_arc,0,sizeof(ring_arc));memset(gauge,0,sizeof(gauge));
     confirm_ring=nullptr;confirm_slot=-1;  /* the clean below deletes a ring in progress */
     lv_obj_clean(keys_area);for(auto& image:images){lv_image_cache_drop(&image.descriptor);image=ImageTile{};}
     memset(keys,0,sizeof(keys));memset(ids,0,sizeof(ids));memset(flash_until,0,sizeof(flash_until));
@@ -273,8 +279,16 @@ void build_keys() {
             lv_obj_set_style_arc_width(arc,10,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,10,LV_PART_INDICATOR);
             lv_obj_set_style_arc_color(arc,lv_color_hex(0x0A0E10),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(value.color),LV_PART_INDICATOR);
         } else if(value.has_gauge){
-            auto *shown=value_label[slot]=label(tile,value.gauge_text,0,42,KeyW,&fq_font_dejavu_bold_28,value.color);
+            /* A ring filled to the percentage with the value inside; the badge says what is measured. */
+            auto *arc=ring_arc[slot]=lv_arc_create(tile);lv_obj_set_size(arc,104,104);lv_obj_set_pos(arc,cx-52,cy-52);
+            lv_arc_set_rotation(arc,270);lv_arc_set_bg_angles(arc,0,360);lv_arc_set_range(arc,0,100);lv_arc_set_value(arc,value.gauge_percent);
+            lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
+            lv_obj_set_style_arc_width(arc,8,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,8,LV_PART_INDICATOR);
+            lv_obj_set_style_arc_color(arc,lv_color_hex(0x0A0E10),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(value.color),LV_PART_INDICATOR);
+            gauge[slot]=true;
+            auto *shown=value_label[slot]=label(tile,value.gauge_text,cx-KeyW/2,cy-18,KeyW,&fq_font_dejavu_bold_28,value.color);
             lv_obj_set_style_text_align(shown,LV_TEXT_ALIGN_CENTER,0);
+            if(value.gauge_badge[0])glyph(tile,value.gauge_badge,18,18,20,Muted);
         } else if(image){
             auto& target=images[slot];target.image=image;target.widget=lv_image_create(tile);
             lv_obj_set_pos(target.widget,cx-image->width/2,cy-image->height/2);lv_obj_set_clickable(target.widget,false);
@@ -328,7 +342,7 @@ void update_live() {
         if(sub_label[slot]&&strcmp(lv_label_get_text(sub_label[slot]),item.sub))lv_label_set_text(sub_label[slot],item.sub);
         /* Color is not structural (deck_model same_structure), so the gauges recolor here too. */
         if(bar_fill[slot]){lv_obj_set_width(bar_fill[slot],bar_width[slot]*item.progress/100);set_color(bar_fill[slot],LV_STYLE_BG_COLOR,item.color);}
-        if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],item.progress);set_color(ring_arc[slot],LV_STYLE_ARC_COLOR,item.color,LV_PART_INDICATOR);}}
+        if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],gauge[slot]?item.gauge_percent:item.progress);set_color(ring_arc[slot],LV_STYLE_ARC_COLOR,item.color,LV_PART_INDICATOR);}}
     live_version=deck_model_live_version();
 }
 /* ASCII only: UTF-8 multi-byte sequences are copied untouched. */
@@ -352,13 +366,18 @@ void update_context() {
 
 /* ---- Agents -------------------------------------------------------------------------------------- */
 const char *const AgentActions[]={"allow","deny","stop","open"};
+deck_agent_t lane_shown[DECK_AGENTS_MAX]{};  /* what each lane drew: a tap answers that agent, not whoever sits there now */
 void agent_pressed(lv_event_t *event) {
-    if(!deck_model_host_linked(HostTimeoutMs))return;  /* nobody would receive the answer */
+    /* Locked: nobody may allow from the panel; the question still shows. No host: nobody would receive the answer. */
+    if(deck_model_locked()||!deck_model_host_linked(HostTimeoutMs))return;
     const int packed=slot_of(event),index=packed>>4,action=packed&15;
-    deck_agent_t list[DECK_AGENTS_MAX];
-    if(index>=deck_model_agents(list,DECK_AGENTS_MAX)||action>3)return;
+    deck_agent_t list[DECK_AGENTS_MAX];const int count=deck_model_agents(list,DECK_AGENTS_MAX);
+    if(index<0||index>=DECK_AGENTS_MAX||action>3)return;
+    const auto& shown=lane_shown[index];int at=0;
+    while(at<count&&strcmp(list[at].id,shown.id))++at;
+    if(at==count||list[at].state!=shown.state||list[at].asks!=shown.asks)return;  /* changed under the finger: the rebuild redraws it */
     char line[96];
-    snprintf(line,sizeof(line),"{\"type\":\"agent\",\"id\":\"%s\",\"do\":\"%s\"}",list[index].id,AgentActions[action]);
+    snprintf(line,sizeof(line),"{\"type\":\"agent\",\"id\":\"%s\",\"do\":\"%s\"}",shown.id,AgentActions[action]);
     deck_model_queue_line(line);
 }
 /* kind: 0 the answer we expect (filled), 1 neutral, 2 refusing */
@@ -383,7 +402,7 @@ void build_agents() {
     deck_agent_t list[DECK_AGENTS_MAX];int waiting=0;
     const int count=deck_model_agents(list,DECK_AGENTS_MAX);
     for(int i=0;i<count;++i) {
-        const auto& agent=list[i];
+        const auto& agent=lane_shown[i]=list[i];
         const uint32_t color=agent.state==DECK_AGENT_WAITING?Amber:agent.state==DECK_AGENT_WORKING?Cyan:Line;
         if(agent.state==DECK_AGENT_WAITING)++waiting;
         auto *lane=box(agents_area,0,i*160,ContentW,146,20,Card);lv_obj_set_style_clip_corner(lane,true,0);
@@ -440,7 +459,7 @@ void draw_fader(int i) {
 void fader_touch(lv_event_t *event) {
     const int i=slot_of(event);
     auto *indev=lv_indev_active();
-    if(i<0||i>=fader_count||!indev)return;
+    if(i<0||i>=fader_count||!indev||deck_model_locked())return;
     lv_point_t point;lv_area_t area;
     lv_indev_get_point(indev,&point);lv_obj_get_coords(fader_zone[i],&area);
     int level=(area.y2-point.y)*100/(area.y2-area.y1);
@@ -458,7 +477,7 @@ void fader_touch(lv_event_t *event) {
 }
 void mute_pressed(lv_event_t *event) {
     const int i=slot_of(event);
-    if(i<0||i>=fader_count)return;
+    if(i<0||i>=fader_count||deck_model_locked())return;
     faders[i].muted=!faders[i].muted;fader_hold[i]=millis()+1500;faders_version=0;draw_fader(i);
     char line[96];
     snprintf(line,sizeof(line),"{\"type\":\"mute\",\"id\":\"%s\"}",faders[i].id);
@@ -805,7 +824,9 @@ void update_ambient() {
     const char *now=time_service_time_text();
     char shown[sizeof(ambient_time)];snprintf(shown,sizeof(shown),"%s%s",now,time_service_meridiem());  /* "12:00" AM and PM differ */
     if(strcmp(shown,ambient_time)){snprintf(ambient_time,sizeof(ambient_time),"%s",shown);draw_big_clock(now,time_service_meridiem());lv_label_set_text(ambient_date,time_service_date_text());}
-    if(ambient_seen!=deck_model_ambient_version()){char line[DECK_AMBIENT_MAX+1];deck_model_ambient(line,sizeof(line));lv_label_set_text(ambient_line,line);show_weather_icon(line);ambient_seen=deck_model_ambient_version();}
+    /* One version read before the copy: a line that lands after it bumps the version again and is drawn next tick. */
+    const uint32_t version=deck_model_ambient_version();
+    if(ambient_seen!=version){char line[DECK_AMBIENT_MAX+1];deck_model_ambient(line,sizeof(line));lv_label_set_text(ambient_line,line);show_weather_icon(line);ambient_seen=version;}
 }
 
 int view_before_question=-1;  /* the screen a permission question took the panel away from */
@@ -837,7 +858,11 @@ void update(lv_timer_t*) {
     const bool keys_seen=view==ViewKeys&&deck_model_screen()==DECK_SCREEN_DECK&&!deck_model_dimmed();
     if(keys_seen)for(auto& image:images)if(image.image&&image.image->frames.size()>1&&static_cast<int32_t>(millis()-image.due)>=0){image.frame=(image.frame+1)%image.image->frames.size();image_frame(image);}
     int id=0;deck_feedback_t result;
-    while(deck_model_take_feedback(&id,&result))for(int i=0;i<DECK_MAX_BUTTONS;++i)if(ids[i]==id&&keys[i])flash(i,result==DECK_FEEDBACK_ALERT?AlertBg:OkBg,500);
+    while(deck_model_take_feedback(&id,&result)){
+        if(id<1||id>DECK_MAX_BUTTONS)continue;
+        awaiting[id]=false;if(stale[id]){stale[id]=false;continue;}
+        for(int i=0;i<DECK_MAX_BUTTONS;++i)if(ids[i]==id&&keys[i])flash(i,result==DECK_FEEDBACK_ALERT?AlertBg:OkBg,500);
+    }
     for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&keys[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){lv_anim_delete(keys[i],pulse_opa);lv_obj_set_style_bg_opa(keys[i],LV_OPA_COVER,0);lv_obj_set_style_bg_color(keys[i],lv_color_hex(base_bg[i]),0);flash_until[i]=0;}
     confirm_tick();
     update_link();

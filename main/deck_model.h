@@ -74,7 +74,6 @@ typedef struct {
 } deck_context_t;
 
 void deck_model_init(void);
-void deck_model_defaults(void);
 
 /* Buttons */
 int deck_model_button_count(void);

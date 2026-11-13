@@ -716,8 +716,11 @@ extern "C" void app_main(void)
 
     lv_display_t *display = bsp_display_start_with_config(&cfg);
     if (!display) {
-        ESP_LOGE(TAG, "Display init failed");
-        return;
+        /* Returning would leave the panel silent on USB until a power cycle, with no console for an OTA fix.
+         * A restart lets the bootloader roll back an unconfirmed image, and gives a flaky panel another try. */
+        ESP_LOGE(TAG, "Display init failed; restarting");
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        esp_restart();
     }
 
 

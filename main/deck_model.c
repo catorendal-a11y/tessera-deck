@@ -68,6 +68,7 @@ static void model_unlock(void)
     if (s_lock) xSemaphoreGive(s_lock);
 }
 
+static void deck_model_defaults(void);
 void deck_model_init(void)
 {
     if (!s_lock) s_lock = xSemaphoreCreateMutex();
@@ -77,7 +78,7 @@ void deck_model_init(void)
     ESP_LOGI(TAG, "model ready (%d buttons)", s_button_count);
 }
 
-void deck_model_defaults(void)
+static void deck_model_defaults(void)
 {
     /* A practical starter deck for a dev panel; the host script can
      * replace the whole set at runtime over POST /api/deck/config.
