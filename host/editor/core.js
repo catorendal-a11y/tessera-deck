@@ -449,8 +449,8 @@ function renderGrid() {
     if(covered.has(id)){tile.style.visibility='hidden';tile.tabIndex=-1;tile.style.pointerEvents='none';}
     const look={...(b?config.theme:{})};
     for(const key of ['bg','text_color','border'])if(b?.[key])look[key]=b[key];
-    if(look.bg)tile.style.background=look.bg;
-    if(look.border){tile.style.borderColor=look.border;tile.style.borderWidth='3px';}
+    if(look.bg)tile.style.setProperty('--key-bg',look.bg);  // a CSS variable: cockpit.css paints tiles with !important
+    if(look.border){tile.style.setProperty('--key-border',look.border);tile.classList.add('key-outlined');}
     if(look.text_color)tile.style.setProperty('--key-text',look.text_color);
     tile.append(text('span',String(id),'slot-number'));
     if(!b)tile.append(text('span','+','empty-plus'));

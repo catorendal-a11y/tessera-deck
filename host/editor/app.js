@@ -142,7 +142,7 @@ function renderInspector() {
   const textRow=row('Text',sizeField,positionField,boldButton,pinButton);textRow.classList.add('prop-row-text');
   const swatches=element('div',{class:'color-swatches',role:'group','aria-label':'Icon color'},...ICON_COLORS.map(([value,name])=>{
     const on=(b.color||'#35D07F').toUpperCase()===value,swatch=button('',()=>mutate(()=>appearance().color=value),'color-swatch'+(on?' on':''),name);
-    swatch.style.background=value;swatch.setAttribute('aria-label',name);swatch.setAttribute('aria-pressed',String(on));return swatch;}),color);
+    swatch.style.setProperty('--swatch',value);swatch.setAttribute('aria-label',name);swatch.setAttribute('aria-pressed',String(on));return swatch;}),color);
   const head=element('div',{class:'prop-head'},text('b',widget?'Widget':first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),
     button('Test',()=>testButton().catch(showError),'outline prop-test','What this key does, and Run now'));
   if(widget)previewLabel.textContent=widgetText(base).label;
