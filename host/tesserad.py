@@ -119,6 +119,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.page = next(iter(self.config['profiles'][self.profile]['pages']))
         self.auto_profile = None
         self.profile_locked = False
+        self.panel_locked = False  # panel_lock: the panel ignores taps until a 2 s hold on its lock badge
         self.profile_before_auto = None  # restored when the program behind an auto switch loses focus
         self.view_before_auto = None  # (profile, page, folder stack) shown when the automatic switch happened
         self.resume_view = None  # that view, handed back to switch_profile once when the switch is undone
@@ -360,6 +361,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 entry['hold'] = True  # the panel reports long presses for this key
             if button.get('double_actions'):
                 entry['double'] = True  # the panel draws a mark; the host tells one tap from two
+            if button.get('confirm') is True:
+                entry['cf'] = 1  # the panel sends the press only after a 600 ms hold
             if button.get('span', 1) > 1:
                 entry['span'] = button['span']
                 entry.update(self.live_content(button.get('live')))
@@ -503,6 +506,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.profile_locked = not self.profile_locked
             self.manual_focus_exe = ''
             self.push_page(force=True)
+        elif kind == 'panel_lock':
+            mode = action.get('mode', 'toggle')
+            self.panel_locked = (not self.panel_locked) if mode == 'toggle' else mode == 'on'
+            if self.panel is not None:
+                self.panel.send_line(f'AD_PANEL_LOCK {int(self.panel_locked)}')
         elif kind == 'press':
             if not self.dispatch_press(int(action['id'])):
                 raise ValueError('The child button failed')
@@ -637,6 +645,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                                               message.get('hold') is True, time.monotonic()))
                         elif message.get('type') == 'wake':
                             self.enqueue(('panel-woke',))
+                        elif message.get('type') == 'unlocked':
+                            self.enqueue(('panel-unlocked',))
+                        elif message.get('type') == 'brightness' and type(message.get('level')) is int and 1 <= message['level'] <= 100:
+                            self.enqueue(('panel-brightness', message['level']))
                         elif message.get('type') == 'screen' and message.get('by') == 'touch':
                             self.enqueue(('screen-deck',))
                         elif message.get('type') == 'fader' and isinstance(message.get('id'), str) and type(message.get('level')) is int:
@@ -758,6 +770,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.cockpit_at = 0.0  # show the new state on the panel at once
             else:
                 self.agent_action(job[1], job[2])
+        elif kind == 'panel-unlocked':
+            self.panel_locked = False  # unlocked on the panel by a hold on its lock badge
+            self.log('Panel unlocked by touch')
+        elif kind == 'panel-brightness':
+            self.save_panel_brightness(job[1])
         elif kind == 'panel-woke':
             # The panel already restored its backlight after a touch.
             self.last_activity = time.monotonic()
@@ -876,6 +893,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         with self.state_lock:
                             self.last_activity = time.monotonic()
                             self.apply_brightness()
+                            if self.panel_locked:  # a restarted panel boots unlocked
+                                self.panel.send_line('AD_PANEL_LOCK 1')
                             self.push_page(force=True)
                             if (self.device_info.get('protocol') or 1) >= 3:
                                 self.panel.send_line('AD_SCREEN deck')  # a restarted host may find the ambient clock showing

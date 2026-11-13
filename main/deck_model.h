@@ -56,6 +56,7 @@ typedef struct {
     bool has_progress;
     uint8_t progress;                  /* 0..100 */
     bool ring;                         /* draw the progress as a ring instead of a bar */
+    bool confirm;                      /* "cf":1: the press is sent only after a 600 ms hold, so a brush does nothing */
 } deck_button_t;
 
 typedef struct {
@@ -123,6 +124,17 @@ bool deck_model_take_touch_return(void);
 void deck_model_set_ambient(const char *line); /* weather or status line under the clock */
 void deck_model_ambient(char *out, size_t size);
 uint32_t deck_model_ambient_version(void);
+
+/* Panel lock (AD_PANEL_LOCK 1|0): keys and the rail ignore taps until a 2 s hold on the lock badge. */
+void deck_model_set_locked(bool locked);
+bool deck_model_locked(void);
+
+/* Brightness: main sets the level it applies; the about sheet asks for a new one, which main applies (and
+ * saves when `save`, at the end of a drag) on its own task. */
+void deck_model_set_brightness(int level);
+int deck_model_brightness(void);
+void deck_model_request_brightness(int level, bool save);
+bool deck_model_take_brightness_request(int *level, bool *save);
 
 /* Host link: every line from the host stamps it; the foot of the rail shows
  * NO PC when no host has spoken within the timeout. */

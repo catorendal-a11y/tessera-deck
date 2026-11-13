@@ -1,4 +1,6 @@
 """Backlight, dimming, quiet hours and the ambient clock screen of the panel."""
+import json
+from pathlib import Path
 import time
 
 from config_check import in_quiet_hours
@@ -28,6 +30,22 @@ class DisplayMixin:
         self.sent_brightness = self.wanted_brightness()
         self.panel.send_line(f'AD_BRIGHTNESS {self.sent_brightness}')
         self.dimmed = False
+
+    def save_panel_brightness(self, level):
+        """The panel's about-sheet slider set a level: keep it as the setting in force now (the night one in quiet
+        hours), so the host does not send the old level back on the next connect."""
+        from deck_control import save_profiles  # deck_control imports this daemon
+        path = Path(self.args.profiles)
+        config = json.loads(path.read_text(encoding='utf-8'))
+        display = dict(config.get('display', {}))
+        night = display.get('night')
+        if in_quiet_hours(night, self.minute_of_day()):
+            display['night'] = dict(night, brightness=level)
+        else:
+            display['brightness'] = level
+        config['display'] = display
+        save_profiles(config, path)
+        self.sent_brightness = level
 
     def brightness_tick(self):
         """Quiet hours: change the brightness when the clock enters or leaves the night window."""

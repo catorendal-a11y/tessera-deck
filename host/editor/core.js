@@ -13,6 +13,7 @@ const kinds = {
   page:{name:'Switch page',icon:'folder',field:'page',label:'Go to page',group:'Navigation'},
   profile:{name:'Switch profile',icon:'list',field:'profile',label:'Go to profile',group:'Navigation'},
   profile_lock:{name:'Lock profile',icon:'settings',field:null,label:'Lock or unlock automatic profile switching',group:'Navigation'},
+  panel_lock:{name:'Lock panel',icon:'settings',field:null,label:'Lock or unlock the panel against stray taps',group:'Navigation'},
   delay:{name:'Wait',icon:'pause',field:'ms',label:'Delay (milliseconds)',placeholder:'500',group:'More actions'},
   shell:{name:'Run command',icon:'settings',field:'command',label:'Command',placeholder:'The command runs when the key is pressed',group:'Advanced'},
   http:{name:'HTTP request',icon:'wifi',field:'url',label:'Address',placeholder:'https://…',group:'Advanced'},

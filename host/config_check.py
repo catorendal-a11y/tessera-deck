@@ -17,7 +17,7 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None,
-                 'clipboard': 'text', 'window': 'op', 'toggle': 'variable'}
+                 'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
@@ -107,6 +107,14 @@ def _check_screen(action, pages, profiles):
         raise ValueError(f'screen: show must be one of {", ".join(SCREEN_CHOICES)}')
 
 
+PANEL_LOCK_MODES = ('toggle', 'on', 'off')
+
+
+def _check_panel_lock(action, pages, profiles):
+    if action.get('mode', 'toggle') not in PANEL_LOCK_MODES:
+        raise ValueError(f'panel_lock: mode must be one of {", ".join(PANEL_LOCK_MODES)}')
+
+
 def _check_counter(action, pages, profiles):
     check_counter(action)
 
@@ -149,7 +157,7 @@ ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _c
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
                  'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
                  'shell': _check_shell, 'http': _check_http_action, 'clipboard': _check_clipboard,
-                 'window': _check_window, 'toggle': _check_toggle}
+                 'window': _check_window, 'toggle': _check_toggle, 'panel_lock': _check_panel_lock}
 
 
 def _check_action(action, pages, profiles):
@@ -262,6 +270,10 @@ def _check_button(button, pages, profiles):
     _check_actions(button.get('actions', []), pages, profiles)
     _check_actions(button.get('hold_actions', []), pages, profiles)
     _check_actions(button.get('double_actions', []), pages, profiles)
+    if type(button.get('confirm', False)) is not bool:
+        raise ValueError('confirm must be true or false')
+    if button.get('confirm') and (button.get('hold_actions') or button.get('double_actions')):
+        raise ValueError('A key that needs a hold to confirm cannot also have a long-press or double-press action')
     states = button.get('states', [])
     if not isinstance(states, list) or len(states) > 8 or (states and len(states) < 2):
         raise ValueError('A toggle button needs 2-8 states')

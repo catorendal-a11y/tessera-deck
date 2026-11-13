@@ -4,6 +4,7 @@
 #include "deck_images.h"
 #include "deck_model.h"
 #include "time_service.h"
+#include "ui_palette.h"
 #include <Arduino.h>
 #include <cstdio>
 #include <cstring>
@@ -21,11 +22,11 @@ extern const lv_font_t fq_font_dejavu_bold_28;
 
 namespace {
 constexpr int W=1024,H=600,Rail=84,Pad=26,Top=22,ContentW=W-Rail-2*Pad,HeadH=50,RailTop=84,RailPitch=60;
-constexpr uint32_t Bg=0x0A0E10,RailBg=0x0F1518,Card=0x12191D,RailOn=0x18232A,Line=0x3A4950;
-constexpr uint32_t Text=0xEAF2EF,Soft=0xC4D0D4,Muted=0x8D9AA0,Dim=0x6F8088;
-constexpr uint32_t Accent=0x58E09B,Cyan=0x4DD0E1,Purple=0xB388FF,Amber=0xFFB74D,Red=0xFF7070;
-constexpr uint32_t PressedBg=0x254E3B,OkBg=0x1E6042,AlertBg=0x6E2633;
+using namespace ui_palette;
 uint32_t mix(uint32_t from,uint32_t to,float t);
+/* A key marked "confirm" sends its press only after this long a hold; the lock badge unlocks after LockHoldMs. */
+constexpr uint32_t ConfirmMs=600,LockHoldMs=2000;
+char firmware_version[32]="unknown";
 /* The host pings every second; three missed pings mean nobody runs the keys. */
 constexpr int64_t HostTimeoutMs=3500;
 /* A pressed key stays highlighted until the host confirms it. Long multi-step
@@ -154,15 +155,54 @@ void flash(int slot,uint32_t color,uint32_t ms) {
     lv_anim_set_values(&pulse,LV_OPA_COVER,LV_OPA_50);lv_anim_set_duration(&pulse,450);lv_anim_set_reverse_duration(&pulse,450);
     lv_anim_set_repeat_count(&pulse,LV_ANIM_REPEAT_INFINITE);lv_anim_start(&pulse);
 }
-void press(lv_event_t *event) {
-    const int slot=slot_of(event);
-    if(slot<0||slot>=DECK_MAX_BUTTONS||!ids[slot])return;
-    const bool long_press=lv_event_get_code(event)==LV_EVENT_LONG_PRESSED;
-    if(!(long_press?deck_model_record_hold(ids[slot]):deck_model_record_press(ids[slot])))return;
+void send_press(int slot,bool hold) {
+    if(!(hold?deck_model_record_hold(ids[slot]):deck_model_record_press(ids[slot])))return;
     /* Without a host nothing runs the action: say so at once instead of
      * flashing as if it worked. */
     if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
     else flash(slot,AlertBg,500);
+}
+void press(lv_event_t *event) {
+    const int slot=slot_of(event);
+    if(slot<0||slot>=DECK_MAX_BUTTONS||!ids[slot]||deck_model_locked())return;
+    send_press(slot,lv_event_get_code(event)==LV_EVENT_LONG_PRESSED);
+}
+/* A confirm key: a ring fills over ConfirmMs while the finger stays, and only then is the press sent
+ * (by update()); lifting the finger or sliding off early sends nothing. */
+lv_obj_t *confirm_ring=nullptr;int confirm_slot=-1;uint32_t confirm_started=0;
+void confirm_fill(void *arc,int32_t value) {lv_arc_set_value(static_cast<lv_obj_t*>(arc),value);}
+void confirm_stop() {if(confirm_ring)lv_obj_delete(confirm_ring);confirm_ring=nullptr;confirm_slot=-1;}  /* the delete ends its anim */
+void confirm_touch(lv_event_t *event) {
+    const int slot=slot_of(event);
+    if(slot<0||slot>=DECK_MAX_BUTTONS||!ids[slot])return;
+    confirm_stop();
+    if(lv_event_get_code(event)!=LV_EVENT_PRESSED||deck_model_locked())return;
+    auto *tile=keys[slot];const int size=LV_MIN(lv_obj_get_width(tile),lv_obj_get_height(tile))-28;
+    auto *arc=confirm_ring=lv_arc_create(tile);lv_obj_set_size(arc,size,size);lv_obj_center(arc);
+    lv_arc_set_rotation(arc,270);lv_arc_set_bg_angles(arc,0,360);lv_arc_set_range(arc,0,100);lv_arc_set_value(arc,0);
+    lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
+    lv_obj_set_style_arc_width(arc,8,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,8,LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc,lv_color_hex(Bg),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(Accent),LV_PART_INDICATOR);
+    confirm_slot=slot;confirm_started=millis();
+    lv_anim_t fill;lv_anim_init(&fill);lv_anim_set_var(&fill,arc);lv_anim_set_exec_cb(&fill,confirm_fill);
+    lv_anim_set_values(&fill,0,100);lv_anim_set_duration(&fill,ConfirmMs);lv_anim_start(&fill);
+}
+void confirm_tick() {
+    if(confirm_slot<0)return;
+    if(deck_model_locked()){confirm_stop();return;}
+    if(millis()-confirm_started<ConfirmMs)return;
+    const int slot=confirm_slot;confirm_stop();send_press(slot,false);
+}
+/* There is no next or previous page: a swipe right is Back, the line the Keys button sends while the keys
+ * show. A swipe is never a tap on the key it started on. */
+void swipe(lv_event_t *) {
+    auto *indev=lv_indev_active();if(!indev)return;
+    const lv_dir_t dir=lv_indev_get_gesture_dir(indev);
+    if(dir!=LV_DIR_LEFT&&dir!=LV_DIR_RIGHT)return;
+    confirm_stop();lv_indev_wait_release(indev);
+    if(dir!=LV_DIR_RIGHT||deck_model_locked()||!deck_model_host_linked(HostTimeoutMs))return;
+    for(int i=0;i<rail_count;++i)if(rail_list[i].kind==ViewKeys){
+        char line[40];snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",i);deck_model_queue_line(line);return;}
 }
 /* A touch on a dimmed panel only wakes it, wherever it lands, and never
  * reaches a key: the indev ignores the rest of the touch until release. */
@@ -193,6 +233,7 @@ void build_keys() {
     image_missing=false;image_generation=deck_image_generation();
     memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));memset(value_label,0,sizeof(value_label));
     memset(sub_label,0,sizeof(sub_label));memset(bar_fill,0,sizeof(bar_fill));memset(ring_arc,0,sizeof(ring_arc));
+    confirm_ring=nullptr;confirm_slot=-1;  /* the clean below deletes a ring in progress */
     lv_obj_clean(keys_area);for(auto& image:images){lv_image_cache_drop(&image.descriptor);image=ImageTile{};}
     memset(keys,0,sizeof(keys));memset(ids,0,sizeof(ids));memset(flash_until,0,sizeof(flash_until));
     constexpr int KeyW=138,KeyH=160,Gap=12;
@@ -262,6 +303,7 @@ void build_keys() {
         int right=width-12;
         if(value.has_double)for(int dot=0;dot<2;++dot){box(tile,right-8,12,8,8,4,Muted);right-=13;}
         if(value.has_hold){auto *ring=box(tile,right-14,9,14,14,7,Card);lv_obj_set_style_bg_opa(ring,LV_OPA_TRANSP,0);lv_obj_set_style_border_width(ring,2,0);lv_obj_set_style_border_color(ring,lv_color_hex(Muted),0);}
+        if(value.confirm){for(auto code:{LV_EVENT_PRESSED,LV_EVENT_RELEASED,LV_EVENT_PRESS_LOST})lv_obj_add_event_cb(tile,confirm_touch,code,slot_data(slot));continue;}
         /* With a hold action, a click is a short press only; a long press reports a hold instead. */
         lv_obj_add_event_cb(tile,press,value.has_hold?LV_EVENT_SHORT_CLICKED:LV_EVENT_CLICKED,slot_data(slot));
         if(value.has_hold)lv_obj_add_event_cb(tile,press,LV_EVENT_LONG_PRESSED,slot_data(slot));
@@ -350,7 +392,7 @@ void build_agents() {
         auto *name=label(lane,agent.name,26,name_y,LV_SIZE_CONTENT,&fq_font_dejavu_bold_28,Text);
         lv_obj_update_layout(name);
         label(lane,agent.state==DECK_AGENT_WAITING?"waiting for you":agent.state==DECK_AGENT_WORKING?"working":"idle",
-              26+lv_obj_get_width(name)+14,name_y+12,LV_SIZE_CONTENT,&fq_font_dejavu_16,agent.state==DECK_AGENT_IDLE?Muted:color);
+              26+lv_obj_get_width(name)+14,name_y+9,LV_SIZE_CONTENT,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Muted:color);
         bool fits=true;
         if(agent.state==DECK_AGENT_WAITING){
             /* A question is shown in full: nobody should allow what they cannot read. Three lines at 20 px, else
@@ -361,7 +403,7 @@ void build_agents() {
             fits=lv_obj_get_height(asked)<=80;lv_obj_set_height(asked,80);
         } else {
             label(lane,agent.text,26,68,text_w,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Dim:Soft);
-            label(lane,agent.sub,26,102,text_w,&fq_font_dejavu_16,Dim);
+            label(lane,agent.sub,26,102,text_w,&fq_font_dejavu_20,Dim);
         }
         const int right=ContentW-20-132;
         if(asks){agent_button(lane,"Deny",right-144,2,i,1);if(fits)agent_button(lane,"Allow",right,0,i,0);}
@@ -430,7 +472,7 @@ void build_faders() {
         fader_fill[i]=box(zone,44,0,22,TrackH,11,faders[i].color);
         fader_knob[i]=box(zone,17,0,76,44,12,Text);
         for(auto code:{LV_EVENT_PRESSED,LV_EVENT_PRESSING,LV_EVENT_RELEASED})lv_obj_add_event_cb(zone,fader_touch,code,slot_data(i));
-        auto *name=label(card,faders[i].name,4,424,FaderW-8,&fq_font_dejavu_16,Soft);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);
+        auto *name=label(card,faders[i].name,4,424,FaderW-8,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);
         auto *mute=fader_mute[i]=lv_button_create(card);flat(mute,Card);
         lv_obj_set_pos(mute,(FaderW-80)/2,460);lv_obj_set_size(mute,80,80);lv_obj_set_style_radius(mute,40,0);
         lv_obj_set_style_border_width(mute,2,0);
@@ -467,7 +509,7 @@ void draw_stat(int i,const deck_stat_t& stat) {
     const int fill=(StatW-40)*stat.percent/100;
     lv_obj_set_width(stat_fill[i],fill);lv_obj_set_hidden(stat_fill[i],fill<3);
     set_color(stat_fill[i],LV_STYLE_BG_COLOR,stat.color);
-    set_color(stat_card[i],LV_STYLE_BG_COLOR,stat.warn?0x2B2314:Card);
+    set_color(stat_card[i],LV_STYLE_BG_COLOR,stat.warn?WarnBg:Card);
 }
 void sync_stats() {
     deck_stat_t list[DECK_STATS_MAX]{};
@@ -476,7 +518,7 @@ void sync_stats() {
         lv_obj_clean(stats_area);stat_count=count;
         for(int i=0;i<count;++i) {
             auto *card=stat_card[i]=box(stats_area,(i%4)*(StatW+StatGap),(i/4)*(StatH+StatGap),StatW,StatH,20,Card);
-            stat_name[i]=label(card,"",20,18,StatW-40,&fq_font_dejavu_16,Muted);
+            stat_name[i]=label(card,"",20,18,StatW-40,&fq_font_dejavu_20,Muted);
             auto *row=clear_box(card,20,44,StatW-40,62);
             lv_obj_set_flex_flow(row,LV_FLEX_FLOW_ROW);lv_obj_set_flex_align(row,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_END,LV_FLEX_ALIGN_CENTER);
             lv_obj_set_style_pad_column(row,6,0);
@@ -530,7 +572,7 @@ void flash_rail(int index) {
 }
 void rail_pressed(lv_event_t *event) {
     const int index=slot_of(event);
-    if(index<0||index>=rail_count)return;
+    if(index<0||index>=rail_count||deck_model_locked())return;
     if(rail_list[index].kind>=4&&!deck_model_host_linked(HostTimeoutMs))return;  /* nobody on the PC would act on it */
     char line[40];
     snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",index);
@@ -574,7 +616,7 @@ void show_offline(bool linked) {
     for(int i=0;i<3;++i) {
         if(!areas[i])continue;
         if(!offline_card[i]) {
-            auto *card=offline_card[i]=box(lv_obj_get_parent(areas[i]),Pad+(ContentW-600)/2,H/2-80,600,150,22,0x2B2314);
+            auto *card=offline_card[i]=box(lv_obj_get_parent(areas[i]),Pad+(ContentW-600)/2,H/2-80,600,150,22,WarnBg);
             lv_obj_set_style_border_width(card,2,0);lv_obj_set_style_border_color(card,lv_color_hex(Amber),0);
             auto *title=label(card,"PC not connected",0,34,600,&fq_font_dejavu_bold_28,Amber);lv_obj_set_style_text_align(title,LV_TEXT_ALIGN_CENTER,0);
             auto *hint=label(card,"Start Tessera on the PC, or check the USB cable",0,86,600,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_CENTER,0);
@@ -582,10 +624,65 @@ void show_offline(bool linked) {
         lv_obj_set_hidden(offline_card[i],linked);lv_obj_move_foreground(offline_card[i]);
     }
 }
+/* ---- About sheet: a long press on the logo shows the firmware, the PC link and a brightness slider. ---- */
+lv_obj_t *about=nullptr,*about_link=nullptr,*about_level=nullptr;
+void close_about() {if(about)lv_obj_delete(about);about=about_link=about_level=nullptr;}
+void show_about_link() {
+    if(!about_link)return;
+    const bool linked=deck_model_host_linked(HostTimeoutMs);
+    lv_label_set_text(about_link,linked?"PC connected":"PC not connected");set_color(about_link,LV_STYLE_TEXT_COLOR,linked?Accent:Amber);
+}
+void about_tapped(lv_event_t *event) {if(lv_event_get_target(event)==about)close_about();}  /* outside the card */
+void brightness_moved(lv_event_t *event) {
+    auto *slider=static_cast<lv_obj_t*>(lv_event_get_target(event));const int level=lv_slider_get_value(slider);
+    /* Every step lights the panel; the level is saved (and the host told) once, when the finger lifts. */
+    deck_model_request_brightness(level,lv_event_get_code(event)==LV_EVENT_RELEASED);
+    lv_label_set_text_fmt(about_level,"%d %%",level);
+}
+void open_about(lv_event_t *) {
+    if(about||deck_model_locked())return;
+    about=lv_obj_create(screen);flat(about,Bg);lv_obj_set_style_bg_opa(about,LV_OPA_70,0);lv_obj_set_pos(about,0,0);lv_obj_set_size(about,W,H);
+    lv_obj_add_event_cb(about,about_tapped,LV_EVENT_CLICKED,nullptr);
+    constexpr int CardW=460;
+    auto *card=box(about,Rail+16,16,CardW,300,22,Card);lv_obj_set_clickable(card,true);
+    lv_obj_set_style_border_width(card,2,0);lv_obj_set_style_border_color(card,lv_color_hex(Line),0);
+    label(card,"Tessera",28,24,CardW-56,&fq_font_dejavu_bold_28,Text);
+    char version[48];snprintf(version,sizeof(version),"Firmware %s",firmware_version);
+    label(card,version,28,70,CardW-56,&fq_font_dejavu_20,Soft);
+    about_link=label(card,"",28,102,CardW-56,&fq_font_dejavu_20,Accent);show_about_link();
+    label(card,"Brightness",28,166,CardW-160,&fq_font_dejavu_20,Soft);
+    about_level=label(card,"",CardW-128,166,100,&fq_font_dejavu_20,Text);lv_obj_set_style_text_align(about_level,LV_TEXT_ALIGN_RIGHT,0);
+    auto *slider=lv_slider_create(card);lv_obj_set_pos(slider,40,224);lv_obj_set_size(slider,CardW-80,20);
+    lv_slider_set_range(slider,1,100);lv_slider_set_value(slider,deck_model_brightness(),LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(slider,lv_color_hex(Line),LV_PART_MAIN);lv_obj_set_style_bg_color(slider,lv_color_hex(Accent),LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(slider,lv_color_hex(Text),LV_PART_KNOB);lv_obj_set_style_pad_all(slider,10,LV_PART_KNOB);
+    lv_obj_set_ext_click_area(slider,20);  /* a fingertip, not a 20 px bar */
+    lv_label_set_text_fmt(about_level,"%d %%",deck_model_brightness());
+    for(auto code:{LV_EVENT_VALUE_CHANGED,LV_EVENT_RELEASED})lv_obj_add_event_cb(slider,brightness_moved,code,nullptr);
+}
+
+/* ---- Panel lock: the logo turns into a lock badge; holding it LockHoldMs unlocks and tells the host. ---- */
+lv_obj_t *logo=nullptr,*lock_badge=nullptr,*lock_ring=nullptr;
+int lock_shown=-1;uint32_t lock_pressed_at=0;
+void lock_touched(lv_event_t *) {lock_pressed_at=millis();}
+void update_lock() {
+    const int locked=deck_model_locked()?1:0;
+    if(locked!=lock_shown){
+        lock_shown=locked;lv_obj_set_hidden(logo,locked);lv_obj_set_hidden(lock_badge,!locked);
+        if(locked)close_about();
+    }
+    const bool holding=locked&&lv_obj_has_state(lock_badge,LV_STATE_PRESSED);
+    const uint32_t held=holding?millis()-lock_pressed_at:0;
+    lv_arc_set_value(lock_ring,static_cast<int32_t>(held>=LockHoldMs?100:held*100/LockHoldMs));
+    if(held<LockHoldMs)return;
+    deck_model_set_locked(false);deck_model_queue_line("{\"type\":\"unlocked\"}");
+    for(auto *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_wait_release(indev);  /* the same touch must not tap what shows next */
+}
+
 void update_link() {
     const int linked=deck_model_host_linked(HostTimeoutMs)?1:0;
     if(linked==link_shown)return;
-    link_shown=linked;lv_obj_set_hidden(link_label,linked);
+    link_shown=linked;lv_obj_set_hidden(link_label,linked);show_about_link();
     for(auto *area:{agents_area,mixer_area,stats_area})if(area)lv_obj_set_style_opa(area,linked?LV_OPA_COVER:LV_OPA_40,0);
     show_offline(linked);
     if(linked){agents_dirty=true;sync_stats();return;}
@@ -594,7 +691,7 @@ void update_link() {
 /* Title on the left, a one-line summary on the right. */
 lv_obj_t *head(lv_obj_t *parent,const char *title,lv_obj_t **summary) {
     auto *name=label(parent,title,Pad,Top-2,ContentW/2,&fq_font_dejavu_bold_28,Text);
-    *summary=label(parent,"",Pad+ContentW/2,Top+8,ContentW/2,&fq_font_dejavu_16,Muted);
+    *summary=label(parent,"",Pad+ContentW/2,Top+6,ContentW/2,&fq_font_dejavu_20,Muted);
     lv_obj_set_style_text_align(*summary,LV_TEXT_ALIGN_RIGHT,0);
     return name;
 }
@@ -697,7 +794,9 @@ void update(lv_timer_t*) {
     int id=0;deck_feedback_t result;
     while(deck_model_take_feedback(&id,&result))for(int i=0;i<DECK_MAX_BUTTONS;++i)if(ids[i]==id&&keys[i])flash(i,result==DECK_FEEDBACK_ALERT?AlertBg:OkBg,500);
     for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&keys[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){lv_anim_delete(keys[i],pulse_opa);lv_obj_set_style_bg_opa(keys[i],LV_OPA_COVER,0);lv_obj_set_style_bg_color(keys[i],lv_color_hex(base_bg[i]),0);flash_until[i]=0;}
+    confirm_tick();
     update_link();
+    update_lock();
     update_ambient();
     /* Runs every 40 ms: only touch the label when the minute changed. */
     const char *clock_now=time_service_time_text();
@@ -711,6 +810,9 @@ extern "C" void ui_init(void) {
     /* Keys */
     page_label=head(views[ViewKeys],"Main",&profile_label);
     keys_area=clear_box(views[ViewKeys],Pad,Top+HeadH,ContentW,H-Top-HeadH-Top);
+    /* Swipes end here (keys bubble them up); clickable so a swipe may start between keys too. */
+    lv_obj_set_clickable(keys_area,true);lv_obj_remove_flag(keys_area,LV_OBJ_FLAG_GESTURE_BUBBLE);
+    lv_obj_add_event_cb(keys_area,swipe,LV_EVENT_GESTURE,nullptr);
     /* Agents */
     head(views[ViewAgents],"Agents",&agents_summary);
     agents_area=clear_box(views[ViewAgents],Pad,Top+HeadH,ContentW,H-Top-HeadH);
@@ -721,7 +823,17 @@ extern "C" void ui_init(void) {
     stats_area=clear_box(views[ViewStatus],Pad,Top+HeadH,ContentW,H-Top-HeadH);
     /* Rail */
     auto *rail=box(screen,0,0,Rail,H,0,RailBg);
-    make_logo(rail,19,20);
+    logo=clear_box(rail,0,8,Rail,68);make_logo(logo,19,12);lv_obj_set_clickable(logo,true);
+    lv_obj_add_event_cb(logo,open_about,LV_EVENT_LONG_PRESSED,nullptr);
+    lock_badge=lv_button_create(rail);flat(lock_badge,RailOn);lv_obj_set_pos(lock_badge,15,14);lv_obj_set_size(lock_badge,54,54);
+    lv_obj_set_style_radius(lock_badge,27,0);lv_obj_add_event_cb(lock_badge,lock_touched,LV_EVENT_PRESSED,nullptr);
+    if(!glyph(lock_badge,"lc:e10b",27,27,26,Amber)){auto *mark=label(lock_badge,"L",0,15,54,&fq_font_dejavu_bold_20,Amber);lv_obj_set_style_text_align(mark,LV_TEXT_ALIGN_CENTER,0);}
+    lock_ring=lv_arc_create(lock_badge);lv_obj_set_size(lock_ring,54,54);lv_obj_set_pos(lock_ring,0,0);
+    lv_arc_set_rotation(lock_ring,270);lv_arc_set_bg_angles(lock_ring,0,360);lv_arc_set_range(lock_ring,0,100);lv_arc_set_value(lock_ring,0);
+    lv_obj_remove_style(lock_ring,nullptr,LV_PART_KNOB);lv_obj_set_clickable(lock_ring,false);
+    lv_obj_set_style_arc_width(lock_ring,3,LV_PART_MAIN);lv_obj_set_style_arc_width(lock_ring,3,LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(lock_ring,lv_color_hex(Amber),LV_PART_MAIN);lv_obj_set_style_arc_color(lock_ring,lv_color_hex(Accent),LV_PART_INDICATOR);
+    lv_obj_set_hidden(lock_badge,true);
     rail_items=clear_box(rail,0,0,Rail,H);
     link_label=label(rail,"NO PC",0,H-74,Rail,&fq_font_dejavu_bold_20,Amber);lv_obj_set_style_text_align(link_label,LV_TEXT_ALIGN_CENTER,0);
     clock_label=label(rail,"--:--",0,H-44,Rail,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_CENTER,0);
@@ -744,6 +856,9 @@ extern "C" int ui_debug_visible_text(char *out,size_t size) {
     const int n=snprintf(out,size,"{\"screen\":\"%s\",\"view\":\"%s\",\"buttons\":%d,\"profile\":\"%s\",\"page\":\"%s\",\"canBack\":%s,\"pc\":%s}",
                          deck_model_screen()==DECK_SCREEN_AMBIENT?"ambient":"deck",ViewNames[view],deck_model_button_count(),profile,page,context.can_go_back?"true":"false",link_shown==1?"true":"false");
     return n>0&&n<static_cast<int>(size)?0:-1;
+}
+extern "C" void ui_set_firmware_version(const char *version) {
+    if(version)snprintf(firmware_version,sizeof(firmware_version),"%s",version);
 }
 /* Shows one of the four screens (keys, agents, mixer, status); used by the tests. */
 extern "C" void ui_show_view(int index) {if(screen)set_view(index);}
