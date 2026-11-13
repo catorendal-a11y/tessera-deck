@@ -3,7 +3,6 @@
 It never contains profile contents (no commands, URLs, labels or paths from buttons), only numbers about them.
 User names, tokens and passwords are removed from the log before it is written.
 """
-from __future__ import annotations
 
 import json
 import platform
@@ -20,6 +19,7 @@ BEARER = re.compile(r'(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+')
 SECRET = re.compile(r'(?i)(token|secret|password|passwd|authorization|api[_-]?key|bearer)(["\']?\s*[:=]?\s*["\']?)([^\s"\',;]+)')
 PROBLEM = re.compile(r'(?i)fail|error|exception|traceback|timed? ?out|did not finish|could not')
 PROBLEM_LINES = 20
+PRESS = re.compile(r'(?m)(\bButton \d+: ).*?((?: \((?:hold|double)\))?)$')  # the host logs every press with its label
 PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', 'pycaw', 'esptool', 'textual')
 
 
@@ -27,6 +27,11 @@ def clean(text: str) -> str:
     """Remove the user's name from paths and anything that looks like a credential."""
     text = USER_PATH.sub(r'\1<user>', BEARER.sub(r'\1 <hidden>', text))
     return SECRET.sub(lambda match: f'{match.group(1)}{match.group(2)}<hidden>', text)
+
+
+def _no_labels(text: str) -> str:
+    """The bundle leaves the machine, so key labels in press lines are masked; the live log view keeps them."""
+    return PRESS.sub(r'\1<label>\2', text)
 
 
 def _versions() -> dict:
@@ -92,12 +97,12 @@ def build(folder: Path, config: dict, status: dict, version: str, log_path: Path
                        'device': {key: device.get(key) for key in ('connected', 'firmware', 'protocol', 'profile',
                                                                    'page', 'buttons', 'error')},
                        'queue': status.get('queue')},
-              'recent_problems': recent_problems(log_path),
+              'recent_problems': [_no_labels(line) for line in recent_problems(log_path)],
               'created': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now()))}
     target = folder / f'tessera-diagnostics-{time.strftime("%Y%m%d-%H%M%S", time.localtime(now()))}.zip'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.writestr('report.json', clean(json.dumps(report, indent=2, default=str)) + '\n')
-        archive.writestr('host.log', _tail(Path(log_path)) + '\n')
+        archive.writestr('host.log', _no_labels(_tail(Path(log_path))) + '\n')
     for old in sorted(folder.glob('tessera-diagnostics-*.zip'))[:-10]:
         old.unlink(missing_ok=True)
     return target

@@ -28,8 +28,7 @@ HOME = str(SETTINGS.get('url') or '').rstrip('/')
 HOME_TOKEN = str(SETTINGS.get('token') or '')
 ENTITIES = [item.strip() for item in str(SETTINGS.get('entities') or '').split(',') if item.strip()]
 INTERVAL = max(2.0, float(SETTINGS.get('interval') or 10))
-ENTITY = re.compile(r'[a-z_]+\.[a-z0-9_]+')
-SERVICE = re.compile(r'[a-z_]+\.[a-z0-9_]+')
+ENTITY = re.compile(r'[a-z_]+\.[a-z0-9_]+')  # also the shape of a service, domain.service
 MAX_FAILURES = 5
 MAX_VARS_PER_CALL = 20  # /v1/vars refuses more in one request
 
@@ -82,14 +81,14 @@ def run(command, args):
     entity = str(args.get('entity', ''))
     if command == 'toggle' and ENTITY.fullmatch(entity):
         home('POST', '/api/services/homeassistant/toggle', {'entity_id': entity})
-    elif command == 'call' and SERVICE.fullmatch(str(args.get('service', ''))):
+    elif command == 'call' and ENTITY.fullmatch(str(args.get('service', ''))):
         domain, service = str(args['service']).split('.', 1)
         home('POST', f'/api/services/{domain}/{service}', {'entity_id': entity} if entity else {})
 
 
 def reason(exc):
-    if isinstance(exc, urllib.error.HTTPError) and exc.code == 401:
-        return 'wrong token'
+    if isinstance(exc, urllib.error.HTTPError):  # the server answered, so it is reachable
+        return 'wrong token' if exc.code == 401 else f'HA error {exc.code}'
     return 'not reachable'
 
 

@@ -84,6 +84,14 @@ class HomeAssistantTests(unittest.TestCase):
         self.assertEqual({path for path, _ in calls}, {'/v1/vars'})
         self.assertEqual({name: value for _, data in calls for name, value in data['set'].items()}, values)
 
+    def test_a_refused_service_call_is_not_reported_as_unreachable(self):
+        import urllib.error
+        module = load('home-assistant', {'url': 'http://127.0.0.1:9/', 'token': 'secret'})
+        error = lambda code: urllib.error.HTTPError('http://ha/api', code, 'x', {}, None)  # noqa: E731
+        self.assertEqual(module.reason(error(401)), 'wrong token')
+        self.assertEqual(module.reason(error(404)), 'HA error 404')
+        self.assertEqual(module.reason(urllib.error.URLError('refused')), 'not reachable')
+
 
 class FakeObs:
     """A WebSocket server that speaks just enough OBS WebSocket 5, with a password."""

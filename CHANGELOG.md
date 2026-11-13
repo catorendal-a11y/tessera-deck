@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Diagnostics: the support bundle masks key labels in the log ("Button 3: <label>"), as the editor promises. The live host log on your PC still shows them.
+- Home Assistant plugin: a refused key command shows "HA error 404" (or the code it got) instead of "not reachable".
+- Terminal UI: a new profile, page or template that cannot be saved shows "Not saved" and no longer closes the app.
+
+## 0.8.0
+
 ## 0.8.0
 
 - Firmware update over USB: when the panel stops acknowledging partway, the host aborts and starts the upload once more by itself. The panel keeps its running firmware either way.

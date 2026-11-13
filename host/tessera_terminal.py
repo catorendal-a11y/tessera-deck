@@ -326,6 +326,7 @@ class DeckPane(TabPane):
         self.refresh_log()
 
     def commit(self, draft, force_backup=False):
+        """Save `draft`; False when it was refused, so callers do not select a profile or page that was not added."""
         try:
             validate_config(draft)
             config_store.backup(self.path, force=force_backup)  # the same safety copy the graphical editor keeps
@@ -333,8 +334,10 @@ class DeckPane(TabPane):
             self.config = copy.deepcopy(draft)
             self.refresh_grid()
             self.query_one('#deck-state', Static).update('Saved. The active page updates automatically.')
+            return True
         except (ValueError, OSError) as exc:
             self.query_one('#deck-state', Static).update('Not saved: ' + str(exc))
+            return False
 
     def on_select_changed(self, event):
         event.stop()
@@ -400,7 +403,8 @@ class DeckPane(TabPane):
                         self.query_one('#deck-state', Static).update('The page already exists')
                         return
                     draft['profiles'][self.profile]['pages'][name] = []
-                self.commit(draft)
+                if not self.commit(draft):
+                    return
                 self.query_one('#deck-profile', Select).set_options([(n, n) for n in self.config['profiles']])
                 self.query_one('#deck-profile', Select).value = name if kind == 'profile' else self.profile
                 if kind == 'page':
@@ -424,9 +428,12 @@ class DeckPane(TabPane):
                     name = f'{template["name"]} {suffix}'
                     suffix += 1
                 draft['profiles'][name] = copy.deepcopy(template['profile'])
-                self.profile = name
+                previous = self.profile, self.page
+                self.profile = name  # set first: commit() redraws the grid for self.profile
                 self.page = next(iter(draft['profiles'][name]['pages']))
-                self.commit(draft)
+                if not self.commit(draft):
+                    self.profile, self.page = previous
+                    return
                 self.query_one('#deck-profile', Select).set_options([(n, n) for n in self.config['profiles']])
                 self.query_one('#deck-profile', Select).value = name
             choices = [(name + ' · ' + item['description'], name) for name, item in templates.items()]

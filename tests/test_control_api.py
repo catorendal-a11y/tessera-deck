@@ -54,6 +54,9 @@ class ControlApiTests(unittest.TestCase):
         self.assertEqual(self.call('GET', '/v1/state', token='wrong')[0], 401)
         self.daemon.submit.assert_not_called()
 
+    def test_a_non_ascii_token_is_refused_not_dropped(self):
+        self.assertEqual(self.call('GET', '/v1/state', token='tøken')[0], 401)
+
     def test_browser_requests_and_other_hosts_are_refused(self):
         for headers in ({'Origin': 'http://evil.example'}, {'Origin': 'null'}, {'Host': 'evil.example'},
                         {'Host': f'localhost:{self.port}'}):

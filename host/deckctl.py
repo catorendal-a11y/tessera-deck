@@ -12,7 +12,6 @@ Examples:
   deckctl adapter claude         feed a Claude Code hook event (stdin) to the panel
   deckctl hooks claude           print the Claude Code hooks block that runs the adapter
 """
-from __future__ import annotations
 
 import argparse
 import json
@@ -56,6 +55,8 @@ def call(info: dict, method: str, path: str, data: dict | None = None, timeout: 
         raise DeckctlError(f'The host rejected the request: {message}') from exc
     except (urllib.error.URLError, OSError) as exc:
         raise DeckctlError('Could not reach the Tessera host.') from exc
+    except ValueError as exc:  # another program on the recorded port; adapter hooks must still exit cleanly
+        raise DeckctlError('The host sent an unreadable reply.') from exc
 
 
 def state_value(text: str):

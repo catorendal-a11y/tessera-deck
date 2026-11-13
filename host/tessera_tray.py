@@ -3,7 +3,6 @@
 Like the Stream Deck app it lives in the notification area, starts the USB host,
 and opens the editor on a click.
 """
-from __future__ import annotations
 
 import json
 import logging
