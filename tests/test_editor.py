@@ -257,5 +257,17 @@ class MarkupTests(unittest.TestCase):
         for selector in ("'#library-tabs'", "'#inspector .inspector-tabs'"):
             self.assertIn(f'rovingTabs({selector}', app)
 
+    def test_the_layout_makes_room_instead_of_shrinking_the_text(self):
+        editor = Path(__file__).resolve().parents[1] / 'host/editor'
+        self.assertIn('Math.max(1,', (editor / 'core.js').read_text(encoding='utf-8'), 'the zoom never goes below 1')
+        css = (editor / 'cockpit.css').read_text(encoding='utf-8')
+        self.assertIn('@media(min-width:1280px)', css, 'the key settings sit beside the deck from 1280 px')
+        self.assertIn('--dim:#8FA0A8', css)
+        self.assertIn('@media(prefers-contrast:more)', css)
+        for sheet in ('style.css', 'streamdeck.css'):
+            text = (editor / sheet).read_text(encoding='utf-8')
+            self.assertNotIn('zoom:var(--z)', text, f'{sheet}: the zoom is set once, in cockpit.css')
+            self.assertNotRegex(text, r'#deck-view\s*\{[^}]*grid-template-columns', f'{sheet}: the columns are set in cockpit.css')
+
 if __name__ == '__main__':
     unittest.main()

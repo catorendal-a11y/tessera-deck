@@ -151,6 +151,35 @@ def fit_to_work_area(window):
         pass
 
 
+WINDOW_FILE = ROOT / 'host/window.local.json'
+MIN_WINDOW = (1050, 640)
+
+
+def window_geometry(screen, saved_file=WINDOW_FILE):
+    """Width, height, x and y for the editor window: the last one used, kept on the screen, or one that fits the screen.
+
+    x and y are None when nothing is saved; the window then fills the work area once it is shown.
+    """
+    sw, sh = screen.width, screen.height
+    try:
+        saved = json.loads(saved_file.read_text(encoding='utf-8'))
+        width = max(min(int(saved['width']), sw), min(MIN_WINDOW[0], sw))  # a minimized window reports a tiny size
+        height = max(min(int(saved['height']), sh), min(MIN_WINDOW[1], sh))
+        x = min(max(int(saved['x']), screen.x), screen.x + sw - width)  # a window closed off-screen comes back on it
+        y = min(max(int(saved['y']), screen.y), screen.y + sh - height)
+        return width, height, x, y
+    except (OSError, ValueError, KeyError, TypeError):
+        return min(1600, int(sw * .92)), min(1000, int(sh * .88)), None, None
+
+
+def save_window_geometry(geometry, saved_file=WINDOW_FILE):
+    if {'width', 'height', 'x', 'y'} <= geometry.keys():
+        try:
+            saved_file.write_text(json.dumps(geometry), encoding='utf-8')
+        except OSError:
+            pass
+
+
 def open_window(url):
     """Open the editor in a native WebView2 window; return False on fallback."""
     if os.name == 'nt':
@@ -158,10 +187,18 @@ def open_window(url):
         try:
             import webview
             webview.settings['ALLOW_DOWNLOADS'] = True  # Export saves through a download; pywebview cancels them all without this
-            window = webview.create_window('Tessera', url, width=1500, height=980,
-                                           min_size=(1050, 720), background_color='#0A0E10', text_select=True)
-            webview.start(fit_to_work_area, (window,), private_mode=True, storage_path=str(ROOT / 'host/.webview-data'),
-                          icon=str(ROOT / 'host/tessera.ico'))
+            screen = webview.screens[0]
+            width, height, x, y = window_geometry(screen)
+            window = webview.create_window('Tessera', url, width=width, height=height, x=x, y=y,
+                                           min_size=(min(MIN_WINDOW[0], screen.width), min(MIN_WINDOW[1], screen.height)),
+                                           background_color='#0A0E10', text_select=True)
+            # Remember the last size and place: the events give logical pixels, the same units create_window takes.
+            geometry = {}
+            window.events.resized += lambda width, height: geometry.update(width=width, height=height)
+            window.events.moved += lambda x, y: geometry.update(x=x, y=y)
+            window.events.closing += lambda: save_window_geometry(dict(geometry))
+            webview.start(fit_to_work_area if x is None else None, (window,), private_mode=True,
+                          storage_path=str(ROOT / 'host/.webview-data'), icon=str(ROOT / 'host/tessera.ico'))
             return True
         except Exception:
             logging.getLogger(__name__).warning('WebView2 window failed; using the browser', exc_info=True)

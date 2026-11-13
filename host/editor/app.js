@@ -539,7 +539,7 @@ document.addEventListener('keydown',event=>{
     if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?items.length-1:(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;items[next].focus();return;}}
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().then(()=>toast('All changes are saved.')).catch(showError);return;}
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||document.querySelector('dialog:modal'))return;
-  if(event.key==='/'&&editorView==='keys'&&!event.ctrlKey&&!event.altKey){event.preventDefault();$('#action-search').focus();$('#action-search').select();return;}
+  if(event.key==='/'&&editorView==='keys'&&!event.ctrlKey&&!event.altKey){event.preventDefault();setLibraryOpen(true);$('#action-search').focus();$('#action-search').select();return;}
   if(event.key==='?'){event.preventDefault();$('#shortcuts-dialog').showModal();return;}
   const onDeck=editorView==='keys'&&(!document.activeElement||document.activeElement===document.body||document.activeElement.closest('#deck-grid'));
   if(event.key==='F2'&&onDeck&&current()){event.preventDefault();renameButton();return;}
@@ -651,9 +651,24 @@ async function start() {
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};
   $('#host-toggle').onclick=async()=>{const b=$('#host-toggle');b.disabled=true;try{await command('start');}catch(error){showError(error);}finally{b.disabled=false;}};
   $('#reload').onclick=async()=>{if(dirty&&!await confirmDialog('Reload the configuration?','Your unsaved changes here are discarded and the configuration is read again from the PC.',{ok:'Discard and reload',danger:true}))return;try{const state=await api('config');config=state.config;savedBase=clone(config);revision=state.revision;dirty=false;conflicted=false;configError=state.error||'';history=[];future=[];$('#reload').hidden=true;renderAll();renderStatusBar();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
-  setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);
+  setupLibraryDrawer();setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);
   $('#sync').onchange=()=>{if($('#sync').checked)syncPanel();};
   pollStatus();setInterval(()=>pollStatus(true),1500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollStatus(true);});
+}
+
+/* The action list folds into a narrow strip, so the deck and the key's settings get the room while nothing is being added. */
+function setLibraryOpen(open) {
+  const toggle=$('#library-toggle');$('#deck-view').classList.toggle('library-closed',!open);
+  toggle.setAttribute('aria-expanded',String(open));toggle.title=open?'Hide the action list':'Show the action list';
+  toggle.replaceChildren(text('span','Actions'),element('span',{'aria-hidden':'true',text:open?'›':'‹'}));
+  try{localStorage.setItem('tessera-library-open',open?'1':'0');}catch{}
+  fitDevice();  // the deck column changes width
+}
+function setupLibraryDrawer() {
+  const library=$('.library');library.id='library';
+  library.prepend(element('button',{id:'library-toggle',class:'library-toggle',type:'button','aria-controls':'library',
+    onclick:()=>setLibraryOpen($('#deck-view').classList.contains('library-closed'))}));
+  setLibraryOpen((()=>{try{return localStorage.getItem('tessera-library-open')!=='0';}catch{return true;}})());
 }
 
 function otherTriggerRows(base, row) {

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Editor: text is no longer scaled down in smaller windows. Body text is at least 14 px and labels at least 13 px; the app bar, rail, status bar and messages now share one scale.
+- Editor: from 1280 px wide, the key's settings sit in their own column beside the deck instead of below it, and the deck preview grows with the space.
+- Editor: the action list on the right folds into a narrow strip with its Actions button; the editor remembers your choice, and / opens it again.
+- Editor: dim and secondary text has more contrast, and Windows' high-contrast setting raises lines and text further.
+- Editor: long profile and page names and tab labels are cut with an ellipsis instead of wrapping; many pages scroll sideways.
+- Editor window: the first window fits the screen, including a 1366x768 laptop, and the editor reopens at the size and place you left it.
+
 ## 0.7.0
 
 - Install: `Tessera.cmd` installs the host packages from `host/requirements.lock`, where every package is pinned with its SHA-256 hash (`--require-hashes`), and says clearly when Python is missing or older than 3.11.

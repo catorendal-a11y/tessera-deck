@@ -70,53 +70,6 @@ body {
   color: #bcbcbc;
 }
 
-@media (min-width: 901px) {
-  body { height: 100vh !important; overflow: hidden; }
-  #deck-view {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1fr) 318px !important;
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas: "work library" "inspector library";
-    height: calc(100vh / var(--z) - 38px) !important;
-    min-height: 0 !important;
-    overflow: hidden;
-    background: var(--sd-window);
-  }
-  .workspace {
-    grid-area: work;
-    min-width: 0;
-    overflow: visible !important;
-    padding: 22px 40px 6px !important;
-    background: none !important;
-  }
-  .inspector {
-    grid-area: inspector;
-    min-width: 0;
-    overflow-y: auto !important;
-    align-self: stretch;
-    padding: 14px 40px 28px !important;
-    border: 0 !important;
-    border-top: 1px solid var(--sd-rule) !important;
-    background: var(--sd-window) !important;
-    scrollbar-width: thin;
-    scrollbar-color: #4a4a4a transparent;
-  }
-  .library {
-    grid-area: library;
-    position: static;
-    align-self: stretch;
-    height: auto;
-    min-height: 0;
-    overflow-y: auto !important;
-    padding: 13px 0 18px !important;
-    background: var(--sd-panel);
-    border: 0;
-    border-left: 1px solid var(--sd-rule);
-    scrollbar-width: thin;
-    scrollbar-color: #484848 transparent;
-  }
-}
-
 /* Device/profile controls */
 .toolbar {
   max-width: 760px;
@@ -460,22 +413,11 @@ body {
 .action-preset span span { color: #c9c9c9; font-size: 11px; font-weight: 400; }
 .action-preset small { display: none; }
 
-@media (max-width: 1100px) and (min-width: 901px) {
-  #deck-view { grid-template-columns: minmax(0, 1fr) 270px !important; }
-  .workspace { padding-inline: 24px !important; }
-  .inspector { padding-inline: 24px !important; }
-  .device-frame { width: min(100%, 540px); }
-}
-
 @media (max-width: 900px) {
   .appbar { height: 46px; }
   .appbar > .quiet { display: inline-flex; }
   .connection { min-width: 0; }
   .brand { position: static; transform: none; }
-  #deck-view { display: flex; flex-direction: column; height: auto !important; }
-  .workspace { order: 0; padding: 20px 16px 8px !important; }
-  .inspector { order: 1; padding: 14px 16px 24px !important; }
-  .library { order: 2; max-height: 55vh; border-top: 1px solid var(--sd-rule); }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -447,9 +447,10 @@ function renderGrid() {
   grid.replaceChildren(...next.map((tile,index)=>shown[index]?.isEqualNode(tile)?shown[index]:tile));
   if(focused)$(`[data-slot="${focused}"]`)?.focus();
 }
-/* The editor is designed for about 1450x900; larger windows scale everything up so the proportions stay the same. */
+/* The editor is designed for about 1600x1000; larger windows scale everything up so the proportions stay the same.
+   A smaller window never shrinks the text: the layout in cockpit.css makes room instead. */
 function applyZoom() {
-  const zoom=Math.max(.72,Math.min(1.45,.85*innerHeight/990,.85*innerWidth/1450));  // 15% smaller than the design size
+  const zoom=Math.max(1,Math.min(1.45,innerHeight/1000,innerWidth/1600));
   document.documentElement.style.setProperty('--z',zoom.toFixed(3));
 }
 function fitDevice() {

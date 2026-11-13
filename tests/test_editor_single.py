@@ -59,5 +59,25 @@ class RunningEditorTests(unittest.TestCase):
                 urlopen.assert_not_called()
 
 
+class WindowSizeTests(unittest.TestCase):
+    laptop = Mock(x=0, y=0, width=1366, height=768)
+
+    def test_a_first_start_fits_a_small_laptop_screen(self):
+        width, height, x, y = tessera_app.window_geometry(self.laptop, Path('missing.local.json'))
+        self.assertLessEqual((width, height), (1366, 768))
+        self.assertGreaterEqual(height, 640)
+        self.assertEqual((x, y), (None, None))
+
+    def test_the_last_size_comes_back_but_stays_on_the_screen(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'window.local.json'
+            tessera_app.save_window_geometry({'width': 1200, 'height': 700, 'x': 40, 'y': 30}, path)
+            self.assertEqual(tessera_app.window_geometry(self.laptop, path), (1200, 700, 40, 30))
+            tessera_app.save_window_geometry({'width': 1900, 'height': 160, 'x': -32000, 'y': -32000}, path)
+            self.assertEqual(tessera_app.window_geometry(self.laptop, path), (1366, 640, 0, 0))
+            tessera_app.save_window_geometry({'width': 1200}, path)  # incomplete: the earlier size is kept
+            self.assertEqual(tessera_app.window_geometry(self.laptop, path), (1366, 640, 0, 0))
+
+
 if __name__ == '__main__':
     unittest.main()

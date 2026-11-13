@@ -2,11 +2,13 @@
    Loaded last, so it overrides the older themes. */
 :root{
   --bg:#0A0E10;--rail:#0F1518;--card:#12191D;--card2:#18232A;--line:#1E2A30;--line2:#26333A;
-  --text:#EAF2EF;--soft:#C4D0D4;--muted:#8D9AA0;--dim:#6F8088;
+  --text:#EAF2EF;--soft:#C4D0D4;--muted:#A5B2B8;--dim:#8FA0A8;
   --accent:#58E09B;--cyan:#4DD0E1;--purple:#B388FF;--amber:#FFB74D;--red:#FF7070;
   --panel:#12191D;--mint-dark:#16372A;--orange:#FFB74D;
   --brand:linear-gradient(135deg,#58E09B,#4DD0E1 55%,#B388FF);
-  --col:840px;  /* the width of the one column: title, deck, pages, sync bar and key settings */
+  /* the width of the deck column: as wide as it fits, but never taller than the window (the deck is 1.7 times as wide
+     as it is high; 250 px is the app bar, the title, the page tabs and the line under the deck) */
+  --col:calc((100vh / var(--z,1) - 250px) * 1.7);
   font-family:'DejaVu Sans',Verdana,'Segoe UI',system-ui,sans-serif;font-size:14px;color-scheme:dark;
 }
 html body{background:var(--bg);color:var(--text);font-family:inherit}
@@ -32,7 +34,7 @@ html body .quiet:hover{background:var(--card2);color:var(--text)}
 html body input:not([type=checkbox]):not([type=radio]):not([type=color]),html body select,html body textarea,html body .prop-field{background:var(--card);color:var(--text);border:1px solid var(--line2);border-radius:12px}
 html body input:focus-visible,html body select:focus-visible,html body textarea:focus-visible,html body button:focus-visible,html body summary:focus-visible,html body a:focus-visible,html body [tabindex]:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 html body input[type=checkbox]{accent-color:var(--accent)}
-html body .section-label{color:var(--dim);letter-spacing:.14em;font-size:11px}
+html body .section-label{color:var(--dim);letter-spacing:.1em;font-size:13px}
 
 /* Left: the action library */
 html body .library{background:var(--rail);border-right:1px solid var(--line);border-left:0}
@@ -82,8 +84,6 @@ html body .gallery-item[aria-selected=true],html body .rail-item.on{background:v
 html body .screen-card,html body .screen-fader,html body .screen-stat{background:var(--card);border-color:var(--line);border-radius:18px}
 
 /* The older themes set these with ids or !important; they have to be beaten explicitly. */
-html body #deck-view{background:var(--bg) !important}
-html body #deck-view .inspector,html body #inspector{background:var(--rail) !important;border:0 !important;border-left:1px solid var(--line) !important}
 html body #deck-grid .deck-key{background:var(--card) !important;border:1px solid transparent !important;border-radius:20px !important;box-shadow:none !important}
 html body #deck-grid .deck-key:hover{background:var(--card2) !important}
 html body #deck-grid .deck-key.selected{background:var(--card2) !important;border-color:var(--accent) !important;box-shadow:0 0 0 1px var(--accent) !important}
@@ -102,27 +102,15 @@ html body .action-preset{border:0 !important}
 html body .more-menu hr{border-color:var(--line)}
 html body .history-buttons button,html body .icon-button{border-radius:12px}
 
-/* One column: the title, the deck, the pages, the sync bar and the key's settings share the same width and edges. */
-html body .toolbar,html body .deck-card,html body .syncbar,html body #inspector>*{width:min(100%,var(--col));max-width:var(--col);margin-left:auto;margin-right:auto;box-sizing:border-box}
-html body .workspace{padding:22px 28px 6px}
-html body .device-frame{width:100% !important;max-width:none !important;margin:6px auto 0 !important}
+html body .device-frame{width:100%;max-width:none;margin:6px auto 0}
 html body .page-pill{margin:12px auto 0}
 html body .syncbar{margin-top:10px;display:flex;align-items:center;gap:14px}
 html body .syncbar>div:first-child{flex:1}
-html body #inspector{display:flex !important;flex-direction:column;align-items:center;gap:10px;padding:0 28px 28px}
-html body #inspector>*{width:min(100%,var(--col)) !important;flex:none}
 html body #inspector .inspector-section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin:0}
 html body #inspector .inspector-section>summary{cursor:pointer;font-weight:700;color:var(--soft);list-style:none;display:flex;align-items:center;gap:8px}
 html body #inspector .inspector-section[open]>summary{margin-bottom:10px;color:var(--text)}
-html body #inspector .hint.shortcuts{text-align:center;color:var(--dim);font-size:12px}
+html body #inspector .hint.shortcuts{text-align:center;color:var(--dim);font-size:13px}
 html body .prop-card{margin:0}
-
-/* The deck and the key's settings scroll together; the action library stays in view beside them. */
-@media(min-width:901px){
-  html body #deck-view{overflow-y:auto !important;align-items:start}
-  html body .workspace,html body #inspector{overflow:visible !important;height:auto !important}
-  html body .library{position:sticky;top:0;align-self:start;height:calc(100vh / var(--z) - 64px);overflow-y:auto}
-}
 
 html body .action-preset .action-symbol svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 html body .action-preset{gap:12px;padding:8px 10px}
@@ -130,10 +118,7 @@ html body .action-preset small{color:var(--dim)}
 html body .lib-cat > summary span::before{content:none !important;display:none !important}
 html body .lib-cat > summary{padding:9px 10px;font-weight:600}
 html body .program-launcher{text-align:left;padding:10px 12px;font-weight:600}
-@media(min-width:901px){html,html body{height:100vh;overflow:hidden}html body .shell{height:calc(100vh - 64px * var(--z));min-height:0}html body #deck-view{height:calc(100vh / var(--z) - 64px) !important;min-height:0}html body .screens{height:calc(100vh - 64px * var(--z))}html body .rail{height:calc(100vh - 64px * var(--z));top:0;box-sizing:border-box;padding-bottom:20px}}
 
-/* The key's settings sit below the deck in the same column: same background, no side border. */
-html body #deck-view .inspector,html body #inspector{background:transparent !important;border:0 !important}
 html body #inspector select,html body #inspector .form-field select,html body #inspector .prop-value select{background-color:var(--card) !important;color:var(--text) !important;border:1px solid var(--line2) !important;border-radius:12px !important;min-height:38px}
 html body #inspector .outline,html body #inspector .prop-value button{background:var(--card2) !important;color:var(--soft) !important;border:1px solid var(--line2) !important;border-radius:12px !important}
 html body #inspector .outline:hover{background:#20303a !important;color:var(--text) !important}
@@ -142,7 +127,6 @@ html body #inspector input[type=text],html body #inspector input:not([type]),htm
 html body .prop-preview,html body .prop-icon{border-radius:20px}
 html body #deck-view{scrollbar-width:thin}
 html body #inspector .prop-value select{width:100%;box-sizing:border-box;margin:0}
-html body #inspector{padding-bottom:56px !important}
 html body #inspector .hint.shortcuts{margin:6px 0 0}
 html body .rail-add{margin-top:auto;border:1px dashed var(--line2);color:var(--dim)}html body .rail-add:hover{color:var(--accent);border-color:var(--accent)}
 
@@ -196,19 +180,6 @@ html body #rail-dialog{width:min(760px,94vw);padding:22px 24px}
 .rail-foot span{flex:1;color:var(--muted)}.rail-foot span.over{color:var(--amber)}
 .rail-foot button:disabled{opacity:.4;cursor:default}
 
-/* Wide windows: the key's settings get their own column beside the deck, so nothing sits below the fold. */
-@media(min-width:1560px){
-  :root{--col:100%}
-  html body #deck-view{grid-template-columns:minmax(0,1fr) 440px 318px !important;grid-template-areas:"work inspector library" !important;grid-template-rows:auto !important}
-  html body .workspace{max-width:940px;justify-self:center;width:100%;box-sizing:border-box}
-  html body .toolbar,html body .deck-card,html body .syncbar{max-width:880px}
-  html body #inspector{position:sticky;top:0;align-self:start;height:calc(100vh / var(--z) - 64px - 12px) !important;overflow-y:auto !important;padding:18px 20px 56px !important;border-left:1px solid var(--line) !important;box-sizing:border-box}
-  html body #inspector>*{width:100% !important;max-width:none}
-  html body #inspector .prop-card{grid-template-columns:96px minmax(0,1fr);column-gap:16px;padding:0 16px 18px !important}
-  html body #inspector .prop-preview{width:96px !important;height:96px !important}
-  html body #inspector .prop-row{grid-template-columns:50px minmax(0,1fr)}
-}
-
 /* The key card: the preview sits beside the title and icon; every other setting gets the full width, its name above it. */
 html body #inspector .prop-card{grid-template-columns:96px minmax(0,1fr) !important;column-gap:16px;row-gap:14px}
 html body #inspector .prop-rows{display:contents}
@@ -217,17 +188,17 @@ html body #inspector .prop-row{grid-template-columns:minmax(0,1fr) !important;ro
 html body #inspector .prop-row:nth-child(1){grid-column:2;grid-row:2}
 html body #inspector .prop-row:nth-child(2){grid-column:2;grid-row:3}
 html body #inspector .prop-row:nth-child(n+3){grid-column:1 / -1}
-html body #inspector .prop-name{text-align:left;font-size:12px;color:var(--muted)}
+html body #inspector .prop-name{text-align:left;font-size:13px;color:var(--muted)}
 html body #inspector .prop-value{flex-wrap:wrap}
 html body #inspector .prop-value select{flex:1 1 130px !important;width:auto}
 html body #inspector .prop-value>.prop-field{flex:1 1 100% !important}
 html body #inspector .prop-row-title .prop-value{flex-direction:column;align-items:stretch;gap:4px}
-html body #inspector .label-meter{font-size:11px;color:var(--dim)}
+html body #inspector .label-meter{font-size:13px;color:var(--dim)}
 html body #inspector .size-pick{display:flex;gap:8px;width:100%}
 html body #inspector .size-pick button{flex:1;height:44px !important;line-height:1.2 !important;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 4px !important}
 html body #inspector .size-pick button i{display:flex;gap:2px}
 html body #inspector .size-pick button i b{width:12px;height:10px;border-radius:3px;background:currentColor;opacity:.7}
-html body #inspector .size-pick button small{font-size:11px}
+html body #inspector .size-pick button small{font-size:13px}
 html body #inspector .size-pick button.on{border-color:var(--accent) !important;color:var(--accent) !important;background:var(--card2) !important}
 html body #inspector .prop-row:nth-child(2) .prop-value{flex-wrap:nowrap}
 html body #inspector .prop-row:nth-child(2) .prop-value>.prop-field{flex:1 1 auto !important;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -236,28 +207,21 @@ html body #inspector .prop-row:nth-child(2) .prop-value>button:not(.prop-field){
 /* Tidy pass: profile as the title, page tabs above the deck, a larger deck, and key settings in three tabs. */
 html body .appbar{justify-content:flex-start}
 html body .appbar .brand{position:static;transform:none;margin:0 auto 0 0}
-html body .workspace{display:flex !important;flex-direction:column;align-items:center}
 html body .toolbar{order:0}html body .page-pill{order:1}html body .deck-card{order:2}html body .syncbar{order:3}
 html body .who{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
-html body .toolbar .device-name{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.02em}
+html body .toolbar .device-name{font-size:13px;font-weight:600;color:var(--muted);letter-spacing:.02em}
 html body .toolbar .device-name::after{content:none}
 html body .profile-select>span{display:none}
-html body .toolbar .profile-select select{font-size:24px;font-weight:700;color:var(--text);padding:0 28px 0 0;height:auto;min-height:0;border:0;cursor:pointer}
 html body .page-pill{display:flex;align-items:center;gap:8px;width:min(100%,var(--col));max-width:var(--col);margin:10px auto 12px;padding:0;box-sizing:border-box}
-html body .page-tabs{display:flex;flex-wrap:wrap;gap:6px}
-html body .page-chip{font-size:13px;padding:7px 14px;background:var(--card) !important;color:var(--soft)}
-html body .page-chip:hover{color:var(--text)}
-html body .page-chip.active{background:var(--text) !important;color:#0D1417}
+/* Many pages scroll sideways instead of pushing the deck down; a long page name is cut with an ellipsis. */
+html body .page-pill .page-tabs{display:flex;flex-wrap:nowrap;gap:6px;min-width:0;overflow-x:auto;scrollbar-width:thin}
+html body .page-pill .page-chip{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none;font-size:13px;line-height:1.3;padding:7px 14px;background:var(--card);color:var(--soft)}
+html body .page-pill .page-chip:hover{color:var(--text)}
+html body .page-pill .page-chip.active{background:var(--text);color:#0D1417}
 html body .syncbar{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted)}
-@media(min-width:1560px){
-  /* A big screen gets a big deck: as wide as the column allows, but never taller than the window (the deck is
-     about twice as wide as it is high; 290 px is the bar, the page tabs and the line under the deck). */
-  html body .workspace{max-width:none}
-  html body .toolbar,html body .deck-card,html body .syncbar,html body .page-pill{max-width:min(1500px,calc((100vh / var(--z,1) - 290px) * 1.9));width:100%}
-}
 html body #inspector>[hidden]{display:none !important}
 html body #inspector .inspector-tabs{display:flex;gap:4px;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:14px;box-sizing:border-box}
-html body #inspector .inspector-tab{flex:1;height:36px;border:0 !important;border-radius:10px;background:transparent !important;color:var(--muted);font-weight:600;cursor:pointer}
+html body #inspector .inspector-tab{flex:1;min-width:0;height:36px;padding:0 8px;border:0 !important;border-radius:10px;background:transparent !important;color:var(--muted);font-weight:600;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 html body #inspector .inspector-tab:hover{color:var(--text)}
 html body #inspector .inspector-tab.on{background:var(--card2) !important;color:var(--text)}
 html body #inspector .tabbed.handling>summary{display:none}
@@ -266,26 +230,28 @@ html body #inspector .tabbed>summary::after,html body #inspector .tabbed>summary
 html body #inspector .tabbed.handling>.section-body{margin-top:18px}
 html body #inspector .other-triggers{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
 html body #inspector .prop-card{padding-bottom:22px !important}
-html body #inspector .prop-clear{font-size:12px;color:var(--muted) !important;cursor:pointer}
+html body #inspector .prop-clear{font-size:13px;color:var(--muted) !important;cursor:pointer}
 html body #inspector .prop-clear:hover{color:var(--amber) !important}
 html body .deck-card{display:flex !important;flex-direction:column}
 html body .deck-card .page-pill{order:-1;margin:0 0 12px;width:100%;max-width:none}
 html body .deck-card .syncbar{width:100%;max-width:none}
-html body .toolbar .profile-select select{font-size:24px !important;font-weight:700 !important;color:var(--text) !important;height:auto !important;min-height:0 !important;padding:0 30px 0 0 !important;border:0 !important;line-height:1.2 !important}
+html body .toolbar .profile-select select{font-size:24px !important;font-weight:700 !important;color:var(--text) !important;height:auto !important;min-height:0 !important;padding:0 30px 0 0 !important;border:0 !important;line-height:1.2 !important;cursor:pointer;width:auto;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* A long profile name is cut with an ellipsis instead of pushing the menu buttons onto a second row. */
+html body .toolbar .who,html body .toolbar .profile-select{min-width:120px;max-width:100%;flex:0 1 auto}
+@media(min-width:901px){html body .toolbar{flex-wrap:nowrap}}
 html body .toolbar{margin-bottom:10px}
 html body .deck-key.wide .key-label{left:9px;right:9px;width:auto}
 html body .deck-key.wide .key-live{text-align:center;bottom:auto;top:10px;color:var(--muted)}
-html body .page-chip{font-size:13px !important;padding:7px 14px !important}
 html body #new-page{margin-left:0;background:var(--card);border-radius:999px;width:32px;height:32px}
 html body .deck-key.wide .key-live{text-align:left;top:9px;left:12px;font-size:10px}
 
 /* The action list: four tabs, then a few groups. */
-html body .library-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:4px;margin:10px 0 8px;background:var(--card);border:1px solid var(--line);border-radius:14px}
-html body .library-tab{height:32px;padding:0 2px;border:0 !important;border-radius:10px;background:transparent !important;color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+html body .library-tabs{display:flex;gap:3px;padding:4px;margin:10px 0 8px;background:var(--card);border:1px solid var(--line);border-radius:14px}
+html body .library-tab{flex:1 1 auto;min-width:0;height:32px;padding:0 6px;border:0 !important;border-radius:10px;background:transparent !important;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 html body .library-tab:hover{color:var(--text)}
 html body .library-tab.on{background:var(--card2) !important;color:var(--text)}
 html body .library .lib-flat{display:flex;flex-direction:column;gap:2px}
-html body .library .library-note{margin:4px 4px 10px;color:var(--muted);font-size:12px;line-height:1.45}
+html body .library .library-note{margin:4px 4px 10px;color:var(--muted);font-size:14px;line-height:1.45}
 html body .library .program-launcher{width:100%;margin-bottom:8px}
 /* Drop-down lists: dark, readable options everywhere (the big profile title used light text on a white list). */
 html body select{color-scheme:dark}
@@ -293,7 +259,7 @@ html body select option,html body select optgroup{background:#12191D !important;
 html body #inspector .size-pick{margin-bottom:8px}
 
 /* Shortcut hints in the menus, the shortcut list and the Undo button in a message. */
-html body .menu-kbd{margin-left:auto;padding-left:18px;color:#7d8c93;font:600 11px/1 ui-monospace,Consolas,monospace}
+html body .menu-kbd{margin-left:auto;padding-left:18px;color:var(--muted);font:600 12px/1 ui-monospace,Consolas,monospace}
 html body .context-menu [role=menuitem]{display:flex;align-items:center}
 html body #shortcuts-dialog{width:min(560px,94vw)}
 html body .shortcut-list{display:grid;grid-template-columns:max-content 1fr;gap:10px 18px;margin:8px 0 4px;align-items:baseline}
@@ -306,22 +272,22 @@ html body .toast-undo:focus-visible{outline:2px solid #58e09b;outline-offset:2px
 /* The ⋯ menu: six groups with a heading, each entry with one line about what it does. */
 html body .more-menu:not([hidden]){display:flex;flex-direction:column;gap:2px;width:min(340px,calc(100vw - 32px));overflow:auto;padding:8px}
 html body .more-menu .menu-group{display:flex;flex-direction:column;min-width:0}
-html body .more-menu .menu-heading{padding:10px 12px 4px;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em}
+html body .more-menu .menu-heading{padding:10px 12px 4px;color:var(--muted);font-size:13px;font-weight:700;letter-spacing:.02em}
 html body .more-menu [role=menuitem]{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px;padding:8px 12px}
-html body .more-menu [role=menuitem] small{grid-column:1/-1;margin-top:2px;color:#7d8c93;font-size:11px;font-weight:400;line-height:1.3}
+html body .more-menu [role=menuitem] small{grid-column:1/-1;margin-top:2px;color:var(--muted);font-size:13px;font-weight:400;line-height:1.3}
 html body .more-menu [role=menuitem]:focus-visible{outline:2px solid var(--accent,#58e09b);outline-offset:-2px}
 /* Named buttons instead of a bare ⋯: everyone can see what is behind them. */
 html body .toolbar .menu-button{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--card);color:var(--text);font-weight:600;font-size:13px;cursor:pointer}
 html body .toolbar .menu-button:hover,html body .toolbar .menu-button[aria-expanded=true]{background:var(--card2);border-color:var(--accent,#58e09b)}
 html body .toolbar .menu-button:focus-visible{outline:2px solid var(--accent,#58e09b);outline-offset:2px}
-html body .toolbar .menu-chevron{color:var(--muted);font-size:11px}
+html body .toolbar .menu-chevron{color:var(--muted);font-size:12px}
 html body .toolbar .more+.more{margin-left:6px}
 
 /* Rail dialog: a labelled preview of the seven places, numbered shortcuts with profile and page. */
 #rail-dialog{width:min(860px,96vw)}
 .rail-editor{grid-template-columns:132px minmax(0,1fr)}
 .rail-side{display:flex;flex-direction:column;gap:8px;align-self:start;position:sticky;top:0}
-.rail-side-title{font-size:12px;font-weight:700;color:var(--muted)}
+.rail-side-title{font-size:13px;font-weight:700;color:var(--muted)}
 .rail-preview{padding:12px 6px;gap:4px}
 .rail-slot{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%}
 .rail-slot small{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;color:var(--muted)}
@@ -329,11 +295,11 @@ html body .toolbar .more+.more{margin-left:6px}
 .rail-slot.shortcut .rail-chip{color:var(--accent)}
 .rail-slot.free .rail-chip{border:1px dashed var(--line2);width:40px;height:32px}
 .rail-slot.free small{color:var(--dim)}
-.rail-count{font-size:12px;color:var(--muted);text-align:center}
+.rail-count{font-size:13px;color:var(--muted);text-align:center}
 .rail-count.over{color:#ff7070;font-weight:700}
 .rail-short-number{width:24px;height:24px;border-radius:50%;background:var(--card2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none}
 .rail-icons{align-items:center}
-.rail-icons-label{font-size:12px;color:var(--muted);margin-right:4px}
+.rail-icons-label{font-size:13px;color:var(--muted);margin-right:4px}
 .rail-lists h3 small{display:block;margin:4px 0 0;line-height:1.4}
 
 .rail-kind{flex:1;height:36px}
@@ -347,11 +313,11 @@ html body .toolbar .more+.more{margin-left:6px}
 html body #inspector .prop-value>label{flex:1 1 auto;min-width:0}
 html body #inspector .prop-value>label>select{width:100%;max-width:100%}
 /* Blocking states: a fixed bar at the bottom until the state clears; the toast moves up above it. */
-.status-bar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 20px;background:#2A1F12;border-top:1px solid var(--amber);color:var(--text);font-size:13px}
+.status-bar{position:fixed;left:0;right:0;bottom:0;z-index:70;display:flex;align-items:center;justify-content:center;gap:16px;padding:10px 20px;background:#2A1F12;border-top:1px solid var(--amber);color:var(--text);font-size:14px}
 .status-bar::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--amber);flex-shrink:0}
-.status-bar .outline{padding:7px 14px;font-size:12px;border-color:var(--amber)}
+.status-bar .outline{padding:7px 14px;font-size:13px;border-color:var(--amber)}
 body.has-status-bar #toast{bottom:76px}
-body.has-status-bar{padding-bottom:52px}
+body.has-status-bar{padding-bottom:calc(52px * var(--z))}
 /* In-page confirm and prompt; a message may hold several lines. */
 .ask-message{white-space:pre-line;line-height:1.6;color:var(--soft)}
 #ask-input{margin-top:14px}
@@ -359,9 +325,9 @@ html body .primary.danger-button{background:var(--red);color:#1A0707}
 /* Import preview: the file's profiles, what the host flagged, and add or replace. */
 .import-dialog{width:560px}
 .import-contents{max-height:200px;overflow:auto;margin:12px 0}
-.import-findings{max-height:140px;overflow:auto;margin:6px 0;padding-left:18px;font-size:12px;line-height:1.6;color:var(--soft)}
+.import-findings{max-height:140px;overflow:auto;margin:6px 0;padding-left:18px;font-size:13px;line-height:1.6;color:var(--soft)}
 .import-mode{border:0;padding:0;margin:14px 0 0}
-.import-mode legend{font-size:12px;color:var(--muted);margin-bottom:4px}
+.import-mode legend{font-size:13px;color:var(--muted);margin-bottom:4px}
 /* Getting started card above the deck: never over the keys, so an action can still be dropped on them. */
 .welcome-card{margin:0 0 14px;padding:16px 18px;border:1px solid var(--line2);border-radius:16px;background:var(--card)}
 .welcome-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -370,5 +336,61 @@ html body .primary.danger-button{background:var(--red);color:#1A0707}
 .welcome-steps li{counter-increment:step;display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:12px;background:var(--card2)}
 .welcome-steps li::before{content:counter(step);font-weight:700;color:var(--accent)}
 .welcome-steps small{color:var(--muted);line-height:1.5}
-.welcome-steps .outline{margin-top:auto;align-self:flex-start;font-size:12px;padding:7px 12px}
-html body .release-notes{white-space:pre-wrap;font:inherit;font-size:12px;color:var(--soft);margin:8px 0 0;max-height:160px;overflow:auto}
+.welcome-steps .outline{margin-top:auto;align-self:flex-start;font-size:13px;padding:7px 12px}
+html body .release-notes{white-space:pre-wrap;font:inherit;font-size:13px;color:var(--soft);margin:8px 0 0;max-height:160px;overflow:auto}
+
+/* Layout: the only place that sets the zoom, the heights and the columns (style.css and streamdeck.css no longer do).
+   Up to 900 px everything stacks; up to 1279 px the key's settings sit under the deck; from 1280 px they get their own
+   column beside it. The action list on the right folds into a narrow strip (.library-closed, set by setLibraryOpen). */
+html body .appbar,html body .shell,html body .status-bar,html body #toast{zoom:var(--z)}
+html body #deck-view{--lib:260px;background:var(--bg);min-width:0}
+html body #deck-view.library-closed{--lib:52px}
+html body .workspace{min-width:0;padding:22px 32px 6px;background:none;display:flex;flex-direction:column;align-items:center;gap:14px}
+html body .toolbar,html body .deck-card,html body .syncbar{width:min(100%,var(--col));max-width:none;margin-left:auto;margin-right:auto;box-sizing:border-box}
+html body #inspector{order:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:10px;margin:8px 0 0;padding:14px 32px 56px;background:transparent;border:0;box-sizing:border-box}
+html body #inspector>*{width:min(100%,var(--col));max-width:none;flex:none;box-sizing:border-box}
+html body .library{order:2;min-width:0;box-sizing:border-box;padding:13px 0 18px;overflow-y:auto}
+@media(min-width:901px){
+  html,html body{height:100vh;overflow:hidden}
+  /* Inside the zoomed .shell a length is zoomed too, so the window height is divided by the zoom first. */
+  html body .shell,html body .rail,html body .screens,html body #deck-view{height:calc(100vh / var(--z) - 64px);min-height:0}
+  html body .rail{top:0;box-sizing:border-box;padding-bottom:20px}
+  html body #deck-view{display:grid;grid-template-columns:minmax(0,1fr) var(--lib);grid-template-areas:"work library" "inspector library";grid-template-rows:auto 1fr;align-items:start;overflow-x:hidden;overflow-y:auto}
+  html body .workspace{grid-area:work;overflow:visible;height:auto}
+  html body #inspector{grid-area:inspector;overflow:visible;height:auto}
+  html body .library{grid-area:library;position:sticky;top:0;align-self:start;height:calc(100vh / var(--z) - 64px)}
+}
+@media(min-width:1280px){
+  /* The deck, the key's settings and the action list each scroll on their own. */
+  html body #deck-view{grid-template-columns:minmax(0,1fr) clamp(380px,26vw,420px) var(--lib);grid-template-areas:"work inspector library";grid-template-rows:minmax(0,1fr);overflow:hidden}
+  html body .workspace,html body #inspector,html body .library{position:static;align-self:stretch;height:auto;min-height:0;overflow-y:auto}
+  html body #inspector{margin:0;padding:18px 20px 56px;border-left:1px solid var(--line)}
+  html body #inspector>*{width:100%}
+}
+@media(max-width:900px){
+  html body #deck-view{display:flex;flex-direction:column;height:auto}
+  html body .workspace{padding:20px 16px 8px}
+  html body #inspector{padding:14px 16px 24px}
+  html body .library{max-height:55vh;border-top:1px solid var(--line)}
+}
+html body .library-toggle{display:flex;align-items:center;gap:6px;height:32px;margin:0 14px 8px auto;padding:0 10px;border:1px solid var(--line2);border-radius:10px;background:var(--card);color:var(--soft);font-weight:600;font-size:13px;cursor:pointer}
+html body .library-toggle:hover{background:var(--card2);color:var(--text)}
+html body #deck-view.library-closed .library{padding:13px 0;overflow:hidden}
+html body #deck-view.library-closed .library>:not(.library-toggle){display:none}
+html body #deck-view.library-closed .library-toggle{writing-mode:vertical-rl;width:36px;height:auto;margin:0 auto;padding:12px 0;justify-content:center}
+
+/* Readable sizes: the older themes set many controls to 10-11 px. Text is at least 14 px, names and labels 13 px. */
+html body .connection,html body .appbar .quiet,html body .appbar .outline{font-size:13px}
+html body #inspector input,html body #inspector select,html body #inspector textarea,html body #inspector .prop-field,html body #inspector .prop-value>*,html body #inspector .prop-value button.outline{font-size:14px}
+html body #inspector .inspector-section>summary,html body .empty-inspector,html body .lib-cat>summary,html body .library .search input,html body .program-launcher{font-size:14px}
+html body .syncbar #save-state,html body .sync-switch{font-size:14px}
+html body .action-preset span span{font-size:14px}
+html body .action-preset small,html body .shortcuts{font-size:13px}
+
+/* More contrast when Windows asks for it: stronger lines and text, nothing dimmed. */
+@media(prefers-contrast:more){
+  :root{--line:#3A4B53;--line2:#5A6D76;--muted:#C4D0D4;--dim:#B3C0C6;--soft:#DCE6E9}
+  html body .deck-key,html body .outline,html body input,html body select,html body textarea{border-color:#65757d}
+  html body .deck-key.selected{outline:2px solid #fff}
+  html body .shortcuts,html body .rail-row.off,html body .screen-stat.off,html body .lane-off,html body .gauge-icon.dim{opacity:1}
+}
