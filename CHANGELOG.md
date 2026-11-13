@@ -13,6 +13,13 @@
 - New installs start with a lean home page (volume, mute, play/pause, Explorer, Terminal, screenshot, calculator, show desktop, lock) and the Status, Desktop, Audio and Tools folders, without the author's own apps.
 - `Tessera.cmd` shows numbered progress lines (1/3 … 3/3) on the first start.
 - The tray asks about *Start with Windows* only after the panel first connects, and that first connection says to open the editor to set up your keys.
+- Editor: when no panel connects, the status bar names the cause (another program holds the USB port, firmware too old, not a Tessera panel, or no answer) and shows the host's own error on a second line.
+- Editor: connection problems in the status bar have a *Show the host log* button.
+- Editor: a panel with older firmware than Tessera gets a status bar notice with *Update firmware …*; *Not now* hides it until the next Tessera version.
+- Editor: *Start host* in the status bar shows "Starting the host …" and keeps a failure in the bar.
+- Editor: the LED and connection text open a *Panel status* window with the port, firmware, Tessera version, the next step and *Panel firmware …*.
+- Panel firmware: with no panel connected the dialog chooses the full install and shows *Install anyway* at once; the choices are now *Update (keeps settings)* and *Full install (new or blank panel)*, and the protocol number shows only when it does not match.
+- Panel firmware: a panel that does not answer is told to choose *Full install* and tick *Install anyway*.
 
 ## 0.7.0
 

@@ -217,13 +217,14 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
     progress('checking', 0)
     info = identify(port)
     if info is None and not force:
-        raise InstallError(f'{port} did not answer as a Tessera panel. If the panel is blank or its firmware is '
-                           'broken, choose "Install anyway"; the chip type is still verified before writing.')
+        raise InstallError(f'{port} did not answer as a Tessera panel. If it is new, blank or its firmware is broken, '
+                           'choose "Full install" and tick "Install anyway", then try again. '
+                           'The chip type is still verified before writing.')
     previous = (info or {}).get('firmwareVersion')
     has_slots = (info or {}).get('ota') == 1
     if mode == 'app' and package.needs_full and not has_slots:
         raise InstallError("This firmware changes how the panel's flash is divided (A/B slots for updates over USB). "
-                           'Install it once with "Everything"; later updates can use "Application only" again.')
+                           'Install it once with "Full install"; later updates can use "Update" again.')
     if mode == 'app' and has_slots and not package.needs_full:
         # An older single-slot firmware would never confirm itself, so the bootloader would roll it back.
         raise InstallError('This firmware is older than the A/B flash layout the panel has now. '

@@ -166,6 +166,15 @@ class EditorTests(unittest.TestCase):
         self.path.write_text(json.dumps(config('original')))
         self.editor = Editor(self.path, dashboard=lambda: {'running': False, 'device': {}})
 
+    def test_setup_flags_keep_only_known_keys_of_the_right_type(self):
+        self.editor.command('setup-done', {'firmware_hint_dismissed': '0.7.0'})
+        self.assertEqual(self.editor.command('setup-state', {})['firmware_hint_dismissed'], '0.7.0')
+        for wrong in ({'welcome_done': 'yes'}, {'other': 1}):
+            with self.assertRaises(ValueError):
+                self.editor.command('setup-done', wrong)
+        (self.path.with_name('setup.local.json')).write_text('[1]')
+        self.assertNotIn('firmware_hint_dismissed', self.editor.command('setup-state', {}))
+
     def test_saving_backs_up_the_previous_file_and_a_backup_can_be_restored(self):
         state = self.editor.read()
         changed = json.loads(json.dumps(state['config']))

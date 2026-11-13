@@ -60,10 +60,10 @@ remembers the board's USB serial number and follows it if Windows renumbers the 
 ### 2. Flash the firmware
 
 **From a release (no developer tools):** the release zip includes the firmware, so choose it in **Panel → Panel firmware …** and press *Install*. Newer firmware comes with *Check for updates*, or put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder, choose it there and press *Install*.
-On a new board that does not answer yet, choose *Everything* under *What to write* and tick *Install anyway*. The installer verifies the
+On a new board that does not answer yet, the dialog already chooses *Full install (new or blank panel)* under *What to write* and shows *Install anyway*: tick it. The installer verifies the
 package, the board and the protocol before writing. The first firmware with A/B update slots must also be
-installed once with *Everything*, as it changes the partition table (the installer says so); after that
-*Application only* goes over the panel's USB connection and is undone automatically if the new firmware fails
+installed once with *Full install*, as it changes the partition table (the installer says so); after that
+*Update (keeps settings)* goes over the panel's USB connection and is undone automatically if the new firmware fails
 to start. See [`docs/RELEASING.md`](RELEASING.md) for how updates and the rollback work.
 
 **From source:** install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html).

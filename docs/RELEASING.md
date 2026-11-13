@@ -43,20 +43,20 @@ of every image) and the images. Build one locally with `python tools/package_fir
 
 Use **Panel → Panel firmware …** in the editor (or `esptool` by hand, see [Install](INSTALL.md)). The installer checks the package
 (format, board, chip, protocol, checksums), asks the panel who it is, stops the host, writes the firmware and
-starts the host again. *Application only* (the default) writes only the app, so the stored brightness and
-the offline layout survive; *Everything* also writes the bootloader, partition table and OTA data with esptool.
+starts the host again. *Update (keeps settings)* (the default for a connected panel) writes only the app, so the stored brightness and
+the offline layout survive; *Full install (new or blank panel)*, the default when no panel is connected, also writes the bootloader, partition table and OTA data with esptool.
 
 **A/B slots and rollback.** The partition table has two 6 MB application slots (`ota_0` at 0x10000, `ota_1`),
 `otadata`, a 16 KB `nvs` and a `storage` SPIFFS partition (the offline layout). A panel that reports `"ota":1`
-gets *Application only* over its own USB connection (`AD_OTA_*`, see [Protocol](PROTOCOL.md)) into the idle slot:
+gets *Update* over its own USB connection (`AD_OTA_*`, see [Protocol](PROTOCOL.md)) into the idle slot:
 it checks the SHA-256, restarts into it and confirms it after the first handshake with the host (or 60 s). A new
 firmware that crashes or hangs before that is undone by the bootloader on the next reset. When the panel does not
 answer, esptool through the ROM bootloader is always available, so a failed update can be retried (unplug, plug
-in, install again); an esptool *Application only* writes the app to `ota_0` and resets `otadata` so that slot boots.
+in, install again); an esptool *Update* writes the app to `ota_0` and resets `otadata` so that slot boots.
 
-**The first A/B install needs *Everything*.** Packages built for the A/B table contain `ota_data_initial.bin` and
+**The first A/B install needs *Full install*.** Packages built for the A/B table contain `ota_data_initial.bin` and
 carry `"needs_full": true` in `manifest.json` (`tools/package_firmware.py` refuses a build without the OTA data).
-The installer refuses *Application only* for such a package while the panel does not report `"ota":1` (older
+The installer refuses *Update* for such a package while the panel does not report `"ota":1` (older
 single-slot firmware), and refuses it the other way round for an older package on an A/B panel. The protocol stays
 4: older hosts ignore the new handshake fields. The full install keeps NVS (the brightness) unless its pages no
 longer fit the smaller partition; the old offline layout is not carried over, the host pushes it again.

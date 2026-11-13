@@ -39,8 +39,11 @@ let firmwareTimer = null;
 async function openFirmware() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   // "Install anyway" is for the one attempt after a panel that did not answer; never carry it over.
+  // With no panel connected it is most likely new or blank, so offer the full install and the box straight away.
+  const blank = !dashboard?.device?.connected;
   $('#firmware-force').checked = false;
-  $('.firmware-force').hidden = true;
+  $('.firmware-force').hidden = !blank;
+  $('#firmware-mode').value = blank ? 'full' : 'app';
   $('#firmware-dialog').showModal();
   try { await refreshFirmware(); } catch (error) { showError(error); }
 }
@@ -51,9 +54,11 @@ async function refreshFirmware() {
   for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} · ${Math.round(p.bytes / 1024)} KiB`}));
   for (const p of info.packages.filter(item => item.error)) select.append(element('option', {value: '', disabled: 'true', text: `${p.path.split(/[\\/]/).pop()} · ${p.error}`}));
   if (!info.packages.length) select.append(element('option', {value: '', text: 'No package found in dist/ or firmware/'}));
-  const device = info.device;
+  const device = info.device, newest = good[0];
+  // The protocol number only matters to the user when it differs from the newest package's.
+  const protocol = newest && device.protocol != null && newest.protocol !== device.protocol ? ` · protocol ${device.protocol}, package needs ${newest.protocol}` : '';
   $('#firmware-device').textContent = device.connected
-    ? `Panel connected · firmware ${device.firmware || 'unknown'} · protocol ${device.protocol ?? '?'} · Tessera ${info.host || '?'}`
+    ? `Panel connected · firmware ${device.firmware || 'unknown'}${protocol} · Tessera ${info.host || '?'}`
     : `The panel is not connected · Tessera ${info.host || '?'}`;
   $('#firmware-install').disabled = !good.length;
   if (info.job.state === 'running') pollFirmware();
@@ -83,7 +88,9 @@ async function pollFirmware() {
       + (job.restarted ? ' The host has started again.' : job.restart_error ? ` The host did not start again: ${job.restart_error}` : '');
   } else if (job.state === 'failed') {
     label.textContent = job.error || 'The installation failed.';
-    $('.firmware-force').hidden = !(job.error || '').includes('did not answer');
+    const silent = (job.error || '').includes('did not answer');
+    $('.firmware-force').hidden = !silent;
+    if (silent) $('#firmware-mode').value = 'full';  // a panel that does not answer needs everything written
   }
   $('#firmware-install').disabled = job.state === 'running';
 }
