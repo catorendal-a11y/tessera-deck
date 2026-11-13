@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased
+
+- Permission questions: a touch on Allow within 0.8 s of a new question no longer answers it (it was meant for what stood there before); a question too long to show in full offers Deny only (panel firmware); a lane hidden from the agents screen is not asked; a question is never shortened to fit.
+- Import review and *Import without commands* also find commands inside a timer's end actions.
+- Export works in the editor window (the window cancelled every download).
+- Terminal editor: a backup is kept before each save (always before an import or a delete), and a step type it cannot edit no longer crashes it.
+- Values of variables are no longer searched for `$(env:NAME)` in HTTP headers and bodies, so a variable cannot pull in a secret.
+- A shell action that starts a program with `start` no longer waits 30 seconds and reports a failure.
+- Speaker volume, mute and the mixer work on a PC without a microphone.
+- Typing text with a delay no longer freezes the other keys while it types.
+- Mouse *move to* lands in the right place with more than one monitor.
+- A wide music key with a non-ASCII song title reacts to presses again.
+- `$(profile_lock)` shows LOCKED instead of the Norwegian LÅST.
+- *Test* (dry run) knows *Lock profile* and plugin actions and finds programs on PATH.
+- Connect Claude Code keeps your own hook when it shares a group with Tessera's.
+- Template keys no longer use arrow characters the panel font cannot draw.
+- A damaged image, or a toggle state with a non-text label, gives a clear error instead of stopping the upload or the host.
+- Docs: the native build's tools, which commands the panel answers, the weather city search host, flashing steps.
+
 ## 0.6.1
 
 - One editor window: a double click on the tray icon, or a click while the editor was still starting, opened two or three. A second start now waits for the first and brings its window forward.

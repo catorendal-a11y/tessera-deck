@@ -105,6 +105,10 @@ tap(912,145);assert(taken()==R"({"type":"agent","id":"claude","do":"allow"})"&&t
 assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"waiting","text":"Bash: python -m unittest discover -s tests && git status --short && git diff --stat HEAD~1 && echo finished-all-of-it-now-please-read","sub":"tessera-deck-main"}]})"));
 ui_show_view(0);deck_model_request_view(1);updates();assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
 capture(output/"question.ppm");
+assert(visible("Allow")&&visible("Deny"));
+/* A prompt that does not fit even in the smaller type offers Deny only; Claude then asks in its own dialog. */
+assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"waiting","text":"Bash: WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW","sub":""}]})"));
+updates();assert(visible("Deny")&&!visible("Allow"));
 assert(deck_model_agents_from_json(R"({"agents":[
  {"id":"claude","name":"Claude Code","state":"waiting","text":"Wants to run: npm run build","sub":"tessera-deck-main"},
  {"id":"codex","name":"Codex","state":"working","text":"Editing host/win_input.py","sub":"tessera-deck-main"},

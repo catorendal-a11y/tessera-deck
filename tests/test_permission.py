@@ -45,7 +45,15 @@ class RequestTextTests(unittest.TestCase):
                 permission.hook_output(nothing)
 
 
+def no_settle(case):
+    patcher = patch.object(permission, 'SETTLE_SECONDS', 0)
+    patcher.start()
+    case.addCleanup(patcher.stop)
+
+
 class DeskTests(unittest.TestCase):
+    setUp = no_settle
+
     def ask_in_thread(self, desk, timeout=5.0):
         result = []
         thread = threading.Thread(target=lambda: result.append(desk.ask('claude', 'Bash: ls', lambda: True, timeout)))
@@ -82,8 +90,20 @@ class DeskTests(unittest.TestCase):
         thread.join(5)
         self.assertEqual(result, ['deny'])
 
+    def test_a_touch_right_after_a_new_question_appears_is_no_answer(self):
+        desk = permission.Desk()
+        with patch.object(permission, 'SETTLE_SECONDS', 60):
+            thread, result = self.ask_in_thread(desk, timeout=0.3)
+            self.assertTrue(desk.answer('claude', 'allow'), 'the touch is taken, so it opens nothing else')
+            thread.join(5)
+        self.assertEqual(result, [None], 'a touch meant for the screen before the question must not allow')
+
 
 class PanelQuestionTests(HostCase):
+    def setUp(self):
+        super().setUp()
+        no_settle(self)
+
     def cockpit_daemon(self):
         daemon = self.daemon()
         daemon.device_info = {'protocol': 4}

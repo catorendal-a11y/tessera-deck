@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import os
+import shutil
 
 from program_locator import locate
-from substitution import ENV_REFERENCE, check_web_url, substitute
+from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
 
 MAX_TEXT = 90
 
@@ -30,7 +31,8 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         target = os.path.expandvars(substitute(action['target'], variables))
         if '://' in target or target.lower().startswith(('mailto:', 'ms-settings:', 'shell:')):
             return True, f'Open {_clip(target)}'
-        found = target if os.path.exists(target) else locator(target)
+        # os.startfile also finds a bare name (notepad, mmsys.cpl, code) through PATH
+        found = target if os.path.exists(target) or shutil.which(target, mode=os.F_OK) else locator(target)
         if found is None:
             return False, f'Open {_clip(target)}: the program or file was not found on this PC'
         return True, f'Open {_clip(found)}' + ('' if found == target else ' (found in a different place)')
@@ -42,17 +44,17 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, f'Run the command: {_clip(command)} (timeout {action.get("timeout", 30)} s)'
     if kind == 'http':
         url = substitute(action['url'], variables, 'url')
-        try:
-            check_web_url(url)
-        except ValueError as exc:
-            return False, f'Request {_clip(url)}: {str(exc).lower()}'
-        names = sorted({name for part in (*action.get('headers', {}).values(), action.get('body', ''))
+        names = sorted({name for part in (url, *action.get('headers', {}).values(), action.get('body', ''))
                         for name in ENV_REFERENCE.findall(part)})
         known = os.environ if environment is None else environment
         missing = [name for name in names if name not in known]
         text = f'Send {action.get("method", "GET")} {_clip(url)}'
         if missing:
             return False, text + f': the environment variable {", ".join(missing)} is not set'
+        try:
+            check_web_url(expand_environment(url, known))
+        except ValueError as exc:
+            return False, f'Request {_clip(url)}: {str(exc).lower()}'
         return True, text + (f' using {", ".join(names)} from the environment' if names else '')
     if kind == 'delay':
         return True, f'Wait {action.get("ms", 100) / 1000:g} s'
@@ -100,6 +102,10 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         seconds = f' for {action["seconds"]} s' if action.get('seconds') else ''
         notify = f', notify "{_clip(action["notify"])}"' if action.get('notify') else ''
         return True, f'Timer {action["name"]}: {action.get("op", "toggle")}{seconds}{notify}'
+    if kind == 'profile_lock':
+        return True, 'Lock or unlock automatic profile switching'
+    if kind == 'plugin':
+        return True, f'Send the command {action["command"]} to the plugin {action["plugin"]}'
     return False, f'Unknown action type {kind!r}'
 
 

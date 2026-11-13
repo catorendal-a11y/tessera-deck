@@ -15,6 +15,7 @@ host/assets/
 build_first.log
 host/sensors/
 host/backups/
+host/plugins/
 dist/
 diagnostics/
 firmware/

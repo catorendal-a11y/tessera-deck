@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-115200 baud over USB Serial/JTAG. Lines are UTF-8; the panel answers every command except `AD_PING`.
+115200 baud over USB Serial/JTAG. Lines are UTF-8; the panel answers every command except `AD_PING`, `AD_CFG_DATA`, `AD_IMG_BEGIN` and `AD_IMG_DATA`: a layout or an image is answered once, at its `…_END`.
 
 | Direction | Message | Purpose |
 |---|---|---|
@@ -27,7 +27,7 @@
 | panel → host | `{"type":"rail","i":N}` | Rail button N, a page shortcut, was touched; the host switches to that page (protocol 4) |
 | host → panel | `AD_AMBIENT <text>` | The line under the ambient clock, for example the weather (protocol 3) |
 | panel → host | `{"type":"info","boardId":"tessera-p4","firmwareVersion":…,"protocol":4,…}` | The answer to `get_info`; the host refuses another board or an unsupported protocol |
-| panel → host | `{"type":"deck_event","button":N,"label":"…","hold":true}` | A key was pressed (`hold` for a long press, protocol 2) |
+| panel → host | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed (`hold` for a long press, protocol 2) |
 | panel → host | `{"type":"wake"}` | A touch woke the dimmed panel; it presses no key |
 | panel → host | `{"type":"screen","name":"deck","by":"touch"}` | A touch left the ambient screen (protocol 3) |
 

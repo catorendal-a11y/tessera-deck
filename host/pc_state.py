@@ -19,7 +19,7 @@ EMPTY = {'volume': None, 'speaker_muted': False, 'mic_muted': False,
 def _endpoints() -> dict:
     """Default speaker and microphone endpoint volume interfaces (call between CoInitialize/Uninitialize)."""
     try:
-        from comtypes import CLSCTX_ALL
+        from comtypes import CLSCTX_ALL, COMError
         from pycaw.api.endpointvolume import IAudioEndpointVolume
         from pycaw.constants import EDataFlow, ERole
         from pycaw.pycaw import AudioUtilities
@@ -31,7 +31,11 @@ def _endpoints() -> dict:
         device = enumerator.GetDefaultAudioEndpoint(flow.value, ERole.eMultimedia.value)
         return device.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None).QueryInterface(IAudioEndpointVolume)
 
-    return {'speaker': endpoint(EDataFlow.eRender), 'mic': endpoint(EDataFlow.eCapture)}
+    try:
+        mic = endpoint(EDataFlow.eCapture)
+    except COMError:  # no microphone: the speaker and the mixer still work
+        mic = None
+    return {'speaker': endpoint(EDataFlow.eRender), 'mic': mic}
 
 
 def _with_audio(work):
@@ -52,7 +56,7 @@ def read_audio() -> dict:
     """Default speaker volume/mute and default microphone mute; raises OSError when unavailable."""
     return _with_audio(lambda ends: {
         'volume': round(ends['speaker'].GetMasterVolumeLevelScalar() * 100),
-        'speaker_muted': bool(ends['speaker'].GetMute()), 'mic_muted': bool(ends['mic'].GetMute())})
+        'speaker_muted': bool(ends['speaker'].GetMute()), 'mic_muted': ends['mic'] is not None and bool(ends['mic'].GetMute())})
 
 
 AUDIO_OPERATIONS = ('toggle', 'mute', 'unmute', 'volume', 'up', 'down')
@@ -123,6 +127,8 @@ def control_audio(target: str, operation: str = 'toggle', value: int | None = No
 
     def apply(ends):
         endpoint = ends[target]
+        if endpoint is None:
+            raise OSError('no microphone is connected')
         apply_operation(_Control(endpoint.GetMute, endpoint.SetMute, endpoint.GetMasterVolumeLevelScalar,
                                  endpoint.SetMasterVolumeLevelScalar), operation, value, step)
 

@@ -31,7 +31,7 @@ of every image) and the images. Build one locally with `python tools/package_fir
 
 ## Updating the panel
 
-Use **⋯ → Panel firmware …** in the editor (or `esptool` by hand, see the README). The installer checks the package
+Use **⋯ → Panel firmware …** in the editor (or `esptool` by hand, see [Install](INSTALL.md)). The installer checks the package
 (format, board, chip, protocol, checksums), asks the panel who it is, stops the host, writes with esptool and
 starts the host again. *Application only* (the default) writes only the app image, so the stored brightness and
 the offline layout survive; *Everything* also writes the bootloader and partition table.
@@ -41,7 +41,7 @@ not two OTA slots, so a bad image cannot fall back to the previous one on its ow
 the chip's ROM bootloader always accepts a new image over USB, so a failed update can be retried (unplug, plug in,
 install again). Moving to an A/B layout with over-USB OTA would add real rollback, but it needs a new partition
 table (a one-time full flash that also clears stored settings), new firmware code to receive and verify an image,
-and testing on hardware, so it is deliberately not part of 0.5.0.
+and testing on hardware, so it is not done yet (see the [roadmap](ROADMAP.md)).
 
 ## Checking for a new version
 

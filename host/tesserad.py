@@ -194,7 +194,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
 
     def variables(self):
         return dict(time=time.strftime('%H:%M'), date=time.strftime('%d.%m'),
-                    profile=self.profile, page=self.page, profile_lock='LÅST' if self.profile_locked else 'AUTO',
+                    profile=self.profile, page=self.page, profile_lock='LOCKED' if self.profile_locked else 'AUTO',
                     **{f'agent:{name}': 'ON' if running else 'OFF'
                        for name, running in self.agents.items()},
                     **{f'stat:{name}': value for name, value in self.stats.display.items()},
@@ -301,6 +301,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if button.get('span', 1) > 1:
                 entry['span'] = button['span']
                 entry.update(self.live_content(button.get('live')))
+                # the panel keeps 24 bytes and reports the label it shows with a press; a longer one would not match
+                entry['label'] = entry['label'].encode('utf-8')[:24].decode('utf-8', 'ignore')
             entry.update(self.config.get('theme', {}))  # the theme is the default look; a key's own colors win
             entry.update({key: button[key] for key in ('bg', 'text_color', 'border') if key in button})
             if isinstance(button.get('gauge'), dict):
@@ -379,8 +381,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 send_hotkey(action['keys'])
         elif kind == 'text':
             text, pause = self.substitute(action['text']), action.get('delay_ms', 0) / 1000
-            with self.input_lock:
-                send_text(text, pause) if pause else send_text(text)
+            if pause:  # typing slowly can take minutes: let other keys, the API and the main loop run meanwhile
+                with self.state_lock.suspended(), self.input_lock:
+                    send_text(text, pause)
+            else:
+                with self.input_lock:
+                    send_text(text)
         elif kind == 'open':
             target = self.substitute(action['target'])
             if IS_WINDOWS:
@@ -398,11 +404,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
         elif kind == 'http':
-            headers = {name: self.expand_environment(self.substitute(value))
+            # $(env:NAME) is expanded before the variables, so a variable's value can never pull in a secret
+            headers = {name: self.substitute(self.expand_environment(value))
                        for name, value in action.get('headers', {}).items()}
             request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
                 method=action.get('method', 'GET'), headers=headers,
-                data=self.expand_environment(self.substitute(action.get('body', ''))).encode() or None)
+                data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
             with self.state_lock.suspended():
                 with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
                     response.read(65536)
@@ -780,7 +787,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 except Exception as exc:  # e.g. the cable was pulled while dimming: the reader loop reconnects
                     self.log(f'Background task failed: {exc!r}')
                 online = self.panel is not None and not self.connection_failed.is_set()
-                self.publish_runtime(online, None if online else connect_error)
+                try:
+                    self.publish_runtime(online, None if online else connect_error)
+                except Exception as exc:  # a full disk or a locked file must not end the host
+                    self.log(f'Background task failed: {exc!r}')
                 if online:
                     self.enqueue(('push',))
                 self.stop.wait(1)

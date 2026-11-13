@@ -62,7 +62,14 @@ def update(events: bool, allow: bool, python: Path, deckctl: Path, home: Path | 
     wanted = {event: events for event in EVENTS}
     wanted['PermissionRequest'] = allow
     for event, present in wanted.items():
-        kept = [entry for entry in hooks.get(event, []) if not _ours(entry)]
+        kept = []
+        for entry in hooks.get(event, []):
+            if _ours(entry):  # a group may hold the user's own hook next to Tessera's: only Tessera's goes
+                entry = dict(entry, hooks=[hook for hook in entry['hooks']
+                                           if not (isinstance(hook, dict) and MARKER in str(hook.get('command', '')))])
+                if not entry['hooks']:
+                    continue
+            kept.append(entry)
         if present:
             if event == 'PermissionRequest':
                 entry = {'matcher': '', 'hooks': [{'type': 'command', 'timeout': permission.WAIT_SECONDS + 5,

@@ -114,7 +114,7 @@ class SwitchingTests(unittest.TestCase):
         daemon = self.make_daemon()
         self.tick(daemon, context('code.exe', 'editor'))
         daemon.run_action({'type': 'profile_lock'})
-        self.assertEqual(daemon.variables()['profile_lock'], 'LÅST')
+        self.assertEqual(daemon.variables()['profile_lock'], 'LOCKED')
         self.tick(daemon, context('notepad.exe', 'Notepad'))
         self.assertEqual(daemon.profile, 'coding')
         daemon.handle_job(('focus-profile', 'main'))  # A queued focus change cannot bypass the lock.
@@ -138,7 +138,7 @@ class SwitchingTests(unittest.TestCase):
             return next(button for button in daemon.current_buttons() if button['id'] == home['id'])
         self.assertEqual((shown()['label'], shown()['color']), ('Home AUTO', '#64B5F6'))
         daemon.run_action({'type': 'profile_lock'})
-        self.assertEqual((shown()['label'], shown()['color']), ('Home LÅST', '#FFB13B'))
+        self.assertEqual((shown()['label'], shown()['color']), ('Home LOCKED', '#FFB13B'))
         daemon.run_action({'type': 'profile_lock'})
         self.assertEqual((shown()['label'], shown()['color']), ('Home AUTO', '#64B5F6'))
 

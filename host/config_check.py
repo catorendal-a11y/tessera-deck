@@ -234,6 +234,8 @@ def _check_button(button, pages, profiles):
     for state in states:
         if not isinstance(state, dict):
             raise ValueError('Invalid button state')
+        if not isinstance(state.get('label', ''), str) or not isinstance(state.get('icon', 'ok'), str):
+            raise ValueError('Invalid state label or icon')
         _check_actions(state.get('actions', []), pages, profiles)
         _check_color(state.get('color', '#35D07F'), 'Invalid state color')
         for key in ('bg', 'text_color', 'border'):

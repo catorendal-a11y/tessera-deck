@@ -61,6 +61,16 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(page[3]['actions'], [{'type': 'open', 'target': 'https://example.com'}])
         deck.validate_config(safe)
 
+    def test_a_command_inside_a_timer_is_listed_and_stripped(self):
+        config = bundle()
+        config['profiles']['Main']['pages']['First'][0]['actions'].append(
+            {'type': 'timer', 'name': 'tea', 'op': 'start', 'seconds': 60, 'actions': [{'type': 'shell', 'command': 'calc'}]})
+        found = [item for item in review(config) if 'timer' in item['where']]
+        self.assertEqual([(item['kind'], item['risk']) for item in found], [('shell', 'high')])
+        self.assertIn("when timer 'tea' ends", found[0]['where'])
+        timer = strip_executable(config)['profiles']['Main']['pages']['First'][0]['actions'][-1]
+        self.assertEqual(timer['actions'], [])
+
     def test_original_bundle_is_not_modified_by_review_strip_or_redaction(self):
         original = bundle()
         snapshot = copy.deepcopy(original)

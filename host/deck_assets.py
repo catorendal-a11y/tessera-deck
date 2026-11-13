@@ -186,7 +186,7 @@ class Assets:
                         else:
                             durations[-1] = min(60000, durations[-1] + duration)
         except (Image.UnidentifiedImageError, Image.DecompressionBombError,
-                Image.DecompressionBombWarning, OSError) as exc:
+                Image.DecompressionBombWarning, OSError, SyntaxError, IndexError, EOFError, struct.error) as exc:
             raise ValueError('The image could not be read as PNG, JPEG, GIF or WebP') from exc
         blob = bytearray(b'ADI1' + bytes((SIZE, SIZE, len(frames))))
         for frame, duration in zip(frames, durations, strict=False):

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import tempfile
 import threading
 import time
 
@@ -38,22 +39,25 @@ def kill_tree(process: subprocess.Popen) -> None:
 def run_command(command: str, timeout: float, stop: threading.Event, shell: bool = True) -> None:
     """Run `command` until it exits, `timeout` passes or `stop` is set; raises CommandFailed otherwise."""
     flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if IS_WINDOWS else 0
-    process = subprocess.Popen(command, shell=shell, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                               stderr=subprocess.PIPE, creationflags=flags)
-    deadline = time.monotonic() + timeout
-    stderr = b''
-    try:
-        while True:
-            try:
-                _, stderr = process.communicate(timeout=POLL_SECONDS)
-                break
-            except subprocess.TimeoutExpired:
-                if stop.is_set():
-                    raise CommandFailed('Stopped before the command finished') from None
-                if time.monotonic() >= deadline:
-                    raise CommandFailed(f'The command did not finish within {timeout:g} seconds') from None
-    finally:
-        kill_tree(process)
+    # stderr goes to a file, not a pipe: a program launched with `start` inherits a pipe and would hold it open
+    with tempfile.TemporaryFile() as errors:
+        process = subprocess.Popen(command, shell=shell, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=errors, creationflags=flags)
+        deadline = time.monotonic() + timeout
+        try:
+            while True:
+                try:
+                    process.wait(timeout=POLL_SECONDS)
+                    break
+                except subprocess.TimeoutExpired:
+                    if stop.is_set():
+                        raise CommandFailed('Stopped before the command finished') from None
+                    if time.monotonic() >= deadline:
+                        raise CommandFailed(f'The command did not finish within {timeout:g} seconds') from None
+        finally:
+            kill_tree(process)
+        errors.seek(0)
+        stderr = errors.read()
     if process.returncode:
         tail = (stderr or b'').decode('utf-8', 'replace').strip()[-STDERR_TAIL:]
         raise CommandFailed(f'The command exited with code {process.returncode}' + (f': {tail}' if tail else ''))

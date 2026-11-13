@@ -10,9 +10,11 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 
 MAX_TEXT = 150  # what one lane on the panel shows in full; a longer request is not answered here
 WAIT_SECONDS = 25
+SETTLE_SECONDS = 0.8  # a touch this soon after a question appears was meant for what stood there before
 TOOL = re.compile(r'[A-Za-z0-9_-]{1,64}')
 DECISIONS = ('allow', 'deny')
 AGENT_IDS = ('claude',)  # the tools whose prompts can be answered here
@@ -67,7 +69,7 @@ class Desk:
         """Show the question and wait for the panel: 'allow', 'deny', or None when nobody answered."""
         if not ready():
             return None
-        question = {'agent': agent, 'text': text, 'answered': threading.Event(), 'decision': None}
+        question = {'agent': agent, 'text': text, 'answered': threading.Event(), 'decision': None, 'since': time.monotonic()}
         with self._lock:
             if self._open is not None:
                 return None
@@ -88,6 +90,8 @@ class Desk:
             question = self._open
             if question is None or question['agent'] != agent or decision not in DECISIONS:
                 return False
+            if time.monotonic() - question['since'] < SETTLE_SECONDS:
+                return True  # taken, so the button does nothing else, but it is no answer
             question['decision'] = decision
             self._open = None
         question['answered'].set()

@@ -146,6 +146,9 @@ class BackgroundMixin:
 
     def ask_permission(self, agent, text):
         """Called by the control API: blocks until Allow or Deny is touched, or returns None."""
+        shown = self.config.get('panel', {}).get('agents')
+        if shown is not None and agent not in shown:  # a lane hidden from the agents screen has no Allow or Deny
+            return None
         return self.permissions.ask(agent, text, self.panel_takes_questions)
 
     def show_question(self):

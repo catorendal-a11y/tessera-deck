@@ -10,7 +10,7 @@ Thanks for wanting to help. Bug reports, ideas, ports to other boards and pull r
 
 ## Setting up
 
-You need Windows 10 or 11 and Python 3.11 or newer. `Tessera.cmd --setup` creates `host\.venv` with everything the host needs. The firmware builds with ESP-IDF 6.1; the native UI tests need a C/C++ compiler such as MinGW. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) describes the project layout and every tool.
+You need Windows 10 or 11 and Python 3.11 or newer. `Tessera.cmd --setup` creates `host\.venv` with everything the host needs. The firmware builds with ESP-IDF 6.1; the native UI tests need CMake, Ninja and a C/C++ compiler such as MinGW. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) describes the project layout and every tool.
 
 ## Checks to run
 
@@ -27,7 +27,7 @@ cmake --build build/native
 build\native\test_ui.exe build\previews
 ```
 
-CI runs the same checks, a lint and the firmware build on every push.
+CI runs the same checks, a lint and the firmware build on every pull request and every push to main.
 
 ## What makes a pull request easy to merge
 

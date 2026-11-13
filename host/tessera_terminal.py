@@ -7,6 +7,7 @@ import copy
 import json
 from pathlib import Path
 import sys
+import config_store
 from deck_control import ROOT, Controller, configure_upstream, save_profiles
 from tesserad import Daemon, validate_config
 from deck_forms import ActionForm
@@ -153,7 +154,7 @@ class ButtonEditor(ModalScreen):
 
     def compose(self):
         with Vertical():
-            yield Static(f'KNAPP {self.draft["id"]} / NAVN / UTSEENDE / FLERHANDLING')
+            yield Static(f'Key {self.draft["id"]}: name, look and actions')
             yield Input(self.draft.get('label', ''), placeholder='Button name', id='button-label')
             yield Input(self.draft.get('color', '#35D07F'), placeholder='#35D07F', id='button-color')
             icons = 'ok close settings home download refresh play pause stop plus minus loop list folder upload bolt bell wifi trash edit'.split()
@@ -186,7 +187,7 @@ class ButtonEditor(ModalScreen):
         selected = table.cursor_row
         table.clear()
         for i, action in enumerate(self.draft.get('actions', [])):
-            field = ACTION_FIELDS[action['type']][0]
+            field = ACTION_FIELDS.get(action['type'], (None,))[0]  # a step made in the graphical editor may be any type
             table.add_row(str(i + 1), action['type'], str(action.get(field, '')), key=str(i))
         if table.row_count:
             table.move_cursor(row=min(selected, table.row_count - 1))
@@ -215,6 +216,9 @@ class ButtonEditor(ModalScreen):
             if identifier == 'step-edit' and not actions:
                 return
             editing = identifier == 'step-edit'
+            if editing and actions[index]['type'] not in ACTION_FIELDS:
+                self.query_one('#button-error', Static).update('Edit this step in the graphical editor')
+                return
             def saved(action):
                 if action is not None:
                     if editing:
@@ -321,8 +325,10 @@ class DeckPane(TabPane):
             item.styles.border = ('round', button.get('color', '#35D07F') if button else '#263239')
         self.refresh_log()
 
-    def commit(self, draft):
+    def commit(self, draft, force_backup=False):
         try:
+            validate_config(draft)
+            config_store.backup(self.path, force=force_backup)  # the same safety copy the graphical editor keeps
             save_profiles(draft, self.path)
             self.config = copy.deepcopy(draft)
             self.refresh_grid()
@@ -479,7 +485,7 @@ class DeckPane(TabPane):
                 return
             self.profile = draft.get('default_profile', next(iter(draft['profiles'])))
             self.page = next(iter(draft['profiles'][self.profile]['pages']))
-            self.commit(draft)
+            self.commit(draft, force_backup=True)
             self.query_one('#deck-profile', Select).set_options([(n, n) for n in draft['profiles']])
             self.query_one('#deck-profile', Select).value = self.profile
         elif identifier == 'page-delete':
@@ -490,7 +496,7 @@ class DeckPane(TabPane):
             del draft['profiles'][self.profile]['pages'][self.page]
             previous = self.page
             self.page = next(iter(draft['profiles'][self.profile]['pages']))
-            self.commit(draft)
+            self.commit(draft, force_backup=True)
             if previous in self.config['profiles'][self.profile]['pages']:
                 self.page = previous
             self.query_one('#deck-page', Select).set_options([(n, n) for n in self.config['profiles'][self.profile]['pages']])
@@ -506,7 +512,7 @@ class DeckPane(TabPane):
                         draft = Daemon.load_profiles(path)
                         self.profile = draft.get('default_profile', next(iter(draft['profiles'])))
                         self.page = next(iter(draft['profiles'][self.profile]['pages']))
-                        self.commit(draft)
+                        self.commit(draft, force_backup=True)
                         self.query_one('#deck-profile', Select).set_options([(n, n) for n in self.config['profiles']])
                         self.query_one('#deck-profile', Select).value = self.profile
                         self.query_one('#deck-page', Select).set_options([(n, n) for n in self.config['profiles'][self.profile]['pages']])

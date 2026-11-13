@@ -40,7 +40,7 @@ host/            Windows host
   setup_tool.py        Setup, uninstall, dependency sync
   editor/              Editor front end (HTML, JS, CSS)
 plugins/         Plugins (example-uptime is a working reference)
-docs/            Plugin guide, release process, SmartDeck comparison, images
+docs/            Install and user guides, features, protocol, plugin guide, release process, roadmap, SmartDeck comparison, images
 tests/           Unit, editor, native render and hardware smoke tests
 tools/           Packaging, icon refresh, sensor setup, screen rendering and icon font tooling
 vendor/          Lucide icon pack (ISC) and ArduinoJson (MIT)
@@ -48,7 +48,7 @@ vendor/          Lucide icon pack (ISC) and ArduinoJson (MIT)
 
 ## Checks and tools
 
-The native build needs a C/C++ compiler, for example `scoop install mingw`.
+The native build needs CMake, Ninja and a C/C++ compiler, for example `scoop install cmake ninja mingw`.
 
 ```powershell
 host\.venv\Scripts\python.exe -m unittest discover -s tests -p test_*.py -v
@@ -63,7 +63,7 @@ host\.venv\Scripts\python.exe tests\hardware_smoke.py   # talks to the panel; pr
 ```
 
 The hardware smoke test never sends hotkeys or runs actions on the PC. GitHub Actions runs the Windows host
-tests, a lint and dependency audit, the firmware build and the native LVGL tests on every push. See
+tests, a lint and dependency audit, the firmware build and the native LVGL tests on every pull request and every push to main. See
 [`VERIFICATION.md`](../VERIFICATION.md) for what the checks cover and what has not been run on hardware,
 [`CHANGELOG.md`](../CHANGELOG.md), [`docs/SMARTDECK_COMPARISON.md`](SMARTDECK_COMPARISON.md) and
 [`ELGATO_RESEARCH.md`](../ELGATO_RESEARCH.md) for the design research.

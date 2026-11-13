@@ -51,15 +51,15 @@ On a new board that does not answer yet, choose *Everything* under *What to writ
 package, the board and the protocol before writing. See [`docs/RELEASING.md`](RELEASING.md) for how updates
 and the lack of an automatic rollback work.
 
-**From source:** install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html), then:
+**From source:** install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html).
+Stop the host from the tray first (*Stop host*); it owns the port. Then:
 
 ```powershell
 idf.py -B build/idf6 build
 idf.py -B build/idf6 -p COM4 flash          # first time: bootloader, partition table and app
 ```
 
-To update only the application — which keeps the bootloader, partition table and stored settings — stop the
-host first (it owns the port) and write the app image:
+To update only the application — which keeps the bootloader, partition table and stored settings — write the app image:
 
 ```powershell
 python -m esptool --chip esp32p4 -p COM4 -b 460800 write-flash 0x10000 build\idf6\tessera.bin

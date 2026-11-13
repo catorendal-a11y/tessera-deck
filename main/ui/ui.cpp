@@ -306,16 +306,20 @@ void build_agents() {
         lv_obj_update_layout(name);
         label(lane,agent.state==DECK_AGENT_WAITING?"waiting for you":agent.state==DECK_AGENT_WORKING?"working":"idle",
               26+lv_obj_get_width(name)+14,name_y+12,LV_SIZE_CONTENT,&fq_font_dejavu_16,agent.state==DECK_AGENT_IDLE?Muted:color);
+        bool fits=true;
         if(agent.state==DECK_AGENT_WAITING){
-            /* A question is shown in full, on up to three lines: nobody should answer what they cannot read. */
+            /* A question is shown in full: nobody should allow what they cannot read. Three lines at 20 px, else
+               smaller type; a question that still does not fit gets Deny only, and Claude asks in its own dialog. */
             auto *asked=label(lane,agent.text,26,62,text_w,&fq_font_dejavu_20,Soft);
-            lv_label_set_long_mode(asked,LV_LABEL_LONG_WRAP);lv_obj_set_height(asked,76);
+            lv_label_set_long_mode(asked,LV_LABEL_LONG_WRAP);lv_obj_update_layout(asked);
+            if(lv_obj_get_height(asked)>76){lv_obj_set_style_text_font(asked,&fq_font_dejavu_16,0);lv_obj_update_layout(asked);}
+            fits=lv_obj_get_height(asked)<=80;lv_obj_set_height(asked,80);
         } else {
             label(lane,agent.text,26,68,text_w,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Dim:Soft);
             label(lane,agent.sub,26,102,text_w,&fq_font_dejavu_16,Dim);
         }
         const int right=ContentW-20-132;
-        if(agent.state==DECK_AGENT_WAITING){agent_button(lane,"Deny",right-144,2,i,1);agent_button(lane,"Allow",right,0,i,0);}
+        if(agent.state==DECK_AGENT_WAITING){agent_button(lane,"Deny",right-144,2,i,1);if(fits)agent_button(lane,"Allow",right,0,i,0);}
         else if(agent.state==DECK_AGENT_WORKING)agent_button(lane,"Stop",right,1,i,2);
         else agent_button(lane,"Open",right,1,i,3);
     }

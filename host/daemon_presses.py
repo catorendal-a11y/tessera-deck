@@ -59,7 +59,8 @@ class PressMixin:
 
         Otherwise one slow trigger would hold up every key press behind it. A list that is still running is skipped.
         """
-        if not any(action.get('type') in BLOCKING_ACTIONS for action in actions):
+        if not any(action.get('type') in BLOCKING_ACTIONS or (action.get('type') == 'text' and action.get('delay_ms'))
+                   for action in actions):
             for action in actions:
                 self.run_action(action)
             return

@@ -1,9 +1,11 @@
+#Requires -RunAsAdministrator
 $ErrorActionPreference = 'Stop'
 $ini = 'C:\Program Files\HWiNFO64\HWiNFO64.INI'
 $exe = 'C:\Program Files\HWiNFO64\HWiNFO64.EXE'
 
-Get-Process HWiNFO64 -ErrorAction SilentlyContinue | Stop-Process -Force
+# Read first: a missing INI must fail before HWiNFO is stopped.
 $lines = [System.Collections.Generic.List[string]](Get-Content -LiteralPath $ini)
+Get-Process HWiNFO64 -ErrorAction SilentlyContinue | Stop-Process -Force
 $settings = [ordered]@{
     SensorsOnly = '1'
     MinimalizeSensors = '1'

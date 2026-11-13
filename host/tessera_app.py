@@ -157,6 +157,7 @@ def open_window(url):
         brand_taskbar_identity()
         try:
             import webview
+            webview.settings['ALLOW_DOWNLOADS'] = True  # Export saves through a download; pywebview cancels them all without this
             window = webview.create_window('Tessera', url, width=1500, height=980,
                                            min_size=(1050, 720), background_color='#0A0E10', text_select=True)
             webview.start(fit_to_work_area, (window,), private_mode=True, storage_path=str(ROOT / 'host/.webview-data'),

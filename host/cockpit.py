@@ -74,7 +74,9 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
     line = _line({'agents': lanes})
     if len(line) > MAX_LINE:  # only reachable with long non-ASCII text: shorten rather than be refused
         for lane in lanes:
-            lane['text'] = lane['text'][:20]
+            if not (asking and lane['id'] == asking['agent']):  # a permission question is never shown cut
+                lane['text'] = lane['text'][:20]
+            lane['sub'] = lane['sub'][:10]
         line = _line({'agents': lanes})
     return line
 

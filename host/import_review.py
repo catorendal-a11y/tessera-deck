@@ -18,6 +18,14 @@ def _button_lists(config):
         yield f"Profile '{profile_name}' / pinned", profile.get('pinned', [])
 
 
+def _with_timers(where, owner, key, automatic):
+    """The list itself, then the actions a timer in it runs when it ends (a timer can hold a shell command too)."""
+    yield where, owner, key, automatic
+    for action in owner[key]:
+        if isinstance(action, dict) and action.get('type') == 'timer' and isinstance(action.get('actions'), list):
+            yield from _with_timers(f"{where} when timer '{action.get('name', '')}' ends", action, 'actions', automatic)
+
+
 def iter_actions(config):
     """Yield (location, owner, key, automatic) for every action list in the configuration."""
     for where, buttons in _button_lists(config):
@@ -25,13 +33,13 @@ def iter_actions(config):
             name = f"{where} / button {button.get('id')} '{button.get('label', '')}'"
             for key, suffix in (('actions', ''), ('hold_actions', ' (long press)'), ('double_actions', ' (double press)')):
                 if isinstance(button.get(key), list):
-                    yield name + suffix, button, key, False
+                    yield from _with_timers(name + suffix, button, key, False)
             for number, state in enumerate(button.get('states', []), 1):
                 if isinstance(state.get('actions'), list):
-                    yield f'{name} state {number}', state, 'actions', False
+                    yield from _with_timers(f'{name} state {number}', state, 'actions', False)
     for number, trigger in enumerate(config.get('triggers', []), 1):
         if isinstance(trigger.get('actions'), list):
-            yield f'Automatic rule {number} ({trigger.get("when", {}).get("type", "?")})', trigger, 'actions', True
+            yield from _with_timers(f'Automatic rule {number} ({trigger.get("when", {}).get("type", "?")})', trigger, 'actions', True)
 
 
 def _classify(action):

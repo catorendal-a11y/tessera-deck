@@ -113,8 +113,9 @@ def send_mouse(op, x=0, y=0, amount=0, press=None):
     elif op == 'move':
         press(0x1, x, y)
     elif op == 'moveto':
-        width, height = user32.GetSystemMetrics(0), user32.GetSystemMetrics(1)
-        press(0x8001 | 0x4000, round(x * 65535 / max(1, width - 1)), round(y * 65535 / max(1, height - 1)))
+        # with the virtual-desk flag 0..65535 spans every monitor, so scale with the virtual screen, not the primary one
+        left, top, width, height = (user32.GetSystemMetrics(index) for index in (76, 77, 78, 79))
+        press(0x8001 | 0x4000, round((x - left) * 65535 / max(1, width - 1)), round((y - top) * 65535 / max(1, height - 1)))
     else:
         raise ValueError(f'Unknown mouse operation: {op}')
 
