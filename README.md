@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, widgets, answering Claude Code, the sound mixer and live PC gauges" width="760">
+  <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor" width="760">
 </p>
 
 Tessera is an open-source **DIY Stream Deck alternative** you build from one off-the-shelf board, with no soldering: 18 touch keys for your apps, hotkeys and macros, with widgets, live PC gauges, an AI agents screen, a sound mixer and a drag-and-drop editor. Everything runs locally over USB.
@@ -34,7 +34,7 @@ Tessera is an open-source **DIY Stream Deck alternative** you build from one off
   <img src="docs/images/editor-widgets.png" alt="The editor: the rail, the keys with their page tabs, the selected key's settings and the action list" width="900">
 </p>
 
-<sub>The animation and the panel images are drawn by the real firmware UI in a native build (`tools/make_demo_gif.py`), not filmed or photographed. The agents and mixer screens show sample data.</sub>
+<sub>The animation and the panel images are drawn by the real firmware UI in a native build (`tools/make_demo_gif.py`), not filmed or photographed. The agents and mixer screens show sample data; the editor scenes are screenshots of the real editor.</sub>
 
 > [!IMPORTANT]
 > **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.

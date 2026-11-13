@@ -345,3 +345,6 @@ html body .toolbar .more+.more{margin-left:6px}
 .rail-more-icons{height:36px;padding:0 12px;border-radius:11px;border:1px dashed var(--line2);background:transparent;color:var(--text);cursor:pointer}
 .rail-more-icons:hover{border-color:var(--accent);color:var(--accent)}
 .rail-ic img,.rail-ic .key-symbol,span.rail-ic{max-width:22px;max-height:22px}
+/* A long choice (a widget's description) shrinks to the panel instead of running past its edge. */
+html body #inspector .prop-value>label{flex:1 1 auto;min-width:0}
+html body #inspector .prop-value>label>select{width:100%;max-width:100%}
