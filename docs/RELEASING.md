@@ -4,7 +4,7 @@
 
 ## Versions
 
-`VERSION` holds one number (for example `0.7.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
+`VERSION` holds one number (for example `0.8.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
 
 The firmware's USB protocol has its own number in `main/protocol_version.h`. The host accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. It refuses a panel outside that range with a message that says which side to update.
 
@@ -21,14 +21,14 @@ The configuration file has its own `version` (currently 2). Opening an older fil
 
 ## Make a release
 
-1. Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`, for example `## 0.7.1`. Put a fresh `## Unreleased` above it if you want one.
+1. Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`, for example `## 0.8.1`. Put a fresh `## Unreleased` above it if you want one.
 2. Set `VERSION` to the same number.
 3. Run the checks from [CONTRIBUTING.md](../CONTRIBUTING.md) and the native UI test.
 4. Commit and push, then tag and push the tag:
 
    ```powershell
-   git tag v0.7.1
-   git push origin v0.7.1
+   git tag v<version>
+   git push origin v<version>
    ```
 
 5. The *Release* workflow (`.github/workflows/release.yml`) starts on the tag and publishes the release.

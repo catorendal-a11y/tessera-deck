@@ -30,11 +30,13 @@ jobs:
       - name: Install host dependencies
         run: python -m pip install -r host/requirements.txt ruff==0.17.2 pip-audit==2.10.1 coverage==7.17.0  # pinned: a new lint rule must not fail an unchanged commit
       - name: Lint (syntax errors, undefined names, unused imports, bug-prone patterns)
-        run: python -m ruff check host tests tools plugins --select E9,F,B --exclude host/.venv
+        run: python -m ruff check host tests tools plugins hardware --select E9,F,B --exclude host/.venv
       - name: Unit, editor, protocol and reliability tests (host coverage must stay at 73 %)
         run: |
           python -m coverage run --source=host --omit="host/.venv/*,host/tessera_terminal.py" -m unittest discover -s tests -v
           python -m coverage report --fail-under=73
+      - name: Editor syntax check (node --check reads only its first file, so one call per file)
+        run: Get-ChildItem host/editor/*.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }
       - name: Terminal self-check
         run: python host/tessera_terminal.py --check
       - name: Dependency audit

@@ -78,7 +78,11 @@ def main():
     parser.add_argument('--soak-seconds', type=int, default=20)
     args = parser.parse_args()
     panel = Panel(args.port)
-    config = json.loads((ROOT / 'host/profiles.json').read_text(encoding='utf-8'))
+    # profiles.json exists only after the host has run once; a fresh clone has the defaults.
+    path = ROOT / 'host/profiles.json'
+    if not path.exists():
+        path = ROOT / 'host/profiles.default.json'
+    config = json.loads(path.read_text(encoding='utf-8'))
     profile = config['profiles'][config['default_profile']]
     originals = [{k: button.get(k, '#35D07F' if k == 'color' else 'ok')
                   for k in ('id', 'label', 'icon', 'color', 'title')}
@@ -130,6 +134,8 @@ def main():
         assert last['bootId'] == first['bootId'] and last['uptime'] >= first['uptime']
         print('Hardware passed: clean Deck screen, context, 21 button presses, brightness commands, UTF-8 and stable boot')
         print('Memory:', last['heap'], 'bytes internal,', last['psramFree'], 'bytes PSRAM free')
+        # The restore above sends only labels, icons and colours, so hold, double, span and sub come back with the host.
+        print('Start the host again to push the full layout back to the panel')
     finally:
         (ROOT / 'build/hardware-serial.log').write_text('\n'.join(panel.lines), encoding='utf-8')
         panel.ser.close()

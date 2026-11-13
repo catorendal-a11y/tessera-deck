@@ -260,7 +260,7 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 | Windows | Nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
 | Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power, fan speed, clock |
 | Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks |
-| HWiNFO | Running with shared memory enabled | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
+| HWiNFO | Running with shared memory enabled (`host\Enable-HWiNFO.ps1`, as administrator, turns it on) | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
 To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
 

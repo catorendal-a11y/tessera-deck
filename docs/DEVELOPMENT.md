@@ -69,7 +69,7 @@ Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`.
 | All host and editor tests | `host\.venv\Scripts\python.exe -m unittest discover -s tests` |
 | One test file | `host\.venv\Scripts\python.exe -m unittest discover -s tests -p test_host_actions.py` |
 | Terminal UI self-check | `host\.venv\Scripts\python.exe host\tessera_terminal.py --check` |
-| Lint | `host\.venv\Scripts\python.exe -m ruff check host tests tools plugins --select E9,F,B --exclude host/.venv` |
+| Lint | `host\.venv\Scripts\python.exe -m ruff check host tests tools plugins hardware --select E9,F,B --exclude host/.venv` |
 | Coverage | `host\.venv\Scripts\python.exe -m coverage run --source=host --omit="host/.venv/*,host/tessera_terminal.py" -m unittest discover -s tests`, then `-m coverage report --fail-under=73` |
 | JavaScript syntax | `node --check host/editor/core.js host/editor/app.js host/editor/dialogs.js` |
 
@@ -131,6 +131,8 @@ Two Python tools build on the native build:
 
 Run `render_screens.py` and `test_ui` before the GIF tool. Both tools use the folders in the commands above when you leave the arguments out (`host/profiles.json` is the profile default).
 
+The brand assets have their own generators, which need no native build: `tools/make_logo.py` writes `logo-mark.svg`, `logo.svg` and `logo.png` in `docs/images`, and `tools/make_icon.py` writes `host/tessera.ico` from the tray mark. Run them with `host\.venv\Scripts\python.exe` after a change to the logo.
+
 ## CI
 
 GitHub Actions runs these on every pull request and every push to main:
@@ -143,4 +145,4 @@ GitHub Actions runs these on every pull request and every push to main:
 | `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 
-[VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](../ELGATO_RESEARCH.md).
+[VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).

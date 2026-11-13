@@ -80,7 +80,14 @@ def main() -> int:
             shots.append((f'{profile} / {page}', stem))
     manifest = output / 'manifest.txt'
     manifest.write_text('\n'.join(lines) + '\n', encoding='utf-8')
-    result = subprocess.run([str(renderer), str(manifest)], check=False)
+    try:
+        result = subprocess.run([str(renderer), str(manifest)], check=False)
+    except FileNotFoundError:
+        result = None
+    if result is None or result.returncode:
+        # Leave the inputs in place so the failed render can be rerun by hand.
+        print(f'Renderer failed ({renderer}); inputs kept in {output}', file=sys.stderr)
+        return 1
     converted = []
     for name, stem in shots:
         png = stem.with_suffix('.png')

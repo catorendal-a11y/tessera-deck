@@ -4,7 +4,7 @@
 
 Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into a Stream Deck-style panel with 18 keys and four screens. A small Windows host owns the USB connection and runs the actions. It also serves the editor, which shows the same keys as the panel.
 
-This page lists what Tessera 0.7.0 and the changes since then do. For how to use each part, see [Using Tessera](USING.md).
+This page lists what Tessera does, including the changes under *Unreleased* in the [changelog](../CHANGELOG.md). For how to use each part, see [Using Tessera](USING.md).
 
 | Editor: a page of widgets | Editor: status page with live gauges |
 |---|---|
@@ -33,7 +33,7 @@ This page lists what Tessera 0.7.0 and the changes since then do. For how to use
 | Agents screen | Shows what Claude Code, Codex and ZCode are doing. A permission question from Claude Code shows here and is never covered by the clock or a dark screen. Touch *Allow* or *Deny* to answer. |
 | Mixer screen | Faders for the speakers, up to three programs and the microphone. |
 | Status screen | Live gauges for the PC. |
-| Clock screen | An idle clock made of brand-colored tiles, with optional weather from Open-Meteo for a city you choose. |
+| Clock screen | An idle clock made of brand-colored tiles, with optional weather from Open-Meteo for a city you choose and an icon for sun, cloud, fog, drizzle, rain, snow or thunder. The clock is 24-hour or 12-hour with AM/PM; *Clock format* in Panel → Display follows Windows by default. |
 | Offline layout | The panel keeps the last layout (up to 8 KB, with the previous one as a backup) and shows it when the PC is off. |
 | About sheet | A long press on the logo shows the firmware version, whether the PC is connected and a brightness slider. Tap outside to close. |
 
@@ -88,7 +88,7 @@ Text is at least 14 px, dim text has more contrast, and Windows' high-contrast s
 |---|---|
 | Profile | New profile, a profile from a template, duplicate, *Profile settings …*, *Delete this profile*. |
 | Page | New page, a page from a template (Meetings, Coding, Media, Browser), duplicate, *Page settings …*, *Delete this page*. |
-| Panel | *Display …* (brightness, dimming, quiet hours, idle clock), *Panel firmware and updates …*, *Rail …*, *Key colors …*. |
+| Panel | *Display …* (brightness, dimming, quiet hours, idle clock, clock format), *Panel firmware and updates …*, *Rail …*, *Key colors …*. |
 | More | *Getting started*, *Connect Claude Code …*, *Plugins …*, export, import, *Restore a backup …*, *Host log …*, *Save diagnostics*. |
 
 Deleting a page or a profile asks no question. A toast offers Undo.
@@ -147,6 +147,7 @@ Deleting a page or a profile asks no question. A toast offers Undo.
 ## Sensors, safety and upkeep
 
 - **Free sensors:** Windows performance counters out of the box. The graphics driver adds GPU temperature, power, fan speed and clock without administrator rights (AMD through ADL, NVIDIA through `nvidia-smi`). [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) adds CPU temperature and power. `Tessera.cmd --sensors` starts it at every sign-in (one Windows prompt) and `--sensors-off` undoes it.
+- **Quiet when you want:** Windows notifications (panel connected or gone, an agent waiting, a timer that ends) can be switched off in Program settings or the tray menu.
 - **Safe by default:** verified device identity, a bounded action queue, long commands that never block other keys, and a review before an import. An export leaves out the calendar address, plugin passwords and web request credentials. Plugin secrets are stored encrypted for your Windows account.
 - **Backups:** rotating backups with restore. A broken `profiles.json` is never backed up, and the newest good backup is restored at start.
 - **Tray app and autostart:** start with Windows and control the host from the tray. A host that dies starts again by itself.

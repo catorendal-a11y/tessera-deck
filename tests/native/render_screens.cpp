@@ -20,6 +20,7 @@ uint32_t millis() { return tick; }
 extern "C" int64_t esp_timer_get_time() { return static_cast<int64_t>(tick) * 1000; }
 extern "C" const char* time_service_time_text() { return "14:32"; }
 extern "C" const char* time_service_date_text() { return "Tue 20 Oct 2026"; }
+extern "C" const char* time_service_meridiem() { return ""; }
 
 static void flush(lv_display_t* display, const lv_area_t* area, uint8_t* data) {
     const auto* source = reinterpret_cast<const uint32_t*>(data);

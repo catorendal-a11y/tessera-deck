@@ -1,10 +1,10 @@
 # Tessera and SmartDeck
 
 [SmartDeck](https://github.com/ozancs/smartdeck) (v2.5.1, GPL-3.0) is an open-source macro controller for a 5" 800 × 480
-ESP32-S3 touchscreen with an Electron app for Windows. This page compares it with Tessera 0.7.0 and records what Tessera
+ESP32-S3 touchscreen with an Electron app for Windows. This page compares it with Tessera (first written for 0.7.0, action count updated for 0.8.0) and records what Tessera
 took from the comparison.
 
-**What this is based on, and what it is not.** Everything about SmartDeck below is as of 2026-10-21 (v2.5.1) and was not rechecked for Tessera 0.7.0. SmartDeck's four README screenshots (editor, settings, button dialog, the device), its public README, release notes (v1.0.0 to v2.5.1), file list and
+**What this is based on, and what it is not.** Everything about SmartDeck below is as of 2026-10-21 (v2.5.1) and was not rechecked since. SmartDeck's four README screenshots (editor, settings, button dialog, the device), its public README, release notes (v1.0.0 to v2.5.1), file list and
 issue list were read (retrieved 2026-10-21). The repository contains the panel firmware and 3D-print files; its
 Windows app source is not published (its issue #1 asks for it), so the app's behaviour is known only from the README
 and release notes. Firmware and library sources were *not* read, and none of its code was copied or studied for

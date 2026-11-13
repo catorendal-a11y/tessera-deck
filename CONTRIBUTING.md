@@ -22,13 +22,13 @@ CI runs these on every pull request and every push to main. The tool versions ar
 
 ```powershell
 host\.venv\Scripts\python.exe -m pip install ruff==0.17.2 coverage==7.17.0
-host\.venv\Scripts\python.exe -m ruff check host tests tools plugins --select E9,F,B --exclude host/.venv
+host\.venv\Scripts\python.exe -m ruff check host tests tools plugins hardware --select E9,F,B --exclude host/.venv
 host\.venv\Scripts\python.exe -m coverage run --source=host --omit="host/.venv/*,host/tessera_terminal.py" -m unittest discover -s tests -v
 host\.venv\Scripts\python.exe -m coverage report --fail-under=73
 host\.venv\Scripts\python.exe host\tessera_terminal.py --check
 ```
 
-CI also audits `host/requirements.txt` with `pip-audit`, runs the tests from the lock file, builds the firmware, runs `cppcheck` on it and runs the native UI tests. After an editor change, `node --check host/editor/core.js host/editor/app.js host/editor/dialogs.js` catches a syntax error early.
+CI also audits `host/requirements.txt` with `pip-audit`, runs the tests from the lock file, builds the firmware, runs `cppcheck` on it and runs the native UI tests. After an editor change, `foreach ($f in 'core','app','dialogs') { node --check host/editor/$f.js }` in PowerShell catches a syntax error early (`node --check` reads only its first file).
 
 **UI changes without a board.** If you change `main/ui/ui.cpp` or `main/deck_model.c`, build and run the native tests. They need `managed_components/`, which is not in git: run `idf.py -B build/idf6 build` or `idf.py reconfigure` once. Then:
 

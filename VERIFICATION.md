@@ -4,7 +4,7 @@ This page says what is tested automatically, what was checked on a real panel, a
 
 ## Tested automatically
 
-CI and `python -m unittest discover -s tests` run over 600 tests on Windows. None needs hardware.
+CI and `python -m unittest discover -s tests` run several hundred tests on Windows. None needs hardware.
 
 | Area | What the tests cover |
 |---|---|

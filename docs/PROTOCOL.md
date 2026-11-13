@@ -19,7 +19,7 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 |---|---|---|
 | `{"cmd":"get_info"}` | `{"type":"info",…}` (table below) | The handshake. The host refuses another board or a protocol it does not support. |
 | `AD_PING` | none | Heartbeat every second. The rail shows *NO PC* after 3.5 s without any line from the host. |
-| `AD_TIME YYYY-MM-DDTHH:MM:SS [12h\|24h]` | `AD_TIME OK` or `INVALID` | The PC's local time, sent every 10 minutes and when the clock format changes. The panel has no network clock. The optional format sets 12- or 24-hour clocks; firmware before 0.8.1 ignores it. |
+| `AD_TIME YYYY-MM-DDTHH:MM:SS [12h\|24h]` | `AD_TIME OK` or `INVALID` | The PC's local time, sent every 10 minutes and when the clock format changes. The panel has no network clock. The optional format sets 12- or 24-hour clocks; older firmware ignores it. |
 | `AD_CFG_BEGIN`, `AD_CFG_DATA <chunk>`, `AD_CFG_END` | `AD_CFG_BEGIN OK`, none, then `AD_CFG_END OK <keys>`, `INVALID` or `TOO_BIG 8192` | Pushes the key layout (JSON, chunked). See [Layout](#layout). |
 | `AD_IMG_BEGIN <id> <bytes> <crc32>`, `AD_IMG_DATA <offset> <hex>`, `AD_IMG_END` | only at the end: `AD_IMG_END OK <id>`, `INVALID` or `FULL` | Uploads a key image. `FULL` means the 8 MiB image cache cannot hold it. |
 | `AD_CONTEXT {"profile":"…","page":"…","canBack":true}` | `AD_CONTEXT OK` or `INVALID` | Profile, page and back state for the header. |
