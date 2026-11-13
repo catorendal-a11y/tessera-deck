@@ -177,7 +177,7 @@ uint32_t image_generation=0;bool image_missing=false;  /* a key waits for an ima
 char asked_images[DECK_MAX_BUTTONS][64]{};uint32_t asked_layout=0,asked_at=0;
 bool ask_once(const char *icon) {  /* each rebuild while images stream in would ask again and crowd out touches */
     if(asked_layout!=deck_model_buttons_version()||millis()-asked_at>60000){memset(asked_images,0,sizeof(asked_images));asked_layout=deck_model_buttons_version();asked_at=millis();}
-    for(auto& asked:asked_images){if(!strncmp(asked,icon,sizeof(asked)-1))return false;if(!asked[0]){snprintf(asked,sizeof(asked),"%s",icon);return true;}}
+    for(auto& asked:asked_images){if(!strncmp(asked,icon,sizeof(asked_images[0])-1))return false;if(!asked[0]){snprintf(asked,sizeof(asked_images[0]),"%s",icon);return true;}}
     return false;
 }
 /* The editor's Text size and Bold. There is no bold 16 px font, so bold at 16 uses bold 20. */
