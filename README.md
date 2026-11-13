@@ -20,7 +20,17 @@
   <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor" width="760">
 </p>
 
-Tessera is an open-source **DIY Stream Deck alternative** you build from one off-the-shelf board, with no soldering: 18 touch keys for your apps, hotkeys and macros, with widgets, live PC gauges, an AI agents screen, a sound mixer and a drag-and-drop editor. Everything runs locally over USB.
+Tessera turns one 7-inch ESP32-P4 touchscreen into an open-source Stream Deck for Windows: 18 touch keys for apps, hotkeys and macros, widgets, live PC gauges, an AI agents screen, a sound mixer and a drag-and-drop editor. No soldering. Everything runs on your PC over USB.
+
+> [!IMPORTANT]
+> **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.
+
+## Why Tessera
+
+- **It answers your AI agent.** When Claude Code asks for permission, the question shows on the panel. Touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing.
+- **Everything stays on your PC.** No account, no cloud, no subscription. The panel talks to a small Windows host over USB.
+- **It is yours to change.** Firmware, host and editor are open source (MIT). There are over 600 automated tests, a documented serial protocol and a plugin API.
+- **One cheap board.** The panel costs about $35 to $42 and you flash it from the editor.
 
 | Widgets on wide keys | Answer Claude Code from the panel |
 |---|---|
@@ -34,17 +44,19 @@ Tessera is an open-source **DIY Stream Deck alternative** you build from one off
   <img src="docs/images/editor-widgets.png" alt="The editor: the rail, the keys with their page tabs, the selected key's settings and the action list" width="900">
 </p>
 
-<sub>The animation and the panel images are drawn by the real firmware UI in a native build (`tools/make_demo_gif.py`), not filmed or photographed. The agents and mixer screens show sample data; the editor scenes are screenshots of the real editor.</sub>
+<sub>The animation and the panel images are drawn by the real firmware UI in a native build (`tools/make_demo_gif.py`), not filmed or photographed. The agents and mixer screens show sample data. The editor scenes are screenshots of the real editor.</sub>
 
-> [!IMPORTANT]
-> **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.
+## Quick start
 
-## Why Tessera
+You need the board, a USB cable and a Windows 10/11 PC.
 
-- **It answers your AI agent.** When Claude Code asks for permission, the question shows on the panel and a touch on *Allow* or *Deny* answers it. The agents screen also shows what Claude Code, Codex and ZCode are doing.
-- **Everything stays on your PC.** No account, no cloud and no subscription: the panel talks to a small Windows host over USB.
-- **It is yours to change.** Firmware, host and editor are open source (MIT), with over 500 host tests, native UI tests, a documented serial protocol and a plugin API.
-- **One off-the-shelf board.** A 7-inch ESP32-P4 touchscreen (GUITION JC1060P470C), flashed from the editor. No soldering.
+1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up, installs Python if it is missing and puts a shortcut on the Desktop. The editor opens.
+2. Connect the panel with USB. The *Getting started* checklist in the editor ticks off *Host running* and *Panel connected* by itself.
+3. Open **Panel → Panel firmware and updates …**, choose the included firmware and press *Install*. A new or blank board needs *Full install (new or blank panel)* and *Install anyway*. See [Install](docs/INSTALL.md).
+4. Click an action in the list on the right. It becomes a new key. Fill it in on the **Look** and **Actions** tabs. Changes are saved automatically.
+5. Press the key on the panel. The editor says "It works" and lights up the key.
+
+Nothing runs in the editor. Keys run only when you press them on the panel.
 
 ## Build it or buy one?
 
@@ -55,27 +67,19 @@ Tessera is an open-source **DIY Stream Deck alternative** you build from one off
 | Live widgets, mixer, PC status, AI agents | yes | through plugins | through plugins |
 | Source code | MIT | closed | closed |
 
-You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. What you give up is the feel of a real key: Tessera is
-glass. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026; they change.
-
-## Quick start
-
-1. **Start Tessera.** Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets up everything, installs Python if it is missing and puts a shortcut on the Desktop.
-2. **Flash the panel.** Connect it with USB and open **Panel → Panel firmware and updates …** in the editor. Choose the included firmware and press *Install*. A new board needs *Full install (new or blank panel)* and *Install anyway*; see [Install](docs/INSTALL.md).
-3. **Add your apps.** In the action list, open **Apps → Installed programs …** and drop a program on a key. Changes are saved automatically.
+You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. What you give up is the feel of a real key: Tessera is glass. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026. They change.
 
 ## What it does
 
-- **Four screens on the panel**: your keys, the AI agents (answer Claude Code's permission questions with Allow or Deny), a sound mixer and the PC's status, on a rail you arrange yourself
-- **Wide keys and widgets**: a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, the music that plays or a timer
-- **Real app icons** from Windows, 1,895 Lucide icons or your own images
-- **Live gauges** for CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan and FPS
-- **Smart profiles** that follow the program in front, with a lock key to stay put
-- **119 ready-made actions and 10 templates** for Windows, VS Code, browsers, meetings, media, Codex and Claude Code
-- **Multi-step macros**, long press, double press, toggle keys, counters and timers
-- **Keys that follow the PC**, such as microphone, speaker and media state
-- **Scripts and AI tools** through a local API, `deckctl`, plugins and Claude Code hooks
-- **Clock screen and offline layout**, auto-dim and a firmware installer
+- **Four screens on the panel:** your keys, the AI agents, a sound mixer and the PC's status, on a rail you arrange yourself.
+- **Wide keys and widgets:** a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, your next meeting, the music that plays or a timer.
+- **Icons:** real app icons from Windows, 1,895 Lucide icons or your own images.
+- **Live gauges:** CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan and FPS.
+- **Profiles that follow the program in front**, with a lock key to stay put.
+- **Over 120 ready-made actions and 10 profile templates** for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
+- **Macros:** multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
+- **Scripts and AI tools** through a local API, `deckctl`, plugins and Claude Code hooks.
+- **Clock screen, offline layout, auto-dim** and a firmware installer.
 
 See [all features](docs/FEATURES.md).
 
@@ -109,6 +113,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 
 | | |
 |---|---|
+| [Features](docs/FEATURES.md) | Everything Tessera does, by panel screen and editor area |
 | [Install](docs/INSTALL.md) | Hardware, start options, flashing from source |
 | [Desk console](hardware/README.md) | A printable stand for the panel: STL, STEP and the CAD models |
 | [Using Tessera](docs/USING.md) | Actions, labels, gauges, sensors, brightness, scripts, troubleshooting |
