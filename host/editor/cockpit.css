@@ -291,3 +291,14 @@ html body .library .program-launcher{width:100%;margin-bottom:8px}
 html body select{color-scheme:dark}
 html body select option,html body select optgroup{background:#12191D !important;color:#EAF2EF !important;font-size:14px;font-weight:400}
 html body #inspector .size-pick{margin-bottom:8px}
+
+/* Shortcut hints in the menus, the shortcut list and the Undo button in a message. */
+html body .menu-kbd{margin-left:auto;padding-left:18px;color:#7d8c93;font:600 11px/1 ui-monospace,Consolas,monospace}
+html body .context-menu [role=menuitem]{display:flex;align-items:center}
+html body #shortcuts-dialog{width:min(560px,94vw)}
+html body .shortcut-list{display:grid;grid-template-columns:max-content 1fr;gap:10px 18px;margin:8px 0 4px;align-items:baseline}
+html body .shortcut-list dt{text-align:right;white-space:nowrap}
+html body .shortcut-list dd{margin:0;color:#c4d0d4}
+html body .shortcut-list kbd{display:inline-block;padding:3px 7px;background:#172024;border:1px solid #313e44;border-bottom-width:2px;border-radius:5px;color:#dbe6ea;font:600 12px/1 ui-monospace,Consolas,monospace}
+html body .toast-undo{margin-left:14px;padding:4px 12px;border:1px solid #58e09b;border-radius:6px;background:transparent;color:#58e09b;font-weight:700;cursor:pointer}
+html body .toast-undo:focus-visible{outline:2px solid #58e09b;outline-offset:2px}

@@ -444,9 +444,11 @@ document.addEventListener('keydown',event=>{
     if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?items.length-1:(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;items[next].focus();return;}}
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().then(()=>toast('All changes are saved.')).catch(showError);return;}
   if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)||document.querySelector('dialog:modal'))return;
+  if(event.key==='/'&&editorView==='keys'&&!event.ctrlKey&&!event.altKey){event.preventDefault();$('#action-search').focus();$('#action-search').select();return;}
+  if(event.key==='?'){event.preventDefault();$('#shortcuts-dialog').showModal();return;}
   const onDeck=editorView==='keys'&&(!document.activeElement||document.activeElement===document.body||document.activeElement.closest('#deck-grid'));
   if(event.key==='F2'&&onDeck&&current()){event.preventDefault();renameButton();return;}
-  if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Key ${selected} was cleared. Press Ctrl+Z to undo.`);return;}
+  if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Key ${selected} was cleared.`,true);return;}
   if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&editorView==='keys'&&current()){event.preventDefault();openKeyMenu(selected);return;}
   if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y'].includes(key)||editorView==='keys'&&['c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}
 });
@@ -511,7 +513,17 @@ async function start() {
   try{const [,catalog]=await Promise.all([loadIconPack(),api('action-packs')]);actionCatalog=catalog;}catch(error){toast('The add-on packs could not be loaded. '+error.message);}
   renderAll();renderLibrary();setSaveState('✓ Configuration ready');await pollStatus();
   $('#profile').onchange=()=>{profile=$('#profile').value;page=Object.keys(config.profiles[profile].pages)[0];selected=1;editState=0;renderAll();syncPanel();};
-  $('#action-search').oninput=renderLibrary;$('#undo').onclick=()=>undo();$('#redo').onclick=()=>undo(true);
+  $('#action-search').oninput=renderLibrary;
+  // Enter adds the first match; the arrow keys walk the list, Escape goes back to the search box.
+  $('#action-search').addEventListener('keydown',event=>{const items=[...$('#actions-library').querySelectorAll('.action-preset')];
+    if(event.key==='Enter'&&items.length){event.preventDefault();items[0].click();}
+    else if(event.key==='ArrowDown'&&items.length){event.preventDefault();items[0].focus();}});
+  $('#actions-library').addEventListener('keydown',event=>{const items=[...$('#actions-library').querySelectorAll('.action-preset')],at=items.indexOf(document.activeElement);
+    if(at<0)return;
+    if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const next=at+(event.key==='ArrowDown'?1:-1);if(next<0)$('#action-search').focus();else items[Math.min(next,items.length-1)].focus();}
+    else if(event.key==='Escape'){event.preventDefault();$('#action-search').focus();}});
+  $('#shortcuts-open').onclick=()=>{$('#more-menu').hidden=true;$('#shortcuts-dialog').showModal();};
+  $('#shortcuts-close').onclick=()=>$('#shortcuts-dialog').close();$('#undo').onclick=()=>undo();$('#redo').onclick=()=>undo(true);
   $('#icons-close').onclick=()=>$('#icon-dialog').close();
   $('#programs-close').onclick=()=>$('#program-dialog').close();
   $('#program-browse').onclick=async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target)placeProgram(result);}catch(error){showError(error);}};

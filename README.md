@@ -43,8 +43,20 @@ Tessera is an open-source **DIY Stream Deck alternative** you build from one off
 
 - **It answers your AI agent.** When Claude Code asks for permission, the question shows on the panel and a touch on *Allow* or *Deny* answers it. The agents screen also shows what Claude Code, Codex and ZCode are doing.
 - **Everything stays on your PC.** No account, no cloud and no subscription: the panel talks to a small Windows host over USB.
-- **It is yours to change.** Firmware, host and editor are open source (MIT), with 480+ tests, a documented serial protocol and a plugin API.
+- **It is yours to change.** Firmware, host and editor are open source (MIT), with 490 tests, a documented serial protocol and a plugin API.
 - **One off-the-shelf board.** A 7-inch ESP32-P4 touchscreen (GUITION JC1060P470C), flashed from the editor. No soldering.
+
+## Build it or buy one?
+
+| | Tessera | Stream Deck MK.2 | Stream Deck XL |
+|---|---|---|---|
+| Price | the board, about $35–42 | $149.99 | $249.99 |
+| Keys | 18 per page on a 7-inch touchscreen, keys up to three slots wide | 15 physical keys | 32 physical keys |
+| Live widgets, mixer, PC status, AI agents | yes | through plugins | through plugins |
+| Source code | MIT | closed | closed |
+
+You also need a USB-C cable, and a small tablet stand helps. What you give up is the feel of a real key: Tessera is
+glass. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026; they change.
 
 ## Quick start
 

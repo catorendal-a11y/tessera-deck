@@ -40,6 +40,18 @@ jobs:
       - name: Dependency audit
         run: python -m pip_audit -r host/requirements.txt
 
+  firmware-analysis:
+    name: Firmware static analysis (cppcheck)
+    runs-on: ubuntu-latest  # not the ESP-IDF container: apt inside it could not reach the Ubuntu archive
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install cppcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+      - name: Check the firmware sources (the generated fonts are left out)
+        run: >
+          cppcheck --enable=warning,portability --inline-suppr --std=c++17 --error-exitcode=1 --quiet
+          -I main -I main/ui main/main.cpp main/deck_model.c main/deck_images.cpp main/time_service.c main/ui/ui.cpp
+
   firmware:
     name: Firmware build and native LVGL tests
     runs-on: ubuntu-latest

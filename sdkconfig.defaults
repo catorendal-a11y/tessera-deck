@@ -10,6 +10,8 @@ CONFIG_CACHE_L2_CACHE_256KB=y
 CONFIG_CACHE_L2_CACHE_LINE_128B=y
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=10240
 CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE=6144
+# A task that blocks the panel for 5 s restarts it, so a hang never needs the cable pulled.
+CONFIG_ESP_TASK_WDT_PANIC=y
 # P4/IDF 6.1 trips the hardware guard at SP == ISR stack upper bound in
 # _interrupt_handler before dispatch. Keep FreeRTOS canary checks enabled.
 # CONFIG_ESP_SYSTEM_HW_STACK_GUARD is not set

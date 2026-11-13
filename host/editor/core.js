@@ -140,8 +140,9 @@ function element(tag, attrs={}, ...children) {
 }
 const button=(text,fn,cls='quiet',title) => element('button',{text,class:cls,onclick:fn,type:'button',title});
 const text=(tag,value,cls) => element(tag,{text:value,class:cls||''});
-function toast(message) {const host=document.querySelector('dialog:modal')||document.body;if($('#toast').parentNode!==host){host.append($('#toast'));if(host!==document.body)host.addEventListener('close',()=>document.body.append($('#toast')),{once:true});}
-  $('#toast').textContent=message;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
+function toast(message,undoable=false) {const host=document.querySelector('dialog:modal')||document.body;if($('#toast').parentNode!==host){host.append($('#toast'));if(host!==document.body)host.addEventListener('close',()=>document.body.append($('#toast')),{once:true});}
+  $('#toast').textContent=message;
+  if(undoable)$('#toast').append(button('Undo',()=>{undo();$('#toast').hidden=true;},'toast-undo'));$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
 async function api(path, data) {
   const response=await fetch('/api/'+path, {method:data===undefined?'GET':'POST',credentials:'same-origin',
     headers:{'Content-Type':'application/json','X-Deck-Request':'1'},body:data===undefined?undefined:JSON.stringify(data)});

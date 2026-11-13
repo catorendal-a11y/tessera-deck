@@ -137,8 +137,15 @@ void image_frame(ImageTile& value) {
     lv_image_set_src(value.widget,&value.descriptor);lv_obj_invalidate(value.widget);
     value.due=millis()+value.image->durations[value.frame];
 }
+void pulse_opa(void *object,int32_t value) {lv_obj_set_style_bg_opa(static_cast<lv_obj_t*>(object),static_cast<lv_opa_t>(value),0);}
 void flash(int slot,uint32_t color,uint32_t ms) {
-    lv_obj_set_style_bg_color(keys[slot],lv_color_hex(color),0);flash_until[slot]=millis()+ms;
+    auto *tile=keys[slot];lv_anim_delete(tile,pulse_opa);lv_obj_set_style_bg_opa(tile,LV_OPA_COVER,0);
+    lv_obj_set_style_bg_color(tile,lv_color_hex(color),0);flash_until[slot]=millis()+ms;
+    if(color!=PressedBg)return;
+    /* Waiting for the PC: a slow pulse says the press arrived and the action is running. */
+    lv_anim_t pulse;lv_anim_init(&pulse);lv_anim_set_var(&pulse,tile);lv_anim_set_exec_cb(&pulse,pulse_opa);
+    lv_anim_set_values(&pulse,LV_OPA_COVER,LV_OPA_50);lv_anim_set_duration(&pulse,450);lv_anim_set_reverse_duration(&pulse,450);
+    lv_anim_set_repeat_count(&pulse,LV_ANIM_REPEAT_INFINITE);lv_anim_start(&pulse);
 }
 void press(lv_event_t *event) {
     const int slot=slot_of(event);
@@ -193,6 +200,7 @@ void build_keys() {
         flat(tile,base_bg[slot]);lv_obj_set_style_radius(tile,20,0);
         if(value.style&DECK_STYLE_BORDER){lv_obj_set_style_border_width(tile,2,0);lv_obj_set_style_border_color(tile,lv_color_hex(value.border),0);}
         lv_obj_set_style_bg_color(tile,lv_color_hex(PressedBg),LV_STATE_PRESSED);
+        lv_obj_set_style_transform_width(tile,-4,LV_STATE_PRESSED);lv_obj_set_style_transform_height(tile,-4,LV_STATE_PRESSED);  /* sinks under the finger */
         const bool title_top=cells==1&&value.title_position==1;  /* the icon moves down to make room for the title */
         const int cx=cells>1?58:KeyW/2,cy=cells>1?KeyH/2-12:title_top?KeyH-60:60;
         auto image=deck_image_get(value.icon);
@@ -220,7 +228,7 @@ void build_keys() {
             /* Wide key: the title and a second line to the right of the icon, a progress bar underneath. */
             const int left=value.ring?130:112,room=width-left-14;
             name_label[slot]=label(tile,value.label,left,value.ring?40:30,room,value.ring?&fq_font_dejavu_bold_28:&fq_font_dejavu_bold_24,ink);
-            sub_label[slot]=label(tile,value.sub,left,value.ring?82:70,room,&fq_font_dejavu_16,Muted);
+            sub_label[slot]=label(tile,value.sub,left,value.ring?82:70,room,&fq_font_dejavu_20,Muted);
             if(value.has_progress&&!value.ring){
                 bar_width[slot]=room;
                 auto *track=box(tile,left,KeyH-38,room,6,3,Bg);
@@ -235,8 +243,8 @@ void build_keys() {
         }
         /* Small marks in the corner say what else a key does: a ring for a long press, two dots for a double tap. */
         int right=width-12;
-        if(value.has_double)for(int dot=0;dot<2;++dot){box(tile,right-6,12,6,6,3,Dim);right-=10;}
-        if(value.has_hold){auto *ring=box(tile,right-11,9,11,11,6,Card);lv_obj_set_style_bg_opa(ring,LV_OPA_TRANSP,0);lv_obj_set_style_border_width(ring,2,0);lv_obj_set_style_border_color(ring,lv_color_hex(Dim),0);}
+        if(value.has_double)for(int dot=0;dot<2;++dot){box(tile,right-8,12,8,8,4,Muted);right-=13;}
+        if(value.has_hold){auto *ring=box(tile,right-14,9,14,14,7,Card);lv_obj_set_style_bg_opa(ring,LV_OPA_TRANSP,0);lv_obj_set_style_border_width(ring,2,0);lv_obj_set_style_border_color(ring,lv_color_hex(Muted),0);}
         /* With a hold action, a click is a short press only; a long press reports a hold instead. */
         lv_obj_add_event_cb(tile,press,value.has_hold?LV_EVENT_SHORT_CLICKED:LV_EVENT_CLICKED,slot_data(slot));
         if(value.has_hold)lv_obj_add_event_cb(tile,press,LV_EVENT_LONG_PRESSED,slot_data(slot));
@@ -357,7 +365,7 @@ void draw_fader(int i) {
     lv_obj_set_pos(fader_fill[i],44,TrackH-fill);lv_obj_set_height(fader_fill[i],fill);
     lv_obj_set_hidden(fader_fill[i],fill<4);
     lv_obj_set_style_bg_color(fader_fill[i],lv_color_hex(fader.muted?Line:fader.color),0);
-    lv_obj_set_y(fader_knob[i],LV_CLAMP(0,TrackH-fill-15,TrackH-30));
+    lv_obj_set_y(fader_knob[i],LV_CLAMP(0,TrackH-fill-22,TrackH-44));
     char text[12];
     if(fader.muted)snprintf(text,sizeof(text),"Muted");else snprintf(text,sizeof(text),"%d %%",fader.level);
     if(strcmp(lv_label_get_text(fader_value[i]),text))lv_label_set_text(fader_value[i],text);
@@ -400,13 +408,13 @@ void build_faders() {
         auto *zone=fader_zone[i]=clear_box(card,(FaderW-TrackW)/2,64,TrackW,TrackH);lv_obj_set_clickable(zone,true);
         box(zone,44,0,22,TrackH,11,Bg);
         fader_fill[i]=box(zone,44,0,22,TrackH,11,faders[i].color);
-        fader_knob[i]=box(zone,21,0,68,30,10,Text);
+        fader_knob[i]=box(zone,17,0,76,44,12,Text);
         for(auto code:{LV_EVENT_PRESSED,LV_EVENT_PRESSING,LV_EVENT_RELEASED})lv_obj_add_event_cb(zone,fader_touch,code,slot_data(i));
         auto *name=label(card,faders[i].name,4,424,FaderW-8,&fq_font_dejavu_16,Soft);lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);
         auto *mute=fader_mute[i]=lv_button_create(card);flat(mute,Card);
-        lv_obj_set_pos(mute,(FaderW-62)/2,470);lv_obj_set_size(mute,62,62);lv_obj_set_style_radius(mute,31,0);
+        lv_obj_set_pos(mute,(FaderW-80)/2,460);lv_obj_set_size(mute,80,80);lv_obj_set_style_radius(mute,40,0);
         lv_obj_set_style_border_width(mute,2,0);
-        fader_icon[i]=glyph(mute,faders[i].mic?"lc:e118":"lc:e1ab",29,29,28,Muted);
+        fader_icon[i]=glyph(mute,faders[i].mic?"lc:e118":"lc:e1ab",38,38,32,Muted);
         lv_obj_add_event_cb(mute,mute_pressed,LV_EVENT_CLICKED,slot_data(i));
         draw_fader(i);
     }
@@ -522,11 +530,26 @@ void build_rail() {
     rail_dot=rail_agents>=0?box(rail_items,15+54-13,RailTop+rail_agents*RailPitch+3,12,12,6,Amber):nullptr;
     refresh_rail();
 }
+lv_obj_t *offline_card[3]{};
+void show_offline(bool linked) {
+    lv_obj_t *areas[3]={agents_area,mixer_area,stats_area};
+    for(int i=0;i<3;++i) {
+        if(!areas[i])continue;
+        if(!offline_card[i]) {
+            auto *card=offline_card[i]=box(lv_obj_get_parent(areas[i]),Pad+(ContentW-600)/2,H/2-80,600,150,22,0x2B2314);
+            lv_obj_set_style_border_width(card,2,0);lv_obj_set_style_border_color(card,lv_color_hex(Amber),0);
+            auto *title=label(card,"PC not connected",0,34,600,&fq_font_dejavu_bold_28,Amber);lv_obj_set_style_text_align(title,LV_TEXT_ALIGN_CENTER,0);
+            auto *hint=label(card,"Start Tessera on the PC, or check the USB cable",0,86,600,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_CENTER,0);
+        }
+        lv_obj_set_hidden(offline_card[i],linked);lv_obj_move_foreground(offline_card[i]);
+    }
+}
 void update_link() {
     const int linked=deck_model_host_linked(HostTimeoutMs)?1:0;
     if(linked==link_shown)return;
     link_shown=linked;lv_obj_set_hidden(link_label,linked);
     for(auto *area:{agents_area,mixer_area,stats_area})if(area)lv_obj_set_style_opa(area,linked?LV_OPA_COVER:LV_OPA_40,0);
+    show_offline(linked);
     if(linked){build_agents();sync_stats();return;}
     for(auto *summary:{agents_summary,stats_summary}){lv_label_set_text(summary,"PC not connected");lv_obj_set_style_text_color(summary,lv_color_hex(Amber),0);}
 }
@@ -620,7 +643,7 @@ void update(lv_timer_t*) {
     for(auto& image:images)if(image.image&&image.image->frames.size()>1&&static_cast<int32_t>(millis()-image.due)>=0){image.frame=(image.frame+1)%image.image->frames.size();image_frame(image);}
     int id=0;deck_feedback_t result;
     while(deck_model_take_feedback(&id,&result))for(int i=0;i<DECK_MAX_BUTTONS;++i)if(ids[i]==id&&keys[i])flash(i,result==DECK_FEEDBACK_ALERT?AlertBg:OkBg,500);
-    for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&keys[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){lv_obj_set_style_bg_color(keys[i],lv_color_hex(base_bg[i]),0);flash_until[i]=0;}
+    for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&keys[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){lv_anim_delete(keys[i],pulse_opa);lv_obj_set_style_bg_opa(keys[i],LV_OPA_COVER,0);lv_obj_set_style_bg_color(keys[i],lv_color_hex(base_bg[i]),0);flash_until[i]=0;}
     update_link();
     update_ambient();
     /* Runs every 40 ms: only touch the label when the minute changed. */
@@ -647,8 +670,8 @@ extern "C" void ui_init(void) {
     auto *rail=box(screen,0,0,Rail,H,0,RailBg);
     make_logo(rail,19,20);
     rail_items=clear_box(rail,0,0,Rail,H);
-    link_label=label(rail,"NO PC",0,H-70,Rail,&fq_font_dejavu_16,Amber);lv_obj_set_style_text_align(link_label,LV_TEXT_ALIGN_CENTER,0);
-    clock_label=label(rail,"--:--",0,H-42,Rail,&fq_font_dejavu_16,Muted);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_CENTER,0);
+    link_label=label(rail,"NO PC",0,H-74,Rail,&fq_font_dejavu_bold_20,Amber);lv_obj_set_style_text_align(link_label,LV_TEXT_ALIGN_CENTER,0);
+    clock_label=label(rail,"--:--",0,H-44,Rail,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_CENTER,0);
     for(lv_indev_t *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_add_event_cb(indev,wake_touch,LV_EVENT_PRESSED,nullptr);
     build_ambient();
     build_keys();build_rail();update_context();build_agents();sync_faders();sync_stats();set_view(ViewKeys);link_shown=-1;update_link();

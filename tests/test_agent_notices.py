@@ -76,5 +76,28 @@ class NoticeTests(HostCase):
             app.open_editor()                 # the second half of a double click
         self.assertEqual(popen.call_count, 1)
 
+    @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
+    def test_the_tray_reports_a_lasting_problem_once_and_shows_the_versions(self):
+        from unittest.mock import Mock
+        import tessera_tray
+        status = {'running': True, 'device': {'connected': False, 'error': 'COM4 is used by another program', 'firmware': '0.6.2'}}
+        self.assertIn('panel 0.6.2', tessera_tray.version_text(status))
+        app = tessera_tray.TrayApp(Mock())
+        app.icon, app.status = Mock(), status
+        text = tessera_tray.trouble_text(status)
+        app.report_trouble(text, 100.0)
+        app.report_trouble(text, 110.0)
+        app.icon.notify.assert_not_called()  # a short hiccup is no news
+        app.report_trouble(text, 131.0)
+        app.report_trouble(text, 200.0)
+        app.icon.notify.assert_called_once()
+        self.assertIn('another program', app.icon.notify.call_args.args[0])
+        app.status = {'running': False}
+        app.user_stopped = True
+        app.report_trouble(tessera_tray.trouble_text(app.status), 300.0)
+        app.report_trouble(tessera_tray.trouble_text(app.status), 400.0)
+        self.assertEqual(app.icon.notify.call_count, 1, 'a host the user stopped is not reported')
+        self.assertIsNone(tessera_tray.trouble_text({'running': True, 'device': {'connected': True}}))
+
 if __name__ == '__main__':
     unittest.main()

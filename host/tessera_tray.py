@@ -25,6 +25,9 @@ log = logging.getLogger(__name__)
 POLL_SECONDS = 2.0
 COMMAND_PATH = ROOT / 'host/deck-command.local.json'
 PROFILES_PATH = ROOT / 'host/profiles.json'
+LOG_PATH = ROOT / 'host/deck.local.log'
+FIRST_RUN_PATH = ROOT / 'host/tray-first-run.local.json'  # written once the Start with Windows question was asked
+TROUBLE_SECONDS = 30  # how long a problem must last before the tray says so
 BRIGHTNESS_LEVELS = (100, 80, 60, 40, 20)
 STATE_COLORS = {'connected': (53, 208, 127), 'waiting': (255, 183, 77), 'stopped': (255, 112, 112)}
 
@@ -46,6 +49,24 @@ def status_text(status: dict) -> str:
     if state == 'waiting':
         return str(device.get('error') or 'Waiting for the panel …')[:110]
     return 'Host stopped'
+
+
+def version_text(status: dict) -> str:
+    """'Tessera 0.6.2 · panel 0.6.2': what helpers ask for first."""
+    version_file = ROOT / 'VERSION'
+    version = version_file.read_text(encoding='utf-8').strip() if version_file.is_file() else '?'
+    firmware = status.get('device', {}).get('firmware')
+    return f'Tessera {version}' + (f' · panel {firmware}' if firmware else '')
+
+
+def trouble_text(status: dict) -> str | None:
+    """The problem worth a notice when it lasts, or None."""
+    if not status.get('running'):
+        return 'The host is not running, so the panel does nothing. Start it from the tray menu.'
+    error = status.get('device', {}).get('error')
+    if not status.get('device', {}).get('connected') and error:
+        return f'The panel is not connected: {error}'[:200]
+    return None
 
 
 def load_config(path: Path = PROFILES_PATH) -> dict:
@@ -106,6 +127,8 @@ class TrayApp:
         self.last_notice = None  # newest notice already shown; the first poll only catches up
         self.host_work = threading.Lock()  # start, stop and restart of the host run one at a time
         self.menu_shows = None  # what the open menu was built from; it is rebuilt when this changes
+        self.trouble = None  # (text, since, shown) of a problem that lasts
+        self.user_stopped = False  # a host the user stopped is no problem to report
         self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
                                  menu=pystray.Menu(self.menu_items))
 
@@ -143,9 +166,11 @@ class TrayApp:
         self.background(work)
 
     def start_host(self, *_):
+        self.user_stopped = False
         self.host(self.controller.start)
 
     def stop_host(self, *_):
+        self.user_stopped = True
         self.host(self.controller.stop)
 
     def restart_host(self, *_):
@@ -164,6 +189,49 @@ class TrayApp:
     def toggle_autostart(self, *_):
         self.background(lambda: set_autostart(not autostart_enabled()))
 
+    # --- help: what a user needs to report a problem ---------------------------
+    def open_log(self, *_):
+        if LOG_PATH.is_file():
+            os.startfile(LOG_PATH)  # noqa: S606 - the user's own log in their text editor
+        else:
+            self.icon.notify('There is no host log yet. It is written once the host has run.', 'Tessera')
+
+    def save_diagnostics(self, *_):
+        def work():
+            import setup_tool
+            path = setup_tool.diagnostics()
+            subprocess.Popen(['explorer', '/select,', str(path)])  # noqa: S603,S607
+            self.icon.notify(f'Saved {path.name}. User names and credentials are left out.', 'Tessera')
+        self.background(work)
+
+    def open_data_folder(self, *_):
+        os.startfile(ROOT / 'host')  # noqa: S606 - profiles, icons and backups live here
+
+    def check_for_updates(self, *_):
+        def work():
+            import updates
+            current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
+            release = updates.check(current)
+            if release.get('newer'):
+                self.icon.notify(f"Tessera {release['latest']} is available. Open the editor: ⋯ → Panel firmware …", 'Tessera')
+            else:
+                self.icon.notify(f'Tessera {current} is the newest version.', 'Tessera')
+        self.background(work)
+
+    def ask_about_autostart(self):
+        """Once, on the first run: the panel does nothing after a restart until Tessera runs, so ask."""
+        if FIRST_RUN_PATH.exists() or os.name != 'nt':
+            return
+        write_command({'asked': 'autostart'}, FIRST_RUN_PATH)
+        if autostart_enabled():
+            return
+        import ctypes
+        answer = ctypes.windll.user32.MessageBoxW(
+            None, 'Start Tessera when you sign in to Windows?\n\nThe panel then works after every restart. '
+                  'You can change this later in the tray menu: Start with Windows.', 'Tessera', 0x4 | 0x20 | 0x10000 | 0x40000)
+        if answer == 6:  # IDYES
+            set_autostart(True)
+
     def quit(self, *_):
         self.stop.set()
         self.icon.stop()
@@ -172,6 +240,7 @@ class TrayApp:
         self.background(self._stop_then_quit)
 
     def _stop_then_quit(self):
+        self.user_stopped = True
         with self.host_work:
             self.controller.stop()
         self.quit()
@@ -199,6 +268,7 @@ class TrayApp:
     def menu_items(self):
         running = bool(self.status.get('running'))
         yield pystray.MenuItem(status_text(self.status), None, enabled=False)
+        yield pystray.MenuItem(version_text(self.status), None, enabled=False)
         yield pystray.Menu.SEPARATOR
         yield pystray.MenuItem('Open editor', self.open_editor, default=True)
         yield pystray.MenuItem('Profiles', pystray.Menu(self.profile_items), enabled=running)
@@ -209,6 +279,11 @@ class TrayApp:
         yield pystray.MenuItem('Stop host', self.stop_host, enabled=running)
         yield pystray.Menu.SEPARATOR
         yield pystray.MenuItem('Start with Windows', self.toggle_autostart, checked=lambda item: autostart_enabled())
+        yield pystray.MenuItem('Help', pystray.Menu(
+            pystray.MenuItem('Open the host log', self.open_log),
+            pystray.MenuItem('Save diagnostics for a bug report', self.save_diagnostics),
+            pystray.MenuItem('Open the data folder', self.open_data_folder),
+            pystray.MenuItem('Check for updates', self.check_for_updates)))
         yield pystray.Menu.SEPARATOR
         yield pystray.MenuItem('Quit tray', self.quit)
         yield pystray.MenuItem('Quit and stop host', self.quit_and_stop_host)
@@ -224,6 +299,7 @@ class TrayApp:
             self.menu_shows = shown
             self.icon.update_menu()
         self.show_notices(self.status.get('notices', []))
+        self.report_trouble(trouble_text(self.status), time.monotonic())
         if state != self.state:
             previous, self.state = self.state, state
             self.icon.icon = make_icon(state)
@@ -231,6 +307,18 @@ class TrayApp:
                 self.icon.notify('The panel was disconnected.', 'Tessera')
             elif previous and state == 'connected':
                 self.icon.notify('The panel is connected.', 'Tessera')
+
+    def report_trouble(self, text, now):
+        """One notice for a problem that lasts TROUBLE_SECONDS (a port held by another program, a host that
+        stopped); the icon colour alone does not say why nothing works. A new problem gets a new notice."""
+        if text is None or (self.user_stopped and not self.status.get('running')):
+            self.trouble = None
+            return
+        if self.trouble is None or self.trouble[0] != text:
+            self.trouble = (text, now, False)
+        elif not self.trouble[2] and now - self.trouble[1] >= TROUBLE_SECONDS:
+            self.icon.notify(text, 'Tessera')
+            self.trouble = (text, self.trouble[1], True)
 
     def show_notices(self, notices):
         ids = [item['id'] for item in notices if isinstance(item.get('id'), int)]
@@ -253,6 +341,7 @@ class TrayApp:
 
     def run(self):
         self.start_host()
+        self.background(self.ask_about_autostart)
         threading.Thread(target=self.poll, daemon=True).start()
         self.icon.run()
 
