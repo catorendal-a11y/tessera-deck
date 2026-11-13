@@ -34,7 +34,7 @@ README states it; behaviour that was not stated is marked *not stated*.
 | Global theme row (background, button, text, stroke, shadow) and a Themes menu (seen in its screenshots) | **Added.** *Key colors …* in the Panel menu sets the default background, label and outline for every key with five presets or custom colors; a key's own colors win. |
 | Mouse action type (click, double-click, move, drag) | **Added** click, right/middle click, double-click, scroll, move by and move to. Drag was not added. |
 | Rotary encoder with LED ring | Not applicable: Tessera targets a different board without an encoder. |
-| Presets for creative apps | Not added; mouse actions exist, and Tessera has 119 ready-made actions and 10 templates for other programs. |
+| Presets for creative apps | Not added; mouse actions exist, and Tessera has over 120 ready-made actions and 10 profile templates for other programs. |
 | Smart upload (only changed files) | Tessera already sends only changed layouts and images; *Save diagnostics* in the More menu adds a support bundle. |
 | Multi-action builder, undo/redo, app-based pages, tray, sleep/wake | Already in Tessera. |
 

@@ -125,7 +125,8 @@ The OTA data image makes the bootloader start `ota_0` again, even if an update o
 ## Update the Windows program
 
 Replace the program folder with the new `tessera-host` zip, or run `git pull` in a source checkout. Copy your data
-over first: `host/profiles.json`, `host/assets` and `host/backups`. Then check **Panel → Panel firmware and updates …** for newer firmware. The tray menu has **Help → Check for updates**.
+over first: from `host/`, copy `profiles.json`, `assets/`, `backups/` and the `*.local.json` files (counters, timers,
+your icon library and the panel you used last). [Releasing](RELEASING.md) lists them by name. Then check **Panel → Panel firmware and updates …** for newer firmware. The tray menu has **Help → Check for updates**.
 
 ## Autostart
 

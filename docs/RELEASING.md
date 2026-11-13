@@ -94,4 +94,4 @@ Packages built for the A/B table contain `ota_data_initial.bin` and carry `"need
 
 *Check for updates* in the firmware dialog asks GitHub for the latest release when you press it. It can download the firmware package, which is kept only if its SHA-256 matches the release's `SHA256SUMS`.
 
-The Windows program updates by replacing the folder with the new `tessera-host` zip, or by `git pull`. Your profiles, icons and backups live in `host/` and stay if you copy them over.
+The Windows program updates by replacing the folder with the new `tessera-host` zip, or by `git pull`. To keep your setup when you replace the folder, copy these from the old `host/` folder: `profiles.json`, `assets/`, `backups/`, `state.local.json` (counters and timers), `icon-library.local.json`, `editor.local.json`, `deck-device.local.json` and `profiles-previous.local.json`. This is the same list `--purge` deletes (`USER_DATA` in `host/setup_tool.py`).
