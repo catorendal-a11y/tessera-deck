@@ -178,9 +178,13 @@ function askDialog(title,message,{ok='OK',cancel='Cancel',danger=false,input=nul
 }
 const confirmDialog=(title,message,options={})=>askDialog(title,message,options);
 const promptDialog=(title,label,value='',options={})=>askDialog(title,label,{...options,input:value});
+/* The session key goes in a header, never a cookie: cookies reach every port on 127.0.0.1. sessionStorage is per
+   port and survives a reload. */
+let deckSession='';
+try{deckSession=sessionStorage.getItem('deck-session')||'';}catch{}
 async function api(path, data) {
   const response=await fetch('/api/'+path, {method:data===undefined?'GET':'POST',credentials:'same-origin',
-    headers:{'Content-Type':'application/json','X-Deck-Request':'1'},body:data===undefined?undefined:JSON.stringify(data)});
+    headers:{'Content-Type':'application/json','X-Deck-Request':'1','X-Deck-Session':deckSession},body:data===undefined?undefined:JSON.stringify(data)});
   const result=await response.json();
   if(!response.ok) {const error=new Error(result.error||'The operation failed');error.status=response.status;throw error;}
   return result;

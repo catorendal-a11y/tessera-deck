@@ -8,7 +8,7 @@ The editor and the control API are two small web servers inside the host. Neithe
 
 | Surface | Listens on | Protection |
 |---|---|---|
-| Editor | `127.0.0.1`, a free port | A per-run token. Requests whose `Host` is not `127.0.0.1:<port>` or that come from another web page (`Origin` header) are refused. The session cookie is `HttpOnly` and `SameSite=Strict`. |
+| Editor | `127.0.0.1`, a free port | A per-run token that stays in a private file. The window opens with a one-time code that the page trades for a session key, which it sends in a header; a cookie (`HttpOnly`, `SameSite=Strict`) only opens icon previews. Requests whose `Host` is not `127.0.0.1:<port>` or that come from another web page (`Origin` header) are refused. |
 | Control API (`/v1/…`) | `127.0.0.1`, a free port | A per-run token in the `X-Deck-Token` header. The same `Host` and `Origin` checks. Each token may make 20 calls a second, in bursts of up to 40, then gets `429`. |
 
 - The tokens live in `host/deck-api.local.json` and in the editor's record file. Only your Windows account can read them. They change every time the host starts.

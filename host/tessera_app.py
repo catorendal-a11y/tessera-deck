@@ -773,8 +773,53 @@ class Editor:
         raise ValueError('Unknown command')
 
 
+LAUNCH_CODE_SECONDS = 600  # an address nobody opened stops working; --no-browser prints one for you or a test
+
+
 def make_server(editor, port=0, token=None):
+    # Three kinds of key, so none is a long-lived bearer secret that a browser hands out:
+    # - token: the launcher's key. It stays in the private record file and travels only in the X-Deck-Token header.
+    # - launch codes: one-time codes in the address the window opens (#code). A copy left in the browser's history
+    #   or on its command line is worthless once the page has used it.
+    # - sessions: what a page gets for its code. It keeps it in sessionStorage, which is per port, and sends it as
+    #   the X-Deck-Session header. Cookies are shared by every port on 127.0.0.1, so a page another account serves
+    #   on a free port would receive them; the cookie therefore only opens the icon previews, which an <img> needs.
     token = token or secrets.token_urlsafe(32)
+    launches = {}  # code -> time it was issued
+    sessions = set()
+    previews = set()
+    keys_lock = threading.Lock()
+
+    def launch_code():
+        now = time.monotonic()
+        with keys_lock:
+            for code, issued in list(launches.items()):
+                if now - issued > LAUNCH_CODE_SECONDS:
+                    del launches[code]
+            while len(launches) >= 16:
+                del launches[next(iter(launches))]
+            code = secrets.token_urlsafe(32)
+            launches[code] = now
+            return code
+
+    def redeem(code):
+        code = code.encode('utf-8', 'replace')
+        with keys_lock:
+            issued = None
+            for known_code in list(launches):  # constant-time compares; a code works once
+                if secrets.compare_digest(known_code.encode(), code):
+                    issued = launches.pop(known_code)
+            if issued is None or time.monotonic() - issued > LAUNCH_CODE_SECONDS:
+                return None
+            session, preview = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+            sessions.add(session)
+            previews.add(preview)
+            return session, preview
+
+    def known(keys, supplied):
+        supplied = supplied.encode('utf-8', 'replace')  # str raises on non-ASCII
+        with keys_lock:
+            return bool(supplied) and any(secrets.compare_digest(key.encode(), supplied) for key in keys)
 
     class Handler(BaseHTTPRequestHandler):
         timeout = REQUEST_TIMEOUT  # a client that stalls before or during its request must not hold a thread forever
@@ -789,14 +834,14 @@ def make_server(editor, port=0, token=None):
             self.send_header('Referrer-Policy', 'no-referrer')
             self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'")
 
-        def json(self, value, code=200, cookie=False):
+        def json(self, value, code=200, cookie=None):
             raw = json.dumps(value, ensure_ascii=False, allow_nan=False).encode('utf-8')
             self.send_response(code)
             self.headers_common()
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(raw)))
             if cookie:
-                self.send_header('Set-Cookie', f'deck_session_{self.server.server_port}={token}; HttpOnly; SameSite=Strict; Path=/')
+                self.send_header('Set-Cookie', f'deck_preview_{self.server.server_port}={cookie}; HttpOnly; SameSite=Strict; Path=/api/image/')
             self.end_headers()
             self.wfile.write(raw)
 
@@ -812,20 +857,23 @@ def make_server(editor, port=0, token=None):
             return True
 
         def authenticated(self):
+            return known(sessions, self.headers.get('X-Deck-Session', ''))
+
+        def may_preview(self):
             cookie = SimpleCookie()
             try:
                 cookie.load(self.headers.get('Cookie', ''))
-                name = f'deck_session_{self.server.server_port}'
+                name = f'deck_preview_{self.server.server_port}'
                 supplied = cookie[name].value if name in cookie else ''
             except Exception:
                 supplied = ''
-            return secrets.compare_digest(supplied.encode('utf-8', 'replace'), token.encode('utf-8'))  # str raises on non-ASCII
+            return known(previews, supplied)
 
         def do_GET(self):
             if not self.allowed():
                 return
             if self.path.startswith('/api/image/'):
-                if not self.authenticated():
+                if not self.may_preview():
                     return self.json({'error': 'Invalid session'}, 401)
                 try:
                     raw = editor.assets.preview(self.path.removeprefix('/api/image/'))
@@ -882,8 +930,13 @@ def make_server(editor, port=0, token=None):
             if not self.allowed():
                 return
             session = self.path == '/api/session'
+            launch = self.headers.get('X-Deck-Launch')
             if session:
-                if not secrets.compare_digest(self.headers.get('X-Deck-Token', '').encode('utf-8', 'replace'), token.encode('utf-8')):
+                if launch is not None:  # the page trades its one-time code for a session
+                    keys = redeem(launch)
+                    if not keys:
+                        return self.json({'error': 'Invalid session'}, 403)
+                elif not secrets.compare_digest(self.headers.get('X-Deck-Token', '').encode('utf-8', 'replace'), token.encode('utf-8')):
                     return self.json({'error': 'Invalid session'}, 403)
             elif not self.authenticated() or self.headers.get('X-Deck-Request') != '1':
                 return self.json({'error': 'Invalid session'}, 403)
@@ -897,7 +950,10 @@ def make_server(editor, port=0, token=None):
                 if not isinstance(data, dict):
                     raise ValueError('Invalid configuration')
                 if session:
-                    return self.json({'ok': True}, cookie=True)
+                    if launch is not None:
+                        return self.json({'ok': True, 'session': keys[0]}, cookie=keys[1])
+                    # the launcher asks for a code when it opens a window on this editor
+                    return self.json(dict(ok=True, launch=launch_code()) if data.get('launch') is True else {'ok': True})
                 if self.path == '/api/config':
                     return self.json(editor.save(data))
                 if self.path == '/api/icon-preferences':
@@ -919,6 +975,7 @@ def make_server(editor, port=0, token=None):
     server = ExclusiveServer(('127.0.0.1', port), Handler)
     server.daemon_threads = True
     server.token = token
+    server.launch_url = lambda: f'http://127.0.0.1:{server.server_port}/#{launch_code()}'
     server.editor = editor
     return server
 
@@ -945,19 +1002,24 @@ def show_running_editor(record, build, open_if_hidden=False):
             if response.status != 200:
                 return False
         if previous.get('build') == build:
+            def launch_url():  # a one-time code: the record's token never goes into an address
+                request = urllib.request.Request(previous['url'] + 'api/session', data=b'{"launch": true}',
+                                                 headers={'Content-Type': 'application/json', 'X-Deck-Token': previous['token']})
+                with urllib.request.urlopen(request, timeout=2) as response:
+                    return previous['url'] + '#' + json.loads(response.read())['launch']
             if previous.get('browser'):  # the editor runs in a browser tab, which has no window of its own to raise
-                webbrowser.open(previous['url'] + '#' + previous['token'])
+                webbrowser.open(launch_url())
                 return True
             if activate_window(previous['pid']):
                 return True
             if open_if_hidden:
-                open_window(previous['url'] + '#' + previous['token'])
+                open_window(launch_url())
                 return True
             return False
         # A launcher reopening an updated editor must not reuse a stale API server. The independent USB host stays up.
         process.terminate()
         process.wait(timeout=3)
-    except (OSError, ValueError, KeyError, psutil.Error):
+    except (OSError, ValueError, KeyError, TypeError, psutil.Error):
         pass
     return False
 
@@ -1004,14 +1066,14 @@ def main():
             os.replace(temporary, record)
         write_record()
     print('The Tessera editor is open. Keep this window open.', flush=True)
-    if args.no_browser:  # no window opens: this address (with the session key) is the way in, for you or a test
-        print(f'Open {url}#{server.token}', flush=True)
+    if args.no_browser:  # no window opens: this address (with a one-time code) is the way in, for you or a test
+        print(f'Open {server.launch_url()}', flush=True)
     server_thread = None
     try:
         if not args.no_browser:
             server_thread = threading.Thread(target=server.serve_forever, daemon=True)
             server_thread.start()
-            if open_window(url + '#' + server.token):
+            if open_window(server.launch_url()):
                 server.shutdown()
                 server_thread.join(timeout=3)
                 return

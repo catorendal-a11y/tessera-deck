@@ -22,6 +22,7 @@ class RunningEditorTests(unittest.TestCase):
         process.create_time.return_value = 100.0
         answer = MagicMock()
         answer.__enter__.return_value.status = 200
+        answer.__enter__.return_value.read.return_value = b'{"ok": true, "launch": "one-time"}'
         return process, answer
 
     def test_a_running_editor_whose_window_is_not_up_yet_is_waited_for(self):
@@ -34,7 +35,8 @@ class RunningEditorTests(unittest.TestCase):
             self.assertFalse(tessera_app.show_running_editor(record, 'b1'), 'the caller asks again; it does not open a second window')
             open_window.assert_not_called()
             self.assertTrue(tessera_app.show_running_editor(record, 'b1', open_if_hidden=True))
-            open_window.assert_called_once()
+            # the address carries a one-time code from the editor, never the record's long-lived token
+            open_window.assert_called_once_with('http://127.0.0.1:5000/#one-time')
 
     def test_a_visible_editor_is_brought_forward_and_an_older_build_is_stopped(self):
         process, answer = self.running()
