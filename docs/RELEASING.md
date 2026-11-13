@@ -41,7 +41,7 @@ of every image) and the images. Build one locally with `python tools/package_fir
 
 ## Updating the panel
 
-Use **Panel → Panel firmware …** in the editor (or `esptool` by hand, see [Install](INSTALL.md)). The installer checks the package
+Use **Panel → Panel firmware and updates …** in the editor (or `esptool` by hand, see [Install](INSTALL.md)). The installer checks the package
 (format, board, chip, protocol, checksums), asks the panel who it is, stops the host, writes the firmware and
 starts the host again. *Update (keeps settings)* (the default for a connected panel) writes only the app, so the stored brightness and
 the offline layout survive; *Full install (new or blank panel)*, the default when no panel is connected, also writes the bootloader, partition table and OTA data with esptool.

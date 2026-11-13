@@ -61,7 +61,7 @@ glass. Board prices are AliExpress street prices and the Stream Deck prices are 
 ## Quick start
 
 1. **Start Tessera.** Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets up everything, installs Python if it is missing and puts a shortcut on the Desktop.
-2. **Flash the panel.** Connect it with USB and open **Panel → Panel firmware …** in the editor. Choose the included firmware and press *Install*. A new board needs *Everything* and *Install anyway*; see [Install](docs/INSTALL.md).
+2. **Flash the panel.** Connect it with USB and open **Panel → Panel firmware and updates …** in the editor. Choose the included firmware and press *Install*. A new board needs *Full install (new or blank panel)* and *Install anyway*; see [Install](docs/INSTALL.md).
 3. **Add your apps.** In the action list, open **Apps → Installed programs …** and drop a program on a key. Changes are saved automatically.
 
 ## What it does

@@ -277,6 +277,22 @@ class MarkupTests(unittest.TestCase):
         for selector in ("'#library-tabs'", "'#inspector .inspector-tabs'"):
             self.assertIn(f'rovingTabs({selector}', app)
 
+    def test_the_menus_put_each_setting_in_one_place(self):
+        html = (Path(__file__).resolve().parents[1] / 'host/editor/index.html').read_text(encoding='utf-8')
+        menu = lambda name: html.split(f'id="{name}"')[1].split('</div></div></div>')[0]
+        panel = menu('panel-menu')
+        self.assertLess(panel.index('id="display-open"'), panel.index('id="firmware-open"'))
+        self.assertLess(panel.index('id="firmware-open"'), panel.index('id="rail-open"'))
+        self.assertIn('Panel firmware and updates', panel)
+        self.assertNotIn('panel-open', html, 'the rail screens choose what they show')
+        self.assertIn('id="new-page-menu"', menu('page-menu'))
+        self.assertIn('id="delete-page"', menu('page-menu'))
+        self.assertIn('id="delete-profile"', menu('profile-menu'))
+        more = menu('more-menu')
+        self.assertNotIn('shortcuts-open', more, 'the app bar has the shortcuts')
+        self.assertLess(more.index('id="welcome-open"'), more.index('id="claude-open"'))
+        self.assertIn('Nothing runs in the editor. Keys run only when you press them on the panel.', html)
+
     def test_the_layout_makes_room_instead_of_shrinking_the_text(self):
         editor = Path(__file__).resolve().parents[1] / 'host/editor'
         self.assertIn('Math.max(1,', (editor / 'core.js').read_text(encoding='utf-8'), 'the zoom never goes below 1')

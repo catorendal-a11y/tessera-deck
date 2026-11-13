@@ -182,7 +182,7 @@ function renderInspector() {
   // what applies to the whole key sits under the tabs, so it shows on every tab
   panel.append(element('div',{class:'inspector-footer'},element('div',{class:'inspector-tools'},button('Test',()=>testButton().catch(showError),'outline'),button('Copy',copyButton,'outline'),button('Paste',pasteButton,'outline'),button('Clear',clearButton,'quiet danger','Clear this key')),
     field('Move to slot',String(selected),value=>moveSlot(selected,Number(value)),{values:Array.from({length:18},(_,i)=>String(i+1))}),
-    text('p','Changes are saved automatically. The key runs when you press it on the panel, or with Test and then Run now.','hint')));
+    text('p','Changes are saved automatically. Nothing runs in the editor. Keys run only when you press them on the panel, or with Test and then Run now.','hint')));
   if(focusAt>=0)panel.querySelectorAll(controls)[focusAt]?.focus();
 }
 const ICON_COLORS=[['#35D07F','Green'],['#4DD0E1','Cyan'],['#64B5F6','Blue'],['#B388FF','Purple'],['#FF80AB','Pink'],['#FF5252','Red'],['#FFB74D','Orange'],['#E8F4EF','White']];
@@ -389,19 +389,19 @@ async function profileSettings() {
   {name:'name',label:'Profile name',value:profile,required:true},
   {name:'program',label:'Add a running program',options:processChoices,value:'',note:'Choose the program that activates the profile.'},
   {name:'match',label:'Automatic profile switching rules',value:(config.profiles[profile].match||[]).join(', '),note:(config.profiles[profile].match||[]).length?'This profile shows '+(config.profiles[profile].match||[]).map(describeRule).join(', or ')+'. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.':'No rules yet: this profile is only used when you choose it. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.'},
-  {name:'default',label:'Use as default profile',type:'checkbox',value:profile===config.default_profile},
-  {name:'remove',label:'Delete the profile and remove actions that point to it',type:'checkbox'}],values=>{
-    if(values.remove){
-      if(Object.keys(config.profiles).length===1)throw new Error('Keep at least one profile.');
-      const deleted=profile;  // no confirm: the toast offers Undo
-      mutate(()=>{const old=profile;delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
-        for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
-        for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
-        if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);});renderAll();toast(`Profile “${deleted}” was deleted.`,true);return;
-    }
+  {name:'default',label:'Use as default profile',type:'checkbox',value:profile===config.default_profile}],values=>{
     const name=values.name.trim();if(!name||(name!==profile&&config.profiles[name]))throw new Error('The profile name is already in use.');
     mutate(()=>{renameProfile(profile,name);profile=name;const rules=values.match.split(',').map(s=>s.trim()).filter(Boolean);if(values.program&&!rules.includes(values.program))rules.push(values.program);config.profiles[profile].match=rules;if(values.default)config.default_profile=profile;});renderAll();
   });
+}
+/* Profile → Delete this profile: no confirm, the toast offers Undo. */
+function deleteProfile() {
+  if(Object.keys(config.profiles).length===1)return toast('Keep at least one profile.');
+  const old=profile;
+  mutate(()=>{delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
+    for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
+    for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
+    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);});renderAll();toast(`Profile “${old}” was deleted.`,true);
 }
 const NIGHT_WINDOWS=[['','Off'],['22:00-07:00','22:00 – 07:00'],['23:00-07:00','23:00 – 07:00'],['00:00-06:00','00:00 – 06:00']],nightLevelChoices=[5,10,20,40];
 function nightWindowValue(night) {return night?`${night.from}-${night.to}`:'';}
@@ -413,31 +413,34 @@ function displayChoices(values,current,format) {
   return all.map(v=>[String(v),v===0&&values===dimAfterChoices?'Never':format(v)]);
 }
 function appSettings() {
-  const display={brightness:100,dim_after:300,dim_level:10,...(config.display||{})};
   dialog('Program settings',[
   {name:'autostart',label:'Start the USB host automatically when I sign in',type:'checkbox',value:!!dashboard.autostart,note:'The panel is ready without opening the editor window. You can still open Tessera from the desktop to edit.'},
   {name:'autoProfiles',label:'Switch profile automatically by active program',type:'checkbox',value:config.auto_profiles!==false,note:'Turn off if the panel should stay on the program launcher until you switch profile yourself.'},
-  {name:'brightness',label:'Panel brightness',options:displayChoices(brightnessChoices,display.brightness,v=>`${v}%`),value:String(display.brightness)},
-  {name:'dimAfter',label:'Dim the panel after',options:displayChoices(dimAfterChoices,display.dim_after,v=>`${Math.round(v/60)} min`),value:String(display.dim_after),note:'The first touch on a dimmed panel only wakes it; it does not press a key.'},
-  {name:'dimLevel',label:'Brightness when dimmed',options:displayChoices(dimLevelChoices,display.dim_level,v=>v?`${v}%`:'Off'),value:String(display.dim_level)},
-  {name:'nightWindow',label:'Quiet hours',options:nightChoices(display.night),value:nightWindowValue(display.night),note:'Between these times the panel uses the lower brightness below instead of the normal one.'},
-  {name:'calendar',label:'Calendar for the Next meeting widget (iCal address, optional)',value:config.calendar?.url||'',placeholder:'https://calendar.google.com/calendar/ical/…/basic.ics',note:'Paste the secret iCal address of your Google, Outlook or iCloud calendar. Tessera reads it every five minutes and leaves it out when you export your keys.'},
-  {name:'nightLevel',label:'Brightness during quiet hours',options:displayChoices(nightLevelChoices,display.night?.brightness||10,v=>`${v}%`),value:String(display.night?.brightness||10)}
-],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;const calendar=values.calendar.trim();if(calendar)config.calendar={url:calendar};else delete config.calendar;config.display={brightness:Number(values.brightness),dim_after:Number(values.dimAfter),dim_level:Number(values.dimLevel)};const night=nightFromValues(values.nightWindow,values.nightLevel);if(night)config.display.night=night;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
-function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',value:page,required:true},{name:'remove',label:'Delete this page and remove actions that point to it',type:'checkbox'}],values=>{
-  const pages=config.profiles[profile].pages,name=values.name.trim(),old=page;
-  if(values.remove&&Object.keys(pages).length===1)throw new Error('Keep at least one page.');
-  if(!values.remove&&(!name||(name!==old&&pages[name])))throw new Error('Choose a new page name.');
-  mutate(()=>{  // a delete needs no confirm: the toast below offers Undo
-    if(values.remove){delete pages[old];page=Object.keys(pages)[0];}
+  {name:'calendar',label:'Calendar for the Next meeting widget (iCal address, optional)',value:config.calendar?.url||'',placeholder:'https://calendar.google.com/calendar/ical/…/basic.ics',note:'Paste the secret iCal address of your Google, Outlook or iCloud calendar. Tessera reads it every five minutes and leaves it out when you export your keys.'}
+],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;const calendar=values.calendar.trim();if(calendar)config.calendar={url:calendar};else delete config.calendar;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
+/* Rename (name) or delete (null) the current page and fix every action, rail step, shortcut and trigger that points to it. */
+function changePage(name) {
+  const pages=config.profiles[profile].pages,old=page,remove=name===null;
+  mutate(()=>{
+    if(remove){delete pages[old];page=Object.keys(pages)[0];}
     else {config.profiles[profile].pages=Object.fromEntries(Object.entries(pages).map(([key,value])=>[key===old?name:key,value]));page=name;}
-    const update=a=>['page','folder'].includes(a.type)&&a.page===old?(values.remove?null:{...a,page:name}):a;
+    const update=a=>['page','folder'].includes(a.type)&&a.page===old?(remove?null:{...a,page:name}):a;
     rewriteActions(profileButtons(config.profiles[profile]),update);
     // Rail steps are shared by all profiles: leave them alone while another profile still has a page with this name.
     if(!Object.entries(config.profiles).some(([name,p])=>name!==profile&&p.pages?.[old]))rewriteActions(railSteps(),update);
-    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:values.remove?[]:[{...s,page:name}]);
+    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:remove?[]:[{...s,page:name}]);
     if(config.default_profile===profile)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
-  });renderAll();if(values.remove)toast(`Page “${old}” was deleted.`,true);
+  });renderAll();
+}
+/* Page → Delete this page: no confirm, the toast offers Undo. */
+function deletePage() {
+  if(Object.keys(config.profiles[profile].pages).length===1)return toast('Keep at least one page.');
+  const old=page;changePage(null);toast(`Page “${old}” was deleted.`,true);
+}
+function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',value:page,required:true}],values=>{
+  const name=values.name.trim();
+  if(!name||(name!==page&&config.profiles[profile].pages[name]))throw new Error('Choose a new page name.');
+  if(name!==page)changePage(name);
 });}
 async function exportConfig() {await save();const {left_out:leftOut=[],...bundle}=await api('export');const blob=new Blob([JSON.stringify(bundle,null,2)+'\n'],{type:'application/json'}),url=URL.createObjectURL(blob),a=element('a',{href:url,download:'tessera-profiles.json'});a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);exportSummary(bundle,leftOut);}
 /* After an export: what the file holds, and what stayed on this PC. */
@@ -704,7 +707,6 @@ async function start() {
     if(at<0)return;
     if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();const next=at+(event.key==='ArrowDown'?1:-1);if(next<0)$('#action-search').focus();else items[Math.min(next,items.length-1)].focus();}
     else if(event.key==='Escape'){event.preventDefault();$('#action-search').focus();}});
-  $('#shortcuts-open').onclick=()=>{document.querySelectorAll('.more-menu').forEach(menu=>{menu.hidden=true;});$('#shortcuts-dialog').showModal();};
   $('#shortcuts-bar').onclick=()=>$('#shortcuts-dialog').showModal();
   $('#shortcuts-close').onclick=()=>$('#shortcuts-dialog').close();$('#undo').onclick=()=>undo();$('#redo').onclick=()=>undo(true);
   $('#icons-close').onclick=()=>$('#icon-dialog').close();
@@ -715,7 +717,7 @@ async function start() {
   $('#icon-search').oninput=$('#icon-category').onchange=()=>{iconPage=0;renderIconResults();};
   $('#icons-prev').onclick=()=>{if(iconPage>0){iconPage--;renderIconResults();}};
   $('#icons-next').onclick=()=>{iconPage++;renderIconResults();};
-  $('#new-page').onclick=()=>newPage();$('#page-options').onclick=pageSettings;$('#profile-options').onclick=profileSettings;
+  $('#new-page').onclick=$('#new-page-menu').onclick=()=>newPage();$('#delete-page').onclick=deletePage;$('#delete-profile').onclick=deleteProfile;$('#page-options').onclick=pageSettings;$('#profile-options').onclick=profileSettings;
   $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=appSettings;
   $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='move')moveToSlot();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
   $('#profile-templates').onclick=openTemplates;

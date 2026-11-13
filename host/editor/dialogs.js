@@ -144,14 +144,19 @@ async function runKey(id, actions) {
   toast((await api('command/run-key', {profile, page, button: id})).message);
 }
 
-/* Ambient screen: a big clock (and optional weather) when the panel is idle. */
-function ambientSettings() {
-  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
+/* Display: the panel's own settings. Brightness, dimming and quiet hours, then the big clock (and optional weather) when idle. */
+function displaySettings() {
+  const display = {brightness: 100, dim_after: 300, dim_level: 10, ...(config.display || {})};
   const ambient = {enabled: false, after: 120, ...(config.ambient || {})}, weather = ambient.weather;
   const afterChoices = [30, 60, 120, 300, 600].map(v => [String(v), v < 60 ? `${v} seconds` : `${v / 60} min`]);
   if (!afterChoices.some(([v]) => Number(v) === ambient.after)) afterChoices.push([String(ambient.after), `${ambient.after} seconds`]);
   const where = weather ? `Currently ${weather.name} in ${weather.unit === 'fahrenheit' ? 'Fahrenheit' : 'Celsius'}. ` : '';
-  dialog('Clock when idle', [
+  dialog('Display', [
+    {name: 'brightness', label: 'Panel brightness', options: displayChoices(brightnessChoices, display.brightness, v => `${v}%`), value: String(display.brightness)},
+    {name: 'dimAfter', label: 'Dim the panel after', options: displayChoices(dimAfterChoices, display.dim_after, v => `${Math.round(v / 60)} min`), value: String(display.dim_after), note: 'The first touch on a dimmed panel only wakes it; it does not press a key.'},
+    {name: 'dimLevel', label: 'Brightness when dimmed', options: displayChoices(dimLevelChoices, display.dim_level, v => v ? `${v}%` : 'Off'), value: String(display.dim_level)},
+    {name: 'nightWindow', label: 'Quiet hours', options: nightChoices(display.night), value: nightWindowValue(display.night), note: 'Between these times the panel uses the lower brightness below instead of the normal one.'},
+    {name: 'nightLevel', label: 'Brightness during quiet hours', options: displayChoices(nightLevelChoices, display.night?.brightness || 10, v => `${v}%`), value: String(display.night?.brightness || 10)},
     {name: 'enabled', label: 'Show a big clock when the panel has been idle', type: 'checkbox', value: ambient.enabled, note: 'Touch the panel to get your keys back. Needs the firmware that ships with this version.'},
     {name: 'after', label: 'Show it after', options: afterChoices, value: String(ambient.after)},
     {name: 'city', label: 'Weather for (city, optional)', value: weather?.name || '', note: `${where}Weather comes from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use.`},
@@ -159,6 +164,9 @@ function ambientSettings() {
   ], values => {
     const city = values.city.trim(), keep = weather && weather.name === city;
     mutate(() => {
+      config.display = {brightness: Number(values.brightness), dim_after: Number(values.dimAfter), dim_level: Number(values.dimLevel)};
+      const night = nightFromValues(values.nightWindow, values.nightLevel);
+      if (night) config.display.night = night;
       config.ambient = {enabled: values.enabled, after: Number(values.after)};
       // A new city keeps the old weather until the lookup succeeds (choose() replaces it); only an empty city drops it.
       if (city && weather) config.ambient.weather = {...weather, unit: values.unit};
@@ -431,38 +439,15 @@ $('#plugins-open').onclick = () => openPlugins().catch(showError);
 $('#plugins-close').onclick = () => $('#plugins-dialog').close();
 $('#backups-open').onclick = () => openBackups().catch(showError);
 $('#backup-close').onclick = () => $('#backup-dialog').close();
-$('#ambient-open').onclick = ambientSettings;
+$('#display-open').onclick = displaySettings;
 $('#test-close').onclick = () => $('#test-dialog').close();
 $('#iconify-search').onclick = () => iconifySearch().catch(showError);
 $('#iconify-query').addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); iconifySearch().catch(showError); } });
 
-/* Panel screens: which agents, programs and readings the panel's agents, mixer and status screens show. */
+
+/* The agents and readings the panel's agents and status screens can show (chosen on those screens in the rail). */
 const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', 'ZCode']];
 const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed']];
-function panelSettings() {
-  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
-  const panel = {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config.panel || {})};
-  const fields = [
-    ...PANEL_AGENTS.map(([id, name]) => ({name: 'agent_' + id, label: `Agents: ${name}`, type: 'checkbox', value: panel.agents.includes(id), note: id === 'claude' ? 'Allow and Deny on the panel answer Claude Code’s permission questions once the hook is installed (deckctl hooks claude-permission).' : ''})),
-    {name: 'apps', label: 'Mixer: programs (up to 3, e.g. spotify.exe, chrome.exe)', value: panel.apps.join(', '), note: 'Leave empty to show the programs that are playing sound right now.'},
-    {name: 'mic', label: 'Mixer: show the microphone', type: 'checkbox', value: panel.mic},
-    ...PANEL_STATS.map(([id, name]) => ({name: 'stat_' + id, label: `Status: ${name}`, type: 'checkbox', value: panel.stats.includes(id)}))
-  ];
-  dialog('Panel screens', fields, values => {
-    const apps = values.apps.split(',').map(item => item.trim()).filter(Boolean);
-    if (apps.length > 3) throw new Error('Choose at most three programs for the mixer.');
-    if (apps.some(item => !/^[A-Za-z0-9_.-]{1,35}\.exe$/.test(item))) throw new Error('Program names must end in .exe, like spotify.exe.');
-    mutate(() => {
-      config.panel = {
-        ...(config.panel || {}),
-        agents: PANEL_AGENTS.map(a => a[0]).filter(id => values['agent_' + id]),
-        apps, mic: Boolean(values.mic),
-        stats: PANEL_STATS.map(s => s[0]).filter(id => values['stat_' + id])
-      };
-    });
-  }, 'Apply');
-}
-$('#panel-open').onclick = panelSettings;
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
 async function claudeSettings() {
@@ -500,7 +485,7 @@ function welcomeSteps() {
     [!!device.connected && !older, 'Firmware up to date', !device.connected ? 'Checked once the panel is connected.'
       : older ? `The panel has ${device.firmware}; Tessera is ${d.host_version}.` : `The panel runs firmware ${device.firmware || 'that fits this version'}.`,
       device.connected && ['Update firmware …', firmware]],
-    [!!setup.key_edited, 'Put an action on a key', setup.key_edited ? 'You changed a key.' : 'Click a key and change it, or drag an action from the list on the left onto a key.'],
+    [!!setup.key_edited, 'Put an action on a key', setup.key_edited ? 'You changed a key.' : 'Click an action in the list on the right: it makes a new key on the selected empty slot or the first free one. Drop it on a key to add a step.'],
     [!!setup.key_pressed, 'Press it on the panel', setup.key_pressed ? `${pressedLabel || 'Your key'} worked.` : 'Press a key on the panel. This ticks off when the PC gets the press.']];
 }
 /* The first press that reaches the PC is the moment it all works: say so and light up that key. */

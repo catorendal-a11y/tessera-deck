@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Editor: the Panel menu starts with *Display …* (brightness, dimming, quiet hours and the idle clock, which used to sit in Program settings and *Clock when idle …*) and *Panel firmware and updates …*. Program settings keeps only what the PC does: autostart, automatic profiles and the calendar.
+- Editor: *Panel screens …* is gone from the Panel menu; choose what the agents, mixer and status screens show on those screens in the rail, as the Rail dialog now says.
+- Editor: the Page menu has *New page*, and the Page and Profile menus each have *Delete this page* / *Delete this profile* with Undo in the toast. The settings dialogs no longer have a delete checkbox.
+- Editor: the More menu starts with *Getting started* and no longer repeats *Keyboard shortcuts* (the app bar has it).
+- Editor: one sentence for safe editing everywhere: "Nothing runs in the editor. Keys run only when you press them on the panel." *Run now* in Test stays the one exception.
+- Editor: the action list hint and the Getting started step say what a click does (a new key on the selected empty slot or the first free one) and that a drop on a key adds a step.
+- Docs: USING.md and INSTALL.md use the editor's names (Profile, Page, Panel and More menus, Look, Actions and Live tabs, the action list on the right, Program settings, Panel firmware and updates). INSTALL.md has a *First 5 minutes* section and no fixed COM port; USING.md troubleshooting starts at More → Host log.
+
 - Editor: text is no longer scaled down in smaller windows. Body text is at least 14 px and labels at least 13 px; the app bar, rail, status bar and messages now share one scale.
 - Editor: from 1280 px wide, the key's settings sit in their own column beside the deck instead of below it, and the deck preview grows with the space.
 - Editor: the action list on the right folds into a narrow strip with its Actions button; the editor remembers your choice, and / opens it again.

@@ -23,6 +23,18 @@
 | Connection | USB cable to the board's USB Serial/JTAG port — no Wi-Fi is needed |
 | PC | Windows 10/11, Python 3.11 or newer |
 
+## First 5 minutes
+
+1. Unpack the release zip and double-click `Tessera.cmd`. The tray icon, the USB host and the editor start.
+2. Plug the panel into the PC with a USB cable on the panel's USB Serial/JTAG port.
+3. A new panel needs firmware: in the editor open **Panel → Panel firmware and updates …**, choose the included
+   package and press *Install* (on a blank board tick *Install anyway*).
+4. The *Getting started* checklist ticks itself off as the host runs and the panel connects. Click an action in the
+   action list on the right to make a new key, and fill it in on the **Look** and **Actions** tabs.
+5. Press the key on the panel. Nothing runs in the editor. Keys run only when you press them on the panel.
+
+The steps below explain each part in detail.
+
 ### 1. Start Tessera
 
 Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. If Windows warns about a downloaded file, choose *More info* and *Run anyway* (see below). The first start installs Python 3.12 for your user with winget if there is no Python 3.11 or newer, installs the packages from `host/requirements.lock` (each one must match its pinned SHA-256 hash), and puts a shortcut on the Desktop.
@@ -54,12 +66,13 @@ removes the autostart entry and the shortcut (add `--purge` to delete your profi
 `--diagnostics` writes a support bundle with versions, counts and a cleaned log tail, and no button contents.
 Dependencies are installed again only when `host/requirements.lock` (or, without it, `host/requirements.txt`) changes.
 
-The default port is `COM4`; set `TESSERA_PORT` to change it. After the first successful connection Tessera
-remembers the board's USB serial number and follows it if Windows renumbers the port.
+Tessera looks for the panel's USB Serial/JTAG port by itself; set `TESSERA_PORT` (for example `COM7`) only if it
+picks the wrong one. After the first successful connection Tessera remembers the board's USB serial number and
+follows it if Windows renumbers the port.
 
 ### 2. Flash the firmware
 
-**From a release (no developer tools):** the release zip includes the firmware, so choose it in **Panel → Panel firmware …** and press *Install*. Newer firmware comes with *Check for updates*, or put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder, choose it there and press *Install*.
+**From a release (no developer tools):** the release zip includes the firmware, so choose it in **Panel → Panel firmware and updates …** and press *Install*. Newer firmware comes with *Check for updates*, or put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder, choose it there and press *Install*.
 On a new board that does not answer yet, the dialog already chooses *Full install (new or blank panel)* under *What to write* and shows *Install anyway*: tick it. The installer verifies the
 package, the board and the protocol before writing. The first firmware with A/B update slots must also be
 installed once with *Full install*, as it changes the partition table (the installer says so); after that
@@ -67,23 +80,24 @@ installed once with *Full install*, as it changes the partition table (the insta
 to start. See [`docs/RELEASING.md`](RELEASING.md) for how updates and the rollback work.
 
 **From source:** install [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html).
-Stop the host from the tray first (*Stop host*); it owns the port. Then:
+Stop the host from the tray first (*Stop host*); it owns the port. Then, with `COMx` as the panel's USB Serial/JTAG
+port (Device Manager lists it under *Ports* as *USB Serial Device*):
 
 ```powershell
 idf.py -B build/idf6 build
-idf.py -B build/idf6 -p COM4 flash          # first time: bootloader, partition table and app
+idf.py -B build/idf6 -p COMx flash          # first time: bootloader, partition table and app
 ```
 
 To update only the application — which keeps the bootloader, partition table and stored settings — write the app image:
 
 ```powershell
-python -m esptool --chip esp32p4 -p COM4 -b 460800 write-flash 0xd000 build\idf6\ota_data_initial.bin 0x10000 build\idf6\tessera.bin
+python -m esptool --chip esp32p4 -p COMx -b 460800 write-flash 0xd000 build\idf6\ota_data_initial.bin 0x10000 build\idf6\tessera.bin
 ```
 
 The OTA data image makes the bootloader start `ota_0` again, even if an over-USB update left the other slot active.
 
 ### 3. Make it yours
 
-Open the editor, open **Apps → Installed programs …** in the action list and drop a program on a key. Changes are saved
+Open the editor, choose the **Apps** tab in the action list on the right, open **Installed programs …** and drop a program on a key. Changes are saved
 automatically after validation to `host/profiles.json`, which is created from `host/profiles.default.json` on the
 first start.

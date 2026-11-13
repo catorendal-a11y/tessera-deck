@@ -37,17 +37,24 @@ Actions can also run by themselves: `triggers` at the top of `profiles.json` is 
 
 ### The editor
 
-The editor is laid out like the panel. The rail on the left switches between the keys and the agents, mixer and status screens; the **+** at its foot opens the rail settings. In the middle are the profile (the large title), the page tabs and the keys. A click on a key opens its settings in three tabs:
+The editor is laid out like the panel. The rail on the left switches between the keys and the agents, mixer and status screens; the **+** at its foot opens the rail settings. In the middle are the **Profile** selector, the page tabs and the keys, with the **Profile**, **Page**, **Panel** and **More** menus above them. A click on a key opens its settings in three tabs:
 
 | Tab | What it holds |
 |---|---|
-| **Look** | Title, icon, text size and position, and the key's size (Normal, Wide, Extra wide) |
+| **Look** | Title, icon, text size and position, the key's size (Normal, Wide, Extra wide) and its main action |
 | **Actions** | Normal or toggle key, and the steps for a press, a long press and a double press |
-| **Gauge** | A live gauge and what the key is bound to |
+| **Live** | A live value or gauge, and what the key is bound to |
 
-The action list on the right has four tabs: **Basics** (hotkey, open, text and the other building blocks), **Widgets**, **Ready-made** (Windows, browser, meetings, media) and **Apps** (your installed programs and the app packs). The search looks in all of them. Drag an action to a key, or click it to add it to the selected key.
+The action list on the right has four tabs: **Basics** (hotkey, open, text and the other building blocks), **Widgets**, **Ready-made** (Windows, browser, meetings, media) and **Apps** (your installed programs and the app packs). The search looks in all of them. A click on an action makes a new key on the selected empty slot or the first free one; drop an action on a key to add a step to it. Nothing runs in the editor. Keys run only when you press them on the panel. The one exception is **Test** on a key and then *Run now*.
 
-To delete a page, open **Page → Page settings** and tick *Delete this page*. To delete a profile, open **Profile → Profile settings** and tick *Delete the profile*. Ctrl+Z brings either back.
+| Menu | What it holds |
+|---|---|
+| **Profile** | New profile, a profile from a template, duplicate, *Profile settings …* (name, the programs it follows, default) and *Delete this profile* |
+| **Page** | New page, a page from a template, duplicate, *Page settings …* (name) and *Delete this page* |
+| **Panel** | *Display …* (brightness, dimming, quiet hours and the idle clock), *Panel firmware and updates …*, *Rail …* and *Key colors …* |
+| **More** | *Getting started*, Connect Claude Code, plugins, export, import, backups, *Host log …* and *Save diagnostics* |
+
+A deleted page or profile comes back with *Undo* in the message that follows, or with Ctrl+Z. **Program settings** in the top bar holds only what the PC does: starting the host at sign-in, switching profiles by program, and the calendar for the Next meeting widget.
 
 ### Wide keys and widgets
 
@@ -105,11 +112,11 @@ once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, t
 
 ### Brightness and auto-dim
 
-Open **Settings** in the editor, or the tray menu. By default the panel dims to 10 % after five minutes without
+Open **Panel → Display …** in the editor, or the tray menu. By default the panel dims to 10 % after five minutes without
 a press and when Windows locks; the first touch anywhere on the screen wakes it without pressing a key. The panel
 remembers the brightness across restarts. Set the values in
 `profiles.json` with `"display": { "brightness": 80, "dim_after": 300, "dim_level": 10 }` (`dim_after: 0` disables it).
-Quiet hours in **Settings** lower the brightness between two times, for example at night:
+Quiet hours in **Panel → Display …** lower the brightness between two times, for example at night:
 `"night": { "from": "22:00", "to": "07:00", "brightness": 10 }` inside `display`.
 
 ### Control from scripts and AI tools
@@ -156,13 +163,16 @@ the key's `open` action. It is a dry run by default; add `--apply` to write the 
 
 ## The panel's four screens
 
-A rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**. Choose what the last three show under **Panel → Panel screens …** in the editor (which agents, up to three programs for the mixer and whether the microphone is included, and which readings).
+A rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**. Choose what the last three show by clicking that screen in the editor's rail (which agents, up to three programs for the mixer and whether the microphone is included, and which readings).
 
 The rail itself is yours to arrange: **Panel → Rail …** (or the **+** at the foot of the editor's rail) turns the agents, mixer and status screens on or off, puts them in order and adds up to three shortcuts. A shortcut either opens a page of any profile, or runs steps like a key without leaving the screen you are on (copy the steps from one of your keys, and give it a name). Every shortcut can use any icon from the library. The preview shows the seven places and which are free. After a page shortcut, a tap on Keys takes you back to where you were. Step shortcuts need panel firmware 0.6.3 or later.
 
 To answer Claude Code's permission questions on the panel, open **More → Connect Claude Code …** in the editor: it adds the hooks to `~/.claude/settings.json`, keeps the hooks you already have and makes a backup of the file first. To do it by hand, add the hook that `python host\deckctl.py hooks claude-permission` prints. The question then appears on the agents screen and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog; Tessera never allows anything on its own.
 
 ## Troubleshooting
+
+Open **More → Host log …** in the editor first: it shows what the USB host is doing (connections, presses,
+actions and problems). **More → Save diagnostics** writes a file to attach to a bug report.
 
 | Symptom | Fix |
 |---|---|
