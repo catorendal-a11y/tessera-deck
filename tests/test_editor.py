@@ -44,6 +44,14 @@ class EditorTests(unittest.TestCase):
             data=None if data is None else json.dumps(data).encode())
         return self.client.open(request)
 
+    def test_a_stalled_client_times_out_and_the_port_is_exclusive(self):
+        import socket
+        self.assertEqual(self.server.RequestHandlerClass.timeout, 10)
+        with socket.socket() as second:
+            second.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            with self.assertRaises(OSError):
+                second.bind(('127.0.0.1', self.server.server_port))
+
     def test_the_first_start_creates_the_profiles_from_the_defaults(self):
         folder = Path(self.temp.name) / 'fresh'
         folder.mkdir()

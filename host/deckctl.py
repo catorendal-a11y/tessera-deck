@@ -14,7 +14,9 @@ Examples:
 """
 
 import argparse
+import hmac
 import json
+import secrets
 import sys
 import urllib.error
 import urllib.request
@@ -22,6 +24,7 @@ from pathlib import Path
 
 import adapters
 import permission
+from control_api import proof
 
 INFO_PATH = Path(__file__).with_name('deck-api.local.json')
 TIMEOUT = 3.0
@@ -34,18 +37,38 @@ class DeckctlError(Exception):
 def load_info(path: Path = INFO_PATH) -> dict:
     try:
         info = json.loads(Path(path).read_text(encoding='utf-8'))
-        return {'port': int(info['port']), 'token': str(info['token'])}
+        info = {'pid': int(info['pid']), 'port': int(info['port']), 'token': str(info['token'])}
     except (OSError, ValueError, KeyError, TypeError) as exc:
         raise DeckctlError('The Tessera host is not running (no control API found).') from exc
+    # The file outlives a host that crashed. Whoever listens on its port then must not get the token or the
+    # request text, so the recorded process has to be alive and be the one listening there.
+    if not host_listens(info['pid'], info['port']):
+        raise DeckctlError('The Tessera host is not running (its control API file is stale).')
+    return info
+
+
+def host_listens(pid: int, port: int) -> bool:
+    import psutil
+    try:
+        return any(c.status == psutil.CONN_LISTEN and c.laddr and c.laddr.port == port
+                   for c in psutil.Process(pid).net_connections(kind='tcp'))
+    except (psutil.Error, OSError, ValueError):
+        return False
 
 
 def call(info: dict, method: str, path: str, data: dict | None = None, timeout: float = TIMEOUT):
     url = f'http://127.0.0.1:{info["port"]}{path}'
     body = None if data is None else json.dumps(data).encode('utf-8')
+    nonce = secrets.token_hex(16)
     request = urllib.request.Request(url, data=body, method=method,
-                                     headers={'X-Deck-Token': info['token'], 'Content-Type': 'application/json'})
+                                     headers={'X-Deck-Token': info['token'], 'X-Deck-Nonce': nonce,
+                                              'Content-Type': 'application/json'})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as reply:
+            answer = reply.headers.get('X-Deck-Proof')
+            # Only the host knows the token: a reply without its proof is not the host's (and never the panel's answer).
+            if not isinstance(answer, str) or not hmac.compare_digest(answer, proof(info['token'], nonce)):
+                raise DeckctlError('The reply did not come from the Tessera host.')
             return json.loads(reply.read())
     except urllib.error.HTTPError as exc:
         try:
