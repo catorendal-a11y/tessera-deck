@@ -89,16 +89,31 @@ def _backup_files(folder: Path) -> list[Path]:
     return [file for _, _, file in sorted(files)]
 
 
+def check(data: bytes) -> dict:
+    """The migrated, validated configuration in `data`; ValueError when the host could not use it."""
+    from config_check import validate_config  # config_check imports this module
+    try:
+        return validate_config(migrate(json.loads(data.decode('utf-8'))))
+    except (UnicodeDecodeError, TypeError, KeyError, AttributeError) as exc:
+        raise ValueError(f'The configuration cannot be read: {exc}') from exc
+
+
 def backup(path: Path, force: bool = False, keep: int = BACKUP_KEEP, interval: int = BACKUP_INTERVAL_SECONDS,
            now: Callable[[], float] = time.time) -> Path | None:
-    """Copy the current file into backups/ unless a recent copy exists (or `force`); prune old copies."""
+    """Copy the current file into backups/ unless a recent copy exists (or `force`); prune old copies.
+
+    A file the host cannot use is never copied: it would count as a backup and push a good one out."""
     path = Path(path)
     if not path.is_file():
+        return None
+    current = path.read_bytes()
+    try:
+        check(current)
+    except ValueError:
         return None
     folder = backups_dir(path)
     folder.mkdir(parents=True, exist_ok=True)
     existing = _backup_files(folder)
-    current = path.read_bytes()
     if existing and not force:
         newest = existing[-1]
         if now() - newest.stat().st_mtime < interval or newest.read_bytes() == current:
@@ -146,3 +161,30 @@ def read_backup(path: Path, name: str) -> dict:
         raise ValueError('That backup no longer exists') from exc
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f'That backup cannot be read: {exc}') from exc
+
+
+def recover(path: Path) -> str | None:
+    """On start: replace an unreadable or invalid `path` with the newest backup that passes the check.
+
+    The broken file is kept next to it as profiles-unreadable.local.json. A file from a newer Tessera is left
+    alone (it is valid, just not for this version). Returns the name of the backup restored, or None."""
+    path = Path(path)
+    try:
+        check(path.read_bytes())
+        return None
+    except FutureConfig:
+        return None
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        pass
+    for file in reversed(_backup_files(backups_dir(path))):
+        try:
+            data = file.read_bytes()
+            check(data)
+        except (OSError, ValueError):
+            continue
+        shutil.copyfile(path, path.with_name(path.stem + '-unreadable.local.json'))
+        write_atomic(path, data)
+        return file.name
+    return None

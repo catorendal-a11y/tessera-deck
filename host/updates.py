@@ -19,6 +19,7 @@ RELEASE_API = f'https://api.github.com/repos/{REPOSITORY}/releases/latest'
 DOWNLOAD_HOSTS = ('github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com')
 TIMEOUT_SECONDS = 10
 MAX_DOWNLOAD = 16 * 1024 * 1024
+NOTES_LINES = 10
 VERSION = re.compile(r'v?(\d+)\.(\d+)\.(\d+)')
 FIRMWARE_ASSET = re.compile(r'tessera-firmware-[0-9A-Za-z.\-]+\.zip')
 
@@ -48,6 +49,14 @@ def _check_host(url: str) -> None:
         raise ValueError('Updates are only downloaded from GitHub over https')
 
 
+def notes_excerpt(body, lines: int = NOTES_LINES) -> str:
+    """The first non-empty lines of the release notes, short enough for a notice or a dialog."""
+    if not isinstance(body, str):
+        return ''
+    kept = [line.rstrip()[:200] for line in body.splitlines() if line.strip()][:lines]
+    return '\n'.join(kept)
+
+
 def check(current: str, opener=urllib.request.urlopen) -> dict:
     """Compare `current` with the latest published release."""
     try:
@@ -65,6 +74,7 @@ def check(current: str, opener=urllib.request.urlopen) -> dict:
     except (ValueError, KeyError, TypeError) as exc:
         raise ValueError('GitHub sent an answer Tessera cannot read') from exc
     return {'current': current, 'latest': latest.lstrip('v'), 'newer': newer, 'page': release.get('html_url', ''),
+            'notes': notes_excerpt(release.get('body')),
             'firmware': next((item for item in assets if FIRMWARE_ASSET.fullmatch(item['name'])), None),
             'sums': next((item for item in assets if item['name'] == 'SHA256SUMS'), None)}
 

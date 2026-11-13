@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import re
+import urllib.parse
 
 SENSITIVE_HEADERS = ('authorization', 'proxy-authorization', 'x-api-key', 'api-key', 'x-auth-token', 'cookie')
 DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
@@ -53,7 +54,13 @@ def _classify(action):
     if kind == 'shell':
         return 'high', f"runs the command: {str(action.get('command', ''))[:160]}"
     if kind == 'http':
-        detail = f"{action.get('method', 'GET')} {str(action.get('url', ''))[:160]}"
+        url = str(action.get('url', ''))
+        detail = f"{action.get('method', 'GET')} {url[:160]}"
+        try:  # the host decides who receives the request; a long address could hide it past the cut
+            host = urllib.parse.urlsplit(url).hostname
+        except ValueError:
+            host = None
+        detail += f' (host {host})' if host and '$(' not in host else ' (host set when it runs)'
         if action.get('body'):
             detail += ' with a request body'
         return 'medium', 'calls ' + detail

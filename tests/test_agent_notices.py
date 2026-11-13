@@ -77,7 +77,7 @@ class NoticeTests(HostCase):
         self.assertLessEqual(len(app.icon.title), 120)
 
         release, running = threading.Event(), threading.Event()
-        controller.start.side_effect = lambda: (running.set(), release.wait(5))
+        controller.start.side_effect = lambda **_: (running.set(), release.wait(5))
         app.start_host()
         self.assertTrue(running.wait(5))
         app.start_host()                      # a second click while the first start is still running

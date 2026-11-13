@@ -18,6 +18,8 @@ MAX_LOG_BYTES = 256 * 1024
 USER_PATH = re.compile(r'(?i)([A-Z]:[\\/]+Users[\\/]+)[^\\/"\r\n]+')  # a user name may contain spaces
 BEARER = re.compile(r'(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+')
 SECRET = re.compile(r'(?i)(token|secret|password|passwd|authorization|api[_-]?key|bearer)(["\']?\s*[:=]?\s*["\']?)([^\s"\',;]+)')
+PROBLEM = re.compile(r'(?i)fail|error|exception|traceback|timed? ?out|did not finish|could not')
+PROBLEM_LINES = 20
 PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', 'pycaw', 'esptool', 'textual')
 
 
@@ -69,6 +71,16 @@ def _tail(path: Path, count: int = LOG_LINES) -> str:
     return clean('\n'.join(lines))
 
 
+def recent_problems(path: Path, count: int = PROBLEM_LINES) -> list[str]:
+    """The newest `count` log lines that report a failure, cleaned; the previous log first, as a start rotates it."""
+    path = Path(path)
+    lines = []
+    for file in (path.with_name(path.name + '.1'), path):
+        if file.is_file():
+            lines += [line for line in _tail(file).splitlines() if PROBLEM.search(line)]
+    return lines[-count:]
+
+
 def build(folder: Path, config: dict, status: dict, version: str, log_path: Path, now=time.time) -> Path:
     """Write the bundle into `folder` and return its path."""
     folder = Path(folder)
@@ -80,6 +92,7 @@ def build(folder: Path, config: dict, status: dict, version: str, log_path: Path
                        'device': {key: device.get(key) for key in ('connected', 'firmware', 'protocol', 'profile',
                                                                    'page', 'buttons', 'error')},
                        'queue': status.get('queue')},
+              'recent_problems': recent_problems(log_path),
               'created': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now()))}
     target = folder / f'tessera-diagnostics-{time.strftime("%Y%m%d-%H%M%S", time.localtime(now()))}.zip'
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:

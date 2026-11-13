@@ -7,6 +7,7 @@ import sys
 import time
 import psutil
 
+import config_store
 from config_store import write_atomic
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -146,21 +147,33 @@ class Controller:
             pass
         return result
 
-    def start(self, root=None, emit=lambda _: None):
+    def start(self, root=None, emit=lambda _: None, warn=None):
+        """Start the host. `warn` gets what the user must know even when nothing else is shown (a restored backup)."""
         if firmware_installing():  # the tray, the terminal and the editor all start the host through here
             raise RuntimeError('The panel firmware is being installed. The host starts again when it is done.')
         if self.processes():
             emit('The deck host is already running.')
             return
         port = os.environ.get('TESSERA_PORT', 'COM4')
-        from tesserad import Daemon
-        Daemon.load_profiles(ROOT / 'host/profiles.json')
+        from tesserad import Daemon, shift_logs
+        profiles = ROOT / 'host/profiles.json'
         log_path = ROOT / 'host/deck.local.log'
-        try:  # the log is appended to on every start: keep one previous file instead of growing forever
+        try:  # the log is appended to on every start: keep three previous files instead of growing forever
             if log_path.stat().st_size > MAX_LOG_BYTES:
-                os.replace(log_path, log_path.with_name('deck.local.log.1'))
+                os.replace(log_path, shift_logs(log_path))
         except OSError:
             pass
+        try:
+            restored = config_store.recover(profiles)
+        except OSError:
+            restored = None  # loading it below says what is wrong
+        if restored:
+            message = (f'profiles.json could not be used, so the backup {restored} was restored. '
+                       'The broken file is kept as profiles-unreadable.local.json.')
+            with log_path.open('a', encoding='utf-8') as stream:
+                stream.write(f'[{time.strftime("%H:%M:%S")}] {message}\n')
+            (warn or emit)(message)
+        Daemon.load_profiles(profiles)
         log = log_path.open('ab')
         try:
             process = subprocess.Popen([sys.executable, str(ROOT / 'host/tesserad.py'), '--port', port],

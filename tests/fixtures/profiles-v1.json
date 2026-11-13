@@ -1,0 +1,19 @@
+{
+  "default_profile": "Work",
+  "display": {"brightness": 80},
+  "profiles": {
+    "Work": {
+      "match": ["code.exe"],
+      "pages": {
+        "Main": [
+          {"id": 1, "label": "Copy", "icon": "ok", "actions": [{"type": "hotkey", "keys": "ctrl+c"}]},
+          {"id": 2, "label": "Notes", "icon": "ok", "actions": [{"type": "open", "target": "notepad.exe"}]},
+          {"id": 3, "label": "Later", "icon": "ok", "actions": [{"type": "page", "page": "Second"}]}
+        ],
+        "Second": [
+          {"id": 1, "label": "Type", "icon": "ok", "actions": [{"type": "text", "text": "hello"}, {"type": "delay", "ms": 50}]}
+        ]
+      }
+    }
+  }
+}

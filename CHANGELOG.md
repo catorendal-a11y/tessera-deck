@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Tray: a host that dies without you pressing Stop starts again by itself (after 5 s, 15 s, 60 s, then every 5 minutes), with one notice per burst instead of one per attempt.
+- Host log: three older logs are kept (deck.local.log.1 to .3), both at start and while the host runs. **Help → Recent problems** in the tray lists the last 20 failures from the log, and diagnostics include them.
+- HTTP actions: an answer with an error status (4xx or 5xx) now fails the action with its code. The import review names the host each web request goes to.
+- Backups: a profiles file the host cannot use is never backed up, so it cannot push good copies out. If profiles.json is broken at start, the newest good backup is restored, the broken file is kept as profiles-unreadable.local.json, and the tray says so.
+- Updates: the tray's check says *Update available: <version>* with the first lines of the release notes; the editor's check gets the same excerpt.
 - Docs: new panel and editor images, and a longer demo animation (17 scenes: folders, window and meeting keys, pages that follow the app, the idle clock and the editor). In the editor a long widget description no longer runs past the settings panel.
 - Long runs: the panel tells the host which screen shows, so the sound mixer is read every second only on its screen (otherwise every 5 s). Plugin folders are read again only when they change, the AI session history is walked every 10 s instead of 2 s, an unchanged status file is not rewritten, and the host log is kept under 5 MB while the host runs.
 - Performance: images reach the panel about 4 times faster, and the panel reads USB in 2 KB blocks instead of locking per byte. Hidden screens, a dark screen and the clock no longer redraw or animate keys. The host stops refreshing keys under a dark screen, skips nvidia-smi when a sensor tool has the GPU, and caches the program list. The editor stops polling in a hidden tab and redraws the rail only when it changes.
