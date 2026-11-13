@@ -357,6 +357,46 @@ uint32_t deck_model_ambient_version(void)
     return version;
 }
 
+static bool s_locked;
+static int s_brightness = 100, s_brightness_wanted = -1;
+static bool s_brightness_save;
+
+void deck_model_set_locked(bool locked)
+{
+    model_lock(); s_locked = locked; model_unlock();
+}
+
+bool deck_model_locked(void)
+{
+    model_lock(); bool locked = s_locked; model_unlock(); return locked;
+}
+
+void deck_model_set_brightness(int level)
+{
+    model_lock(); s_brightness = level; model_unlock();
+}
+
+int deck_model_brightness(void)
+{
+    model_lock(); int level = s_brightness; model_unlock(); return level;
+}
+
+void deck_model_request_brightness(int level, bool save)
+{
+    if (level < 1 || level > 100) return;
+    /* A save stays pending until main takes it, even if a later drag step only previews. */
+    model_lock(); s_brightness = s_brightness_wanted = level; s_brightness_save = s_brightness_save || save; model_unlock();
+}
+
+bool deck_model_take_brightness_request(int *level, bool *save)
+{
+    model_lock();
+    const bool pending = s_brightness_wanted >= 0;
+    if (pending) { *level = s_brightness_wanted; *save = s_brightness_save; s_brightness_wanted = -1; s_brightness_save = false; }
+    model_unlock();
+    return pending;
+}
+
 void deck_model_request_wake(void)
 {
     model_lock(); s_dimmed = false; ++s_wake_seq; model_unlock();
@@ -472,6 +512,7 @@ bool deck_model_buttons_from_json(const char *json_text, deck_button_t *out,
         }
         out[parsed].has_hold=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"hold"));
         out[parsed].has_double=cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(item,"double"));
+        {const cJSON *confirm=cJSON_GetObjectItemCaseSensitive(item,"cf");out[parsed].confirm=cJSON_IsTrue(confirm)||(cJSON_IsNumber(confirm)&&confirm->valueint==1);}
         {
             const struct {const char *key; uint8_t bit; uint32_t *target;} styles[] = {
                 {"bg", DECK_STYLE_BG, &out[parsed].bg}, {"text_color", DECK_STYLE_TEXT, &out[parsed].text},

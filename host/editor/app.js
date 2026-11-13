@@ -130,6 +130,10 @@ function renderInspector() {
   panel.append(element('div',{class:'prop-card'},head,element('div',{class:'prop-preview'},iconVisual(b.icon,b.color,'prop-icon'),previewLabel),
     element('div',{class:'prop-rows'},titleRow,row('Icon',color,iconButton,button('Image …',()=>upload.click(),'outline'),upload),
       textRow,...(wideRows(base,row)))));
+  const confirm=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Hold to confirm'),text('small','The panel runs the key only after a 0.6 s hold, so a brush does nothing.')));
+  const confirmBox=confirm.querySelector('input');confirmBox.checked=base.confirm===true;
+  confirmBox.disabled=!base.confirm&&!!(base.hold_actions?.length||base.double_actions?.length);  /* the host refuses the mix */
+  confirmBox.onchange=()=>mutate(()=>{if(confirmBox.checked)base.confirm=true;else delete base.confirm;});panel.append(confirm);
   renderStyle(panel);
   const choices=element('div',{class:'icon-grid',role:'group','aria-label':'Choose icon'});
   for(const [key,glyph] of Object.entries(icons)) {const item=button(glyph,()=>mutate(()=>appearance().icon=key),'icon-choice'+((b.icon||'ok')===key?' active':''),iconNames[key]);item.setAttribute('aria-label',iconNames[key]);item.setAttribute('aria-pressed',(b.icon||'ok')===key);choices.append(item);}
@@ -220,6 +224,7 @@ function renderStep(action,index,count) {
   let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
+  if(action.type==='panel_lock'){step.append(field('Mode',action.mode||'toggle',v=>editAction(index,'mode',v),{values:[['toggle','Lock / unlock'],['on','Lock'],['off','Unlock']]}),text('p','A locked panel ignores taps until you hold the lock badge on the rail for two seconds.','hint'));return step;}
   if(action.type==='profile_lock'){step.append(text('p','Locks the current profile when pressed. Press again to follow the active program. Pin this key to make it available on every page in this profile.','hint'));return step;}
   const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell'].includes(action.type)});
   if(action.type==='open') {

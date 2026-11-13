@@ -104,6 +104,8 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, f'Timer {action["name"]}: {action.get("op", "toggle")}{seconds}{notify}'
     if kind == 'profile_lock':
         return True, 'Lock or unlock automatic profile switching'
+    if kind == 'panel_lock':
+        return True, {'on': 'Lock the panel', 'off': 'Unlock the panel'}.get(action.get('mode'), 'Lock or unlock the panel')
     if kind == 'plugin':
         return True, f'Send the command {action["command"]} to the plugin {action["plugin"]}'
     return False, f'Unknown action type {kind!r}'

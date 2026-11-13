@@ -161,6 +161,18 @@ static void usb_console_task(void *)
             fflush(stdout);
         }
         layout_flush_if_due();
+        /* The about sheet's slider: apply at once, save and tell the host when the finger lifts. */
+        int wanted_level = 0;
+        bool save_level = false;
+        if (deck_model_take_brightness_request(&wanted_level, &save_level)) {
+            s_brightness = wanted_level;
+            if (!deck_model_dimmed()) bsp_display_brightness_set(s_brightness);
+            if (save_level) {
+                save_brightness(s_brightness);
+                printf("{\"type\":\"brightness\",\"level\":%d}\n", s_brightness);
+                fflush(stdout);
+            }
+        }
         if (deck_model_take_touch_return()) {
             printf("{\"type\":\"screen\",\"name\":\"deck\",\"by\":\"touch\"}\n");
             fflush(stdout);
@@ -362,12 +374,18 @@ static void usb_console_task(void *)
             if (parse_percent(line + 14, 1, 100, &level)) {
                 s_brightness = level;
                 save_brightness(level);
+                deck_model_set_brightness(level);
                 deck_model_set_dimmed(false);
                 esp_err_t result = bsp_display_brightness_set(s_brightness);
                 printf("AD_BRIGHTNESS %s %d\n", result == ESP_OK ? "OK" : "FAILED", s_brightness);
             } else {
                 printf("AD_BRIGHTNESS INVALID\n");
             }
+            fflush(stdout);
+        }
+        if (!overflow && (!strcmp(line, "AD_PANEL_LOCK 1") || !strcmp(line, "AD_PANEL_LOCK 0"))) {
+            deck_model_set_locked(line[14] == '1');
+            printf("AD_PANEL_LOCK OK %c\n", line[14]);
             fflush(stdout);
         }
         if (!overflow && strncmp(line, "AD_DISPLAY_DIM ", 15) == 0) {
@@ -431,6 +449,8 @@ extern "C" void app_main(void)
         load_brightness();
         layout_restore();
     }
+    deck_model_set_brightness(s_brightness);
+    ui_set_firmware_version(esp_app_get_description()->version);
     (void)time_service_init();
 
     bsp_display_cfg_t cfg = {};
