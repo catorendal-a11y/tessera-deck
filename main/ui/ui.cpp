@@ -750,7 +750,7 @@ void show_weather_icon(const char *line) {
         {"snow","lc:e090",Text},{"drizzle","lc:e08a",Cyan},{"rain","lc:e08e",Cyan},{"shower","lc:e08e",Cyan},
         {"fog","lc:e214",Soft},{"overcast","lc:e088",Soft},{"cloudy night","lc:e215",Text},{"night","lc:e11e",Text},{"cloud","lc:e216",Amber},{"clear","lc:e178",Amber}};
     char lower[DECK_AMBIENT_MAX+1];size_t n=0;
-    for(;line[n]&&n<DECK_AMBIENT_MAX;++n)lower[n]=static_cast<char>(tolower(static_cast<unsigned char>(line[n])));
+    for(;n<DECK_AMBIENT_MAX&&line[n];++n)lower[n]=static_cast<char>(tolower(static_cast<unsigned char>(line[n])));
     lower[n]='\0';
     if(char *city=strstr(lower," - "))*city='\0';  /* "12 C, Light rain - Oslo": the place is not the weather */
     char packed[5]{};weather_shown="";

@@ -27,6 +27,9 @@ WEATHER_CODES = {0: 'Clear sky', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Over
                  86: 'Snow showers', 95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with hail'}
 
 
+NIGHT_CODES = {0: 'Clear night', 1: 'Mostly clear night', 2: 'Partly cloudy night'}
+
+
 def check_ambient(settings) -> None:
     """Validate the `ambient` block of the configuration."""
     if not isinstance(settings, dict) or type(settings.get('enabled', False)) is not bool:
@@ -47,13 +50,13 @@ def check_ambient(settings) -> None:
 
 
 def describe(current: dict, name: str, unit: str) -> str:
-    """'12 C, Partly cloudy - Oslo' (or 'Clear sky night' after sunset there) from an Open-Meteo `current` block."""
+    """'12 C, Partly cloudy - Oslo' (or 'Clear night' after sunset there) from an Open-Meteo `current` block."""
     temperature = current.get('temperature_2m')
     if type(temperature) not in (int, float):
         raise ValueError('the weather answer has no temperature')
     text = WEATHER_CODES.get(current.get('weather_code'), '')
-    if current.get('is_day') == 0 and current.get('weather_code') in (0, 1, 2):  # the panel shows a moon, not a sun
-        text += ' night'
+    if current.get('is_day') == 0:  # after sunset the panel shows a moon, not a sun
+        text = NIGHT_CODES.get(current.get('weather_code'), text)
     parts = [f'{round(temperature)} {"F" if unit == "fahrenheit" else "C"}' + (f', {text}' if text else '')]
     if name:  # a newline would end the AD_AMBIENT line early and the rest would reach the panel as a command
         parts.append(''.join(ch if ch >= ' ' and ch != '\x7f' else ' ' for ch in name))
