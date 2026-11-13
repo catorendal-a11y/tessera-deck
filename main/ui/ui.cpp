@@ -743,11 +743,12 @@ void make_logo(lv_obj_t *parent,int x,int y) {
 lv_obj_t *ambient,*ambient_clock,*ambient_date,*ambient_line,*ambient_icon;
 const char *weather_shown="";  /* the icon on the clock now, for the tests */
 /* The host sends words ("12 C, Light rain - Oslo"), not a code: the first word that matches picks the icon.
- * Precipitation goes before cloud, so "Rain showers" is rain and "Snow showers" is snow. */
+ * Precipitation goes before cloud, so "Rain showers" is rain and "Snow showers" is snow; the host adds "night"
+ * after sunset at the place, so a clear night shows the moon. */
 void show_weather_icon(const char *line) {
     static const struct {const char *word,*icon;uint32_t color;} Icons[]={{"thunder","lc:e08c",Purple},{"hail","lc:e08b",Text},
         {"snow","lc:e090",Text},{"drizzle","lc:e08a",Cyan},{"rain","lc:e08e",Cyan},{"shower","lc:e08e",Cyan},
-        {"fog","lc:e214",Soft},{"overcast","lc:e088",Soft},{"cloud","lc:e216",Amber},{"clear","lc:e178",Amber}};
+        {"fog","lc:e214",Soft},{"overcast","lc:e088",Soft},{"cloudy night","lc:e215",Text},{"night","lc:e11e",Text},{"cloud","lc:e216",Amber},{"clear","lc:e178",Amber}};
     char lower[DECK_AMBIENT_MAX+1];size_t n=0;
     for(;line[n]&&n<DECK_AMBIENT_MAX;++n)lower[n]=static_cast<char>(tolower(static_cast<unsigned char>(line[n])));
     lower[n]='\0';

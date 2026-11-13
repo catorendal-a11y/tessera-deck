@@ -415,7 +415,7 @@ static void test_ambient_clock(){
     /* Precipitation wins over cloud, and the place after " - " never picks the icon. */
     const char *const lines[][2]={{"3 C, Snow showers - Oslo","lc:e090"},{"8 C, Rain showers - Oslo","lc:e08e"},{"1 C, Freezing rain - Oslo","lc:e08e"},
         {"9 C, Light drizzle - Oslo","lc:e08a"},{"20 C, Thunderstorm with hail - Oslo","lc:e08c"},{"5 C, Rime fog - Oslo","lc:e214"},
-        {"7 C, Partly cloudy - Oslo","lc:e216"},{"7 C, Overcast - Snowflake","lc:e088"},{"7 C - Rainham","",}};
+        {"7 C, Partly cloudy - Oslo","lc:e216"},{"2 C, Clear sky night - Oslo","lc:e11e"},{"2 C, Partly cloudy night - Oslo","lc:e215"},{"7 C, Overcast - Snowflake","lc:e088"},{"7 C - Rainham","",}};
     for(const auto& line:lines){
         char want[40];snprintf(want,sizeof(want),"\"weather\":\"%s\"",line[1]);
         deck_model_set_ambient(line[0]);updates();

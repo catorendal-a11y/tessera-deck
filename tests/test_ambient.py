@@ -68,6 +68,9 @@ class WeatherTests(unittest.TestCase):
         current = {'temperature_2m': 11.6, 'weather_code': 2}
         self.assertEqual(ambient.describe(current, 'Oslo', 'celsius'), '12 C, Partly cloudy - Oslo')
         self.assertEqual(ambient.describe({'temperature_2m': 50, 'weather_code': 999}, '', 'fahrenheit'), '50 F')
+        self.assertEqual(ambient.describe({'temperature_2m': 3, 'weather_code': 0, 'is_day': 0}, 'Oslo', 'celsius'), '3 C, Clear sky night - Oslo')
+        self.assertEqual(ambient.describe({'temperature_2m': 3, 'weather_code': 61, 'is_day': 0}, 'Oslo', 'celsius'), '3 C, Light rain - Oslo')
+        self.assertIn('is_day', ambient.forecast_url(59.9, 10.7, 'celsius'))
         with self.assertRaises(ValueError):
             ambient.describe({}, 'Oslo', 'celsius')
 

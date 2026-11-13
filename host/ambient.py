@@ -47,11 +47,13 @@ def check_ambient(settings) -> None:
 
 
 def describe(current: dict, name: str, unit: str) -> str:
-    """'12 C, Partly cloudy - Oslo' from an Open-Meteo `current` block."""
+    """'12 C, Partly cloudy - Oslo' (or 'Clear sky night' after sunset there) from an Open-Meteo `current` block."""
     temperature = current.get('temperature_2m')
     if type(temperature) not in (int, float):
         raise ValueError('the weather answer has no temperature')
     text = WEATHER_CODES.get(current.get('weather_code'), '')
+    if current.get('is_day') == 0 and current.get('weather_code') in (0, 1, 2):  # the panel shows a moon, not a sun
+        text += ' night'
     parts = [f'{round(temperature)} {"F" if unit == "fahrenheit" else "C"}' + (f', {text}' if text else '')]
     if name:  # a newline would end the AD_AMBIENT line early and the rest would reach the panel as a command
         parts.append(''.join(ch if ch >= ' ' and ch != '\x7f' else ' ' for ch in name))
@@ -70,7 +72,7 @@ def _get_json(url: str, opener=urllib.request.urlopen) -> dict:
 
 def forecast_url(latitude: float, longitude: float, unit: str) -> str:
     query = urllib.parse.urlencode({'latitude': f'{latitude:.4f}', 'longitude': f'{longitude:.4f}',
-                                    'current': 'temperature_2m,weather_code', 'timezone': 'auto',
+                                    'current': 'temperature_2m,weather_code,is_day', 'timezone': 'auto',
                                     'temperature_unit': unit})
     return f'{FORECAST_URL}?{query}'
 
