@@ -196,17 +196,17 @@ function renderGauge(panel,base) {
     input.addEventListener('change',()=>{
       const raw=input.value.trim(),value=Number(raw);
       if(raw===''&&optional)return mutate(()=>delete base.gauge[name],false);
-      if(raw===''||!Number.isFinite(value)||name==='max'&&value<=0){input.value=gauge[name]??'';return toast(name==='max'?'The full ring needs a value above 0.':'Enter a number, or leave it empty to turn it off.');}
+      if(raw===''||!Number.isFinite(value)||name==='max'&&value<=0){input.value=gauge[name]??'';return toast(name==='max'?'Full at needs a value above 0.':'Enter a number, or leave it empty to turn it off.');}
       mutate(()=>base.gauge[name]=value,false);
     });
     return element('label',{},text('span',label),input);
   };
-  panel.append(element('div',{class:'gauge-controls'},number('Full ring at','max'),number('Amber from','warn',true),number('Red from','critical',true)));
+  panel.append(element('div',{class:'gauge-controls'},number('Full at','max'),number('Amber from','warn',true),number('Red from','critical',true)));
   if((gauge.fmt||'int')==='int'){
     const unit=field('Unit after the value',gauge.unit||'',value=>mutate(()=>{if(value)base.gauge.unit=value;else delete base.gauge.unit;},false,editKey('gauge-unit')),{placeholder:'%, C or W'});
     unit.querySelector('input').maxLength=3;panel.append(unit);
   }
-  panel.append(text('p','The host fills in the value and the ring. The key turns amber and red at the thresholds; without a sensor it shows --.','hint'));
+  panel.append(text('p','The host fills in the value. The panel shows it in the gauge color, amber and red at the thresholds; without a sensor it shows --.','hint'));
 }
 function renderStep(action,index,count) {
   const k=kinds[action.type]||kinds.hotkey;
@@ -287,7 +287,7 @@ function renderTimerStep(step,action,index) {
   const pressed=action.actions?.find(a=>a.type==='press')?.id;
   step.append(optionalNumber('When finished, press key (optional, 1-18)',pressed,v=>mutate(()=>{const target=activeActions()[index];if(v>=1&&v<=18)target.actions=[{type:'press',id:v}];else delete target.actions;},false)));
   step.append(button('◔ Show the countdown ring on this key',()=>mutate(()=>{const base=current();base.gauge={key:`timer:${action.name||'timer'}`,max:action.seconds||300,fmt:'clock'};}),'outline'),
-    text('p',`Show the time in a key name with $(timer:${action.name||'name'}) or the ring above. The timer keeps running while Tessera is closed.`,'hint'));
+    text('p',`Show the time in a key name with $(timer:${action.name||'name'}) or as a ring on a wide key (Shows). The timer keeps running while Tessera is closed.`,'hint'));
 }
 function copyButton() {if(!current())return;clipboard=clone(current());toast('The key was copied. Choose a slot and press Ctrl+V.');}
 function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&!spanFits(selected,copy.span,[old])){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
@@ -401,7 +401,7 @@ function renderStatus() {
   const connected=dashboard.device?.connected;
   $('#led').classList.toggle('connected',!!connected);$('#led').classList.toggle('waiting',dashboard.running&&!connected);
   const context=[dashboard.device?.profile,dashboard.device?.page].filter(Boolean).join(' / ');
-  $('#connection').textContent=connected?[dashboard.device.port,context].filter(Boolean).join(' · '):dashboard.running?(dashboard.connection||'Waiting for the device'):'The host has stopped';
+  $('#connection').textContent=connected?[dashboard.device.port,context].filter(Boolean).join(' · '):dashboard.running?(dashboard.connection||'Waiting for the panel'):'The host has stopped';
   const layoutBytes=dashboard.device?.layout_bytes||0,offlineLimit=3800;
   $('#connection').title=dashboard.device?.error||(connected&&dashboard.device?.sensor_hint?dashboard.device.sensor_hint:connected&&layoutBytes>offlineLimit?`This page is ${layoutBytes} bytes. The panel keeps at most ${offlineLimit} for use without the PC, so it will show the older saved layout offline.`:'');
   if(connected&&layoutBytes>offlineLimit)$('#connection').textContent+=' · too big to keep offline';
@@ -448,7 +448,7 @@ document.addEventListener('keydown',event=>{
   if(event.key==='F2'&&onDeck&&current()){event.preventDefault();renameButton();return;}
   if((event.key==='Delete'||event.key==='Backspace')&&onDeck&&current()){event.preventDefault();clearButton();toast(`Key ${selected} was cleared. Press Ctrl+Z to undo.`);return;}
   if((event.key==='ContextMenu'||event.shiftKey&&event.key==='F10')&&editorView==='keys'&&current()){event.preventDefault();openKeyMenu(selected);return;}
-  if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y','c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(editorView==='keys'){if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}}
+  if(event.ctrlKey||event.metaKey) {const key=event.key.toLowerCase();if(['z','y'].includes(key)||editorView==='keys'&&['c','v','d'].includes(key)){event.preventDefault();if(key==='z')undo(event.shiftKey);if(key==='y')undo(true);if(key==='c')copyButton();if(key==='v')pasteButton();if(key==='d')duplicateButton();}}
 });
 function hideKeyMenu(restore=false) {$('#key-menu').hidden=true;if(restore)keyMenuReturnFocus?.focus();keyMenuReturnFocus=null;}
 function renameButton(id=selected) {

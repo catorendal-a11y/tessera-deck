@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   release:
-    name: Build and publish
+    name: Build the release files
     runs-on: ubuntu-latest
     container: espressif/idf:v6.1
     steps:

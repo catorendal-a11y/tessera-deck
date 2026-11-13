@@ -225,7 +225,7 @@ async function save() {
     const result=await saveInFlight;revision=result.revision;
     if(version===sentVersion){dirty=false;const same=dashboard.device?.profile===profile&&dashboard.device?.page===page;
       setSaveState('✓ Saved on the PC',dashboard.device?.connected?(same?'This page is up to date on the panel.':(dashboard.device.profile?`The panel shows ${dashboard.device.profile} / ${dashboard.device.page}. Turn on Mirror on panel to show this page.`:'Waiting for the panel to report which page it shows.')):'Connect the panel and start the host to synchronize.');}
-  } catch(error){setSaveState('Not saved',error.message);throw error;} finally {saving=false;saveInFlight=null;}
+  } catch(error){setSaveState('Not saved · '+error.message);throw error;} finally {saving=false;saveInFlight=null;}
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);
 }
 function updateHistory() {$('#undo').disabled=!history.length;$('#redo').disabled=!future.length;}

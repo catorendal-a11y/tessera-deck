@@ -165,14 +165,17 @@ def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tupl
     tail = ''
     assert process.stdout is not None
     watchdog = threading.Timer(ESPTOOL_TIMEOUT, process.kill)
+    watchdog.daemon = True
     watchdog.start()
-    for chunk in iter(process.stdout.readline, ''):
-        tail = (tail + chunk)[-OUTPUT_TAIL:]
-        found = PROGRESS.findall(chunk)
-        if found:
-            progress(min(100.0, float(found[-1])))
-    code = process.wait()
-    watchdog.cancel()
+    try:
+        for chunk in iter(process.stdout.readline, ''):
+            tail = (tail + chunk)[-OUTPUT_TAIL:]
+            found = PROGRESS.findall(chunk)
+            if found:
+                progress(min(100.0, float(found[-1])))
+        code = process.wait()
+    finally:  # also when reading fails: a timer left running would kill a later process
+        watchdog.cancel()
     return code, tail.strip()
 
 

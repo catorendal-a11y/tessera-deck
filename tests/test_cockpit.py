@@ -125,6 +125,14 @@ class CockpitDaemonTests(HostCase):
             daemon.cockpit_tick(104.0)
             self.assertEqual([call.args[0].split(' ', 1)[0] for call in daemon.panel.send_line.call_args_list], ['AD_AGENTS'])
 
+    @unittest.skipIf(sys.platform != 'win32', 'pycaw is Windows only')
+    def test_without_a_microphone_the_mixer_still_shows_the_speaker(self):
+        from unittest.mock import Mock
+        speaker = Mock(**{'GetMasterVolumeLevelScalar.return_value': 0.5, 'GetMute.return_value': False})
+        with patch('pc_state._with_audio', side_effect=lambda work: work({'speaker': speaker, 'mic': None})), \
+                patch('pycaw.pycaw.AudioUtilities.GetAllSessions', return_value=[]):
+            self.assertEqual([fader['id'] for fader in cockpit.read_mixer()], ['speaker'])
+
     def test_a_missing_sound_device_does_not_stop_the_other_screens(self):
         daemon = self.cockpit_daemon()
         with patch.object(cockpit, 'read_mixer', side_effect=OSError('no audio device')):

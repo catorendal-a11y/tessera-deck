@@ -140,7 +140,7 @@ def read_mixer(pinned: list | None = None, mic: bool = True) -> list[dict]:
                    'muted': bool(speaker.GetMute()), 'color': GREEN}]
         faders += [{'id': app['id'], 'name': app['name'], 'level': app['level'], 'muted': app['muted'],
                     'color': APP_COLORS[index]} for index, app in enumerate(chosen)]
-        if mic:
+        if mic and mic_end is not None:  # no microphone: the mixer shows the speaker and the programs only
             faders.append({'id': 'mic', 'name': 'Mic', 'level': round(mic_end.GetMasterVolumeLevelScalar() * 100),
                            'muted': bool(mic_end.GetMute()), 'mic': True, 'color': '#4DD0E1'})
         return faders

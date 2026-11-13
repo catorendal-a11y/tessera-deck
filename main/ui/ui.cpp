@@ -361,7 +361,8 @@ void fader_touch(lv_event_t *event) {
     int level=(area.y2-point.y)*100/(area.y2-area.y1);
     level=level<0?0:level>100?100:level;
     const bool released=lv_event_get_code(event)==LV_EVENT_RELEASED;
-    fader_hold[i]=millis()+1500;  /* the host's own reading must not pull the knob back under the finger */
+    fader_hold[i]=millis()+1500;faders_version=0;  /* the host's reading must not pull the knob back under the finger;
+                                                   version 0: look again when the hold ends */
     if(level==faders[i].level&&!released)return;
     faders[i].level=static_cast<uint8_t>(level);draw_fader(i);
     if(!released&&millis()-fader_sent[i]<120)return;
@@ -373,7 +374,7 @@ void fader_touch(lv_event_t *event) {
 void mute_pressed(lv_event_t *event) {
     const int i=slot_of(event);
     if(i<0||i>=fader_count)return;
-    faders[i].muted=!faders[i].muted;fader_hold[i]=millis()+1500;draw_fader(i);
+    faders[i].muted=!faders[i].muted;fader_hold[i]=millis()+1500;faders_version=0;draw_fader(i);
     char line[96];
     snprintf(line,sizeof(line),"{\"type\":\"mute\",\"id\":\"%s\"}",faders[i].id);
     deck_model_queue_line(line);
@@ -512,6 +513,7 @@ void update_link() {
     const int linked=deck_model_host_linked(HostTimeoutMs)?1:0;
     if(linked==link_shown)return;
     link_shown=linked;lv_obj_set_hidden(link_label,linked);
+    for(auto *area:{agents_area,mixer_area,stats_area})if(area)lv_obj_set_style_opa(area,linked?LV_OPA_COVER:LV_OPA_40,0);
     if(linked){build_agents();sync_stats();return;}
     for(auto *summary:{agents_summary,stats_summary}){lv_label_set_text(summary,"PC not connected");lv_obj_set_style_text_color(summary,lv_color_hex(Amber),0);}
 }
@@ -599,6 +601,7 @@ void update(lv_timer_t*) {
     if(agents_version!=deck_model_agents_version())build_agents();
     const int wanted=deck_model_take_view_request();
     if(wanted>=0)set_view(wanted);
+    for(auto& hold:fader_hold)if(hold&&static_cast<int32_t>(millis()-hold)>=0)hold=0;
     if(faders_version!=deck_model_faders_version())sync_faders();
     if(stats_version!=deck_model_stats_version())sync_stats();
     for(auto& image:images)if(image.image&&image.image->frames.size()>1&&static_cast<int32_t>(millis()-image.due)>=0){image.frame=(image.frame+1)%image.image->frames.size();image_frame(image);}

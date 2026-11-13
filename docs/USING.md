@@ -101,6 +101,8 @@ Open **Settings** in the editor, or the tray menu. By default the panel dims to 
 a press and when Windows locks; the first touch anywhere on the screen wakes it without pressing a key. The panel
 remembers the brightness across restarts. Set the values in
 `profiles.json` with `"display": { "brightness": 80, "dim_after": 300, "dim_level": 10 }` (`dim_after: 0` disables it).
+Quiet hours in **Settings** lower the brightness between two times, for example at night:
+`"night": { "from": "22:00", "to": "07:00", "brightness": 10 }` inside `display`.
 
 ### Control from scripts and AI tools
 
