@@ -71,7 +71,7 @@ jobs:
       - name: Check the firmware sources (the generated fonts are left out)
         run: >
           cppcheck --enable=warning,portability --inline-suppr --std=c++17 --error-exitcode=1 --quiet
-          -I main -I main/ui main/main.cpp main/deck_model.c main/deck_images.cpp main/time_service.c main/ui/ui.cpp
+          -I main -I main/ui main/main.cpp main/deck_model.c main/deck_images.cpp main/time_service.c main/wifi_config.c main/wifi_service.c main/ui/ui.cpp
 
   firmware:
     name: Firmware build and native LVGL tests
