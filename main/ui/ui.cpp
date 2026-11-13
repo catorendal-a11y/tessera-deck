@@ -166,7 +166,7 @@ void wake_touch(lv_event_t *event) {
     lv_indev_stop_processing(indev);lv_indev_wait_release(indev);
 }
 /* The deck: six by three keys, each in the slot its id names, so the panel shows what the editor shows. */
-size_t image_count=0;bool image_missing=false;  /* a key waits for an image the host has not sent yet */
+uint32_t image_generation=0;bool image_missing=false;  /* a key waits for an image the host has not sent yet */
 /* The editor's Text size and Bold. There is no bold 16 px font, so bold at 16 uses bold 20. */
 const lv_font_t *title_font(const deck_button_t& value) {
     switch(value.title_size) {
@@ -177,7 +177,7 @@ const lv_font_t *title_font(const deck_button_t& value) {
     }
 }
 void build_keys() {
-    image_missing=false;deck_image_cache_stats(nullptr,&image_count);
+    image_missing=false;image_generation=deck_image_generation();
     memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));memset(value_label,0,sizeof(value_label));
     memset(sub_label,0,sizeof(sub_label));memset(bar_fill,0,sizeof(bar_fill));memset(ring_arc,0,sizeof(ring_arc));
     lv_obj_clean(keys_area);for(auto& image:images){lv_image_cache_drop(&image.descriptor);image=ImageTile{};}
@@ -265,8 +265,9 @@ void update_live() {
         if(glyph_label[slot])lv_obj_set_style_text_color(glyph_label[slot],lv_color_hex(item.color),0);
         if(name_label[slot]&&strcmp(lv_label_get_text(name_label[slot]),item.label))lv_label_set_text(name_label[slot],item.label);
         if(sub_label[slot]&&strcmp(lv_label_get_text(sub_label[slot]),item.sub))lv_label_set_text(sub_label[slot],item.sub);
-        if(bar_fill[slot])lv_obj_set_width(bar_fill[slot],bar_width[slot]*item.progress/100);
-        if(ring_arc[slot])lv_arc_set_value(ring_arc[slot],item.progress);}
+        /* Color is not structural (deck_model same_structure), so the gauges recolor here too. */
+        if(bar_fill[slot]){lv_obj_set_width(bar_fill[slot],bar_width[slot]*item.progress/100);lv_obj_set_style_bg_color(bar_fill[slot],lv_color_hex(item.color),0);}
+        if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],item.progress);lv_obj_set_style_arc_color(ring_arc[slot],lv_color_hex(item.color),LV_PART_INDICATOR);}}
     live_version=deck_model_live_version();
 }
 /* ASCII only: UTF-8 multi-byte sequences are copied untouched. */
@@ -326,7 +327,8 @@ void build_agents() {
         if(agent.state==DECK_AGENT_WAITING)++waiting;
         auto *lane=box(agents_area,0,i*160,ContentW,146,20,Card);lv_obj_set_style_clip_corner(lane,true,0);
         box(lane,0,0,7,146,0,color);
-        const int buttons=agent.state==DECK_AGENT_WAITING?2:1,text_w=ContentW-26-buttons*132-(buttons-1)*12-38;
+        const bool asks=agent.state==DECK_AGENT_WAITING&&agent.asks;  /* only a real question gets Allow and Deny */
+        const int buttons=asks?2:1,text_w=ContentW-26-buttons*132-(buttons-1)*12-38;
         const int name_y=agent.state==DECK_AGENT_WAITING?16:24;
         auto *name=label(lane,agent.name,26,name_y,LV_SIZE_CONTENT,&fq_font_dejavu_bold_28,Text);
         lv_obj_update_layout(name);
@@ -345,7 +347,8 @@ void build_agents() {
             label(lane,agent.sub,26,102,text_w,&fq_font_dejavu_16,Dim);
         }
         const int right=ContentW-20-132;
-        if(agent.state==DECK_AGENT_WAITING){agent_button(lane,"Deny",right-144,2,i,1);if(fits)agent_button(lane,"Allow",right,0,i,0);}
+        if(asks){agent_button(lane,"Deny",right-144,2,i,1);if(fits)agent_button(lane,"Allow",right,0,i,0);}
+        else if(agent.state==DECK_AGENT_WAITING)agent_button(lane,"Open",right,1,i,3);  /* waiting in its own window: bring it forward */
         else if(agent.state==DECK_AGENT_WORKING)agent_button(lane,"Stop",right,1,i,2);
         else agent_button(lane,"Open",right,1,i,3);
     }
@@ -644,8 +647,8 @@ void update_ambient() {
 }
 
 void update(lv_timer_t*) {
-    size_t cached=0;if(image_missing)deck_image_cache_stats(nullptr,&cached);
-    if(button_version!=deck_model_buttons_version()||(image_missing&&cached!=image_count))build_keys();
+    /* Compare the insert generation, not the count: a full cache evicts one image per insert. */
+    if(button_version!=deck_model_buttons_version()||(image_missing&&deck_image_generation()!=image_generation))build_keys();
     else if(live_version!=deck_model_live_version())update_live();
     if(context_version!=deck_model_context_version())update_context();
     if(rail_version!=deck_model_rail_version())build_rail();

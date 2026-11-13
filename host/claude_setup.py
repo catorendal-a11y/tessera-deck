@@ -86,7 +86,19 @@ def update(events: bool, allow: bool, python: Path, deckctl: Path, home: Path | 
     if document != original:
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.exists():
-            path.with_name(f'settings.tessera-backup-{time.strftime("%Y%m%d-%H%M%S")}.json').write_bytes(path.read_bytes())
+            # Two changes in one second (events, then permission) must not overwrite the first backup: that one
+            # holds the user's original settings. 'xb' never replaces a file, so a taken name gets a counter.
+            stamp, data = time.strftime('%Y%m%d-%H%M%S'), path.read_bytes()
+            for number in range(1, 1000):
+                suffix = '' if number == 1 else f'-{number}'
+                try:
+                    with open(path.with_name(f'settings.tessera-backup-{stamp}{suffix}.json'), 'xb') as backup:
+                        backup.write(data)
+                    break
+                except FileExistsError:
+                    continue
+            else:
+                raise OSError('No free name for a backup of the Claude settings')
         temporary = path.with_suffix('.tmp')
         temporary.write_text(json.dumps(document, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
         os.replace(temporary, path)

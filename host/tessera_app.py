@@ -1,6 +1,7 @@
 """Local graphical editor for the standalone Tessera."""
 import logging
 import argparse
+import copy
 import hashlib
 from functools import lru_cache
 from http.cookies import SimpleCookie
@@ -17,7 +18,7 @@ import urllib.request
 import urllib.parse
 import webbrowser
 
-from deck_control import (ROOT, Controller, autostart_enabled,
+from deck_control import (FIRMWARE_FLAG_PATH, ROOT, Controller, autostart_enabled,
                           save_profiles, set_autostart)
 from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, bring_to_front, validate_config
 from deck_assets import Assets
@@ -247,17 +248,76 @@ class Editor:
         self.firmware_job = {'state': 'idle'}
         self.last_release = None  # what the last update check found; downloads never trust client-sent URLs
         self.firmware_lock = threading.Lock()
+        self.served = {}  # revision -> the configuration read then, so a save can follow a tray brightness change
+
+    def _raw(self):
+        # The file as it is on disk; empty when it is missing or locked, so a restore can still replace it.
+        try:
+            return self.path.read_bytes()
+        except OSError:
+            return b''
 
     def read(self):
         raw = self.path.read_bytes()
         config = validate_config(config_store.migrate(json.loads(raw)))
-        return {'config': self.assets.heal(config), 'revision': hashlib.sha256(raw).hexdigest()}
+        revision = hashlib.sha256(raw).hexdigest()
+        self.served[revision] = copy.deepcopy(config)
+        while len(self.served) > 16:
+            del self.served[next(iter(self.served))]
+        return {'config': self.assets.heal(config), 'revision': revision}
+
+    def rebase(self, data, raw):
+        """`data` on top of a file changed only in display.brightness since the editor read it (the tray's
+        Brightness menu writes the file): the editor keeps its edits, the tray's level stays. Anything else conflicts."""
+        base = self.served.get(data.get('revision'))
+        try:
+            disk = config_store.migrate(json.loads(raw))
+        except (ValueError, TypeError, KeyError, AttributeError):
+            disk = None
+        def without_brightness(config):
+            config = copy.deepcopy(config)
+            display = config.get('display') if isinstance(config, dict) else None
+            level = display.pop('brightness', None) if isinstance(display, dict) else None
+            if display == {}:
+                del config['display']
+            return config, level
+        if base is None or disk is None or without_brightness(base)[0] != without_brightness(disk)[0]:
+            raise Conflict('The configuration was changed in another window. Reload before saving.')
+        config, level = copy.deepcopy(data['config']), without_brightness(disk)[1]
+        if isinstance(config, dict) and without_brightness(config)[1] == without_brightness(base)[1]:
+            display = config.get('display') if isinstance(config.get('display'), dict) else {}
+            if level is None:
+                display.pop('brightness', None)
+            else:
+                config['display'] = dict(display, brightness=level)
+        return dict(data, config=config, revision=hashlib.sha256(raw).hexdigest())
+
+    def read_for_editor(self):
+        """read(), or the bundled defaults with an `error` when profiles.json is broken or from a newer Tessera.
+
+        The editor needs some configuration to open at all, and opening is how the user reaches Restore backup.
+        The revision is the broken file's, and save() refuses to overwrite it except by a restore.
+        """
+        try:
+            return self.read()
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            raw = self._raw()
+            defaults = validate_config(config_store.migrate(json.loads((ROOT / 'host/profiles.default.json').read_bytes())))
+            return {'config': defaults, 'revision': hashlib.sha256(raw).hexdigest(),
+                    'error': f'profiles.json could not be read ({str(exc)[:200]}). Restore a backup or fix the file.'}
 
     def save(self, data, force_backup=False):
         with self.lock:
-            previous = self.read()
-            if data.get('revision') != previous['revision']:
-                raise Conflict('The configuration was changed in another window. Reload before saving.')
+            raw = self._raw()
+            if data.get('revision') != hashlib.sha256(raw).hexdigest():
+                data = self.rebase(data, raw)
+            try:
+                previous = self.read()
+            except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+                # A broken (or newer) file may only be replaced by a restore, which keeps its bytes below.
+                if not force_backup:
+                    raise ValueError('profiles.json could not be read, so it is not overwritten. Restore a backup or fix the file.') from exc
+                previous = None
             config = config_store.migrate(data['config'])
             validate_config(config)
             # Bound editor-only fields before they reach the shared action engine.
@@ -280,7 +340,10 @@ class Editor:
                                 raise ValueError('The delay must be a whole number of milliseconds')
             config_store.backup(self.path, force=force_backup)
             backup = self.path.with_name(self.path.stem + '-previous.local.json')
-            save_profiles(previous['config'], backup)
+            if previous is not None:
+                save_profiles(previous['config'], backup)
+            elif raw:
+                backup.write_bytes(raw)  # the unreadable file, kept byte for byte
             save_profiles(config, self.path)
             return self.read()
 
@@ -384,16 +447,43 @@ class Editor:
         return {'message': f'Installing firmware {package.version} ...'}
 
     def firmware_port(self):
-        from host_runtime import candidate_ports
-        ports = candidate_ports(os.environ.get('TESSERA_PORT', 'COM4'), ROOT / 'host/deck-device.local.json')
+        # The first candidate is only TESSERA_PORT/COM4 when no panel is remembered, so it is not trusted: the port
+        # whose device answers as a panel wins. Without an answer (a blank panel) only a lone Espressif port is used,
+        # so "Install anyway" never writes to another device or to a second ESP32.
+        import host_runtime
+        try:
+            installed = host_runtime._installed_ports()
+            espressif = sorted(host_runtime._espressif_ports())
+        except (ImportError, OSError):
+            installed, espressif = {}, []
+        ports = [port for port in host_runtime.candidate_ports(os.environ.get('TESSERA_PORT', 'COM4'),
+                                                               ROOT / 'host/deck-device.local.json', installed, espressif)
+                 if port in installed]
+        rejected = set()
+        for port in ports:
+            try:
+                if self.identify_panel(port) is not None:
+                    return port
+            except firmware_update.PackageError:
+                rejected.add(port)  # another device answered: never flash it, not even as the lone Espressif port
+            except firmware_update.InstallError:
+                continue  # a port that is busy: try the next one
+        if len(espressif) == 1 and espressif[0] not in rejected:
+            return espressif[0]
         if not ports:
             raise firmware_update.InstallError('No USB port was found. Connect the panel with the USB cable.')
-        return ports[0]
+        raise firmware_update.InstallError(f'No Tessera panel answered on {", ".join(ports)}. Unplug the other '
+                                           'USB serial devices, or connect only the panel, and try again.')
 
     def run_firmware_install(self, package, mode, force):
         was_running = bool(self.controller.processes())
         outcome = {'state': 'failed', 'error': 'The install was interrupted'}
         try:
+            # the tray greys out Start host and holds its "host is not running" notice while this file exists
+            try:
+                FIRMWARE_FLAG_PATH.write_text(json.dumps({'pid': os.getpid()}), encoding='utf-8')
+            except OSError:
+                pass  # the editor still refuses Start; a missing flag must not block the install
             if was_running:
                 self.controller.stop()  # the host is the only owner of the USB port
 
@@ -407,6 +497,7 @@ class Editor:
         finally:
             # the outcome is published after the restart, so the dialog never says the host is back before it is
             try:
+                FIRMWARE_FLAG_PATH.unlink(missing_ok=True)  # before the restart, which the flag would refuse
                 if was_running:
                     self.controller.start()
                     outcome['restarted'] = True
@@ -481,7 +572,8 @@ class Editor:
         # Put a backup back in place; the configuration it replaces is backed up first.
         config = config_store.read_backup(self.path, name)
         validate_config(config)
-        return self.save({'config': config, 'revision': self.read()['revision']}, force_backup=True)
+        # The raw hash, not read(): the file being replaced may be the broken one this restore is for.
+        return self.save({'config': config, 'revision': hashlib.sha256(self._raw()).hexdigest()}, force_backup=True)
 
     def command(self, command, data):
         if command == 'host-log':
@@ -537,6 +629,9 @@ class Editor:
                 temporary.replace(path)
             return {'message': 'The page was sent to the host. The panel updates when USB is connected.'}
         if command in ('start', 'stop'):
+            if self.firmware_job.get('state') == 'running':
+                # a host started between the panel check and esptool takes the COM port and breaks the flash
+                raise ValueError('The panel firmware is being installed. The host starts again when it is done.')
             output = []
             with self.lock:
                 getattr(self.controller, command)(emit=output.append)
@@ -652,7 +747,7 @@ def make_server(editor, port=0, token=None):
                         return self.json(editor.programs())
                     if self.path == '/api/action-packs':
                         return self.json(action_pack_catalog())
-                    return self.json(editor.read() if self.path == '/api/config' else dict(icon_catalog(), preferences=editor.icon_preferences()) if self.path == '/api/icons' else editor.status())
+                    return self.json(editor.read_for_editor() if self.path == '/api/config' else dict(icon_catalog(), preferences=editor.icon_preferences()) if self.path == '/api/icons' else editor.status())
                 except ValueError as exc:
                     return self.json({'error': str(exc) or 'Could not read the local configuration'}, 400)
                 except (OSError, TypeError):

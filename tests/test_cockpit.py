@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import unittest
 import unittest.mock
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import cockpit
@@ -162,6 +162,21 @@ class CockpitDaemonTests(HostCase):
             daemon.custom_vars['claude'] = 'waiting'
             daemon.cockpit_tick(104.0)
             self.assertEqual([call.args[0].split(' ', 1)[0] for call in daemon.panel.send_line.call_args_list], ['AD_AGENTS'])
+
+    def test_a_question_that_opens_during_the_tick_is_not_overwritten_by_an_older_line(self):
+        daemon = self.cockpit_daemon()
+        question = {'agent': 'claude', 'text': 'Run tests?'}
+        daemon.permissions.current = Mock(return_value=None)
+
+        def mixer(*_):  # the worker opens a question while the main loop reads the mixer
+            daemon.permissions.current.return_value = question
+            return []
+        with patch.object(cockpit, 'read_mixer', side_effect=mixer):
+            daemon.cockpit_tick(100.0)
+        agents = [call.args[0] for call in daemon.panel.send_line.call_args_list if call.args[0].startswith('AD_AGENTS')]
+        expected = cockpit.agents_payload(daemon.agent_view(), daemon.agents, question, None)
+        self.assertEqual(agents, [f'AD_AGENTS {expected}'])
+        self.assertEqual(daemon.cockpit_sent['AD_AGENTS'], expected)
 
     @unittest.skipIf(sys.platform != 'win32', 'pycaw is Windows only')
     def test_without_a_microphone_the_mixer_still_shows_the_speaker(self):

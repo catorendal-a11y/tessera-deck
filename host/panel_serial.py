@@ -132,10 +132,13 @@ class PanelSerial:
             if not self.cfg_reply.startswith('AD_CFG_END OK'):
                 raise ValueError(self.cfg_reply)
 
-    def feedback(self, button_id, ok):
+    def feedback(self, button_id, ok, wake=True):
         # A touch proves the panel is alive. Wake the backlight as part of the
         # response so a dark display can recover without a cable reconnect.
-        self.send_line('AD_DISPLAY_WAKE')
+        # wake=False while the host has the panel dimmed: lighting it then would
+        # leave it lit for good, since the host only dims a panel it thinks is awake.
+        if wake:
+            self.send_line('AD_DISPLAY_WAKE')
         self.send_line(f'AD_FEEDBACK {"ok" if ok else "alert"} {button_id}')
 
     def push_assets(self, buttons, assets):

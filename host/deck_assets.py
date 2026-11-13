@@ -9,6 +9,8 @@ import re
 import struct
 import warnings
 
+from config_store import write_atomic
+
 SIZE = 72
 MAX_FRAMES = 12
 AUTO_ICON = 'app'
@@ -204,9 +206,20 @@ class Assets:
             blob.extend(encoded)
         name = hashlib.sha256(blob).hexdigest()[:12]
         self.root.mkdir(parents=True, exist_ok=True)
-        (self.root / (name + '.adimg')).write_bytes(blob)
-        frames[0].save(self.root / (name + '.png'), save_all=len(frames) > 1,
-                       append_images=frames[1:], duration=durations, loop=0)
+        # The name is the content's hash, so a file that exists already holds these bytes. Rewriting it in place
+        # (editor and daemon both re-import program icons) could let push_assets read a half-written image.
+        image_file, preview_file = self.root / (name + '.adimg'), self.root / (name + '.png')
+        try:  # a copy cut short by an older, non-atomic write has the right name but too few bytes
+            complete = image_file.stat().st_size == len(blob)
+        except OSError:
+            complete = False
+        if not complete:
+            write_atomic(image_file, bytes(blob))
+        if not preview_file.is_file():
+            output = BytesIO()
+            frames[0].save(output, format='PNG', save_all=len(frames) > 1,
+                           append_images=frames[1:], duration=durations, loop=0)
+            write_atomic(preview_file, output.getvalue())
         return {'id': 'im:' + name, 'frames': len(frames), 'sampled': count > MAX_FRAMES,
                 'width': SIZE, 'height': SIZE}
 
@@ -249,7 +262,11 @@ class Assets:
                 return value
             result = {key: visit(item) for key, item in value.items()}
             if isinstance(result.get('icon'), str):
-                result['icon'] = self.icon_for(result)
+                healed = self.icon_for(result)
+                # The editor saves what heal returns: a missing image keeps its id (its file may still be
+                # copied over) instead of becoming the 'ok' fallback, which would lose the reference for good.
+                if result['icon'] == AUTO_ICON or healed.startswith('im:'):
+                    result['icon'] = healed
             return result
         return visit(config)
 

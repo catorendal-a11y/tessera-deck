@@ -65,7 +65,9 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
         if shown is not None and key not in shown:
             continue
         if asking and asking['agent'] == key:  # a permission prompt waiting for Allow or Deny on the panel
-            lanes.append({'id': key, 'name': name, 'state': 'waiting', 'text': asking['text'],
+            # 'q' marks the one lane whose Allow/Deny answer something; a hook's 'waiting' (Claude asking in its
+            # own dialog) has nothing to answer here, so the panel should offer Open for it instead.
+            lanes.append({'id': key, 'name': name, 'state': 'waiting', 'text': asking['text'], 'q': 1,
                           'sub': str(variables.get(f'{key}.project', ''))[:30]})
             continue
         reported = str(variables.get(key, ''))

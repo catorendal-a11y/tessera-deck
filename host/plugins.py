@@ -222,12 +222,17 @@ class PluginManager:
                 else:
                     self._crashed(plugin_id, current)
             state = self.history.setdefault(plugin_id, _blank())
+            if state['state'] == 'failed' and state.get('settings') != entry.get('settings', {}):
+                # bad settings (a port that is not a number) are the usual reason to give up: fixed ones get a fresh start
+                state = self.history[plugin_id] = _blank()
             if state['state'] == 'failed' or self._clock() < state['next'] or plugin_id in self.running:
                 continue
             self._start(manifest, entry.get('settings', {}))
 
     def _start(self, manifest: Manifest, settings: dict) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        # remembered through crashes, so sync() can tell when the user changed the settings of a plugin that gave up
+        self.history.setdefault(manifest.id, _blank())['settings'] = settings
         token = self._grant(manifest.id, manifest.routes(), f'{manifest.id}.', 'events' in manifest.permissions,
                             'read' in manifest.permissions)
         environment = {key: os.environ[key] for key in ENV_KEEP if key in os.environ}

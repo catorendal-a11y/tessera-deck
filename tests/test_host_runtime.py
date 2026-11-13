@@ -290,6 +290,12 @@ class HostRuntimeTests(HostCase):
             self.assertRegex(result['id'], r'^im:[0-9a-f]{12}$')
             self.assertEqual((result['width'], result['height'], result['frames']), (72, 72, 1))
             self.assertTrue(Assets(profile).read(result['id']).startswith(b'ADI1'))
+            # Importing the same picture again (editor and daemon both do) leaves the files alone: the daemon
+            # may be sending them, and an in-place rewrite could hand it a half-written image.
+            with patch('deck_assets.write_atomic') as write:
+                self.assertEqual(Assets(profile).import_image(base64.b64encode(output.getvalue()).decode())['id'], result['id'])
+            write.assert_not_called()
+            self.assertEqual(sorted(file.suffix for file in (Path(directory) / 'assets').iterdir()), ['.adimg', '.png'])
 
     def test_invalid_image_has_a_clean_validation_error(self):
         import base64
@@ -564,20 +570,42 @@ class HostRuntimeTests(HostCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'profiles.json'
             config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
-            config['triggers'] = [{'when': {'type': 'daily', 'at': '00:00'}, 'actions': [{'type': 'back'}]}]
+            config['triggers'] = [{'when': {'type': 'daily', 'at': '09:00'}, 'actions': [{'type': 'back'}]}]
             path.write_text(json.dumps(config), encoding='utf-8')
-            daemon = test_daemon(path)
-            daemon.log = Mock()
-            daemon.trigger_tick(1)
-            self.assertEqual(daemon.jobs.get_nowait()[0], 'actions')
-            config['display'] = {'brightness': 50}  # an unrelated change
-            path.write_text(json.dumps(config), encoding='utf-8')
-            daemon.profile_stamp = 0
-            daemon.reload_profiles()
-            while not daemon.jobs.empty():
-                daemon.jobs.get_nowait()
-            daemon.trigger_tick(2)
-            self.assertTrue(daemon.jobs.empty(), 'the trigger already ran today')
+            clock, day = ['08:59'], ['2026-11-13']
+            fake_time = types.SimpleNamespace(time=time.time,  # only the trigger code sees this clock
+                                        strftime=lambda pattern: day[0] if pattern == '%Y-%m-%d' else clock[0])
+            with patch('daemon_ticks.time', fake_time):
+                daemon = test_daemon(path)
+                daemon.log = Mock()
+                daemon.trigger_tick(1)
+                self.assertTrue(daemon.jobs.empty(), 'not yet')
+                clock[0] = '09:00'
+                daemon.trigger_tick(2)
+                self.assertEqual(daemon.jobs.get_nowait()[0], 'actions')
+                config['display'] = {'brightness': 50}  # an unrelated change
+                path.write_text(json.dumps(config), encoding='utf-8')
+                daemon.profile_stamp = 0
+                daemon.reload_profiles()
+                while not daemon.jobs.empty():
+                    daemon.jobs.get_nowait()
+                daemon.trigger_tick(3)
+                self.assertTrue(daemon.jobs.empty(), 'the trigger already ran today')
+                clock[0] = '10:00'
+                restarted = test_daemon(path)
+                restarted.log = Mock()
+                restarted.trigger_tick(4)
+                restarted.trigger_tick(5)
+                self.assertTrue(restarted.jobs.empty(), 'a host started after 09:00 does not run it again')
+                day[0] = '2026-11-14'  # the PC was off at 09:00 and starts at 10:00
+                late = test_daemon(path)
+                late.log = Mock()
+                late.trigger_tick(6)
+                self.assertEqual(late.jobs.get_nowait()[0], 'actions', 'a missed daily run happens once')
+                again = test_daemon(path)
+                again.log = Mock()
+                again.trigger_tick(7)
+                self.assertTrue(again.jobs.empty(), 'and not again on the next restart')
 
     def test_a_slow_trigger_runs_beside_the_key_queue_and_never_twice_at_once(self):
         daemon = self.daemon()

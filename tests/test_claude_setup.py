@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import adapters
@@ -61,6 +62,16 @@ class SetupTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.update(True, True)
         self.assertEqual(self.file.read_text(encoding='utf-8'), '{broken')
+
+    def test_two_changes_in_the_same_second_keep_the_original_in_a_backup(self):
+        original = {'model': 'opus'}
+        self.write(original)
+        with patch.object(claude_setup.time, 'strftime', return_value='20260101-120000'):
+            self.update(True, False)
+            self.update(True, True)
+        backups = sorted((self.home / '.claude').glob('settings.tessera-backup-*.json'))
+        self.assertEqual(len(backups), 2)
+        self.assertIn(original, [json.loads(item.read_text(encoding='utf-8')) for item in backups])
 
     def test_a_missing_file_is_created_and_the_events_cover_what_the_adapter_reads(self):
         self.assertEqual(claude_setup.state(self.home), {'events': False, 'permission': False})

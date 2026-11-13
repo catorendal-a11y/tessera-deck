@@ -97,7 +97,7 @@ function wrapSection(panel,from,to,title,open,cls='') {
   panel.insertBefore(section,nodes[0]);section.append(text('summary',title),element('div',{class:'section-body'},...nodes));
 }
 function renderInspector() {
-  const controls='input,select,textarea,button,summary';
+  syncEditList();const controls='input,select,textarea,button,summary';
   recording=null;const panel=$('#inspector'),base=current(),b=appearance(),focusAt=[...panel.querySelectorAll(controls)].indexOf(document.activeElement);panel.replaceChildren();
   panel.append(element('div',{class:'inspector-title'},element('div',{},text('div',`KEY ${String(selected).padStart(2,'0')}`,'section-label'),b?null:text('h2','An empty slot'))));
   const firstField=panel.children.length;
@@ -290,7 +290,7 @@ function renderTimerStep(step,action,index) {
     text('p',`Show the time in a key name with $(timer:${action.name||'name'}) or as a ring on a wide key (Shows). The timer keeps running while Tessera is closed.`,'hint'));
 }
 function copyButton() {if(!current())return;clipboard=clone(current());toast('The key was copied. Choose a slot and press Ctrl+V.');}
-function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&!spanFits(selected,copy.span,[old])){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
+function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};if((copy.span||1)>1&&(!spanFits(selected,copy.span,[old])||(old&&isPinned(old)&&!freeOnAllPages(selected,copy.span,[old])))){delete copy.span;delete copy.live;toast('The wide key did not fit here and was pasted as a normal key.');}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});}
 function dialog(title,fields,onSave,saveLabel='Save') {
   const d=$('#form-dialog');dialogReturnFocus=document.activeElement;$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
   $('#dialog-fields').replaceChildren(...fields.map(f=>{const label=element('label',{class:'form-field'},text('span',f.label));const input=f.options?element('select',{name:f.name}):element(f.multiline?'textarea':'input',{name:f.name,type:f.type||'text',required:f.required?'required':undefined,placeholder:f.placeholder});if(f.options)options(input,f.options,f.value||f.options[0][0]);else if(f.type==='checkbox')input.checked=!!f.value;else input.value=f.value||'';label.append(input);if(f.note)label.append(text('small',f.note,'hint'));return label;}));
@@ -371,7 +371,9 @@ function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',
     if(values.remove){delete pages[old];page=Object.keys(pages)[0];}
     else {config.profiles[profile].pages=Object.fromEntries(Object.entries(pages).map(([key,value])=>[key===old?name:key,value]));page=name;}
     const update=a=>['page','folder'].includes(a.type)&&a.page===old?(values.remove?null:{...a,page:name}):a;
-    rewriteActions(profileButtons(config.profiles[profile]),update);rewriteActions(railSteps(),update);
+    rewriteActions(profileButtons(config.profiles[profile]),update);
+    // Rail steps are shared by all profiles: leave them alone while another profile still has a page with this name.
+    if(!Object.entries(config.profiles).some(([name,p])=>name!==profile&&p.pages?.[old]))rewriteActions(railSteps(),update);
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:values.remove?[]:[{...s,page:name}]);
     if(config.default_profile===profile)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
   });renderAll();
@@ -388,13 +390,21 @@ async function importConfig(file) {
     const more=findings.length>8?`\n… and ${findings.length-8} more`:'';
     if(!confirm(`This file contains ${findings.length} action(s) that run programs, run commands or use the network:\n\n${listed}${more}\n\nOnly keep them if you trust the source.\nOK = import with these actions. Cancel = choose again.`)){
       if(!confirm('Import without those actions? Commands, web requests, program launches and automatic rules are removed.'))return;
-      const safe=await api('command/sanitize',{config:bundle});data.profiles=safe.config.profiles;data.triggers=safe.config.triggers;
+      // Take every section the host cleaned, the rail shortcuts in panel too, not only profiles and rules.
+      const safe=await api('command/sanitize',{config:bundle});Object.assign(data,safe.config);
+      // A rail shortcut left without steps is refused on save, so it goes, like its commands did.
+      if(data.panel?.shortcuts)data.panel.shortcuts=data.panel.shortcuts.filter(s=>s?.type!=='actions'||s.actions?.length);
+      // Plugins run code: the file may not switch them on or set them up, so the ones set up here stay as they are.
+      if(config.plugins)data.plugins=clone(config.plugins);else delete data.plugins;
     }
   }
   if(data.assets){const replacements={};for(const [id,image] of Object.entries(data.assets)){const result=await api('image',{data:image});replacements[id]=result.id;}const visit=value=>{if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')for(const [key,item] of Object.entries(value)){if(key==='icon'&&replacements[item])value[key]=replacements[item];else visit(item);}};delete data.assets;visit(data);}
-  const previous=clone(config);remember();config=data;
-  try {ensureSelection();const error=draftError();if(error)throw new Error(error);version++;dirty=true;await save();renderAll();toast('The configuration was imported.');}
-  catch(error){config=previous;history.pop();renderAll();throw error;}
+  const previous=clone(config),wasDirty=dirty;remember();const mark=history.length-1;config=data;let importVersion=-1;
+  try {ensureSelection();const error=draftError();if(error)throw new Error(error);importVersion=++version;dirty=true;await save();renderAll();toast('The configuration was imported.');}
+  catch(error){
+    // Undo the import only when nothing was edited while the save ran; edits made on top of it stay, with their undo steps.
+    if(importVersion<0||version===importVersion){config=previous;history.length=Math.min(mark,history.length);dirty=wasDirty;if(!dirty&&!conflicted)setSaveState('✓ Saved on the PC');}
+    renderAll();throw error;}
 }
 async function command(name,data={}) {const result=await api('command/'+name,data);if(result.message)toast(result.message);await pollStatus();}
 function titleCase(value) { return String(value).replace(/(^|[ _\/-])([a-z])/g, (m, p, c) => p + c.toUpperCase()); }
@@ -510,7 +520,7 @@ window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();
 async function start() {
   const token=location.hash.slice(1);
   if(token){const response=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json','X-Deck-Token':token},body:'{}'});if(!response.ok)throw new Error('Open the program with Tessera.cmd.');window.history.replaceState(null,'',location.pathname);}
-  const state=await api('config');config=state.config;revision=state.revision;profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
+  const state=await api('config');config=state.config;revision=state.revision;if(state.error)setTimeout(()=>{setSaveState('Not saved · '+state.error,'Your configuration file could not be read; open More → Restore a backup …');toast(state.error);},0);profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
   try{const [,catalog]=await Promise.all([loadIconPack(),api('action-packs')]);actionCatalog=catalog;}catch(error){toast('The add-on packs could not be loaded. '+error.message);}
   renderAll();renderLibrary();setSaveState('✓ Configuration ready');await pollStatus();
   $('#profile').onchange=()=>{profile=$('#profile').value;page=Object.keys(config.profiles[profile].pages)[0];selected=1;editState=0;renderAll();syncPanel();};

@@ -1,5 +1,6 @@
 #include "deck_images.h"
 #include <map>
+#include <set>
 #include <mutex>
 #include <cstring>
 #include <cstdio>
@@ -22,29 +23,35 @@ bool id_ok(const char* id) {
     for(int i=3;i<15;++i)if(hex(id[i])<0)return false;
     return true;
 }
-constexpr size_t CacheLimit=8*1024*1024;  // decoded RGBA bytes held for all images, replaced entries included
-std::map<std::string,uint32_t> last_used;
+constexpr size_t CacheLimit=8*1024*1024;  // decoded RGBA bytes kept between pages; PANEL_CACHE_BYTES in host/panel_serial.py
+// The host uploads a page's images before its layout and trims its own record only afterwards, so an upload may
+// pass CacheLimit by one page of images (18 keys of 72x72x12 frames); beyond that an upload is refused.
+constexpr size_t UploadLimit=CacheLimit+18*72*72*4*12;
+std::map<std::string,uint32_t> last_used;  // insertion order, renewed when a layout uses the image (as on the host)
 uint32_t use_tick=0;
+uint32_t generation=0;  // bumped per insert: a full cache swaps one image for another without changing the count
 size_t image_bytes(const DeckImage& image) {size_t bytes=0;for(auto& f:image.frames)bytes+=f.size();return bytes;}
 size_t cache_bytes() {size_t bytes=0;for(auto& pair:images)bytes+=image_bytes(*pair.second);return bytes;}
-// Caller holds `lock`. Makes room for `image` by evicting the least recently used assets that no tile shows
-// (LVGL keeps shared ownership of the ones in use); refuses the image when it still would not fit.
+// Caller holds `lock`. Drops the oldest image that `keep` does not name and, when `idle_only`, no tile shows.
+bool evict_oldest(const std::set<std::string>& keep,bool idle_only,const std::string& spare) {
+    auto victim=images.end();
+    for(auto it=images.begin();it!=images.end();++it) {
+        if(it->first==spare||keep.count(it->first)||(idle_only&&it->second.use_count()!=1))continue;
+        if(victim==images.end()||last_used[it->first]<last_used[victim->first])victim=it;
+    }
+    if(victim==images.end())return false;
+    last_used.erase(victim->first);images.erase(victim);
+    return true;
+}
+// Caller holds `lock`. Normal eviction waits for the layout (deck_image_keep), which is when the host forgets
+// images too; here only an upload past UploadLimit evicts, the least recently used that no tile shows.
 bool admit(const std::string& id,const std::shared_ptr<const DeckImage>& image) {
     const size_t incoming=image_bytes(*image);
     if(incoming>CacheLimit)return false;
-    size_t bytes=cache_bytes();
     auto same=images.find(id);
-    if(same!=images.end())bytes-=image_bytes(*same->second);  // a replacement frees its predecessor
-    while(bytes+incoming>CacheLimit) {
-        auto victim=images.end();
-        for(auto it=images.begin();it!=images.end();++it) {
-            if(it==same||it->second.use_count()!=1)continue;
-            if(victim==images.end()||last_used[it->first]<last_used[victim->first])victim=it;
-        }
-        if(victim==images.end())return false;
-        bytes-=image_bytes(*victim->second);last_used.erase(victim->first);images.erase(victim);
-    }
-    images[id]=image;last_used[id]=++use_tick;
+    const size_t replaced=same==images.end()?0:image_bytes(*same->second);  // a replacement frees its predecessor
+    while(cache_bytes()-replaced+incoming>UploadLimit)if(!evict_oldest({},true,id))return false;
+    images[id]=image;last_used[id]=++use_tick;++generation;
     return true;
 }
 std::shared_ptr<DeckImage> decode() {
@@ -75,14 +82,22 @@ std::shared_ptr<DeckImage> decode() {
 std::shared_ptr<const DeckImage> deck_image_get(const char* id) {
     std::lock_guard<std::mutex> guard(lock);
     auto it=images.find(id);
-    if(it==images.end())return nullptr;
-    last_used[id]=++use_tick;
-    return it->second;
+    return it==images.end()?nullptr:it->second;
 }
 void deck_image_cache_stats(size_t* bytes,size_t* count) {
     std::lock_guard<std::mutex> guard(lock);
     if(bytes)*bytes=cache_bytes();
     if(count)*count=images.size();
+}
+void deck_image_keep(const std::vector<std::string>& ids) {
+    std::lock_guard<std::mutex> guard(lock);
+    std::set<std::string> keep;for(auto& id:ids)if(!id.compare(0,3,"im:"))keep.insert(id);
+    for(auto& id:keep)if(images.count(id))last_used[id]=++use_tick;  // sorted, as push_assets moves them to the end
+    while(cache_bytes()>CacheLimit&&evict_oldest(keep,false,"")){}
+}
+uint32_t deck_image_generation() {
+    std::lock_guard<std::mutex> guard(lock);
+    return generation;
 }
 bool deck_image_command(const char* line,std::string& response) {
     if(!strncmp(line,"AD_IMG_BEGIN ",13)) {

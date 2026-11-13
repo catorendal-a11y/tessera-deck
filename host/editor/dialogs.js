@@ -38,6 +38,9 @@ mountBrand();
 let firmwareTimer = null;
 async function openFirmware() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
+  // "Install anyway" is for the one attempt after a panel that did not answer; never carry it over.
+  $('#firmware-force').checked = false;
+  $('.firmware-force').hidden = true;
   $('#firmware-dialog').showModal();
   try { await refreshFirmware(); } catch (error) { showError(error); }
 }
@@ -58,7 +61,10 @@ async function refreshFirmware() {
 async function installFirmware() {
   const path = $('#firmware-package').value;
   if (!path || !confirm('Write the firmware now? Do not unplug the panel until it has finished.')) return;
-  try { await api('command/firmware-install', {package: path, mode: $('#firmware-mode').value, force: $('#firmware-force').checked}); }
+  const force = $('#firmware-force').checked;
+  $('#firmware-force').checked = false;
+  $('.firmware-force').hidden = true;
+  try { await api('command/firmware-install', {package: path, mode: $('#firmware-mode').value, force}); }
   catch (error) { showError(error); return; }
   pollFirmware();
 }
@@ -137,7 +143,8 @@ function ambientSettings() {
     const city = values.city.trim(), keep = weather && weather.name === city;
     mutate(() => {
       config.ambient = {enabled: values.enabled, after: Number(values.after)};
-      if (keep) config.ambient.weather = {...weather, unit: values.unit};
+      // A new city keeps the old weather until the lookup succeeds (choose() replaces it); only an empty city drops it.
+      if (city && weather) config.ambient.weather = {...weather, unit: values.unit};
     });
     if (city && !keep) lookupCity(city, values.unit).catch(showError);
   }, 'Apply');
@@ -210,21 +217,25 @@ function openCropper(bitmap) {
 }
 
 /* Online icons (Iconify): searched and fetched by the host only when the user asks. */
+let iconifyRun = 0;  // a newer search stops the older one's workers from adding icons
 async function iconifySearch() {
+  const run = ++iconifyRun;
   const query = $('#iconify-query').value.trim(), box = $('#iconify-results');
   $('#iconify-note').hidden = false;
   box.hidden = false;
   box.replaceChildren(text('p', 'Searching …', 'hint'));
   const {icons} = await api('command/iconify-search', {query});
+  if (run !== iconifyRun) return;
   box.replaceChildren();
   if (!icons.length) { box.append(text('p', 'Nothing found online.', 'hint')); return; }
   const queue = [...icons];
   const load = async () => {
-    while (queue.length) {
+    while (queue.length && run === iconifyRun) {
       const id = queue.shift(), item = button('', () => useOnlineIcon(id).catch(showError), 'icon-choice online', id);
       box.append(item);
       try {
         const {svg} = await api('command/iconify-svg', {id, color: '#FFFFFF'});
+        if (run !== iconifyRun) return;
         item.replaceChildren(element('img', {src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`, alt: id, width: '36', height: '36'}));
       } catch { item.textContent = '?'; }
     }
@@ -232,6 +243,8 @@ async function iconifySearch() {
   await Promise.all([load(), load(), load(), load()]);
 }
 async function useOnlineIcon(id) {
+  // A rail shortcut takes only library icons (lc:…): the panel draws them from its font, and the host refuses an image there.
+  if (iconPick) return toast('A rail shortcut can only use an icon from the library above.');
   const {svg} = await api('command/iconify-svg', {id, color: (appearance()?.color || '#FFFFFF').toUpperCase()});
   const image = new Image();
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -420,7 +433,7 @@ async function claudeSettings() {
     {name: 'permission', label: 'Answer Claude’s permission questions on the panel', type: 'checkbox', value: now.permission, note: 'Allow and Deny on the agents screen decide. If the panel is not connected or nobody answers within 25 seconds, Claude shows its normal question. Restart Claude Code after changing this.'}
   ], values => {
     api('command/claude-hooks', {events: Boolean(values.events), permission: Boolean(values.permission)})
-      .then(() => toast('Saved. Restart Claude Code for the change to take effect.')).catch(showError);
+      .then(() => { toast('Saved. Restart Claude Code for the change to take effect.'); loadHooks(); }).catch(showError);
   }, 'Apply');
 }
 $('#claude-open').onclick = () => claudeSettings().catch(showError);
@@ -519,7 +532,7 @@ function setEditorView(id) {
   renderScreen();
 }
 async function loadHooks() {
-  try { hooksState = await api('command/claude-hooks', {}); } catch (error) { hooksState = null; }
+  try { hooksState = await api('command/claude-hooks', {}); } catch (error) { hooksState = {error: true}; }
   if (editorView === 'agents') renderScreen();
 }
 const AGENT_STATE_TEXT = {working: 'Working', waiting: 'Waiting for you', idle: 'Idle'};
@@ -541,7 +554,7 @@ function renderScreen() {
     });
     const connected = hooksState && hooksState.events;
     const claude = element('div', {class: 'screen-card'},
-      element('div', {}, text('strong', 'Claude Code connection'), text('small', hooksState === null ? 'Checking …' : connected ? 'Connected: the panel shows “waiting for you”' + (hooksState.permission ? ' and Allow / Deny answer permission questions.' : '.') : 'Not connected: the panel only sees working and idle.')),
+      element('div', {}, text('strong', 'Claude Code connection'), text('small', hooksState === null ? 'Checking …' : hooksState.error ? 'Could not check' : connected ? 'Connected: the panel shows “waiting for you”' + (hooksState.permission ? ' and Allow / Deny answer permission questions.' : '.') : 'Not connected: the panel only sees working and idle.')),
       button(connected ? 'Change …' : 'Connect …', () => claudeSettings().catch(showError), 'outline'));
     body = [...head('Agents', 'What the panel’s agents screen shows. Working and idle come from the tools’ own session files.'), ...lanes, claude];
   } else if (editorView === 'mixer') {

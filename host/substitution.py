@@ -5,7 +5,9 @@ import os
 import re
 import urllib.parse
 
-SHELL_UNSAFE = re.compile(r'[&|<>^"%;`$\r\n\\]')  # metacharacters of cmd.exe and POSIX shells
+# Only letters, digits and a few plain marks may go into a shell command: cmd.exe, POSIX shells and PowerShell
+# (quotes, ( ) { } @ + and its typographic quotes) each have their own metacharacters, so list what is safe instead.
+SHELL_UNSAFE = re.compile(r'[^\w .,:/-]')
 ENV_REFERENCE = re.compile(r'[$][(]env:([A-Za-z_][A-Za-z0-9_]{0,63})[)]')
 TOKEN = re.compile(r'[$][(]([^()]+)[)]')
 UNSET_VARIABLE =re.compile(r'[$][(]var:[A-Za-z0-9_.-]+[)]')

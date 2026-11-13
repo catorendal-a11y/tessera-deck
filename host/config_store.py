@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import re
 import shutil
+import tempfile
 import time
 from pathlib import Path
 from typing import Callable
@@ -17,6 +19,25 @@ BACKUP_NAME = re.compile(r'profiles-\d{8}-\d{6}(?:-\d+)?\.json')
 
 class FutureConfig(ValueError):
     """The file was written by a newer Tessera than this one."""
+
+
+def write_atomic(path: Path, data: bytes) -> None:
+    """Replace `path` with `data` in one step: readers see the old file or the new one, never a partial one.
+
+    The temporary name is unique, so two processes saving at once (editor, terminal editor, tray) cannot truncate
+    each other's file, and it is flushed to disk first, so a power cut cannot leave an empty file behind.
+    """
+    path = Path(path)
+    descriptor, temporary = tempfile.mkstemp(prefix=path.name + '.', suffix='.tmp', dir=path.parent)
+    try:
+        with os.fdopen(descriptor, 'wb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    except BaseException:
+        Path(temporary).unlink(missing_ok=True)
+        raise
 
 
 def version_of(config: dict) -> int:
@@ -55,6 +76,19 @@ def backups_dir(path: Path) -> Path:
     return Path(path).with_name('backups')
 
 
+def _backup_files(folder: Path) -> list[Path]:
+    """Tessera's own backups, oldest first. Name order would put 'x-1.json' before 'x.json' and '-10' before '-2',
+    and would count a 'profiles-old.json' the user dropped there, so the time each was written decides."""
+    files = []
+    for file in Path(folder).glob('profiles-*.json'):
+        if BACKUP_NAME.fullmatch(file.name):
+            try:
+                files.append((file.stat().st_mtime, file.name, file))
+            except OSError:
+                continue
+    return [file for _, _, file in sorted(files)]
+
+
 def backup(path: Path, force: bool = False, keep: int = BACKUP_KEEP, interval: int = BACKUP_INTERVAL_SECONDS,
            now: Callable[[], float] = time.time) -> Path | None:
     """Copy the current file into backups/ unless a recent copy exists (or `force`); prune old copies."""
@@ -63,7 +97,7 @@ def backup(path: Path, force: bool = False, keep: int = BACKUP_KEEP, interval: i
         return None
     folder = backups_dir(path)
     folder.mkdir(parents=True, exist_ok=True)
-    existing = sorted(folder.glob('profiles-*.json'))
+    existing = _backup_files(folder)
     current = path.read_bytes()
     if existing and not force:
         newest = existing[-1]
@@ -76,17 +110,18 @@ def backup(path: Path, force: bool = False, keep: int = BACKUP_KEEP, interval: i
         target = folder / f'profiles-{stamp}-{counter}.json'
         counter += 1
     shutil.copyfile(path, target)
-    for old in sorted(folder.glob('profiles-*.json'))[:-keep]:
-        old.unlink(missing_ok=True)
+    moment = now()
+    os.utime(target, (moment, moment))  # the order of backups is this time, so it matches the name's stamp
+    for old in _backup_files(folder)[:-keep]:
+        if old != target:  # never the copy just made, even if the clock went back
+            old.unlink(missing_ok=True)
     return target
 
 
 def list_backups(path: Path) -> list[dict]:
     """Backups, newest first, with what is inside so the user can recognise the right one."""
     found = []
-    for file in sorted(backups_dir(path).glob('profiles-*.json'), reverse=True):
-        if not BACKUP_NAME.fullmatch(file.name):
-            continue
+    for file in reversed(_backup_files(backups_dir(path))):
         try:
             data = json.loads(file.read_text(encoding='utf-8'))
             profiles = data['profiles']

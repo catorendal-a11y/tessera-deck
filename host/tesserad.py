@@ -118,7 +118,6 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.panel_factory = panel_factory
         self.panel = None
         self.connection_failed = threading.Event()
-        self.state_set_by_action = set()
         self.folder_stack = []
         self.button_states = {}
         self.profile_stamp = Path(args.profiles).stat().st_mtime_ns
@@ -135,10 +134,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.plugins_checked = 0.0
         self.live = LiveState(Path(args.profiles).with_name('state.local.json'))
         self.cockpit_sent, self.cockpit_at = {}, 0.0
+        # show_question (worker) and cockpit_tick (main loop) both send AD_AGENTS: one at a time, built from the
+        # question open right then, so a closed question never comes back and a new one never vanishes
+        self.agents_line_lock = threading.Lock()
         self.cockpit_mixer = []
         self.rail_items = []
         self.activity = agent_activity.AgentActivity()
         self.agent_seen, self.agent_started = {}, {}  # what each agent was doing a second ago, and since when
+        self.agent_idle_since = {}  # agent -> (when it went idle, seconds that idle must last to count as finished)
         self.permissions = permission.Desk(lambda: self.enqueue(('question',)))
         self.notices = collections.deque(maxlen=5)
         self.stats_scan_at = 0.0
@@ -166,6 +169,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         if not hasattr(self.local, 'active_press'):
             self.local.active_press = []
         return self.local.active_press
+
+    @property
+    def state_set_by_action(self):
+        """Toggle keys this thread's press set with a 'state' action. Per thread, so a slow key's own set
+        survives the worker running other presses while the slow key waits on a shell or delay."""
+        if not hasattr(self.local, 'state_set_by_action'):
+            self.local.state_set_by_action = set()
+        return self.local.state_set_by_action
 
     def log(self, message):
         print(f'[{time.strftime("%H:%M:%S")}] {message}', flush=True)
@@ -370,7 +381,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.page = resume[1]
                 self.folder_stack.extend(name for name in resume[2] if name in pages)
             self.events.add('profile', profile=profile, page=self.page)
-            self.push_page()
+            self.push_page(force=True)  # an identical-looking page must still send the new profile name and path
         if not auto:
             self.auto_profile = None
             self.manual_focus_exe = self.foreground.get('exe', '')
@@ -389,15 +400,15 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
     def run_action(self, action):
         kind = action['type']
         if kind == 'hotkey':
-            with self.input_lock:
+            with self.input_turn():
                 send_hotkey(action['keys'])
         elif kind == 'text':
             text, pause = self.substitute(action['text']), action.get('delay_ms', 0) / 1000
             if pause:  # typing slowly can take minutes: let other keys, the API and the main loop run meanwhile
                 with self.state_lock.suspended(), self.input_lock:
-                    send_text(text, pause)
+                    send_text(text, pause, self.stop.wait)  # a stopping host ends the typing
             else:
-                with self.input_lock:
+                with self.input_turn():
                     send_text(text)
         elif kind == 'open':
             target = self.substitute(action['target'])
@@ -450,7 +461,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'state':
             self.set_button_state(action['button'], action.get('state', 'next'))
         elif kind == 'mouse':
-            with self.input_lock:
+            with self.input_turn():
                 send_mouse(action['op'], action.get('x', 0), action.get('y', 0), action.get('amount', 0))
         elif kind == 'plugin':
             self.events.add('command', plugin=action['plugin'], command=action['command'], args=action.get('args', {}))
@@ -502,9 +513,18 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.jobs.put_nowait(job)
 
     def schedule_job(self, job, delay):
-        timer = threading.Timer(delay, self.enqueue, args=(job,))
+        timer = threading.Timer(delay, self.enqueue_later, args=(job,))
         timer.daemon = True
         timer.start()
+
+    def enqueue_later(self, job):
+        """A timer's job. A dropped 'single-due' forgets its waiting tap, or a tap minutes later would count as
+        the second of a double tap. The single tap itself is dropped, like any press a full queue cannot take."""
+        if not self.enqueue(job) and job[0] == 'single-due':
+            _, identity, token = job
+            with self.state_lock:
+                if (self.pending_single.get(identity) or (None,))[0] == token:
+                    del self.pending_single[identity]
 
     def enqueue(self, job):
         """Queue a job from inside the host; a full queue is logged and counted. Returns whether it was queued."""
@@ -586,8 +606,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if len(job) > 4 and time.monotonic() - job[4] > STALE_PRESS_SECONDS:
                 self.dropped_jobs += 1
                 self.log(f'Dropped a stale key press for button {job[1]}')
-                if self.panel is not None:
-                    self.panel.feedback(job[1], False)
+                self.give_feedback(job[1], False)
                 return
             self.last_activity = time.monotonic()
             current = next((b for b in self.current_buttons() if b['id'] == job[1]), None)
@@ -597,16 +616,15 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if current and shown:
                 hold = len(job) > 3 and job[3]
                 if not hold and any(b['id'] == job[1] and b.get('double_actions') for b in self.effective_buttons()):
-                    self.tap_with_double(job[1])
+                    self.tap_with_double(job[1], job[4] if len(job) > 4 else None)
                 else:
                     self.start_press(job[1], hold=hold)
             else:  # the panel showed another key there (a page change crossed the press)
                 self.log(f'Ignored a press on button {job[1]}: the panel showed a different key')
-                if self.panel is not None:
-                    self.panel.feedback(job[1], False)
+                self.give_feedback(job[1], False)
         elif kind == 'single-due':
             _, identity, token = job
-            if self.pending_single.get(identity) == token:
+            if (self.pending_single.get(identity) or (None,))[0] == token:
                 del self.pending_single[identity]
                 if identity[:2] == (self.profile, self.page):
                     self.start_press(identity[2])

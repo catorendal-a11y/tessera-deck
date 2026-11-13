@@ -31,6 +31,7 @@ INTERVAL = max(2.0, float(SETTINGS.get('interval') or 10))
 ENTITY = re.compile(r'[a-z_]+\.[a-z0-9_]+')
 SERVICE = re.compile(r'[a-z_]+\.[a-z0-9_]+')
 MAX_FAILURES = 5
+MAX_VARS_PER_CALL = 20  # /v1/vars refuses more in one request
 
 
 def tessera(method, path, data=None, timeout=35):
@@ -39,6 +40,13 @@ def tessera(method, path, data=None, timeout=35):
                                      headers={'X-Deck-Token': TOKEN, 'Content-Type': 'application/json'})
     with urllib.request.urlopen(request, timeout=timeout) as reply:
         return json.loads(reply.read())
+
+
+def set_vars(values):
+    """Post the variables in batches: 20 or more entities in one call were refused, and every update failed."""
+    items = list(values.items())
+    for start in range(0, len(items), MAX_VARS_PER_CALL):
+        tessera('POST', '/v1/vars', {'set': dict(items[start:start + MAX_VARS_PER_CALL])})
 
 
 def home(method, path, data=None):
@@ -97,7 +105,7 @@ def main():
                     values = dict(states(), **{f'{PLUGIN}.connected': 'yes'})
                 except (urllib.error.URLError, OSError, ValueError) as exc:
                     values = {f'{PLUGIN}.connected': reason(exc)}
-                tessera('POST', '/v1/vars', {'set': values})
+                set_vars(values)
                 next_update = time.monotonic() + INTERVAL
             reply = tessera('GET', f'/v1/events?since={since}&wait={min(INTERVAL, 20):g}')
             for event in reply['events']:

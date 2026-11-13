@@ -59,7 +59,15 @@ def _lines(text: str):
 
 def _property(line: str):
     """'DTSTART;TZID=Europe/Oslo:20261113T090000' -> ('DTSTART', {'TZID': 'Europe/Oslo'}, '20261113T090000')."""
-    head, _, value = line.partition(':')
+    # The value starts at the first ':' outside double quotes: Outlook writes TZID="(UTC+01:00) Amsterdam ...".
+    quoted, split = False, len(line)
+    for index, char in enumerate(line):
+        if char == '"':
+            quoted = not quoted
+        elif char == ':' and not quoted:
+            split = index
+            break
+    head, value = line[:split], line[split + 1:]
     name, *params = head.split(';')
     return name.upper(), dict(param.partition('=')[::2] for param in params), value
 
@@ -102,16 +110,21 @@ def _events(text: str) -> list[dict]:
             current = None
         elif current is None:
             continue
-        elif name in ('DTSTART', 'DTEND', 'RECURRENCE-ID'):
-            current[{'DTSTART': 'start', 'DTEND': 'end', 'RECURRENCE-ID': 'recurrence'}[name]] = _when(value, params)
-        elif name == 'DURATION':
-            current['duration'] = _duration(value)
+        elif name in ('DTSTART', 'DTEND', 'RECURRENCE-ID', 'DURATION', 'EXDATE'):
+            try:
+                if name == 'DURATION':
+                    current['duration'] = _duration(value)
+                elif name == 'EXDATE':
+                    current['exdates'].update(_when(item, params) for item in value.split(',') if item.strip())
+                else:
+                    key = {'DTSTART': 'start', 'DTEND': 'end', 'RECURRENCE-ID': 'recurrence'}[name]
+                    current[key] = _when(value, params)
+            except (ValueError, IndexError):  # one unreadable event is dropped, not the whole calendar
+                current = None
         elif name == 'SUMMARY':
             current['summary'] = value.replace('\\,', ',').replace('\\;', ';').replace('\\n', ' ').replace('\\\\', '\\').strip()
         elif name == 'RRULE':
             current['rrule'] = dict(part.partition('=')[::2] for part in value.split(';') if part)
-        elif name == 'EXDATE':
-            current['exdates'].update(_when(item, params) for item in value.split(',') if item.strip())
         elif name in ('UID', 'STATUS'):
             current[name.lower()] = value.strip()
     return events
@@ -174,11 +187,21 @@ def _starts(event: dict, until: datetime):
             elif frequency == 'MONTHLY':
                 year, month = _add_months(first, step * interval)
                 if by_day:
+                    # BYDAY=2TU is one day; a bare BYDAY=FR is every Friday, which BYSETPOS (-1: the last) narrows.
+                    # Sorted, because the early stop below assumes the dates come in order.
+                    month_days = set()
                     for item in by_day:
-                        nth = int(item[:-2] or 1)
-                        day = _nth_weekday(year, month, DAYS.index(item[-2:]), nth)
-                        if day:
-                            yield day
+                        weekday = DAYS.index(item[-2:])
+                        if item[:-2]:
+                            month_days.add(_nth_weekday(year, month, weekday, int(item[:-2])))
+                        else:
+                            month_days.update(_nth_weekday(year, month, weekday, nth) for nth in range(1, 6))
+                    month_days = sorted(day for day in month_days if day)
+                    positions = [int(value) for value in str(rule.get('BYSETPOS', '')).split(',') if value]
+                    if positions:
+                        month_days = sorted({month_days[pos - 1 if pos > 0 else pos] for pos in positions
+                                             if pos and -len(month_days) <= (pos - 1 if pos > 0 else pos) < len(month_days)})
+                    yield from month_days
                 else:
                     last = (date(year + month // 12, month % 12 + 1, 1) - timedelta(days=1)).day
                     wanted = (int(value) for value in str(rule.get('BYMONTHDAY', first.day)).split(',') if value)
@@ -325,5 +348,7 @@ class Feed:
                     self._text, self._error = text, ''
                 elif self._text is None:
                     self._error = error
-            self._next = self._clock() + (REFRESH_SECONDS if text is not None else RETRY_SECONDS)
+                self._next = self._clock() + (REFRESH_SECONDS if text is not None else RETRY_SECONDS)
+            else:  # the address changed while this ran: fetch the new one on the next call, not in 5 minutes
+                self._next = 0.0
             self._busy = False

@@ -90,6 +90,16 @@ class RefreshTests(unittest.TestCase):
             pdh.CollectQueryData.side_effect = OSError('gone')
             self.assertEqual(counters.sample(), {})
         self.assertIsNone(counters._query)
+        pdh.CloseQuery.assert_called_once_with('query')
+
+    def test_a_pc_without_the_counters_retries_only_after_the_refresh_interval(self):
+        counters = self.counters()
+        counters._reset.side_effect = OSError('no data')
+        counters._query = None
+        with patch.object(sensors, 'win32pdh', Mock()), patch.object(sensors.time, 'monotonic', return_value=100.0):
+            counters.sample()
+            counters.sample()
+        counters._reset.assert_called_once()
 
 
 if __name__ == '__main__':

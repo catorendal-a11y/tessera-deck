@@ -1,4 +1,5 @@
 """What the host does on its own every second: triggers, timers, plugins, sensors and reloading the configuration."""
+import json
 import re
 import os
 from pathlib import Path
@@ -11,6 +12,11 @@ import agent_activity
 import cockpit
 from win_input import IS_WINDOWS, focus_existing_process
 
+from config_store import write_atomic
+
+IDLE_SETTLE = 45  # seconds a file-guessed idle must last before an agent counts as finished
+DAILY_RUNS_FILE = 'triggers.local.json'  # the day each daily trigger last ran, kept across host restarts
+
 
 class BackgroundMixin:
     """Methods of the Daemon; they use its state."""
@@ -19,6 +25,24 @@ class BackgroundMixin:
         for trigger in self.config.get('triggers', []):
             if trigger['when'] == when:
                 self.enqueue(('actions', trigger.get('actions', [])))
+
+    def daily_runs(self):
+        """trigger key -> the day a daily trigger last ran (or was marked done), from triggers.local.json."""
+        if getattr(self, '_daily_runs', None) is None:
+            try:
+                data = json.loads(Path(self.args.profiles).with_name(DAILY_RUNS_FILE).read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                data = {}
+            self._daily_runs = {str(k): v for k, v in data.items() if isinstance(v, str)} if isinstance(data, dict) else {}
+        return self._daily_runs
+
+    def save_daily_run(self, key, day):
+        self.daily_runs()[key] = day
+        try:
+            write_atomic(Path(self.args.profiles).with_name(DAILY_RUNS_FILE),
+                         json.dumps(self._daily_runs, indent=1).encode('utf-8'))
+        except OSError as exc:
+            self.log(f'Could not remember the daily trigger run: {exc}')
 
     def trigger_tick(self, now):
         for index, trigger in enumerate(self.config.get('triggers', [])):
@@ -33,8 +57,24 @@ class BackgroundMixin:
                     value, fire = now, True
             elif kind == 'daily':
                 today = time.strftime('%Y-%m-%d')
-                if time.strftime('%H:%M') >= spec['at'] and before != today:
+                due = time.strftime('%H:%M') >= spec['at']
+                runs, key = self.daily_runs(), f'{index}:{spec["at"]}'
+                if before is None:
+                    # No state yet (the host just started, or the trigger is new). The day it last ran is kept in
+                    # a file, so a restart after its time does not run it again, but a PC that was off at its time
+                    # still runs it once. A trigger never run before and set after its time waits for tomorrow.
+                    # '' means "watching, not run today".
+                    last = runs.get(key)
+                    if last == today:
+                        value = today
+                    elif last is not None and due:
+                        value, fire = today, True
+                    else:
+                        value = today if due else ''
+                elif due and before != today:
                     value, fire = today, True
+                if value == today and runs.get(key) != today:
+                    self.save_daily_run(key, today)
             elif kind == 'file':
                 try:
                     value = os.stat(spec['path']).st_mtime_ns
@@ -115,14 +155,25 @@ class BackgroundMixin:
         view = self.agent_view()
         states = {key: str(view.get(key, '')) for key, _, _ in cockpit.AGENTS}
         names = {key: name for key, name, _ in cockpit.AGENTS}
+        # Without a hook, "working" only means the session file changed in the last 15 s, so a long test run or
+        # build looks idle. Such an idle must last IDLE_SETTLE seconds before it counts as finished; a hook's
+        # idle is reliable and counts at once.
+        idle_since = self.agent_idle_since
         for key, state in states.items():
             before = self.agent_seen.get(key)
             if state == 'working' and before != 'working':
-                self.agent_started[key] = now
+                if idle_since.pop(key, None) is None:  # a pause inside the same work keeps its start time
+                    self.agent_started[key] = now
+            elif state != 'working' and state != 'idle':
+                idle_since.pop(key, None)
             if before is not None and before != state:
                 if state == 'waiting':
                     self.notify(names[key], str(view.get(f'{key}.message') or 'Waiting for you'))
-                elif before == 'working' and state == 'idle' and now - self.agent_started.get(key, now) >= 60:
+                elif before == 'working' and state == 'idle':
+                    idle_since[key] = (now, 0 if str(self.custom_vars.get(key, '')) == 'idle' else IDLE_SETTLE)
+            if state == 'idle' and key in idle_since and now - idle_since[key][0] >= idle_since[key][1]:
+                ended = idle_since.pop(key)[0]
+                if ended - self.agent_started.get(key, ended) >= 60:
                     self.notify(names[key], 'Finished' + (f' in {view[f"{key}.project"]}' if view.get(f'{key}.project') else ''))
         self.agent_seen = states
 
@@ -179,13 +230,14 @@ class BackgroundMixin:
         """A permission prompt opened or closed: wake the panel, bring up the agents screen and redraw the lanes."""
         if not self.panel_takes_questions():
             return
-        asking = self.permissions.current()
-        if asking:
-            self.wake_display()
-            self.panel.send_line('AD_VIEW agents')
-        payload = cockpit.agents_payload(self.agent_view(), self.agents, asking, self.config.get('panel', {}).get('agents'))
-        self.panel.send_line(f'AD_AGENTS {payload}')
-        self.cockpit_sent['AD_AGENTS'] = payload
+        with self.agents_line_lock:
+            asking = self.permissions.current()
+            if asking:
+                self.wake_display()
+                self.panel.send_line('AD_VIEW agents')
+            payload = cockpit.agents_payload(self.agent_view(), self.agents, asking, self.config.get('panel', {}).get('agents'))
+            self.panel.send_line(f'AD_AGENTS {payload}')
+            self.cockpit_sent['AD_AGENTS'] = payload
 
     def cockpit_tick(self, now):
         """Keep the agents, mixer and status screens of a cockpit panel current: once a second, only what changed."""
@@ -196,8 +248,7 @@ class BackgroundMixin:
         choice = self.config.get('panel', {})
         version = tuple(int(part) for part in re.findall(r'\d+', str(self.device_info.get('firmwareVersion') or ''))[:3])
         self.rail_items = cockpit.rail_items(choice, self.config['profiles'], actions=version >= (0, 6, 3))
-        lines = {'AD_RAIL': cockpit.rail_payload(self.rail_items), 'AD_AGENTS': cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(),
-                                                     choice.get('agents')),
+        lines = {'AD_RAIL': cockpit.rail_payload(self.rail_items),
                  'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}
         try:
             self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True))
@@ -208,6 +259,11 @@ class BackgroundMixin:
             if self.cockpit_sent.get(command) != payload:
                 self.panel.send_line(f'{command} {payload}')
                 self.cockpit_sent[command] = payload
+        with self.agents_line_lock:  # read the question just before sending: show_question may have changed it
+            payload = cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(), choice.get('agents'))
+            if self.cockpit_sent.get('AD_AGENTS') != payload:
+                self.panel.send_line(f'AD_AGENTS {payload}')
+                self.cockpit_sent['AD_AGENTS'] = payload
 
     def stats_tick(self, now):
         if now < self.stats_scan_at:

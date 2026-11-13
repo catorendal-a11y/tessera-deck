@@ -130,6 +130,8 @@ class WindowsCounters:
         if not self.available:
             return {}
         try:
+            if self._query is None and self._expanded_at and time.monotonic() - self._expanded_at <= RE_EXPAND_SECONDS:
+                return {}  # the counters failed a moment ago (see below): try again only after the interval
             if self._query is None or time.monotonic() - self._expanded_at > RE_EXPAND_SECONDS:
                 self._reset()
                 return dict(self._last)
@@ -143,7 +145,15 @@ class WindowsCounters:
             self._last = self._summarize(values)
             return dict(self._last)
         except Exception:
+            # Close the half-built query (it would leak each poll) and wait RE_EXPAND_SECONDS before trying again:
+            # a PC without these counters (a VM, a remote session) would otherwise expand them every second.
+            if self._query is not None:
+                try:
+                    win32pdh.CloseQuery(self._query)
+                except Exception:
+                    pass
             self._query = None
+            self._expanded_at = time.monotonic()
             return {}
 
     def _summarize(self, values: dict[str, float]) -> dict[str, float]:

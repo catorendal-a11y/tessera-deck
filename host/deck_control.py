@@ -7,8 +7,20 @@ import sys
 import time
 import psutil
 
+from config_store import write_atomic
+
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LOG_BYTES = 5 * 1024 * 1024
+FIRMWARE_FLAG_PATH = ROOT / 'host/firmware-install.local.json'  # exists while the editor flashes the panel
+FIRMWARE_FLAG_SECONDS = 600  # a flash takes about a minute; a flag left by a crashed editor expires
+
+
+def firmware_installing(path=None):
+    """True while the editor installs panel firmware: a host started then takes the COM port from esptool."""
+    try:
+        return time.time() - Path(path or FIRMWARE_FLAG_PATH).stat().st_mtime < FIRMWARE_FLAG_SECONDS
+    except OSError:
+        return False
 
 
 def startup_script_path(appdata=None):
@@ -50,9 +62,8 @@ def save_profiles(config, path=None):
     validate_config(config)
     path = Path(path or ROOT / 'host/profiles.json')
     text = json.dumps(config, ensure_ascii=False, indent=2) + '\n'
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(text, encoding='utf-8')
-    os.replace(temporary, path)
+    # A unique, flushed temp file: the editor, terminal editor and tray can all save at once.
+    write_atomic(path, text.encode('utf-8'))
 
 
 class Controller:
@@ -130,6 +141,8 @@ class Controller:
         return result
 
     def start(self, root=None, emit=lambda _: None):
+        if firmware_installing():  # the tray, the terminal and the editor all start the host through here
+            raise RuntimeError('The panel firmware is being installed. The host starts again when it is done.')
         if self.processes():
             emit('The deck host is already running.')
             return

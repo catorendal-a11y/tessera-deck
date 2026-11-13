@@ -177,6 +177,57 @@ class EditorFirmwareTests(unittest.TestCase):
         self.controller.processes.return_value = [object()]
         self.editor = Editor(profiles, self.controller, dashboard=lambda: {
             'running': True, 'device': {'connected': True, 'firmware': '1.0.0', 'protocol': 2}})
+        self.flag = self.folder / 'firmware-install.local.json'
+        flag_patch = patch('tessera_app.FIRMWARE_FLAG_PATH', self.flag)  # never the real tray's flag
+        flag_patch.start()
+        self.addCleanup(flag_patch.stop)
+
+    def port_with(self, installed, espressif, answers):
+        import host_runtime
+
+        def identify(port):
+            answer = answers.get(port)
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+        with patch.object(host_runtime, '_installed_ports', return_value=installed),                 patch.object(host_runtime, '_espressif_ports', return_value=espressif),                 patch.object(Editor, 'identify_panel', staticmethod(identify)),                 patch.dict('os.environ', {'TESSERA_PORT': 'COM4'}):
+            return self.editor.firmware_port()
+
+    def test_the_install_port_is_the_one_that_answers_not_the_default(self):
+        installed = {'COM4': None, 'COM7': 'P4', 'COM9': 'P4B'}
+        self.assertEqual(self.port_with(installed, ['COM7', 'COM9'], {'COM4': None, 'COM9': {'boardId': 'x'}}), 'COM9')
+        self.assertEqual(self.port_with(installed, ['COM7'], {'COM4': fw.PackageError('other')}), 'COM7',
+                         'a lone silent Espressif port is the blank panel')
+        with self.assertRaises(fw.InstallError):  # the lone Espressif port answered as another device
+            self.port_with(installed, ['COM7'], {'COM7': fw.PackageError('other board')})
+        with self.assertRaises(fw.InstallError) as caught:
+            self.port_with(installed, ['COM7', 'COM9'], {})
+        self.assertIn('COM7', str(caught.exception))
+        with self.assertRaises(fw.InstallError):
+            self.port_with({'COM4': None}, [], {})  # a silent COM4 that is not an ESP32 is never flashed
+        with self.assertRaises(fw.InstallError) as caught:
+            self.port_with({}, [], {})
+        self.assertIn('No USB port', str(caught.exception))
+
+    def test_the_host_cannot_be_started_or_stopped_during_an_install(self):
+        release = __import__('threading').Event()
+        seen = []
+
+        def identify(port):
+            seen.append(self.flag.exists())
+            release.wait(5)
+            return {'firmwareVersion': '1.0.0'}
+        with patch.object(self.editor, 'firmware_port', return_value='COM4'),                 patch.object(Editor, 'identify_panel', staticmethod(identify)),                 patch.object(fw, 'run_esptool', lambda arguments, progress: (0, '')):
+            self.editor.command('firmware-install', {'package': str(self.package_path)})
+            for command in ('start', 'stop'):
+                with self.assertRaises(ValueError):
+                    self.editor.command(command, {})
+            release.set()
+            job = self.wait_for_job()
+        self.assertEqual(job['state'], 'done')
+        self.assertEqual(seen, [True], 'the tray sees the flag while flashing')
+        self.assertFalse(self.flag.exists())
+        self.controller.start.assert_called_once()  # only the install's own restart
 
     def wait_for_job(self):
         for _ in range(200):

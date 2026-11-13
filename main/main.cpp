@@ -83,14 +83,20 @@ static void layout_flush_if_due(void)
     const int64_t now = esp_timer_get_time();
     if (now - s_layout_saved_at < LAYOUT_SAVE_INTERVAL_US) return;
     s_layout_saved_at = now;
+    nvs_handle_t handle;
+    if (nvs_open(SETTINGS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) return;  /* tried again next interval */
     if (s_layout_pending.size() > LAYOUT_MAX) {
-        s_layout_version_saved = s_layout_version_seen;  /* retrying cannot help */
+        /* Drop the older, smaller layout too, or an offline boot would show it as the latest page. */
+        esp_err_t erased = nvs_erase_key(handle, LAYOUT_KEY);
+        if (erased == ESP_ERR_NVS_NOT_FOUND) erased = ESP_OK;
+        if (erased == ESP_OK) erased = nvs_commit(handle);
+        nvs_close(handle);
+        if (erased != ESP_OK) return;  /* tried again next interval */
+        s_layout_version_saved = s_layout_version_seen;  /* retrying the save cannot help */
         ESP_LOGW(TAG, "layout is %u bytes, over the %u that fit in flash: not kept for offline use",
                  static_cast<unsigned>(s_layout_pending.size()), static_cast<unsigned>(LAYOUT_MAX));
         return;
     }
-    nvs_handle_t handle;
-    if (nvs_open(SETTINGS_NAMESPACE, NVS_READWRITE, &handle) != ESP_OK) return;  /* tried again next interval */
     esp_err_t result = nvs_set_blob(handle, LAYOUT_KEY, s_layout_pending.c_str(), s_layout_pending.size() + 1);
     if (result == ESP_OK) result = nvs_commit(handle);
     nvs_close(handle);
@@ -291,6 +297,9 @@ static void usb_console_task(void *)
                     deck_model_replace_buttons(buttons, count)) {
                     ESP_LOGI(TAG, "deck reprogrammed over USB: %d buttons", count);
                     layout_remember(cfg_buf);
+                    std::vector<std::string> icons;
+                    for (int n = 0; n < count; ++n) icons.emplace_back(buttons[n].icon);
+                    deck_image_keep(icons);  /* trims the image cache as the host trims its record of it */
                     printf("AD_CFG_END OK %d\n", count);
                 } else {
                     printf("AD_CFG_END INVALID\n");

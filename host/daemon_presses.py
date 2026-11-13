@@ -1,4 +1,5 @@
 """Running a key press: the fast lane, the slow lane for actions that wait, and double taps."""
+import contextlib
 import json
 import threading
 import time
@@ -13,6 +14,30 @@ def action_list_name(hold, double=False):
 
 class PressMixin:
     """Methods of the Daemon; they use its state."""
+
+    def give_feedback(self, button_id, ok):
+        """Tell the panel how a press went. A dimmed panel stays dim: it only gets the flash, not a wake."""
+        panel = self.panel  # the main loop sets it to None on a reconnect without the state lock
+        if panel is not None:
+            if self.dimmed:
+                panel.feedback(button_id, ok, wake=False)
+            else:
+                panel.feedback(button_id, ok)
+
+    @contextlib.contextmanager
+    def input_turn(self):
+        """Hold input_lock. When slow typing holds it, wait with state_lock released.
+
+        Otherwise the worker would hold the state lock for minutes, and the main loop, reconnects,
+        slow keys and every queued press would wait behind it.
+        """
+        if not self.input_lock.acquire(blocking=False):
+            with self.state_lock.suspended():
+                self.input_lock.acquire()
+        try:
+            yield
+        finally:
+            self.input_lock.release()
 
     def is_slow(self, button_id, hold, double=False):
         button = next((b for b in self.effective_buttons() if b['id'] == button_id), None)
@@ -46,7 +71,7 @@ class PressMixin:
                 self.slow_running.add(identity)
         if not claimed:
             self.log(f'Button {button_id} is still running or the slow lane is full; press ignored')
-            self.panel.feedback(button_id, False)
+            self.give_feedback(button_id, False)
             return False
         threading.Thread(target=self.run_slow_press, args=(button_id, hold, identity, double),
                          name=f'slow-button-{button_id}', daemon=True).start()
@@ -55,6 +80,11 @@ class PressMixin:
     def run_slow_press(self, button_id, hold, identity, double=False):
         try:
             with self.state_lock:
+                # The worker may have changed page before this thread got the lock: the id now names another key
+                if (self.profile, self.page) != identity[:2]:
+                    self.log(f'Button {button_id} did not run: the page changed before it started')
+                    self.give_feedback(button_id, False)
+                    return
                 self.dispatch_press(button_id, hold=hold, double=double)
         except Exception as exc:
             self.log(f'Action failed: {exc}')
@@ -105,8 +135,7 @@ class PressMixin:
         if button is None:
             self.last_action = {'id': button_id, 'label': 'Unknown button', 'ok': False,
                                 'error': 'The button does not exist on the active page', 'at': time.time()}
-            if self.panel is not None:
-                self.panel.feedback(button_id, False)
+            self.give_feedback(button_id, False)
             self.publish_runtime(True, force=True)
             return False
         if not self.active_press:
@@ -136,18 +165,25 @@ class PressMixin:
             self.events.add('press', button=button_id, label=button['label'], profile=self.profile, page=self.page,
                             ok=ok, hold=hold, double=double)
             try:
-                if self.panel is not None:
-                    self.panel.feedback(button_id, ok)
+                self.give_feedback(button_id, ok)
             finally:
                 self.publish_runtime(True, force=True)
         return ok
 
-    def tap_with_double(self, button_id):
-        """A tap on a key with double_actions: a second tap in time runs them, otherwise the single actions run late."""
+    def tap_with_double(self, button_id, at=None):
+        """A tap on a key with double_actions: a second tap in time runs them, otherwise the single actions run late.
+
+        at is when the panel sent the tap. A busy worker can handle two taps made seconds apart back to back,
+        so the gap is measured between the taps, not between handling them.
+        """
+        at = time.monotonic() if at is None else at
         identity = (self.profile, self.page, button_id)
-        if self.pending_single.pop(identity, None) is not None:
-            self.start_press(button_id, double=True)
-            return
+        pending = self.pending_single.pop(identity, None)
+        if pending is not None:
+            if at - pending[1] <= DOUBLE_PRESS_SECONDS:
+                self.start_press(button_id, double=True)
+                return
+            self.start_press(button_id)  # too far apart: the first tap was a single tap, and this one starts over
         token = next(self.single_tokens)
-        self.pending_single[identity] = token
+        self.pending_single[identity] = (token, at)
         self.schedule_job(('single-due', identity, token), DOUBLE_PRESS_SECONDS)

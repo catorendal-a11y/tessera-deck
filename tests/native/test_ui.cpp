@@ -101,7 +101,7 @@ deck_model_note_host();updates();assert(!visible("NO PC"));}
 
 {/* Agents: one lane each; a waiting agent offers Allow and Deny, and the answer goes to the host as one line. */
 assert(deck_model_agents_from_json(R"({"agents":[
- {"id":"claude","name":"Claude Code","state":"waiting","text":"Wants to run: npm run build","sub":"tessera-deck-main"},
+ {"id":"claude","name":"Claude Code","state":"waiting","q":1,"text":"Wants to run: npm run build","sub":"tessera-deck-main"},
  {"id":"codex","name":"Codex","state":"working","text":"Editing host/win_input.py","sub":"tessera-deck-main"},
  {"id":"zcode","name":"ZCode","state":"idle","text":"Finished 14:05"}]})"));
 tap(42,171);assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
@@ -110,15 +110,15 @@ assert(!visible("New tab 2"));
 capture(output/"agents.ppm");
 tap(912,145);assert(taken()==R"({"type":"agent","id":"claude","do":"allow"})"&&taken().empty());
 /* A permission prompt is shown in full on up to three lines, and the host can bring the agents screen forward. */
-assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"waiting","text":"Bash: python -m unittest discover -s tests && git status --short && git diff --stat HEAD~1 && echo finished-all-of-it-now-please-read","sub":"tessera-deck-main"}]})"));
+assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"waiting","q":1,"text":"Bash: python -m unittest discover -s tests && git status --short && git diff --stat HEAD~1 && echo finished-all-of-it-now-please-read","sub":"tessera-deck-main"}]})"));
 ui_show_view(0);deck_model_request_view(1);updates();assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"view\":\"agents\""));
 capture(output/"question.ppm");
 assert(visible("Allow")&&visible("Deny"));
 /* A prompt that does not fit even in the smaller type offers Deny only; Claude then asks in its own dialog. */
-assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"waiting","text":"Bash: WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW","sub":""}]})"));
+assert(deck_model_agents_from_json(R"({"agents":[{"id":"claude","name":"Claude Code","state":"waiting","q":1,"text":"Bash: WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW WWWWWWWW","sub":""}]})"));
 updates();assert(visible("Deny")&&!visible("Allow"));
 assert(deck_model_agents_from_json(R"({"agents":[
- {"id":"claude","name":"Claude Code","state":"waiting","text":"Wants to run: npm run build","sub":"tessera-deck-main"},
+ {"id":"claude","name":"Claude Code","state":"waiting","q":1,"text":"Wants to run: npm run build","sub":"tessera-deck-main"},
  {"id":"codex","name":"Codex","state":"working","text":"Editing host/win_input.py","sub":"tessera-deck-main"},
  {"id":"zcode","name":"ZCode","state":"idle","text":"Finished 14:05"}]})"));updates();
 assert(!deck_model_agents_from_json(R"({"agents":[{"id":"a\"b","name":"x"}]})"));
@@ -178,11 +178,21 @@ for(size_t at=0;at<blob.size();at+=300){std::string hexed;for(size_t i=at;i<blob
 reply.clear();deck_image_command("AD_IMG_END",reply);return reply;};
 auto id_of=[](unsigned n){static char buffer[4][32];static int slot=0;char* id=buffer[slot++&3];snprintf(id,32,"im:%012x",n);return static_cast<const char*>(id);};
 size_t bytes=0,count=0;
-for(unsigned n=1;n<=40;++n){assert(upload(n,12)==std::string("AD_IMG_END OK ")+id_of(n));deck_image_cache_stats(&bytes,&count);assert(bytes<=8u*1024*1024);}
+/* Each page shows one image: the layout trims the cache to 8 MiB, oldest first, as the host trims its record. */
+for(unsigned n=1;n<=40;++n){assert(upload(n,12)==std::string("AD_IMG_END OK ")+id_of(n));deck_image_keep({id_of(n)});deck_image_cache_stats(&bytes,&count);assert(bytes<=8u*1024*1024);}
 assert(count>=30&&count<=33&&deck_image_get(id_of(40))&&!deck_image_get(id_of(1)));
-{std::vector<std::shared_ptr<const DeckImage>> shown;for(unsigned n=40;n>=1&&shown.size()<count;--n)if(auto image=deck_image_get(id_of(n)))shown.push_back(image);
-const size_t before=bytes;assert(upload(99,12)=="AD_IMG_END FULL");deck_image_cache_stats(&bytes,&count);assert(bytes==before&&!deck_image_get(id_of(99)));}
-const size_t stable=bytes;for(int round=0;round<5;++round){assert(upload(40,12).rfind("AD_IMG_END OK",0)==0);deck_image_cache_stats(&bytes,&count);assert(bytes==stable);}
+{/* A page reusing an old image plus a new one: the upload evicts nothing, the layout drops the oldest other. */
+const unsigned oldest=41-count;assert(deck_image_get(id_of(oldest))&&deck_image_get(id_of(oldest+1)));
+assert(upload(50,12)==std::string("AD_IMG_END OK ")+id_of(50)&&deck_image_get(id_of(oldest)));
+deck_image_keep({id_of(50),id_of(oldest)});deck_image_cache_stats(&bytes,&count);
+assert(bytes<=8u*1024*1024&&deck_image_get(id_of(oldest))&&deck_image_get(id_of(50))&&!deck_image_get(id_of(oldest+1)));}
+{/* Uploads alone may pass 8 MiB by one page; past that, with every image on screen, the panel says FULL. */
+std::vector<std::shared_ptr<const DeckImage>> shown;for(unsigned n=1;n<=50;++n)if(auto image=deck_image_get(id_of(n)))shown.push_back(image);
+std::string reply;unsigned n=100;while((reply=upload(n,12))!="AD_IMG_END FULL"){assert(reply==std::string("AD_IMG_END OK ")+id_of(n)&&n<200);if(auto image=deck_image_get(id_of(n)))shown.push_back(image);++n;}
+deck_image_cache_stats(&bytes,&count);assert(bytes>8u*1024*1024&&bytes<=8u*1024*1024+18u*72*72*4*12&&!deck_image_get(id_of(n)));
+shown.clear();deck_image_keep({id_of(n-1)});deck_image_cache_stats(&bytes,&count);assert(bytes<=8u*1024*1024&&deck_image_get(id_of(n-1)));
+/* Replacing a cached image keeps the size and count but still counts as a new image for a waiting key. */
+const size_t stable=bytes;for(int round=0;round<5;++round){const uint32_t gen=deck_image_generation();const size_t was=count;assert(upload(n-1,12).rfind("AD_IMG_END OK",0)==0);deck_image_cache_stats(&bytes,&count);assert(bytes==stable&&count==was&&deck_image_generation()!=gen);}}
 assert(upload(41,1)==std::string("AD_IMG_END OK ")+id_of(41));}
 {/* Styling: own colors replace the defaults; a bad color rejects the whole page. */
 deck_button_t styled[2]{};int styled_count=0;

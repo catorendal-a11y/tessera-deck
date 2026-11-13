@@ -7,7 +7,8 @@ import re
 SENSITIVE_HEADERS = ('authorization', 'proxy-authorization', 'x-api-key', 'api-key', 'x-auth-token', 'cookie')
 DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
-EXECUTABLE_KINDS = ('shell', 'http')
+# A plugin command controls an outside system (a smart home, a stream), so it counts like a web request.
+EXECUTABLE_KINDS = ('shell', 'http', 'plugin')
 SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
 
@@ -56,6 +57,8 @@ def _classify(action):
         if action.get('body'):
             detail += ' with a request body'
         return 'medium', 'calls ' + detail
+    if kind == 'plugin':
+        return 'medium', f"runs plugin {str(action.get('plugin', ''))[:60]}.{str(action.get('command', ''))[:60]}"
     if kind == 'open':
         target = str(action.get('target', ''))
         if WEB_TARGET.match(target) or target.lower().endswith(DOCUMENT_SUFFIXES):
@@ -67,6 +70,12 @@ def _classify(action):
 def review(config: dict) -> list[dict]:
     """Findings for everything in the configuration that executes code, reaches the network or runs by itself."""
     findings = []
+    # The file can switch installed plugins on and point them somewhere else (a new server address).
+    for plugin_id, entry in (config.get('plugins') or {}).items():
+        if isinstance(entry, dict) and entry.get('enabled'):
+            settings = ', '.join(str(name)[:40] for name in (entry.get('settings') or {}))
+            findings.append({'where': 'Plugins', 'kind': 'plugins', 'risk': 'medium', 'automatic': False,
+                             'detail': f'turns on plugin {str(plugin_id)[:60]}' + (f' with settings: {settings[:160]}' if settings else '')})
     for where, owner, key, automatic in iter_actions(config):
         for action in owner[key]:
             if not isinstance(action, dict):
@@ -87,7 +96,7 @@ def review(config: dict) -> list[dict]:
 
 
 def strip_executable(config: dict) -> dict:
-    """A copy without shell and HTTP actions, program launches that are not web links, and automatic rules."""
+    """A copy without shell, HTTP and plugin actions, program launches that are not web links, automatic rules and plugin setup."""
     safe = copy.deepcopy(config)
     for _, owner, key, _ in list(iter_actions(safe)):
         owner[key] = [action for action in owner[key]
@@ -95,6 +104,8 @@ def strip_executable(config: dict) -> dict:
                               and (action.get('type') in EXECUTABLE_KINDS
                                    or (action.get('type') == 'open' and _classify(action))))]
     safe['triggers'] = []
+    # Plugin setup turns code on; the editor keeps the plugins already set up on this PC instead.
+    safe.pop('plugins', None)
     return safe
 
 

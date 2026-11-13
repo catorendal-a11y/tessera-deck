@@ -1,5 +1,6 @@
 """Validation of profiles.json: every malformed configuration surfaces as ValueError before the engine uses it."""
 import json
+import math
 import re
 
 from ambient import check_ambient
@@ -59,8 +60,9 @@ def _check_mouse(action, pages, profiles):
     for key, low, high in (('x', -20000, 20000), ('y', -20000, 20000), ('amount', -50, 50)):
         if key in action and (type(action[key]) is not int or not low <= action[key] <= high):
             raise ValueError(f'mouse: {key} must be a whole number from {low} to {high}')
-    if action['op'] == 'moveto' and ('x' not in action or 'y' not in action or action['x'] < 0 or action['y'] < 0):
-        raise ValueError('mouse: moveto needs x and y screen positions of at least 0')
+    # A monitor left of or above the main one has negative positions, and send_mouse maps over the whole desktop.
+    if action['op'] == 'moveto' and ('x' not in action or 'y' not in action):
+        raise ValueError('mouse: moveto needs x and y screen positions')
 
 
 def _check_plugin(action, pages, profiles):
@@ -179,6 +181,7 @@ def _check_status(status):
         raise ValueError('status.colors must map values to #RRGGBB colors')
 
 
+GAUGE_MIN_MAX = 1e-6
 GAUGE_FORMATS = ('int', 'ghz', 'gb', 'rate', 'uptime', 'live', 'clock')
 
 
@@ -187,8 +190,11 @@ def _check_gauge(gauge):
         raise ValueError('gauge needs a sensor key')
     for name in ('max', 'warn', 'critical'):
         value = gauge.get(name)
-        if name in gauge and (type(value) not in (int, float) or (name == 'max' and value <= 0)):
-            raise ValueError(f'gauge.{name} must be a number' + (' above 0' if name == 'max' else ''))
+        # JSON allows NaN and Infinity, and a max near 0 divides by zero in the log scale: either one would make
+        # every push of the page fail in gauge_state.
+        if name in gauge and (type(value) not in (int, float) or not math.isfinite(value)
+                              or (name == 'max' and value < GAUGE_MIN_MAX)):
+            raise ValueError(f'gauge.{name} must be a number' + (f' of at least {GAUGE_MIN_MAX}' if name == 'max' else ''))
     if gauge.get('fmt', 'int') not in GAUGE_FORMATS or gauge.get('scale', 'linear') not in ('linear', 'log'):
         raise ValueError('Invalid gauge format or scale')
     if not isinstance(gauge.get('unit', ''), str) or len(gauge.get('unit', '')) > 3:

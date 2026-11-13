@@ -17,7 +17,7 @@ from pathlib import Path
 import pystray
 from PIL import Image, ImageDraw
 
-from deck_control import ROOT, Controller, autostart_enabled, save_profiles, set_autostart
+from deck_control import ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart
 from host_runtime import InstanceLock
 
 log = logging.getLogger(__name__)
@@ -267,14 +267,16 @@ class TrayApp:
 
     def menu_items(self):
         running = bool(self.status.get('running'))
-        yield pystray.MenuItem(status_text(self.status), None, enabled=False)
+        flashing = firmware_installing()  # a host started now would take the COM port from the flash
+        yield pystray.MenuItem('Installing panel firmware …' if flashing and not running else status_text(self.status),
+                               None, enabled=False)
         yield pystray.MenuItem(version_text(self.status), None, enabled=False)
         yield pystray.Menu.SEPARATOR
         yield pystray.MenuItem('Open editor', self.open_editor, default=True)
         yield pystray.MenuItem('Profiles', pystray.Menu(self.profile_items), enabled=running)
         yield pystray.MenuItem('Brightness', pystray.Menu(self.brightness_items))
         yield pystray.Menu.SEPARATOR
-        yield pystray.MenuItem('Start host', self.start_host, enabled=not running)
+        yield pystray.MenuItem('Start host', self.start_host, enabled=not running and not flashing)
         yield pystray.MenuItem('Restart host', self.restart_host, enabled=running)
         yield pystray.MenuItem('Stop host', self.stop_host, enabled=running)
         yield pystray.Menu.SEPARATOR
@@ -294,7 +296,7 @@ class TrayApp:
         state = tray_state(self.status)
         self.icon.title = f'Tessera — {status_text(self.status)}'[:120]  # Windows allows 127 characters in a tooltip
         shown = (status_text(self.status), bool(self.status.get('running')), self.status.get('device', {}).get('profile'),
-                 PROFILES_PATH.stat().st_mtime_ns if PROFILES_PATH.exists() else 0)
+                 PROFILES_PATH.stat().st_mtime_ns if PROFILES_PATH.exists() else 0, firmware_installing())
         if shown != self.menu_shows:  # the menu is built once; without this it keeps the old status and ticks
             self.menu_shows = shown
             self.icon.update_menu()
@@ -311,7 +313,8 @@ class TrayApp:
     def report_trouble(self, text, now):
         """One notice for a problem that lasts TROUBLE_SECONDS (a port held by another program, a host that
         stopped); the icon colour alone does not say why nothing works. A new problem gets a new notice."""
-        if text is None or (self.user_stopped and not self.status.get('running')):
+        # the editor stops the host for a firmware install, which takes longer than TROUBLE_SECONDS
+        if text is None or (self.user_stopped and not self.status.get('running')) or firmware_installing():
             self.trouble = None
             return
         if self.trouble is None or self.trouble[0] != text:

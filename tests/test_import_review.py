@@ -77,6 +77,23 @@ class ReviewTests(unittest.TestCase):
         self.assertIn('Rail shortcut 1', ' '.join(item['where'] for item in review(config)))
         self.assertEqual(strip_executable(config)['panel']['shortcuts'][0]['actions'], [])
 
+    def test_plugin_commands_and_an_enabled_plugins_block_are_listed_and_stripped(self):
+        config = bundle()
+        config['profiles']['Main']['pages']['First'][0]['actions'].append(
+            {'type': 'plugin', 'plugin': 'home-assistant', 'command': 'toggle', 'args': {'entity': 'lock.front'}})
+        config['triggers'][0]['actions'].append({'type': 'plugin', 'plugin': 'home-assistant', 'command': 'toggle'})
+        config['plugins'] = {'home-assistant': {'enabled': True, 'settings': {'url': 'http://elsewhere'}},
+                             'obs': {'enabled': False}}
+        found = {(f['kind'], f['risk'], f['automatic']): f for f in review(config) if f['kind'] in ('plugin', 'plugins')}
+        self.assertIn('runs plugin home-assistant.toggle', found[('plugin', 'medium', False)]['detail'])
+        self.assertIn(('plugin', 'high', True), found)
+        self.assertIn('url', found[('plugins', 'medium', False)]['detail'])
+        self.assertEqual(len(found), 3)
+        safe = strip_executable(config)
+        self.assertEqual(review(safe), [])
+        self.assertNotIn('plugins', safe)
+        self.assertEqual(safe['profiles']['Main']['pages']['First'][0]['actions'], [{'type': 'hotkey', 'keys': 'ctrl+c'}])
+
     def test_original_bundle_is_not_modified_by_review_strip_or_redaction(self):
         original = bundle()
         snapshot = copy.deepcopy(original)

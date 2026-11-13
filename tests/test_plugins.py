@@ -263,6 +263,19 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(len(self.spawned), plugins.MAX_QUICK_CRASHES + 1,
                          'turning it off and on gives a fresh start')
 
+    def test_a_plugin_that_gave_up_starts_again_when_its_settings_change(self):
+        for _ in range(plugins.MAX_QUICK_CRASHES):
+            self.manager.sync(self.enabled(port='x'))
+            self.spawned[-1][2].code = 1
+            self.manager.sync(self.enabled(port='x'))
+            self.now[0] += 100
+        self.assertEqual(self.manager.status(self.enabled(port='x'))[0]['state'], 'failed')
+        self.manager.sync(self.enabled(port='x'))
+        self.assertEqual(len(self.spawned), plugins.MAX_QUICK_CRASHES, 'the same bad settings stay given up')
+        self.manager.sync(self.enabled(port=4455))
+        self.assertEqual(len(self.spawned), plugins.MAX_QUICK_CRASHES + 1)
+        self.assertEqual(json.loads(self.spawned[-1][1]['env']['TESSERA_SETTINGS']), {'port': 4455})
+
     def test_back_off_delays_the_restart(self):
         self.manager.sync(self.enabled())
         self.spawned[0][2].code = 1

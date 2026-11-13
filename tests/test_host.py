@@ -337,6 +337,14 @@ class HostTests(HostCase):
             self.assertEqual([b['icon'] for b in buttons], ['im:0123456789ab', 'bolt'])
             self.assertEqual(config['profiles']['p']['pages']['a'][0]['icon'], 'im:aaaaaaaaaaaa')
 
+    def test_heal_keeps_a_missing_image_id_it_cannot_rebuild(self):
+        # The editor saves the healed config: turning the id into 'ok' would lose the image for good.
+        with tempfile.TemporaryDirectory() as directory:
+            assets = Assets(Path(directory) / 'profiles.json')
+            button = {'id': 1, 'label': 'X', 'icon': 'im:aaaaaaaaaaaa', 'actions': []}
+            self.assertEqual(assets.heal({'b': [button]})['b'][0]['icon'], 'im:aaaaaaaaaaaa')
+            self.assertEqual(assets.icon_for(button), 'ok')  # the daemon still shows the default icon
+
     def test_display_settings_default_and_validate(self):
         daemon = self.daemon()
         self.assertEqual(daemon.display_settings(), {'brightness': 100, 'dim_after': 300, 'dim_level': 10, 'night': None})
@@ -508,7 +516,8 @@ class HostTests(HostCase):
         deck.validate_config(daemon.config)
         first = daemon.current_buttons()[0]
         self.assertEqual(first['gauge'], {'p': 42, 't': '42%'})
-        for bad in ({'key': ''}, {'key': 'x', 'max': 0}, {'key': 'x', 'fmt': 'hex'}, {'key': 'x', 'unit': 'toolong'}, 'cpu'):
+        for bad in ({'key': ''}, {'key': 'x', 'max': 0}, {'key': 'x', 'max': float('nan')}, {'key': 'x', 'max': 1e-300, 'scale': 'log'},
+                    {'key': 'x', 'warn': float('inf')}, {'key': 'x', 'critical': float('nan')}, {'key': 'x', 'fmt': 'hex'}, {'key': 'x', 'unit': 'toolong'}, 'cpu'):
             with self.subTest(bad):
                 button['gauge'] = bad
                 with self.assertRaises(ValueError):

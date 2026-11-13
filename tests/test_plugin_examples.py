@@ -74,6 +74,16 @@ class HomeAssistantTests(unittest.TestCase):
                          [('POST', '/api/services/homeassistant/toggle', {'entity_id': 'light.kitchen'}),
                           ('POST', '/api/services/scene/turn_on', {'entity_id': 'scene.movie'})])
 
+    def test_many_entities_are_posted_in_batches_the_api_accepts(self):
+        module = load('home-assistant', {'url': 'http://127.0.0.1:9/', 'token': 'secret'})
+        calls = []
+        values = {f'home-assistant.light.l{index}': 'on' for index in range(45)}
+        with patch.object(module, 'tessera', lambda method, path, data=None: calls.append((path, data))):
+            module.set_vars(values)
+        self.assertEqual([len(data['set']) for _, data in calls], [20, 20, 5])
+        self.assertEqual({path for path, _ in calls}, {'/v1/vars'})
+        self.assertEqual({name: value for _, data in calls for name, value in data['set'].items()}, values)
+
 
 class FakeObs:
     """A WebSocket server that speaks just enough OBS WebSocket 5, with a password."""

@@ -125,7 +125,9 @@ class EditorTests(unittest.TestCase):
     def test_stale_editor_cannot_overwrite_terminal_changes(self):
         self.login()
         original = self.editor.read()
-        self.path.write_text(json.dumps(dict(self.config, default_profile='Main'), indent=2))
+        terminal = json.loads(json.dumps(self.config))
+        terminal['profiles']['Main']['pages']['First'][0]['label'] = 'Paste'  # a real change, not only new spacing
+        self.path.write_text(json.dumps(terminal, indent=2))
         changed = self.path.read_bytes()
         with self.assertRaises(urllib.error.HTTPError) as error:
             self.request('/api/config', original)

@@ -22,6 +22,13 @@ class SubstituteTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             substitute('echo $(bad)', variables, 'shell')
 
+    def test_shell_mode_refuses_powershell_metacharacters_and_keeps_plain_text(self):
+        for bad in ("'+(Start-Process calc)+'", '{x}', '@(1)', 'a+b', '’x'):
+            with self.assertRaises(ValueError, msg=bad):
+                substitute("powershell -c \"Write-Output '$(v)'\"", {'v': bad}, 'shell')
+        self.assertEqual(substitute('echo $(v)', {'v': 'Blåbær - Live 2.0, 12:30/x_y'}, 'shell'),
+                         'echo Blåbær - Live 2.0, 12:30/x_y')
+
     def test_url_mode_percent_encodes(self):
         self.assertEqual(substitute('/q?x=$(v)', {'v': 'a b&c'}, 'url'), '/q?x=a%20b%26c')
 

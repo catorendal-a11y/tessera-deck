@@ -187,11 +187,11 @@ class MouseTests(unittest.TestCase):
         config = json_defaults()
         button = config['profiles']['main']['pages']['main'][0]
         for good in ({'op': 'left'}, {'op': 'scroll', 'amount': 3}, {'op': 'move', 'x': -20, 'y': 10},
-                     {'op': 'moveto', 'x': 100, 'y': 200}):
+                     {'op': 'moveto', 'x': 100, 'y': 200}, {'op': 'moveto', 'x': -1920, 'y': -300}):
             button['actions'] = [dict(good, type='mouse')]
             deck.validate_config(config)
         for bad in ({'op': 'fly'}, {'op': 'scroll', 'amount': 99}, {'op': 'move', 'x': 1.5}, {'op': 'moveto'},
-                    {'op': 'moveto', 'x': -1, 'y': 5}, {'op': 'left', 'x': 'a'}):
+                    {'op': 'moveto', 'x': 5}, {'op': 'left', 'x': 'a'}):
             button['actions'] = [dict(bad, type='mouse')]
             with self.assertRaises(ValueError, msg=repr(bad)):
                 deck.validate_config(config)
@@ -211,6 +211,18 @@ class TypingTests(unittest.TestCase):
             waits.clear()
             deck.send_text('abc', wait=waits.append)
         self.assertEqual(waits, [])
+
+    def test_line_breaks_and_tabs_are_typed_as_real_keys(self):
+        with patch.object(win_input, '_key') as key:
+            deck.send_text('a\r\nb\t')
+        self.assertEqual([call.kwargs for call in key.call_args_list],
+                         [{'scan': 97, 'flags': 4}, {'scan': 97, 'flags': 6}, {'vk': 13}, {'vk': 13, 'flags': 2},
+                          {'scan': 98, 'flags': 4}, {'scan': 98, 'flags': 6}, {'vk': 9}, {'vk': 9, 'flags': 2}])
+
+    def test_slow_typing_stops_when_the_wait_says_the_host_is_stopping(self):
+        with patch.object(win_input, '_key') as key:
+            deck.send_text('abc', 0.05, wait=lambda seconds: True)
+        self.assertEqual(key.call_count, 2)
 
     def test_the_delay_is_validated_and_slow_typing_runs_on_the_slow_lane(self):
         config = json_defaults()

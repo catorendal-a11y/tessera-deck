@@ -91,8 +91,10 @@ let iconPick = null;  // when set, a chosen icon goes here instead of to the sel
 document.getElementById('icon-dialog')?.addEventListener('close',()=>{iconPick=null;});  // closed without a choice
 async function openIcons() {
   try {
-    await loadIconPack();iconReturnFocus=document.activeElement;iconPage=0;$('#icon-search').value='';renderIconResults();$('#icon-dialog').showModal();$('#icon-search').focus();
-  }catch(error){showError(error);}
+    await loadIconPack();iconReturnFocus=document.activeElement;iconPage=0;
+    // Online icons become images, which only keys can show: a rail shortcut (iconPick) gets the library alone.
+    document.querySelector('.icon-online').hidden=!!iconPick;if(iconPick){$('#iconify-results').hidden=true;$('#iconify-note').hidden=true;}$('#icon-search').value='';renderIconResults();$('#icon-dialog').showModal();$('#icon-search').focus();
+  }catch(error){iconPick=null;showError(error);}
 }
 function renderIconResults() {
   if(!iconPack)return;
@@ -166,10 +168,30 @@ function current() {return visibleButtons().find(b=>b.id===selected);}
 function owner(id=selected) {const pins=config.profiles[profile].pinned||[];return pins.some(b=>b.id===id)?pins:buttons();}
 function appearance(b=current()) {return b?.states?.[editState]||b;}
 /* Which action list of the key the steps below edit: a normal press, a long press or a double press. */
-let editList='actions';
+let editList='actions',editListFor='';
+/* The Held/Double-press tab belongs to the key it was opened on: any other key, page or profile starts on Pressed,
+   so an action dropped on a new key never lands in a list it does not run on a tap. */
+function syncEditList() {const key=[profile,page,selected].join('\u0000');if(key!==editListFor){editListFor=key;editList='actions';}}
 const TRIGGERS=[['actions','Pressed'],['hold_actions','Held'],['double_actions','Double-press']];
-function activeActions() {const b=current();if(editList!=='actions')return b[editList]||[];return b.states?b.states[Math.min(editState,b.states.length-1)].actions:b.actions;}
-function togglePin() {mutate(()=>{const b=current(),list=owner(),p=config.profiles[profile];list.splice(list.indexOf(b),1);p.pinned??=[];if(list===p.pinned){const at=buttons().findIndex(v=>v.id===b.id);if(at>=0)buttons().splice(at,1);buttons().push(b);}else p.pinned.push(b);});}
+function activeActions() {syncEditList();const b=current();if(editList!=='actions')return b[editList]||[];return b.states?b.states[Math.min(editState,b.states.length-1)].actions:b.actions;}
+const overlaps=(b,id,span)=>b.id<id+span&&id<b.id+(b.span||1);
+function isPinned(b) {return (config.profiles[profile].pinned||[]).includes(b);}
+/* A pinned key shows on every page, so its slots must be free on all the profile's pages, not only this one. */
+function freeOnAllPages(id,span,skip=[]) {return !Object.values(config.profiles[profile].pages).flat().some(b=>!skip.includes(b)&&overlaps(b,id,span));}
+function togglePin() {
+  const b=current(),p=config.profiles[profile];if(!b)return;const span=b.span||1;
+  if(!isPinned(b)){
+    const clash=Object.keys(p.pages).find(name=>name!==page&&p.pages[name].some(v=>overlaps(v,b.id,span)));
+    if(clash)return toast(`Page “${clash}” has its own key on these slots. Move it first, then pin.`);
+    return mutate(()=>{buttons().splice(buttons().indexOf(b),1);(p.pinned??=[]).push(b);});
+  }
+  // This page may hold its own key hidden under the pinned one: keep it, and put the unpinned key on free slots instead.
+  const free=id=>spanFits(id,span,[b])&&!buttons().some(v=>overlaps(v,id,span));
+  const slot=[b.id,...Array.from({length:18},(_,i)=>i+1)].find(free);
+  if(!slot)return toast('This page has no free slots for the key.');
+  const from=b.id;mutate(()=>{p.pinned.splice(p.pinned.indexOf(b),1);b.id=slot;buttons().push(b);selected=slot;});
+  if(slot!==from)toast(`This page has its own key on slot ${from}, so the unpinned key moved to slot ${slot}.`);
+}
 function uniqueName(base,names) {let name=`${base} copy`,number=2;while(names.includes(name))name=`${base} copy ${number++}`;return name;}
 function clearButton() {if(!current())return;mutate(()=>{const list=owner(),at=list.findIndex(x=>x.id===selected);if(at>=0)list.splice(at,1);});}
 function duplicateButton() {
@@ -188,7 +210,16 @@ function duplicatePage() {
   mutate(()=>{pages[name]=clone(pages[page]);page=name;selected=1;editState=0;});
   renderAll();toast(`Page “${name}” was created.`);
 }
-async function uploadImage(file,id=selected) {if(!file)return;if(file.size>8*1024*1024)throw new Error('Use an image of at most 8 MB');const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let at=0;at<bytes.length;at+=16384)binary+=String.fromCharCode(...bytes.subarray(at,at+16384));const result=await api('image',{data:btoa(binary)});mutate(()=>{selected=id;if(!current())buttons().push({id,label:file.name.replace(/\.[^.]+$/,''),icon:'ok',color:'#35D07F',actions:[]});appearance().icon=result.id;});if(result.sampled)toast('The animation was reduced to 12 frames for the panel.');}
+// Only the upload: returns the stored image id and touches no key.
+async function sendImage(file) {if(file.size>8*1024*1024)throw new Error('Use an image of at most 8 MB');
+  const bytes=new Uint8Array(await file.arrayBuffer());let binary='';for(let at=0;at<bytes.length;at+=16384)binary+=String.fromCharCode(...bytes.subarray(at,at+16384));return api('image',{data:btoa(binary)});}
+async function uploadImage(file,id=selected) {if(!file)return;if(file.size>8*1024*1024)throw new Error('Use an image of at most 8 MB');
+  // The upload takes a while: Mirror or a click may switch page meanwhile, and the image belongs on the page it was dropped on.
+  const target={profile,page};
+  const result=await sendImage(file);
+  if(!config.profiles[target.profile]?.pages?.[target.page])return toast('The page the image was for no longer exists.');
+  const moved=profile!==target.profile||page!==target.page;if(moved){profile=target.profile;page=target.page;}
+  mutate(()=>{if(moved||id!==selected)editState=0;selected=id;if(!current())buttons().push({id,label:file.name.replace(/\.[^.]+$/,''),icon:'ok',color:'#35D07F',actions:[]});appearance().icon=result.id;});if(moved)renderAll();if(result.sampled)toast('The animation was reduced to 12 frames for the panel.');}
 
 function setSaveState(message,note='Changes are saved automatically.') {$('#save-state').textContent=message;$('#save-note').textContent=note;}
 function draftError() {
@@ -238,6 +269,8 @@ function undo(redo=false) {const source=redo?future:history,target=redo?history:
 function ensureSelection() {
   if(!config.profiles[profile])profile=config.default_profile||Object.keys(config.profiles)[0];
   if(!config.profiles[profile].pages[page])page=Object.keys(config.profiles[profile].pages)[0];
+  // A slot covered by a wide key (after an undo, say) is that key: an add or paste there would stack keys.
+  const wide=visibleButtons().find(b=>b.id<selected&&selected<b.id+(b.span||1));if(wide)selected=wide.id;
   const selectedButton=current();if(!selectedButton?.states||editState>=selectedButton.states.length)editState=0;
 }
 function options(select,values,value) {select.replaceChildren(...values.map(v=>{const pair=Array.isArray(v)?v:[v,v];return element('option',{value:pair[0],text:pair[1]});}));select.value=value;}
@@ -252,6 +285,7 @@ function moveSlot(source,target) {
   const fromSpan=from.span||1,toSpan=to?.span||1,skip=[from,to];
   const separate=target+fromSpan-1<source||target>source+toSpan-1;  // the two keys do not overlap after the swap
   if(!spanFits(target,fromSpan,skip)||(to&&!spanFits(source,toSpan,skip))||(to&&!separate))return toast('A wide key needs free slots on one row: it does not fit there.');
+  if((isPinned(from)&&!freeOnAllPages(target,fromSpan,skip))||(to&&isPinned(to)&&!freeOnAllPages(source,toSpan,skip)))return toast('A pinned key shows on every page, and another page has a key there.');
   mutate(()=>{from.id=target;if(to)to.id=source;selected=target;});
 }
 function renderAll() {ensureSelection();options($('#profile'),Object.keys(config.profiles),profile);renderPages();renderGrid();renderInspector();updateHistory();renderStatus();}
@@ -420,7 +454,7 @@ function addAction(key,id=selected) {
   if(key.startsWith('widget:'))return addWidget(key.slice(7),id);
   const item=actionTemplate(key);if(!item)return;
   inspectorTab='actions';
-  mutate(()=>{selected=id;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
+  mutate(()=>{selected=id;syncEditList();let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
   toast(activeActions().length>1?'Action added. Steps run from top to bottom.':'Action added. Adjust its settings under the keys.');
 }
 
@@ -480,7 +514,8 @@ const WIDGETS = [
 function addWidget(kind,id=selected) {
   const widget=WIDGETS.find(w=>w.kind===kind);if(!widget)return;
   const there=visibleButtons().find(b=>b.id===id);
-  const span=[widget.span,2].find(size=>spanFits(id,Math.max(size,there?.span||1),there?[there]:[]));
+  // Widening a pinned key covers that slot on every page, so it must be free on all of them.
+  const span=[widget.span,2].find(size=>{const wide=Math.max(size,there?.span||1);return spanFits(id,wide,there?[there]:[])&&(!there||!isPinned(there)||freeOnAllPages(id,wide,[there]));});
   if(!span)return toast(`${widget.name} needs ${widget.span} free slots side by side on one row. Free the slot to the right first.`);
   mutate(()=>{selected=id;
     if(there){there.span=Math.max(span,there.span||1);there.live=kind;}

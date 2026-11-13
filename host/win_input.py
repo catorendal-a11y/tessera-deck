@@ -135,15 +135,25 @@ def send_hotkey(combo):
             _key(vk=vk, flags=KEYEVENTF_KEYUP | _extended_flag(vk))
 
 
+TEXT_KEYS = {'\n': 0x0D, '\t': 0x09}  # a unicode U+000A is no Enter for browsers and chat boxes: press the real key
+
+
 def send_text(text, pause=0.0, wait=time.sleep):
     # `pause` seconds between characters makes the typing look and behave like a person typing.
-    raw = text.encode('utf-16-le')
-    for i in range(0, len(raw), 2):
-        code = int.from_bytes(raw[i:i+2], 'little')
-        _key(scan=code, flags=4)
-        _key(scan=code, flags=6)
-        if pause and i + 2 < len(raw):
-            wait(pause)
+    # `wait` returning true (a set stop event's wait) ends the typing early.
+    chars = text.replace('\r\n', '\n').replace('\r', '\n')
+    for n, char in enumerate(chars):
+        if char in TEXT_KEYS:
+            _key(vk=TEXT_KEYS[char])
+            _key(vk=TEXT_KEYS[char], flags=KEYEVENTF_KEYUP)
+        else:
+            raw = char.encode('utf-16-le')
+            for i in range(0, len(raw), 2):
+                code = int.from_bytes(raw[i:i+2], 'little')
+                _key(scan=code, flags=4)
+                _key(scan=code, flags=6)
+        if pause and n + 1 < len(chars) and wait(pause):
+            break
 
 
 FRAME_HOST = 'applicationframehost.exe'

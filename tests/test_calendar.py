@@ -31,6 +31,20 @@ class ReadingTests(unittest.TestCase):
                    ['UID:d', 'DTSTART:20261113T110000', 'STATUS:CANCELLED', 'SUMMARY:Called off'])
         self.assertEqual(summaries(text), [('Fri 00:00', 'Holiday'), ('Fri 09:30', 'Design review')])
 
+    def test_a_quoted_time_zone_with_a_colon_is_read_and_a_bad_event_is_dropped_alone(self):
+        text = ics(['DTSTART;TZID="(UTC+01:00) Amsterdam, Berlin":20261113T093000', 'SUMMARY:Outlook'],
+                   ['DTSTART:garbage', 'SUMMARY:Broken'])
+        self.assertEqual(summaries(text), [('Fri 09:30', 'Outlook')])
+
+    def test_monthly_byday_without_an_ordinal_follows_bysetpos_and_comes_in_order(self):
+        last = ics(['DTSTART:20260925T100000', 'RRULE:FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1', 'SUMMARY:Last Friday'])
+        self.assertEqual(summaries(last, datetime(2026, 11, 26, 9)), [('Fri 10:00', 'Last Friday')])
+        self.assertEqual(summaries(last), [], 'the 13th is not the last Friday')
+        every = ics(['DTSTART:20261002T100000', 'RRULE:FREQ=MONTHLY;BYDAY=FR', 'SUMMARY:Every Friday'])
+        self.assertEqual(summaries(every), [('Fri 10:00', 'Every Friday')])
+        both = ics(['DTSTART:20261001T100000', 'RRULE:FREQ=MONTHLY;BYDAY=3FR,2FR;COUNT=4', 'SUMMARY:Second and third'])
+        self.assertEqual([event['start'].day for event in calendar_feed.upcoming(both, datetime(2026, 11, 12, 9))], [13])
+
     def test_utc_times_are_shown_in_local_time(self):
         utc = datetime(2026, 11, 13, 9, 0, tzinfo=timezone.utc)
         local = utc.astimezone().replace(tzinfo=None)
@@ -106,6 +120,26 @@ class FeedTests(unittest.TestCase):
                 return
             time.sleep(0.02)
         self.fail('the calendar refresh did not finish')
+
+    def test_a_new_address_set_during_a_fetch_is_read_right_after_it(self):
+        import threading
+        release, asked = threading.Event(), []
+
+        def opener(request, timeout):
+            asked.append(request.full_url)
+            if len(asked) == 1:
+                release.wait(5)
+            return Reply(ics(['DTSTART:20261113T110000', 'SUMMARY:' + request.full_url[-5:]]).encode())
+
+        feed = calendar_feed.Feed(opener, clock=lambda: 0.0)
+        feed.events({'url': 'https://example.com/a.ics'}, NOW)
+        feed.events({'url': 'https://example.com/b.ics'}, NOW)  # changed while the first read still runs
+        release.set()
+        self.settle(feed)
+        feed.events({'url': 'https://example.com/b.ics'}, NOW)
+        self.settle(feed)
+        self.assertEqual(asked[-1], 'https://example.com/b.ics')
+        self.assertEqual(feed.events({'url': 'https://example.com/b.ics'}, NOW)[0][0]['summary'], 'b.ics')
 
     def test_the_feed_reads_in_the_background_and_keeps_the_last_good_calendar(self):
         clock, answers, asked = [0.0], [ics(['DTSTART:20261113T110000', 'SUMMARY:Lunch']).encode()], []

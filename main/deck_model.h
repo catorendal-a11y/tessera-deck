@@ -142,6 +142,7 @@ typedef struct {
     uint8_t state;   /* deck_agent_state_t */
     char text[160];  /* what it is doing or asking; a permission prompt is shown in full */
     char sub[32];    /* project */
+    bool asks;       /* a permission question that Allow and Deny answer ('q' from the host) */
 } deck_agent_t;
 typedef struct {
     char id[DECK_ID_MAX + 1]; /* the host's audio target: speaker, mic or app:NAME.exe */

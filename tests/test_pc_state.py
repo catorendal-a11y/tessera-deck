@@ -93,6 +93,16 @@ class AudioControlTests(unittest.TestCase):
                 pc_state.control_audio('app:ghost.exe', 'mute')
         self.assertIn('not playing sound', str(raised.exception))
 
+    @unittest.skipIf(importlib.util.find_spec('comtypes') is None, 'comtypes is not installed')
+    def test_toggling_an_app_with_mixed_sessions_mutes_them_all_then_unmutes_them_all(self):
+        first, first_state = self.fake(muted=True)
+        second, second_state = self.fake(muted=False)
+        with patch.object(pc_state, '_app_controls', return_value=[first, second]):
+            pc_state.control_audio('app:Discord.exe', 'toggle')
+            self.assertTrue(first_state['muted'] and second_state['muted'])
+            pc_state.control_audio('app:Discord.exe', 'toggle')
+        self.assertFalse(first_state['muted'] or second_state['muted'])
+
     def test_audio_actions_are_validated(self):
         for good in ({'target': 'mic'}, {'target': 'speaker', 'op': 'volume', 'value': 30},
                      {'target': 'app:chrome.exe', 'op': 'up', 'step': 10}):

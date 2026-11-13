@@ -119,6 +119,8 @@ def control_audio(target: str, operation: str = 'toggle', value: int | None = No
             controls = _app_controls(app.group(1))
             if not controls:
                 raise OSError(f'{app.group(1)} is not playing sound right now')
+            if operation == 'toggle':  # one decision for every session of the program, so a mixed state converges
+                operation = 'unmute' if all(control.get_mute() for control in controls) else 'mute'
             for control in controls:
                 apply_operation(control, operation, value, step)
         finally:

@@ -10,6 +10,10 @@ import agent_activity
 import cockpit
 
 
+def json_lanes(variables):
+    return __import__('json').loads(cockpit.agents_payload(variables, {}))['agents']
+
+
 class ActivityTests(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -48,6 +52,21 @@ class ActivityTests(unittest.TestCase):
         waiting = agent_activity.merge({'claude': 'waiting', 'claude.message': 'Allow?'},
                                        {'claude': {'state': 'working', 'project': 'p', 'age': 1, 'tool': ''}}, {}, lambda: self.now)
         self.assertEqual(waiting['claude'], 'waiting')
+
+    def test_a_hook_state_of_a_killed_tool_is_dropped_but_a_real_wait_stays(self):
+        stale = {'claude': {'state': 'idle', 'project': 'p', 'age': 99999, 'tool': ''}}
+        hook = {'claude': 'waiting', 'claude.message': 'Allow?'}
+        gone = agent_activity.merge(hook, stale, {'claude': False}, lambda: self.now)
+        self.assertNotIn('claude', gone)
+        self.assertEqual(json_lanes(gone), [], 'no lane for a tool that is gone')
+        self.assertEqual(agent_activity.merge(hook, stale, {}, lambda: self.now)['claude'], 'waiting', 'not scanned yet')
+        recent = {'claude': {'state': 'idle', 'project': 'p', 'age': 600, 'tool': ''}}
+        self.assertEqual(agent_activity.merge(hook, recent, {'claude': False}, lambda: self.now)['claude'], 'waiting')
+
+    def test_only_the_asked_lane_is_marked_as_a_question(self):
+        asking = {'agent': 'claude', 'text': 'Allow Bash?'}
+        lanes = __import__('json').loads(cockpit.agents_payload({'claude': 'waiting', 'codex': 'waiting'}, {}, asking))['agents']
+        self.assertEqual({lane['id']: lane.get('q') for lane in lanes}, {'claude': 1, 'codex': None})
 
     def test_an_old_idle_tool_is_left_out_unless_its_program_runs(self):
         stale = {'claude': {'state': 'idle', 'project': '', 'age': 99999, 'tool': ''}}

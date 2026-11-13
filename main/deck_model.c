@@ -562,6 +562,8 @@ bool deck_model_agents_from_json(const char *json_text)
         copy_text(parsed[count].name, sizeof(parsed[count].name), text_of(item, "name"));
         copy_text(parsed[count].text, sizeof(parsed[count].text), text_of(item, "text"));
         copy_text(parsed[count].sub, sizeof(parsed[count].sub), text_of(item, "sub"));
+        const cJSON *asks = cJSON_GetObjectItemCaseSensitive(item, "q");
+        parsed[count].asks = cJSON_IsNumber(asks) && asks->valueint == 1;
         parsed[count].state = !strcmp(state, "waiting") ? DECK_AGENT_WAITING :
                               !strcmp(state, "working") ? DECK_AGENT_WORKING : DECK_AGENT_IDLE;
         ++count;

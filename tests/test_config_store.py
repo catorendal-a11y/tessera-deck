@@ -104,6 +104,36 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(len(kept), 3)
         self.assertEqual([item['buttons'] for item in kept], [1, 1, 1])
 
+    def test_write_atomic_replaces_the_file_and_leaves_no_temporary_files(self):
+        from unittest.mock import patch
+        from deck_control import save_profiles
+        save_profiles(config('one'), self.path)
+        save_profiles(config('two'), self.path)
+        self.assertEqual(json.loads(self.path.read_text(encoding='utf-8')), config('two'))
+        with patch('config_store.os.replace', side_effect=PermissionError('locked')):
+            with self.assertRaises(PermissionError):
+                config_store.write_atomic(self.path, b'{}')
+        self.assertEqual([file.name for file in self.path.parent.iterdir()], ['profiles.json'])
+        self.assertEqual(json.loads(self.path.read_text(encoding='utf-8')), config('two'))
+
+    def test_newest_and_pruning_follow_the_time_written_not_the_name(self):
+        folder = config_store.backups_dir(self.path)
+        folder.mkdir()
+        # By name '-1' and '-10' sort before the base copy and '-2'; a foreign 'profiles-old.json' sorts last.
+        for age, name in enumerate(('profiles-20300101-120000.json', 'profiles-20300101-120000-1.json',
+                                    'profiles-20300101-120000-2.json', 'profiles-20300101-120000-10.json')):
+            (folder / name).write_text(json.dumps(config(name)))
+            os.utime(folder / name, (self.clock.now - 4000 + age, self.clock.now - 4000 + age))
+        (folder / 'profiles-old.json').write_text(json.dumps(config('mine')))
+        os.utime(folder / 'profiles-old.json', (self.clock.now - 1, self.clock.now - 1))
+        self.write('profiles-20300101-120000-10.json')
+        self.assertIsNone(self.backup(), 'the newest copy (-10) already holds these bytes')
+        self.write('fresh')
+        made = self.backup(force=True, keep=2)
+        left = sorted(file.name for file in folder.glob('profiles-*.json'))
+        self.assertEqual(left, sorted([made.name, 'profiles-20300101-120000-10.json', 'profiles-old.json']))
+        self.assertEqual(config_store.list_backups(self.path)[0]['name'], made.name)
+
     def test_listing_describes_each_backup_and_skips_damaged_or_foreign_files(self):
         self.write('one')
         self.backup()
@@ -148,6 +178,41 @@ class EditorTests(unittest.TestCase):
         self.assertNotEqual(restored['revision'], saved['revision'])
         again = self.editor.command('backups', {})['backups']
         self.assertEqual(len(again), 2, 'restoring keeps the configuration it replaced')
+
+    def test_a_tray_brightness_change_does_not_conflict_with_the_editor(self):
+        from tessera_app import Conflict
+        from tessera_tray import set_brightness
+        state = self.editor.read()
+        changed = json.loads(json.dumps(state['config']))
+        changed['profiles']['Main']['pages']['First'][0]['label'] = 'changed'
+        set_brightness(40, self.path)  # the tray's Brightness menu, while the editor is open
+        saved = self.editor.save({'config': changed, 'revision': state['revision']})
+        self.assertEqual(saved['config']['profiles']['Main']['pages']['First'][0]['label'], 'changed')
+        self.assertEqual(saved['config']['display']['brightness'], 40, 'the tray level stays')
+        on_disk = json.loads(self.path.read_text(encoding='utf-8'))
+        on_disk['profiles']['Main']['pages']['First'][0]['label'] = 'elsewhere'
+        self.path.write_text(json.dumps(on_disk), encoding='utf-8')  # any other change still conflicts
+        with self.assertRaises(Conflict):
+            self.editor.save({'config': changed, 'revision': saved['revision']})
+
+    def test_a_backup_can_be_restored_over_a_broken_file_which_is_kept(self):
+        state = self.editor.read()
+        changed = json.loads(json.dumps(state['config']))
+        changed['profiles']['Main']['pages']['First'][0]['label'] = 'changed'
+        self.editor.save({'config': changed, 'revision': state['revision']})
+        name = self.editor.command('backups', {})['backups'][0]['name']
+        for broken in (b'{"profiles": ', json.dumps(dict(config(), version=99)).encode()):
+            with self.subTest(broken=broken[:20]):
+                self.path.write_bytes(broken)
+                opened = self.editor.read_for_editor()
+                self.assertIn('error', opened)
+                self.assertTrue(opened['config']['profiles'])
+                with self.assertRaises(ValueError):  # a normal save must not overwrite the broken file
+                    self.editor.save({'config': opened['config'], 'revision': opened['revision']})
+                self.assertEqual(self.path.read_bytes(), broken)
+                restored = self.editor.command('restore-backup', {'name': name})
+                self.assertEqual(restored['config']['profiles']['Main']['pages']['First'][0]['label'], 'original')
+                self.assertEqual(self.path.with_name('profiles-previous.local.json').read_bytes(), broken)
 
     def test_restoring_something_invalid_changes_nothing(self):
         state = self.editor.read()

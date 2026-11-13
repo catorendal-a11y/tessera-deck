@@ -111,8 +111,14 @@ def merge(variables: dict, activity: dict, running: dict, clock=time.time) -> di
     stamp = time.strftime('%H:%M', time.localtime(clock()))
     for key, seen in activity.items():
         if str(variables.get(key, '')) in ('working', 'waiting'):
-            merged.setdefault(f'{key}.project', seen['project'])
-            continue
+            if running.get(key) is False and seen['age'] > RECENT_SECONDS:
+                # The tool was killed before its end hook ran: no process and no session write for an hour. Only
+                # both together: a real wait leaves the file idle, and node installs have no claude.exe to find.
+                for name in (key, f'{key}.message', f'{key}.tool'):
+                    merged.pop(name, None)
+            else:
+                merged.setdefault(f'{key}.project', seen['project'])
+                continue
         if seen['state'] == 'working':
             merged[key] = 'working'
             merged.setdefault(f'{key}.tool', seen['tool'])
