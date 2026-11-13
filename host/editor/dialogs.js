@@ -495,10 +495,14 @@ function savePanel(change) {
   mutate(() => { config.panel = {...panelChoice(), ...change}; });
   renderScreen();
 }
+let railShown = '';
 function renderRail() {
   const waiting = Object.values(dashboard.agent_states || {}).includes('waiting');
   const choice = panelChoice();
   const shortcuts = (choice.shortcuts || []).filter(s => s.type === 'actions' || config?.profiles?.[s.profile]?.pages?.[s.page]);
+  const shown = JSON.stringify([waiting, editorView, choice.screens, shortcuts, packIcons.size]);  // the status poll calls this every 1.5 s
+  if (shown === railShown) return;
+  railShown = shown;
   $('#rail').replaceChildren(
     element('span', {class: 'rail-logo', 'aria-hidden': 'true'}),
     ...((ids => (ids.includes('keys') ? ids : ['keys', ...ids]).map(id => RAIL.find(r => r[0] === id)).filter(Boolean))(choice.screens || RAIL.map(r => r[0]))).map(([id, name, path]) => {

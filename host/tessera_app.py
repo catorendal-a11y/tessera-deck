@@ -173,7 +173,21 @@ class Conflict(ValueError):
     pass
 
 
+PROGRAMS_TTL = 60
+_programs_cache = (0.0, None)
+
+
 def installed_programs():
+    """The program list, kept for a minute: each pick of a program asks for it and the scan runs PowerShell."""
+    global _programs_cache
+    taken, programs = _programs_cache
+    if programs is None or time.monotonic() - taken > PROGRAMS_TTL:
+        programs = scan_programs()
+        _programs_cache = (time.monotonic(), programs)
+    return [dict(item) for item in programs]
+
+
+def scan_programs():
     """Return local Start-menu and taskbar shortcuts without launching anything."""
     if os.name != 'nt':
         return []
@@ -673,8 +687,9 @@ def make_server(editor, port=0, token=None):
         def log_message(self, *_):
             pass  # Never log user actions, paths or session tokens.
 
-        def headers_common(self):
-            self.send_header('Cache-Control', 'no-store')
+        def headers_common(self, cache=False):
+            # An image's name is the hash of its bytes, so it never changes; everything else is live.
+            self.send_header('Cache-Control', 'private, max-age=86400, immutable' if cache else 'no-store')
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Referrer-Policy', 'no-referrer')
             self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'")
@@ -722,7 +737,7 @@ def make_server(editor, port=0, token=None):
                 except (ValueError, OSError):
                     return self.json({'error': 'The image does not exist'}, 404)
                 self.send_response(200)
-                self.headers_common()
+                self.headers_common(cache=True)
                 self.send_header('Content-Type', 'image/png')
                 self.send_header('Content-Length', str(len(raw)))
                 self.end_headers()

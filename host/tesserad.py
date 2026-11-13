@@ -642,7 +642,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'actions':
             self.start_actions(job[1])
         elif kind == 'push':
-            self.push_page()
+            # Live values are not refreshed under a dark screen or the clock: the next push after waking sends them.
+            if not (getattr(self, 'dimmed', False) or getattr(self, 'ambient_active', False)):
+                self.push_page()
         elif kind == 'force-push':
             self.push_page(force=True)
         elif kind == 'brightness':

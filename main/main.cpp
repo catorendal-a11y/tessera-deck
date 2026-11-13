@@ -136,7 +136,7 @@ static bool parse_percent(const char *text, long low, long high, int *out)
  * stack; USB is the only transport. */
 static void usb_console_task(void *)
 {
-    uint8_t received[256];
+    static uint8_t received[2048];
     int rx_size = 0, rx_at = 0;
     char line[1100];
     size_t used = 0;
@@ -149,6 +149,8 @@ static void usb_console_task(void *)
     const uint32_t boot_id = esp_random();
     uint32_t wake_seen = deck_model_wake_sequence();
     for (;;) {
+        /* Housekeeping once per read, not once per byte: an image upload is hundreds of KB. */
+        if (rx_at >= rx_size) {
         /* A touch on the dimmed panel: restore the backlight here and tell the
          * host, which resets its idle timer instead of seeing a key press. */
         const uint32_t wake = deck_model_wake_sequence();
@@ -190,7 +192,6 @@ static void usb_console_task(void *)
             }
             fflush(stdout);
         }
-        if (rx_at >= rx_size) {
             rx_size = usb_serial_jtag_read_bytes(received, sizeof(received), pdMS_TO_TICKS(20));
             rx_at = 0;
             if (rx_size <= 0) continue;

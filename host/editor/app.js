@@ -438,7 +438,10 @@ function renderStatus() {
   if(live!==lastLive&&!drag){lastLive=live;renderGrid();}
 }
 let lastLive='',panelHintShown=false;
-async function pollStatus() {try{dashboard=await api('status');renderStatus();if(typeof renderRail==='function'){renderRail();if(editorView!=='keys'&&!document.activeElement?.closest('#screens-view'))renderScreen();}}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}}
+let polling=false,lastScreenLive='';
+async function pollStatus(timer) {if(timer===true&&(document.hidden||polling))return;polling=true;  /* a hidden tab does not poll */
+  try{dashboard=await api('status');renderStatus();if(typeof renderRail==='function'){renderRail();const live=JSON.stringify([dashboard,editorView]);
+    if(editorView!=='keys'&&live!==lastScreenLive&&!document.activeElement?.closest('#screens-view')){lastScreenLive=live;renderScreen();}}}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');}finally{polling=false;}}
 document.addEventListener('keydown',event=>{
   if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}
     if(['Control','Shift','Alt','Meta'].includes(event.key))return;
@@ -556,7 +559,7 @@ async function start() {
   $('#reload').onclick=async()=>{if(dirty&&!confirm('Discard unsaved changes and reload the configuration from disk?'))return;try{const state=await api('config');config=state.config;savedBase=clone(config);revision=state.revision;dirty=false;conflicted=false;history=[];future=[];$('#reload').hidden=true;renderAll();setSaveState('✓ Configuration reloaded');}catch(error){showError(error);}};
   setupMoreMenu();fitDevice();window.addEventListener('resize',fitDevice);tickClock();setInterval(tickClock,10000);
   $('#sync').onchange=()=>{if($('#sync').checked)syncPanel();};
-  pollStatus();setInterval(pollStatus,1500);
+  pollStatus();setInterval(()=>pollStatus(true),1500);document.addEventListener('visibilitychange',()=>{if(!document.hidden)pollStatus(true);});
 }
 
 function otherTriggerRows(base, row) {

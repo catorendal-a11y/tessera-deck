@@ -18,6 +18,7 @@ PMLOG_FAN_PERCENT = 15
 PMLOG_SLOTS = 256
 NVIDIA_QUERY = 'temperature.gpu,power.draw,fan.speed,clocks.gr,utilization.gpu'
 NVIDIA_CACHE_SECONDS = 2.0
+NVIDIA_RETRY_SECONDS = 30.0
 
 
 def parse_pmlog(sensors: dict[int, int]) -> dict[str, float]:
@@ -166,6 +167,8 @@ class NvidiaSmiReader:
             self._last = parse_nvidia(done.stdout) if done.returncode == 0 else {}
         except (OSError, subprocess.SubprocessError):
             self._last = {}
+        if not self._last:  # a failing nvidia-smi is not started again every 2 seconds
+            self._at = now + NVIDIA_RETRY_SECONDS - NVIDIA_CACHE_SECONDS
         return self._last
 
 

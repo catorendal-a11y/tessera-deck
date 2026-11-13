@@ -26,7 +26,7 @@ MEMORY_PATH = r'\GPU Adapter Memory(*)\Dedicated Usage'
 PERFORMANCE_PATH = r'\Processor Information(_Total)\% Processor Performance'
 ENGINE_INSTANCE = re.compile(r'\(pid_\d+_luid_(0x[0-9A-Fa-f]+_0x[0-9A-Fa-f]+)_phys_\d+_eng_(\d+)_engtype_([^)]+)\)')
 MEMORY_INSTANCE = re.compile(r'\(luid_(0x[0-9A-Fa-f]+_0x[0-9A-Fa-f]+)_phys_\d+\)')
-RE_EXPAND_SECONDS = 15.0
+RE_EXPAND_SECONDS = 60.0  # re-adding every GPU counter stalls the main loop ~170 ms
 MAX_SENSOR_BYTES = 4 * 1024 * 1024
 DISPLAY_CLASS_KEY = r'SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}'
 

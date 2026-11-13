@@ -61,7 +61,7 @@ struct ImageTile {
 ImageTile images[DECK_MAX_BUTTONS];
 
 lv_obj_t *agents_area=nullptr,*agents_summary=nullptr;
-uint32_t agents_version=0;
+uint32_t agents_version=0,agents_dot=0;bool agents_dirty=false;  /* a hidden agents screen is rebuilt when shown */
 
 constexpr int FaderW=163,FaderGap=18,TrackH=340,TrackW=110;
 lv_obj_t *mixer_area=nullptr,*fader_zone[DECK_FADERS_MAX]{},*fader_fill[DECK_FADERS_MAX]{},*fader_knob[DECK_FADERS_MAX]{};
@@ -128,6 +128,13 @@ const char *fallback_icon(const char *name) {
 int slot_of(lv_event_t *event) {return static_cast<int>(reinterpret_cast<intptr_t>(lv_event_get_user_data(event)));}
 void *slot_data(int slot) {return reinterpret_cast<void*>(static_cast<intptr_t>(slot));}
 
+/* Set a color only when it differs: LVGL redraws the object on every set, even to the same value. */
+void set_color(lv_obj_t *object,lv_style_prop_t prop,uint32_t hex,lv_style_selector_t selector=0) {
+    const lv_color_t color=lv_color_hex(hex);lv_style_value_t value{};
+    if(lv_obj_get_local_style_prop(object,prop,&value,selector)==LV_STYLE_RES_FOUND&&lv_color_eq(value.color,color))return;
+    value.color=color;lv_obj_set_local_style_prop(object,prop,value,selector);
+}
+
 /* ---- Keys ---------------------------------------------------------------------------------------- */
 void image_frame(ImageTile& value) {
     value.descriptor.header.magic=LV_IMAGE_HEADER_MAGIC;value.descriptor.header.cf=LV_COLOR_FORMAT_ARGB8888;
@@ -167,6 +174,12 @@ void wake_touch(lv_event_t *event) {
 }
 /* The deck: six by three keys, each in the slot its id names, so the panel shows what the editor shows. */
 uint32_t image_generation=0;bool image_missing=false;  /* a key waits for an image the host has not sent yet */
+char asked_images[DECK_MAX_BUTTONS][64]{};uint32_t asked_layout=0,asked_at=0;
+bool ask_once(const char *icon) {  /* each rebuild while images stream in would ask again and crowd out touches */
+    if(asked_layout!=deck_model_buttons_version()||millis()-asked_at>60000){memset(asked_images,0,sizeof(asked_images));asked_layout=deck_model_buttons_version();asked_at=millis();}
+    for(auto& asked:asked_images){if(!strncmp(asked,icon,sizeof(asked)-1))return false;if(!asked[0]){snprintf(asked,sizeof(asked),"%s",icon);return true;}}
+    return false;
+}
 /* The editor's Text size and Bold. There is no bold 16 px font, so bold at 16 uses bold 20. */
 const lv_font_t *title_font(const deck_button_t& value) {
     switch(value.title_size) {
@@ -207,7 +220,7 @@ void build_keys() {
         if(!image&&!strncmp(value.icon,"im:",3)){
             image_missing=true;
             /* The host may believe the panel still has it (the cache dropped it): ask for it again. */
-            char line[96];snprintf(line,sizeof(line),"{\"type\":\"image\",\"id\":\"%.60s\"}",value.icon);deck_model_queue_line(line);
+            if(ask_once(value.icon)){char line[96];snprintf(line,sizeof(line),"{\"type\":\"image\",\"id\":\"%.60s\"}",value.icon);deck_model_queue_line(line);}
         }
         if(cells>1&&value.ring&&value.has_progress){
             /* A ring (a timer) on the left, the time big to its right. */
@@ -264,14 +277,14 @@ void update_live() {
         const int slot=item.id-1;
         if(value_label[slot]){
             if(strcmp(lv_label_get_text(value_label[slot]),item.gauge_text))lv_label_set_text(value_label[slot],item.gauge_text);
-            lv_obj_set_style_text_color(value_label[slot],lv_color_hex(item.color),0);
+            set_color(value_label[slot],LV_STYLE_TEXT_COLOR,item.color);
         }
-        if(glyph_label[slot])lv_obj_set_style_text_color(glyph_label[slot],lv_color_hex(item.color),0);
+        if(glyph_label[slot])set_color(glyph_label[slot],LV_STYLE_TEXT_COLOR,item.color);
         if(name_label[slot]&&strcmp(lv_label_get_text(name_label[slot]),item.label))lv_label_set_text(name_label[slot],item.label);
         if(sub_label[slot]&&strcmp(lv_label_get_text(sub_label[slot]),item.sub))lv_label_set_text(sub_label[slot],item.sub);
         /* Color is not structural (deck_model same_structure), so the gauges recolor here too. */
-        if(bar_fill[slot]){lv_obj_set_width(bar_fill[slot],bar_width[slot]*item.progress/100);lv_obj_set_style_bg_color(bar_fill[slot],lv_color_hex(item.color),0);}
-        if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],item.progress);lv_obj_set_style_arc_color(ring_arc[slot],lv_color_hex(item.color),LV_PART_INDICATOR);}}
+        if(bar_fill[slot]){lv_obj_set_width(bar_fill[slot],bar_width[slot]*item.progress/100);set_color(bar_fill[slot],LV_STYLE_BG_COLOR,item.color);}
+        if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],item.progress);set_color(ring_arc[slot],LV_STYLE_ARC_COLOR,item.color,LV_PART_INDICATOR);}}
     live_version=deck_model_live_version();
 }
 /* ASCII only: UTF-8 multi-byte sequences are copied untouched. */
@@ -362,7 +375,7 @@ void build_agents() {
     else snprintf(summary,sizeof(summary),"%s",waiting?"One needs you":"Nobody is waiting");
     lv_label_set_text(agents_summary,summary);
     lv_obj_set_style_text_color(agents_summary,lv_color_hex(waiting?Amber:Muted),0);
-    agents_version=deck_model_agents_version();update_rail_dot();
+    agents_version=agents_dot=deck_model_agents_version();agents_dirty=false;update_rail_dot();
 }
 
 /* ---- Mixer --------------------------------------------------------------------------------------- */
@@ -371,14 +384,14 @@ void draw_fader(int i) {
     const int fill=TrackH*fader.level/100;
     lv_obj_set_pos(fader_fill[i],44,TrackH-fill);lv_obj_set_height(fader_fill[i],fill);
     lv_obj_set_hidden(fader_fill[i],fill<4);
-    lv_obj_set_style_bg_color(fader_fill[i],lv_color_hex(fader.muted?Line:fader.color),0);
+    set_color(fader_fill[i],LV_STYLE_BG_COLOR,fader.muted?Line:fader.color);
     lv_obj_set_y(fader_knob[i],LV_CLAMP(0,TrackH-fill-22,TrackH-44));
     char text[12];
     if(fader.muted)snprintf(text,sizeof(text),"Muted");else snprintf(text,sizeof(text),"%d %%",fader.level);
     if(strcmp(lv_label_get_text(fader_value[i]),text))lv_label_set_text(fader_value[i],text);
-    lv_obj_set_style_bg_color(fader_mute[i],lv_color_hex(fader.muted?0x3A1D24:Card),0);
-    lv_obj_set_style_border_color(fader_mute[i],lv_color_hex(fader.muted?Red:Line),0);
-    if(fader_icon[i])lv_obj_set_style_text_color(fader_icon[i],lv_color_hex(fader.muted?0xFF8A8A:Muted),0);
+    set_color(fader_mute[i],LV_STYLE_BG_COLOR,fader.muted?0x3A1D24:Card);
+    set_color(fader_mute[i],LV_STYLE_BORDER_COLOR,fader.muted?Red:Line);
+    if(fader_icon[i])set_color(fader_icon[i],LV_STYLE_TEXT_COLOR,fader.muted?0xFF8A8A:Muted);
 }
 void fader_touch(lv_event_t *event) {
     const int i=slot_of(event);
@@ -449,12 +462,12 @@ void draw_stat(int i,const deck_stat_t& stat) {
     if(strcmp(lv_label_get_text(stat_name[i]),stat.name))lv_label_set_text(stat_name[i],stat.name);
     if(strcmp(lv_label_get_text(stat_value[i]),stat.value))lv_label_set_text(stat_value[i],stat.value);
     if(strcmp(lv_label_get_text(stat_unit[i]),stat.unit))lv_label_set_text(stat_unit[i],stat.unit);
-    lv_obj_set_style_text_color(stat_value[i],lv_color_hex(stat.color),0);
-    lv_obj_set_style_text_color(stat_unit[i],lv_color_hex(mix(stat.color,Muted,.45f)),0);
+    set_color(stat_value[i],LV_STYLE_TEXT_COLOR,stat.color);
+    set_color(stat_unit[i],LV_STYLE_TEXT_COLOR,mix(stat.color,Muted,.45f));
     const int fill=(StatW-40)*stat.percent/100;
     lv_obj_set_width(stat_fill[i],fill);lv_obj_set_hidden(stat_fill[i],fill<3);
-    lv_obj_set_style_bg_color(stat_fill[i],lv_color_hex(stat.color),0);
-    lv_obj_set_style_bg_color(stat_card[i],lv_color_hex(stat.warn?0x2B2314:Card),0);
+    set_color(stat_fill[i],LV_STYLE_BG_COLOR,stat.color);
+    set_color(stat_card[i],LV_STYLE_BG_COLOR,stat.warn?0x2B2314:Card);
 }
 void sync_stats() {
     deck_stat_t list[DECK_STATS_MAX]{};
@@ -504,6 +517,7 @@ void set_view(int next) {
     if(next<0||next>=ViewCount)return;
     view=next;
     for(int i=0;i<ViewCount;++i)lv_obj_set_hidden(views[i],i!=view);
+    if(view==ViewAgents&&(agents_dirty||agents_version!=deck_model_agents_version()))build_agents();
     refresh_rail();
 }
 /* A short light on a rail button that ran something, so the tap is seen. */
@@ -573,7 +587,7 @@ void update_link() {
     link_shown=linked;lv_obj_set_hidden(link_label,linked);
     for(auto *area:{agents_area,mixer_area,stats_area})if(area)lv_obj_set_style_opa(area,linked?LV_OPA_COVER:LV_OPA_40,0);
     show_offline(linked);
-    if(linked){build_agents();sync_stats();return;}
+    if(linked){agents_dirty=true;sync_stats();return;}
     for(auto *summary:{agents_summary,stats_summary}){lv_label_set_text(summary,"PC not connected");lv_obj_set_style_text_color(summary,lv_color_hex(Amber),0);}
 }
 /* Title on the left, a one-line summary on the right. */
@@ -663,9 +677,13 @@ void update(lv_timer_t*) {
     else if(live_version!=deck_model_live_version())update_live();
     if(context_version!=deck_model_context_version())update_context();
     if(rail_version!=deck_model_rail_version())build_rail();
-    if(agents_version!=deck_model_agents_version())build_agents();
+    if(agents_dirty||agents_version!=deck_model_agents_version()){
+        if(view==ViewAgents)build_agents();
+        else if(agents_dot!=deck_model_agents_version()){agents_dot=deck_model_agents_version();update_rail_dot();}
+    }
     const int wanted=deck_model_take_view_request();
     if(wanted>=0){if(wanted==ViewAgents&&view!=ViewAgents)view_before_question=view;set_view(wanted);}
+    if(view_before_question>=0&&view!=ViewAgents)view_before_question=-1;  /* you left the agents screen yourself */
     if(view_before_question>=0&&agents_version==deck_model_agents_version()&&!question_waiting()){
         if(view==ViewAgents)set_view(view_before_question);  /* answered or gone: back to the screen you had */
         view_before_question=-1;
@@ -673,7 +691,8 @@ void update(lv_timer_t*) {
     for(auto& hold:fader_hold)if(hold&&static_cast<int32_t>(millis()-hold)>=0)hold=0;
     if(faders_version!=deck_model_faders_version())sync_faders();
     if(stats_version!=deck_model_stats_version())sync_stats();
-    for(auto& image:images)if(image.image&&image.image->frames.size()>1&&static_cast<int32_t>(millis()-image.due)>=0){image.frame=(image.frame+1)%image.image->frames.size();image_frame(image);}
+    const bool keys_seen=view==ViewKeys&&deck_model_screen()==DECK_SCREEN_DECK&&!deck_model_dimmed();
+    if(keys_seen)for(auto& image:images)if(image.image&&image.image->frames.size()>1&&static_cast<int32_t>(millis()-image.due)>=0){image.frame=(image.frame+1)%image.image->frames.size();image_frame(image);}
     int id=0;deck_feedback_t result;
     while(deck_model_take_feedback(&id,&result))for(int i=0;i<DECK_MAX_BUTTONS;++i)if(ids[i]==id&&keys[i])flash(i,result==DECK_FEEDBACK_ALERT?AlertBg:OkBg,500);
     for(int i=0;i<DECK_MAX_BUTTONS;++i)if(flash_until[i]&&keys[i]&&static_cast<int32_t>(millis()-flash_until[i])>=0){lv_anim_delete(keys[i],pulse_opa);lv_obj_set_style_bg_opa(keys[i],LV_OPA_COVER,0);lv_obj_set_style_bg_color(keys[i],lv_color_hex(base_bg[i]),0);flash_until[i]=0;}

@@ -154,11 +154,13 @@ class PanelSerial:
                 self.send_line(f'AD_IMG_BEGIN {name} {len(raw)} {zlib.crc32(raw)}')
                 # USB Serial/JTAG accepts large writes, but the firmware task
                 # consumes line frames in smaller bursts. Pace image chunks so
-                # Windows cannot overrun that receive loop on detailed icons.
-                for offset in range(0, len(raw), 160):
+                # Windows cannot overrun that receive loop on detailed icons. A pause every 4 chunks (about
+                # 1.3 KB of the panel's 8 KB buffer) is 4 times faster than one per chunk; the lock is held meanwhile.
+                for number, offset in enumerate(range(0, len(raw), 160)):
                     self.send_line(f'AD_IMG_DATA {offset} ' + raw[offset:offset+160].hex())
-                    self.ser.flush()
-                    time.sleep(.01)
+                    if number % 4 == 3:
+                        self.ser.flush()
+                        time.sleep(.01)
                 self.send_line('AD_IMG_END')
                 if not self.asset_done.wait(15):
                     raise TimeoutError('The panel did not acknowledge the image')

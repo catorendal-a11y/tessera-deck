@@ -229,7 +229,9 @@ class SystemStats:
         readings = lhm_readings or hwinfo_readings
         sensor_values = select_hwinfo_metrics(readings)
         # Sensor tools win; Windows counters, then the graphics-driver readers fill what they leave empty.
-        merged = {**self.gpu.sample(), **self.counters.sample(), **sensor_values}
+        # nvidia-smi is a process start: skip the graphics-driver readers when a sensor tool has the GPU already.
+        gpu = {} if {'gpu_temp', 'gpu_load'} <= sensor_values.keys() else self.gpu.sample()
+        merged = {**gpu, **self.counters.sample(), **sensor_values}
         fps = select_presentmon_fps(hwinfo_readings)
         if fps is not None:
             merged['fps'] = fps

@@ -75,6 +75,10 @@ class Controller:
     def processes(self, root=None):
         try:
             saved = json.loads(self.pid_path.read_text())
+            # The editor asks every 1.5 s: a host already found is checked, not searched for again.
+            known = getattr(self, 'known', None)
+            if known and known[0] == (saved['pid'], saved['created']) and known[1].is_running():
+                return [known[1]]
             process = psutil.Process(saved['pid'])
             command = process.cmdline()
             if (abs(process.create_time() - saved['created']) < .01 and len(command) > 1
@@ -88,7 +92,9 @@ class Controller:
                         matching.append(child)
                 actual = matching[-1]
                 if actual.pid != saved['pid']:
-                    self.pid_path.write_text(json.dumps({'pid': actual.pid, 'created': actual.create_time()}))
+                    saved = {'pid': actual.pid, 'created': actual.create_time()}
+                    self.pid_path.write_text(json.dumps(saved))
+                self.known = ((saved['pid'], saved['created']), actual)
                 return [actual]
         except (OSError, ValueError, KeyError, psutil.Error):
             pass
