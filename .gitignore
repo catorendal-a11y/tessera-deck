@@ -23,3 +23,8 @@ firmware/
 *.blend1
 *.FCBak
 hardware/save_view.log
+
+# Local state the host writes (recent problems, an unreadable config set aside), and agent worktrees
+*.local.txt
+host/profiles-unreadable.local.json
+.claude/

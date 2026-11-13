@@ -33,12 +33,12 @@ the [roadmap](ROADMAP.md)), so the warning says nothing about the file itself. T
 one the release workflow built, compare its SHA-256 with the line for it in `SHA256SUMS` from the same release:
 
 ```powershell
-Get-FileHash .\tessera-host-v0.6.3.zip -Algorithm SHA256
+Get-FileHash .\tessera-host-v0.7.0.zip -Algorithm SHA256
 Get-Content .\SHA256SUMS
 ```
 
 The two hashes must be the same (`Get-FileHash` prints capitals, `SHA256SUMS` small letters; that does not matter).
-With the GitHub CLI you can also check where the zip was built: `gh attestation verify tessera-host-v0.6.3.zip --repo catorendal-a11y/tessera-deck`.
+With the GitHub CLI you can also check where the zip was built: `gh attestation verify tessera-host-v0.7.0.zip --repo catorendal-a11y/tessera-deck`.
 
 ```powershell
 Tessera.cmd            # everything: tray icon, USB host and the editor window

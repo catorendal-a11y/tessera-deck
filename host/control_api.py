@@ -119,9 +119,10 @@ class ControlServer:
             return allowed
 
     def audit(self, who, method, path, code) -> None:
-        # Who changed what, never the body: values and texts can hold private data.
+        # Who changed what, never the body: values and texts can hold private data. Successful variable
+        # updates are skipped: the AI adapters send them every few seconds and would bury everything else.
         log = getattr(self.daemon, 'log', None)
-        if callable(log):
+        if callable(log) and not (path == '/v1/vars' and code < 400):
             log(f'API {who} {method} {path} -> {code}')
 
     @staticmethod

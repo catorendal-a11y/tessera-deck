@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - Install: `Tessera.cmd` installs the host packages from `host/requirements.lock`, where every package is pinned with its SHA-256 hash (`--require-hashes`), and says clearly when Python is missing or older than 3.11.
 - Releases: the notes are the matching `CHANGELOG.md` section, the host tests run before publishing, and the zips carry a build attestation (`gh attestation verify`). [Install](docs/INSTALL.md) explains the SmartScreen warning and how to check a download against `SHA256SUMS`.

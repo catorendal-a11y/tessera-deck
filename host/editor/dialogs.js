@@ -315,6 +315,7 @@ async function checkUpdates() {
     ? `Version ${info.latest} is available (you have ${info.current}).${info.firmware ? '' : ' It has no firmware package.'}`
     : `You have the latest version (${info.current}).${info.firmware ? ' Its firmware can still be downloaded for the panel.' : ''}`;
   if (info.newer) label.append(' ', element('a', {href: info.page, target: '_blank', rel: 'noopener', text: 'Release notes and the Windows program'}));
+  if (info.newer && info.notes) label.append(element('pre', {class: 'release-notes', text: info.notes}));  // what is new, before you download
 }
 async function downloadFirmware() {
   const result = await api('command/update-download-firmware', {});
@@ -361,8 +362,8 @@ async function renderPlugins() {
       text('small', `${plugin.enabled ? plugin.state : 'off'} · may use: ${plugin.permissions.join(', ') || 'nothing'}`)));
     const check = toggle.querySelector('input');
     check.checked = plugin.enabled;
-    check.onchange = () => {
-      if (check.checked && !pluginConsent(plugin)) { check.checked = false; return; }
+    check.onchange = async () => {
+      if (check.checked && !await pluginConsent(plugin)) { check.checked = false; return; }
       setPlugin(plugin.id, {enabled: check.checked}); save().then(renderPlugins).catch(showError);  // the list shows the host's state, so save first
     };
     box.append(toggle);
@@ -390,13 +391,14 @@ const PLUGIN_RIGHTS = {vars: 'set values shown on keys (names starting with the 
   feedback: 'flash keys green or red', state: 'change the state of keys', events: 'read key presses, page changes and its commands',
   read: 'read the panel state and all values'};
 /* Ask once per plugin id and manifest version before it first runs: a new version may ask for more. */
-function pluginConsent(plugin) {
+async function pluginConsent(plugin) {
   let given = {};
   try { given = JSON.parse(localStorage.getItem('tessera-plugin-consent') || '{}'); } catch {}
   if (given[plugin.id] === plugin.version) return true;
   const rights = plugin.permissions.map(name => `• ${PLUGIN_RIGHTS[name] || name}`).join('\n') || '• nothing in Tessera';
-  if (!confirm(`Turn on ${plugin.name} ${plugin.version}?\n\nIn Tessera it may:\n${rights}\n\nIt runs this program: ${(plugin.command || []).join(' ')}\n`
-    + 'The program runs with your own Windows rights: it can use the network and read your files. Only turn it on if you trust where it came from.')) return false;
+  if (!await confirmDialog(`Turn on ${plugin.name} ${plugin.version}?`, `In Tessera it may:\n${rights}\n\nIt runs this program: ${(plugin.command || []).join(' ')}\n\n`
+    + 'The program runs with your own Windows rights: it can use the network and read your files. Only turn it on if you trust where it came from.',
+    {ok: 'Turn on'})) return false;
   try { localStorage.setItem('tessera-plugin-consent', JSON.stringify({...given, [plugin.id]: plugin.version})); } catch {}
   return true;
 }
