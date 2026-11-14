@@ -141,6 +141,17 @@ The **Status** screen has a *Show* box for each reading: CPU load, CPU temperatu
 
 **Agents** shows which AI tools work and which wait for you, and ticks *Show on panel* per tool. Working and idle come from the tools' own session files.
 
+On the panel, each tool gets a lane with its icon, its state and the time it started (*working since 14:12*, *waiting for you since 14:31*), what it does now and its project folder. The buttons on the right depend on the state:
+
+| State | Buttons |
+|---|---|
+| Asks a permission question | *Deny* and *Allow* |
+| Waits in its own window | *Open* |
+| Working | *Open* and *Stop* |
+| Idle | *Open* |
+
+*Open* brings the tool's window to the front. When no tool runs, the screen says so.
+
 To see what Claude Code is doing, and to answer its permission questions on the panel:
 
 1. Open **More → Connect Claude Code …** (or *Connect …* on the Agents screen).

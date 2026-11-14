@@ -30,7 +30,7 @@ This page lists what Tessera does, including the changes under *Unreleased* in t
 |---|---|
 | Keys | A fixed 6 × 3 grid drawn by LVGL. Values and labels update in place, so a key is not rebuilt under your finger. The grid is rebuilt only when the page changes. |
 | Rail | The buttons down the left edge: the Keys, Agents, Mixer and Status screens, then up to three shortcuts to your own pages. You choose the screens, their order and the shortcuts under **Panel → Rail …**. |
-| Agents screen | Shows what Claude Code, Codex and ZCode are doing. A permission question from Claude Code shows here and is never covered by the clock or a dark screen. Touch *Allow* or *Deny* to answer. |
+| Agents screen | Shows what Claude Code, Codex and ZCode are doing: each tool's icon, since when it has worked or waited, what it does and its project folder. A permission question from Claude Code shows here and is never covered by the clock or a dark screen. Touch *Allow* or *Deny* to answer, *Open* to bring the tool's window forward, or *Stop* while it works. |
 | Mixer screen | Faders for the speakers, up to three programs and the microphone. |
 | Status screen | Live gauges for the PC. |
 | Clock screen | An idle clock made of brand-colored tiles, with optional weather from Open-Meteo for a city you choose and an icon for sun, cloud, fog, drizzle, rain, snow or thunder. The clock is 24-hour or 12-hour with AM/PM; *Clock format* in Panel → Display follows Windows by default. |

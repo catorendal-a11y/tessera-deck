@@ -27,7 +27,7 @@ Tessera turns one 7-inch ESP32-P4 touchscreen into an open-source Stream Deck fo
 
 ## Why Tessera
 
-- **It answers your AI agent.** When Claude Code asks for permission, the question shows on the panel. Touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing.
+- **It answers your AI agent.** When Claude Code asks for permission, the question shows on the panel. Touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
 - **Everything stays on your PC.** No account, no cloud, no subscription. The panel talks to a small Windows host over USB.
 - **It is yours to change.** Firmware, host and editor are open source (MIT). There are over 600 automated tests, a documented serial protocol and a plugin API.
 - **One cheap board.** The panel costs about $35 to $42 and you flash it from the editor.

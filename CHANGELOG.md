@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Panel: the agents screen shows each tool's icon, since when it has worked or waited (*working since 14:12*), its project behind a folder icon, *Open* beside *Stop* while it works, and a clearer screen when no agent runs. The host sends the start time as `at` in `AD_AGENTS`.
+
 ## 0.9.0
 
 - Panel: a long gauge value (3.8GHz, 302rpm) steps down a font size and stays inside its ring.

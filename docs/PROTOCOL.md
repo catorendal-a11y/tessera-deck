@@ -64,7 +64,7 @@ Each list is a JSON object with one array. Text fields are shortened to fit; ids
 
 | Message | Array entries |
 |---|---|
-| `AD_AGENTS` | `id`, `name` (needed), `state` (`idle`, `working` or `waiting`), `text`, `sub`, `q` (`1` when the lane asks a question). |
+| `AD_AGENTS` | `id`, `name` (needed), `state` (`idle`, `working` or `waiting`), `text`, `sub`, `q` (`1` when the lane asks a question), `at` (`HH:MM` the agent started working or waiting; older firmware ignores it). |
 | `AD_MIXER` | `id` (the host's audio target), `name`, `level` (0-100), `muted`, `mic`, `color`. |
 | `AD_STATS` | `name`, `value`, `unit`, `p` (0-100), `color`, `warn`. |
 | `AD_RAIL` | `k` is `keys`, `agents`, `mixer`, `status`, `page` or `act`. A `page` entry also needs `p` (profile) and `g` (page) and may carry `i` (icon). An `act` entry (firmware 0.6.3) carries only `i`. |
