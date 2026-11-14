@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.9.0
 
+- Panel: a long gauge value (3.8GHz, 302rpm) steps down a font size and stays inside its ring.
+- Editor: everything is drawn 15 % and then another 10 % smaller, and the panel preview stops growing at its real width (1024 px).
+- Editor: a rail shortcut opens its page like a page tab, so clicking Keys and the shortcut again no longer flips the panel through other pages.
+- Host: a page picked in the editor reaches the panel in one step, without the profile's first page in between, and live gauge values no longer land on the wrong keys during a page change.
+- Host: the window's own program wins over its child processes when picking a profile, so Chrome running claude.exe for an extension still shows the Chrome profile.
 - Import: *Without commands* also removes text typed after a hotkey (Win+R, a command and Enter runs it), and the review lists such keys.
 - Images: a dropped image is only read as PNG, JPEG, GIF or WebP, so Pillow's other decoders never see it.
 - CI: every GitHub Action is pinned to a commit SHA, and a test keeps it that way.

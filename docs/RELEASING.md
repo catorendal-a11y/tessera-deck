@@ -4,7 +4,7 @@
 
 ## Versions
 
-`VERSION` holds one number (for example `0.8.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
+`VERSION` holds one number (for example `0.9.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
 
 The firmware's USB protocol has its own number in `main/protocol_version.h`. The host accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. It refuses a panel outside that range with a message that says which side to update.
 
@@ -46,7 +46,7 @@ The workflow stops early when the tag does not match `VERSION` or the changelog 
 Anyone can check that a download came from this workflow:
 
 ```powershell
-gh attestation verify tessera-host-v0.8.0.zip --repo catorendal-a11y/tessera-deck
+gh attestation verify tessera-host-v0.9.0.zip --repo catorendal-a11y/tessera-deck
 ```
 
 [INSTALL.md](INSTALL.md) also explains how to compare a download with `SHA256SUMS`.
