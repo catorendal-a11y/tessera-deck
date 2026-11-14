@@ -622,7 +622,7 @@ function renderRail() {
       const label = runs ? `${shortcut.label || 'Steps'}: runs on the panel` : `${shortcut.profile} › ${shortcut.page}`;
       const item = element('button', {class: 'rail-item', type: 'button', title: label, 'aria-label': label, onclick: () => {
         if (runs) return railSettings();  // steps run from the panel; here the shortcut opens its settings
-        profile = shortcut.profile; page = shortcut.page; selected = 1; editState = 0; setEditorView('keys'); renderAll();
+        showPage(shortcut.profile, shortcut.page); setEditorView('keys'); renderAll(); syncPanel();  // like a page tab
       }}, shortcutIcon(shortcut.icon));
       return item;
     }),

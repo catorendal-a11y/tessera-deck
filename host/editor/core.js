@@ -514,9 +514,11 @@ function renderGrid() {
   if(focused)$(`[data-slot="${focused}"]`)?.focus();
 }
 /* The editor is designed for about 1600x1000; larger windows scale everything up so the proportions stay the same.
-   A smaller window never shrinks the text: the layout in cockpit.css makes room instead. */
+   A smaller window never shrinks the text further: the layout in cockpit.css makes room instead. BASE_ZOOM sets the
+   overall size (0.765: 15 % then another 10 % smaller than the original design). */
+const BASE_ZOOM=0.765;
 function applyZoom() {
-  const zoom=Math.max(1,Math.min(1.45,innerHeight/1000,innerWidth/1600));
+  const zoom=BASE_ZOOM*Math.max(1,Math.min(1.45,innerHeight/1000,innerWidth/1600));
   document.documentElement.style.setProperty('--z',zoom.toFixed(3));
 }
 function fitDevice() {
