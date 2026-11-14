@@ -409,10 +409,13 @@ static void test_about_sheet(){
     keep_host(1000);tap(42,41);assert(!visible("Brightness"));
     hold(42,41,700);assert(visible("Tessera")&&visible("Firmware 9.8.7")&&visible("PC connected")&&visible("Brightness")&&visible("100 %"));
     assert(visible("Wi-Fi off")&&visible("Home Assistant: off"));capture("about.ppm");
-    /* The Home Assistant line (stage C): off, waiting while the API is on, connected once HA subscribed. */
-    deck_model_set_api_enabled(true);updates();assert(visible("Home Assistant: waiting"));
-    deck_model_set_api_client(true);updates();assert(visible("Home Assistant: connected"));capture("about-ha-connected.ppm");
-    deck_model_set_api_client(false);deck_model_set_api_enabled(false);updates();assert(visible("Home Assistant: off"));
+    /* The Home Assistant line (stage C): off; waiting for Wi-Fi, then for HA; connected, and whether HA takes actions. */
+    deck_model_set_api_enabled(true);updates();assert(visible("Home Assistant: waiting for Wi-Fi"));
+    {deck_network_t up{};up.state=2;strcpy(up.ip,"192.168.1.40");deck_model_set_network(&up);}updates();assert(visible("Home Assistant: waiting"));
+    deck_model_set_api_client(true);updates();assert(visible("Home Assistant: connected, no actions"));
+    deck_model_set_api_actions(true);updates();assert(visible("Home Assistant: connected"));capture("about-ha-connected.ppm");
+    deck_model_set_api_actions(false);deck_model_set_api_client(false);deck_model_set_api_enabled(false);
+    {deck_network_t down{};deck_model_set_network(&down);}updates();assert(visible("Home Assistant: off"));
     /* The Wi-Fi line follows the network record while the sheet is open: connecting, connected, failed. */
     deck_network_t network{};network.state=1;strcpy(network.ssid,"HomeNet");deck_model_set_network(&network);updates();
     assert(visible("Wi-Fi: connecting to HomeNet"));capture("about-wifi-connecting.ppm");
@@ -483,6 +486,11 @@ static void test_key_styling(){
     assert(!deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Bad","bg":"red"}]})",styled,2,&styled_count));
 }
 static lv_obj_t* tile_of(const char* text){auto* found=find(lv_screen_active(),text);assert(found);return lv_obj_get_parent(found);}
+static const char* cached_image(){  /* an image test_image_cache left in the cache */
+    static char id[32];for(unsigned n=200;n>0;--n){snprintf(id,sizeof id,"im:%012x",n);if(deck_image_get(id))return id;}
+    assert(false);return nullptr;
+}
+static uint32_t border_of(lv_obj_t* tile){return lv_color_to_u32(lv_obj_get_style_border_color(tile,LV_PART_MAIN))&0xFFFFFF;}
 static void test_ha_keys(){
     /* Stage C: keys that follow a Home Assistant entity change color and text in place, and a key with HA steps
      * waits while HA is connected and is red at once otherwise, PC or not. */
@@ -491,30 +499,44 @@ static void test_ha_keys(){
  {"id":1,"label":"Kitchen","icon":"lc:e0f5","color":"#FFB74D","ha":{"p":[{"a":"light.toggle","e":"light.kitchen"}]},"hs":{"e":"light.kitchen"}},
  {"id":2,"label":"Living room","sub":"waiting","icon":"lc:e0f5","color":"#64B5F6","span":2,"hs":{"e":"climate.living_room","a":"current_temperature","m":"v","u":"C"}},
  {"id":4,"label":"Fan","icon":"lc:e0f5","color":"#58E09B","hs":{"e":"switch.fan","m":"b"}},
- {"id":5,"label":"PC key","icon":"lc:e0f5"}]})";
+ {"id":5,"label":"PC key","icon":"lc:e0f5"},
+ {"id":6,"label":"Lamp","icon":"IMAGE","color":"#FFB74D","hs":{"e":"light.lamp"}},
+ {"id":7,"label":"Humidity","icon":"lc:e0f5","title":{"position":"hidden"},"hs":{"e":"sensor.humidity","m":"v","u":"%"}},
+ {"id":8,"label":"Both","icon":"lc:e0f5","ha":{"pc":"p","p":[{"a":"scene.turn_on","e":"scene.a"}],"d":[{"a":"scene.turn_on","e":"scene.b"}]},"double":true}]})";
+    std::string with_image=layout;with_image.replace(with_image.find("IMAGE"),5,cached_image());
     deck_button_t keys[18]{};int key_count=0;
-    assert(deck_model_buttons_from_json(layout,keys,18,&key_count)&&deck_model_ha_from_json(layout)&&deck_model_replace_buttons(keys,key_count));
-    updates();assert(visible("Kitchen")&&visible("waiting")&&visible("Fan"));
+    assert(deck_model_buttons_from_json(with_image.c_str(),keys,18,&key_count)&&deck_model_ha_prepare(with_image.c_str())&&deck_model_replace_buttons(keys,key_count));
+    deck_model_ha_commit();
+    updates();assert(visible("Kitchen")&&visible("waiting")&&visible("Fan")&&!visible("Humidity"));
     const uint32_t structure=deck_model_buttons_version();
     assert(deck_model_set_ha_state("light.kitchen","","off")&&deck_model_set_ha_state("switch.fan","","on"));
-    assert(deck_model_set_ha_state("climate.living_room","current_temperature","21.5"));updates();
+    assert(deck_model_set_ha_state("climate.living_room","current_temperature","21.5"));
+    assert(deck_model_set_ha_state("light.lamp","","on")&&deck_model_set_ha_state("sensor.humidity","","48"));updates();
+    /* An image key has no colored part: the followed state is an outline. A hidden title shows the value. */
+    auto* lamp=tile_of("Lamp");assert(lv_obj_get_style_border_width(lamp,LV_PART_MAIN)==3&&border_of(lamp)==0xFFB74D);
+    assert(visible("48 %"));
     assert(deck_model_buttons_version()==structure);  /* in place: nothing rebuilt under a finger */
     assert(visible("21.5 C")&&!visible("waiting")&&visible("Living room")&&visible("on")&&!visible("Fan"));
     capture("ha-keys.ppm");
     assert(deck_model_set_ha_state("light.kitchen","","on")&&deck_model_set_ha_state("switch.fan","","off"));updates();
+    assert(deck_model_set_ha_state("light.lamp","","off"));updates();assert(border_of(lamp)==DECK_HA_OFF_COLOR);
     assert(visible("off")&&deck_model_buttons_version()==structure);capture("ha-keys-on.ppm");
     /* Press: no HA connected means red at once, even with the PC there; connected means the pending pulse. */
-    keep_host(1000);deck_model_set_api_client(false);updates();
+    keep_host(1000);deck_model_set_api_actions(false);updates();
     tap(key_x(1),key_y(1));auto* kitchen=tile_of("Kitchen");
     assert(bg_is(kitchen,ui_palette::AlertBg)&&!lv_anim_get(kitchen,nullptr));
-    keep_host(1000);deck_model_set_api_client(true);updates();
+    keep_host(1000);deck_model_set_api_actions(true);updates();
     tap(key_x(1),key_y(1));assert(lv_anim_get(kitchen,nullptr));
     deck_model_request_feedback(1,DECK_FEEDBACK_OK);updates();assert(bg_is(kitchen,ui_palette::OkBg)&&!lv_anim_get(kitchen,nullptr));
     /* A key without HA steps keeps the PC rule. */
     keep_host(1000);tap(key_x(5),key_y(5));assert(lv_anim_get(tile_of("PC key"),nullptr));
     deck_model_request_feedback(5,DECK_FEEDBACK_OK);
+    /* HA steps on the press with PC steps too, and only on the double: a tap keeps the PC rule, even without HA. */
+    keep_host(1000);deck_model_set_api_actions(false);updates();
+    tap(key_x(8),key_y(8));assert(lv_anim_get(tile_of("Both"),nullptr));
+    deck_model_request_feedback(8,DECK_FEEDBACK_OK);
     /* HA leaves: the states stay, faded. */
-    deck_model_set_api_client(false);updates();assert(visible("21.5 C"));capture("ha-keys-stale.ppm");
+    deck_model_set_api_client(true);deck_model_set_api_client(false);updates();assert(visible("21.5 C"));capture("ha-keys-stale.ppm");
     while(!taken().empty()){}
     assert(deck_model_ha_from_json(R"({"buttons":[]})")&&deck_model_replace_buttons(saved,saved_count));keep_host(1000);
 }

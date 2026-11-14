@@ -57,6 +57,7 @@ typedef struct {
     uint8_t progress;                  /* 0..100 */
     bool ring;                         /* draw the progress as a ring instead of a bar */
     bool confirm;                      /* "cf":1: the press is sent only after a 600 ms hold, so a brush does nothing */
+    bool ha_accent;                    /* set by deck_ha_overlay only: `color` shows a followed HA state */
 } deck_button_t;
 
 typedef struct {
@@ -65,6 +66,7 @@ typedef struct {
     bool hold;   /* long press instead of a click */
     char label[DECK_BUTTON_LABEL_MAX + 1];
     int64_t timestamp_ms;
+    uint32_t ha_version; /* deck_model_ha_steps_version() when recorded: the HA steps this press belongs to */
 } deck_event_t;
 
 typedef struct {
@@ -208,10 +210,12 @@ typedef struct {
     int8_t rssi;
     bool api_client;  /* stage B: a Home Assistant client is connected */
     bool api_enabled; /* the API is turned on (AD_API_SET); with api_client, the About sheet's HA line */
+    bool api_actions; /* a client subscribed to HA actions (34): the panel's HA steps have somewhere to go */
 } deck_network_t;
 void deck_model_set_network(const deck_network_t *network); /* bumps the version only when something changed */
 void deck_model_set_api_client(bool connected); /* stage B; set_network keeps the value. false fades HA states */
 void deck_model_set_api_enabled(bool enabled);  /* set_network keeps this value too */
+void deck_model_set_api_actions(bool subscribed); /* and this one */
 void deck_model_network(deck_network_t *out);
 uint32_t deck_model_network_version(void);
 

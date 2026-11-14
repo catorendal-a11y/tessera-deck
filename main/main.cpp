@@ -184,7 +184,8 @@ static bool layout_load(const char *path)
     int count = 0;
     /* The HA steps and followed entities (stage C) come from the same file, so HA keys work offline after a reboot. */
     if (!deck_model_buttons_from_json(json.c_str(), buttons, DECK_MAX_BUTTONS, &count) ||
-        !deck_model_ha_from_json(json.c_str()) || !deck_model_replace_buttons(buttons, count)) return false;
+        !deck_model_ha_prepare(json.c_str()) || !deck_model_replace_buttons(buttons, count)) return false;
+    deck_model_ha_commit();  /* only now: a failure above leaves both tables as they were */
     struct stat info = {};
     if (stat(path, &info) == 0 && info.st_mtime > 1600000000) s_layout_saved_unix = info.st_mtime;
     ESP_LOGI(TAG, "restored the last layout from %s: %d buttons", path, count);
@@ -662,7 +663,8 @@ static void usb_console_task(void *)
                 int count = 0;
                 /* An invalid "ha" or "hs" makes the whole layout INVALID; the HA table changes only when both parse. */
                 if (deck_model_buttons_from_json(cfg_buf, buttons, DECK_MAX_BUTTONS, &count) &&
-                    deck_model_ha_from_json(cfg_buf) && deck_model_replace_buttons(buttons, count)) {
+                    deck_model_ha_prepare(cfg_buf) && deck_model_replace_buttons(buttons, count)) {
+                    deck_model_ha_commit();
                     ESP_LOGI(TAG, "deck reprogrammed over USB: %d buttons", count);
                     layout_remember(cfg_buf);
                     std::vector<std::string> icons;

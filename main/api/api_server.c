@@ -470,11 +470,12 @@ static void stop(void)
 static void publish_status(void)
 {
     int clients = 0;
-    bool ha = false;
+    bool ha = false, actions = false;
     for (int i = 0; i < SLOTS; ++i) {
         if (s_slots[i].fd < 0 || !api_session_ready(&s_slots[i].session)) continue;
         ++clients;
         ha = ha || s_slots[i].peer.subscribed;
+        actions = actions || s_slots[i].peer.ha_services;
     }
     portENTER_CRITICAL(&s_lock);
     const bool changed = clients != s_clients || ha != s_ha;
@@ -483,6 +484,7 @@ static void publish_status(void)
     if (changed) ++s_status_version;
     portEXIT_CRITICAL(&s_lock);
     deck_model_set_api_client(ha);
+    deck_model_set_api_actions(actions);
 }
 
 /* GetTimeRequest after SubscribeStates when the PC has not set the clock, then every 6 h while it is away. */
@@ -541,13 +543,14 @@ static void serve(void)
         }
         if (!alive) slot_close(slot);
     }
-    /* Stage C: the key's homeassistant steps go to every client subscribed to HA actions; the key's feedback
-     * says whether one got them. Keys without such steps return at once. */
+    /* Stage C: each of the key's homeassistant steps goes to one client subscribed to HA actions; the key's
+     * feedback says whether it went out. Keys without such steps return at once. */
+    _Static_assert(SLOTS <= API_HA_CLIENTS_MAX, "api_ha_press orders at most API_HA_CLIENTS_MAX clients");
     api_ha_client_t clients[SLOTS];
     int client_count = 0;
     for (int i = 0; i < SLOTS; ++i)
         if (s_slots[i].fd >= 0) clients[client_count++] = (api_ha_client_t){&s_slots[i].session, &s_slots[i].peer};
-    for (int p = 0; p < pressed; ++p) api_ha_press(clients, client_count, presses[p].slot, presses[p].type);
+    for (int p = 0; p < pressed; ++p) api_ha_press(clients, client_count, &presses[p], now);
     if (s_router.dropped) {
         ESP_LOGW(TAG, "%u key events were missed (event ring wrapped)", (unsigned)s_router.dropped);
         s_router.dropped = 0;

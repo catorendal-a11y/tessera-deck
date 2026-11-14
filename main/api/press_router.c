@@ -17,11 +17,12 @@ static bool has_double(int button_id)
     return false;
 }
 
-static int emit(press_out_t *out, int n, int max, int slot, const char *type)
+static int emit(press_out_t *out, int n, int max, int slot, const char *type, uint32_t ha_version)
 {
     if (n >= max) return n;
     out[n].slot = slot;
     out[n].type = type;
+    out[n].ha_version = ha_version;
     return n + 1;
 }
 
@@ -32,7 +33,7 @@ int press_router_poll(press_router_t *r, int64_t now_ms, press_out_t *out, int m
     for (int slot = 1; slot <= DECK_MAX_BUTTONS; ++slot) {
         if (r->waiting_since[slot] && now_ms - r->waiting_since[slot] >= PRESS_DOUBLE_MS && n < max) {
             r->waiting_since[slot] = 0;
-            n = emit(out, n, max, slot, "press");
+            n = emit(out, n, max, slot, "press", r->waiting_version[slot]);
         }
     }
     deck_event_t events[8];
@@ -49,14 +50,18 @@ int press_router_poll(press_router_t *r, int64_t now_ms, press_out_t *out, int m
             if (r->waiting_since[slot]) { /* a second tap, or a hold after a tap */
                 r->waiting_since[slot] = 0;
                 if (!e->hold) {
-                    n = emit(out, n, max, slot, "double");
+                    n = emit(out, n, max, slot, "double", r->waiting_version[slot]);
                     continue;
                 }
-                n = emit(out, n, max, slot, "press");
+                n = emit(out, n, max, slot, "press", r->waiting_version[slot]);
             }
-            if (e->hold) n = emit(out, n, max, slot, "hold");
-            else if (has_double(slot)) r->waiting_since[slot] = now_ms ? now_ms : 1;
-            else n = emit(out, n, max, slot, "press");
+            if (e->hold) n = emit(out, n, max, slot, "hold", e->ha_version);
+            else if (has_double(slot)) {
+                r->waiting_since[slot] = now_ms ? now_ms : 1;
+                r->waiting_version[slot] = e->ha_version;
+            } else {
+                n = emit(out, n, max, slot, "press", e->ha_version);
+            }
         }
         if (used < count) break; /* out is full: the rest waits for the next poll */
     }

@@ -217,8 +217,16 @@ static int next_frame(api_session_t *s)
         return -1;
     }
     if (body > 4 + API_MESSAGE_MAX + NOISE_TAG) {
-        api_session_close(s, "frame too large");
-        return -1;
+        /* After the handshake only HomeAssistantStateResponse (40) gets this big: HA sends an attribute such as
+         * a forecast whole. Closing would loop (HA reconnects and sends it again), so the frame is dropped
+         * unread and its nonce counted, as if it had been decrypted. */
+        if (!s->recv.has_key || s->recv.n >= NOISE_MAX_NONCE) {
+            api_session_close(s, "frame too large");
+            return -1;
+        }
+        s->recv.n++;
+        s->skip = FRAME_HEADER + body;
+        return 0;
     }
     return s->rx_len >= FRAME_HEADER + body ? (int)(FRAME_HEADER + body) : 0;
 }
@@ -229,6 +237,17 @@ bool api_session_feed(api_session_t *s, const uint8_t *data, size_t len, int64_t
     s->heard_ms = now_ms;
     s->pinged = false;
     while (len || s->rx_len) {
+        if (s->skip) {
+            const size_t from_rx = s->rx_len < s->skip ? s->rx_len : s->skip;
+            memmove(s->rx, s->rx + from_rx, s->rx_len - from_rx);
+            s->rx_len -= from_rx;
+            const size_t from_data = len < s->skip - from_rx ? len : s->skip - from_rx;
+            data += from_data;
+            len -= from_data;
+            s->skip -= from_rx + from_data;
+            if (s->skip) break; /* the rest of it comes later */
+            continue;
+        }
         const size_t room = API_BUFFER - s->rx_len, take = len < room ? len : room;
         if (take) memcpy(s->rx + s->rx_len, data, take);
         s->rx_len += take;
@@ -237,6 +256,7 @@ bool api_session_feed(api_session_t *s, const uint8_t *data, size_t len, int64_t
         const int frame = next_frame(s);
         if (frame < 0) return false;
         if (frame == 0) {
+            if (s->skip) continue;
             if (len) { /* cannot happen: every allowed frame fits in rx */
                 api_session_close(s, "rx overflow");
                 return false;

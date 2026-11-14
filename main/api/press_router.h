@@ -15,11 +15,13 @@ extern "C" {
 typedef struct {
     int slot;         /* the key's id, 1..18 */
     const char *type; /* "press", "hold" or "double" */
+    uint32_t ha_version; /* the HA steps the press belongs to (deck_event_t.ha_version of its first tap) */
 } press_out_t;
 
 typedef struct {
     int cursor;
     int64_t waiting_since[DECK_MAX_BUTTONS + 1]; /* a first tap on a double key; 0 when none */
+    uint32_t waiting_version[DECK_MAX_BUTTONS + 1]; /* that tap's ha_version */
     uint32_t dropped;                            /* events lost to a ring wrap */
 } press_router_t;
 

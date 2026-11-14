@@ -229,6 +229,7 @@ static uint32_t record_event(int button_id, bool hold)
     slot->hold = hold;
     copy_text(slot->label, sizeof(slot->label), button->label);
     slot->timestamp_ms = esp_timer_get_time() / 1000;
+    slot->ha_version = deck_model_ha_steps_version(); /* the HA lock nests inside the model lock, as in get_button */
     uint32_t id = (uint32_t)slot->id;
     char label[sizeof(slot->label)];
     memcpy(label, slot->label, sizeof(label));
@@ -850,6 +851,7 @@ void deck_model_set_network(const deck_network_t *network)
     model_lock();
     next.api_client = s_network.api_client;   /* only deck_model_set_api_client changes it */
     next.api_enabled = s_network.api_enabled; /* and deck_model_set_api_enabled this one */
+    next.api_actions = s_network.api_actions;
     if (memcmp(&next, &s_network, sizeof(next)) != 0) {
         s_network = next;
         ++s_network_version;
@@ -886,6 +888,16 @@ void deck_model_set_api_enabled(bool enabled)
     model_lock();
     if (s_network.api_enabled != enabled) {
         s_network.api_enabled = enabled;
+        ++s_network_version;
+    }
+    model_unlock();
+}
+
+void deck_model_set_api_actions(bool subscribed)
+{
+    model_lock();
+    if (s_network.api_actions != subscribed) {
+        s_network.api_actions = subscribed;
         ++s_network_version;
     }
     model_unlock();

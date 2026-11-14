@@ -512,11 +512,19 @@ static void test_session_rejects()
     Server big;
     open(big);
     assert(!feed(big, Bytes{0x01, 0x00, 0xC8}));
-    // An oversized data frame closes; so does a handshake that takes more than 10 s.
+    // An oversized data frame (a 3 KB HomeAssistantStateResponse: HA sends a forecast attribute whole) is
+    // dropped unread, byte by byte as well as whole, and the connection goes on; a handshake over 10 s closes.
     Server sv2;
     Client c2;
     connect(sv2, c2);
-    assert(!feed(sv2, Bytes{0x01, 0x05, 0x00}) && sv2.s.state == API_SESSION_CLOSED);
+    sv2.route_entities = false;
+    const Bytes huge_state = c2.message(API_HA_STATE, Bytes(3000, 'x'));
+    assert(feed(sv2, huge_state) && sv2.s.state == API_SESSION_DATA && sv2.unhandled.empty());
+    const Bytes again = c2.message(API_HA_STATE, Bytes(3000, 'y'));
+    for (uint8_t b : again) assert(api_session_feed(&sv2.s, &b, 1, tick_ms));
+    assert(feed(sv2, c2.message(API_PING_REQUEST, {})));
+    auto pong = replies(sv2, c2);
+    assert(pong.size() == 1 && pong[0].first == API_PING_RESPONSE && sv2.unhandled.empty());
     Server slow;
     open(slow);
     assert(api_session_tick(&slow.s, tick_ms + 9000));
@@ -911,6 +919,20 @@ static void test_ha_layout_json()
     };
     assert(!deck_model_ha_from_json(keys_with_two_steps(13).c_str()));
     assert(deck_model_ha_from_json(keys_with_two_steps(12).c_str()) && deck_model_ha_steps(12, 'p', steps, 4) == 2);
+    // "pc" names the triggers that also have PC steps; anything else in it is invalid.
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":2,"label":"x","ha":{"pc":"hp","p":[{"a":"a.b"}]}}]})"));
+    assert(deck_model_ha_pc_steps(2, 'p') && deck_model_ha_pc_steps(2, 'h') && !deck_model_ha_pc_steps(2, 'd'));
+    for (const char *pc : {R"("x")", R"("pp")", R"("phdp")", "1"})
+        assert(!deck_model_ha_from_json((std::string(R"({"buttons":[{"id":2,"label":"x","ha":{"pc":)") + pc + R"(}}]})").c_str()));
+    // A number past the range of long long is written as a float, not cast (undefined behaviour).
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":2,"label":"x","ha":{"p":[{"a":"a.b","d":{"n":1e19,"m":-3}}]}}]})"));
+    assert(deck_model_ha_steps(2, 'p', steps, 4) == 1 && !strcmp(steps[0].values[0], "1e+19") && !strcmp(steps[0].values[1], "-3"));
+    // prepare checks without touching the live table; commit makes it live.
+    const uint32_t steps_version = deck_model_ha_steps_version();
+    assert(deck_model_ha_prepare(keys_with_two_steps(3).c_str()) && deck_model_ha_steps(3, 'p', steps, 4) == 0);
+    assert(deck_model_ha_steps_version() == steps_version);
+    deck_model_ha_commit();
+    assert(deck_model_ha_steps(3, 'p', steps, 4) == 2 && deck_model_ha_steps_version() != steps_version);
     // Within the 16-deep nesting of the panel's cJSON: the deepest HA field (data) is 7 levels down.
     assert(deck_model_ha_from_json(HA_LAYOUT) && deck_model_ha_version() != version);
 }
@@ -964,6 +986,18 @@ static void test_ha_states_on_keys()
     const uint32_t faded = button(0).color;
     assert(faded != 0xFFB74D && faded != DECK_HA_OFF_COLOR && !strcmp(button(1).sub, "21.5 \xC2\xB0" "C"));
     assert(deck_model_set_ha_state("light.kitchen", "", "on") && button(0).color == 0xFFB74D);
+    // Unavailable or unknown: the off color, faded, and "-" without the unit.
+    assert(deck_model_set_ha_state("light.kitchen", "", "unavailable"));
+    assert(button(0).color != DECK_HA_OFF_COLOR && button(0).color != 0xFFB74D && !strcmp(button(2).label, "-"));
+    assert(deck_model_set_ha_state("climate.living_room", "current_temperature", "unknown") && !strcmp(button(1).sub, "-"));
+    // DEL, a stray byte and a cut sequence from HA become spaces; whole characters stay.
+    assert(deck_model_set_ha_state("light.kitchen", "", "a\x7F\xFF\xC3\xA6\xE2\x82"));
+    assert(!strcmp(button(2).label, "a  \xC3\xA6  ")); // a, DEL, 0xFF, ae, then the cut E2 82
+}
+
+static press_out_t press_of(int slot, const char *type)
+{
+    return press_out_t{slot, type, deck_model_ha_steps_version()};
 }
 
 static int drain_feedback(deck_feedback_t *last)
@@ -991,15 +1025,17 @@ static void test_ha_press_and_follow_session()
     api_ha_client_t clients[] = {{&sv.s, &sv.peer}};
 
     // Not subscribed to HA actions: nothing is sent and the key turns red.
-    assert(api_ha_press(clients, 1, 1, "press") == 0);
+    press_out_t press = press_of(1, "press");
+    assert(api_ha_press(clients, 1, &press, tick_ms) == 0);
     assert(replies(sv, c).empty() && drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_ALERT);
     // No homeassistant step for that trigger: nothing at all (the PC's feedback, if any, decides).
-    assert(api_ha_press(clients, 1, 4, "press") == -1 && api_ha_press(clients, 1, 1, "double") == -1);
+    press_out_t pc_only = press_of(4, "press"), twice = press_of(1, "double");
+    assert(api_ha_press(clients, 1, &pc_only, tick_ms) == -1 && api_ha_press(clients, 1, &twice, tick_ms) == -1);
     assert(drain_feedback(&kind) == 0);
 
     assert(feed(sv, c.message(API_SUBSCRIBE_HA_SERVICES, {})));
     assert(sv.peer.ha_services && replies(sv, c).empty());
-    assert(api_ha_press(clients, 1, 1, "press") == 1);
+    assert(api_ha_press(clients, 1, &press, tick_ms) == 1);
     auto r = replies(sv, c);
     assert(r.size() == 1 && r[0].first == API_HA_ACTION_REQUEST);
     const api_ha_pair_t data[] = {{"entity_id", "light.kitchen"}, {"brightness_pct", "50"}, {"transition", "2"},
@@ -1007,8 +1043,12 @@ static void test_ha_press_and_follow_session()
     ENCODE(w, api_encode_ha_action(&w, "light.toggle", data, 4));
     assert(r[0].second == written(w));
     assert(drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_OK);
-    assert(api_ha_press(clients, 1, 1, "hold") == 2 && replies(sv, c).size() == 2);
+    press_out_t hold = press_of(1, "hold");
+    assert(api_ha_press(clients, 1, &hold, tick_ms) == 2 && replies(sv, c).size() == 2);
     assert(drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_OK);
+    // A link that went quiet (Wi-Fi drop, HA gone without a FIN) does not count as delivered.
+    assert(api_ha_press(clients, 1, &press, tick_ms + API_HA_LIVE_MS + 1) == 0 && replies(sv, c).empty());
+    assert(drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_ALERT);
 
     // States: after 38 the panel subscribes each followed pair once (light.kitchen is followed by two keys).
     assert(feed(sv, c.message(API_SUBSCRIBE_HA_STATES, {})));
@@ -1019,21 +1059,67 @@ static void test_ha_press_and_follow_session()
     assert(replies(sv, c).empty());
     assert(feed(sv, c.message(API_HA_STATE, fixture("ha_state_attribute"))));
     assert(!strcmp(button(1).sub, "21.5 \xC2\xB0" "C"));
-    // A layout change with a new pair: the pairs go out again on the next tick.
+    // A layout change with a new pair: only that pair goes out, on the next tick.
     const std::string next = std::string(HA_LAYOUT).replace(std::string(HA_LAYOUT).find("PC only\"}"), 9,
                                                             R"(PC only","hs":{"e":"switch.fan"}})");
     assert(deck_model_ha_from_json(next.c_str()));
     api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms);
     r = replies(sv, c);
-    assert(r.size() == 3 && r[2].first == API_HA_STATE_SUBSCRIPTION);
-    assert(sv.peer.ha_subscriptions == 5);
-    // Too many subscriptions on one connection: the panel closes it, and the client starts clean.
-    sv.peer.ha_subscriptions = API_HA_SUBSCRIPTIONS_MAX - 1;
-    assert(deck_model_ha_from_json(HA_LAYOUT));
+    assert(r.size() == 1 && r[0].first == API_HA_STATE_SUBSCRIPTION && sv.peer.ha_subscriptions == 3);
+    // Two pages that follow different entities, flipped 20 times (the host pushes each): nothing more is
+    // subscribed, the connection stays, and a page that comes back keeps its state.
+    for (int flip = 0; flip < 20; ++flip) {
+        assert(deck_model_ha_from_json(flip % 2 ? next.c_str() : R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.kitchen"}}]})"));
+        api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms);
+    }
+    assert(replies(sv, c).empty() && sv.peer.ha_subscriptions == 3 && sv.s.state == API_SESSION_DATA);
+    assert(!strcmp(button(1).sub, "21.5 \xC2\xB0" "C"));
+    // A press recorded before the steps changed (a page change between a tap and its routing) runs nothing.
+    press_out_t old_press = press;
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"scene.turn_on"}]}}]})"));
+    assert(api_ha_press(clients, 1, &old_press, tick_ms) == -1 && replies(sv, c).empty() && drain_feedback(&kind) == 0);
+    // A trigger that also has PC steps: the step goes out, and the host gives the feedback.
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":1,"label":"x","ha":{"pc":"p","p":[{"a":"scene.turn_on"}]}}]})"));
+    press = press_of(1, "press");
+    assert(deck_model_ha_pc_steps(1, 'p') && !deck_model_ha_pc_steps(1, 'h'));
+    assert(api_ha_press(clients, 1, &press, tick_ms) == 1 && replies(sv, c).size() == 1 && drain_feedback(&kind) == 0);
+    // More distinct pairs than one connection may subscribe: the panel closes it, and the client starts clean.
+    for (int i = sv.peer.ha_subscriptions; i < API_HA_SUBSCRIPTIONS_MAX; ++i) sv.peer.ha_sent[i] = (uint32_t)i;
+    sv.peer.ha_subscriptions = API_HA_SUBSCRIPTIONS_MAX;
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"scene.turn_on"}]},"hs":{"e":"switch.other"}}]})"));
     api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms);
     assert(sv.s.state == API_SESSION_CLOSED);
     // Closed: a press finds no client and turns the key red.
-    assert(api_ha_press(clients, 1, 1, "press") == 0 && drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_ALERT);
+    press = press_of(1, "press");
+    assert(api_ha_press(clients, 1, &press, tick_ms) == 0 && drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_ALERT);
+}
+
+static void test_ha_one_client_gets_each_step()
+{
+    // Two clients subscribed to HA actions (a second HA, or a test tool left connected): each step runs once,
+    // on the client heard from most recently.
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"light.toggle","e":"light.a"}]}}]})"));
+    set_ha_buttons();
+    deck_feedback_t kind;
+    drain_feedback(&kind);
+    Server a, b;
+    a.route_entities = b.route_entities = true;
+    Client ca, cb;
+    connect(a, ca);
+    connect(b, cb);
+    assert(feed(a, ca.message(API_SUBSCRIBE_HA_SERVICES, {})) && feed(b, cb.message(API_SUBSCRIBE_HA_SERVICES, {})));
+    tick_ms += 10;
+    assert(feed(b, cb.message(API_PING_REQUEST, {})));
+    replies(b, cb);
+    api_ha_client_t clients[] = {{&a.s, &a.peer}, {&b.s, &b.peer}};
+    press_out_t press = press_of(1, "press");
+    assert(api_ha_press(clients, 2, &press, tick_ms) == 1);
+    assert(replies(a, ca).empty() && replies(b, cb).size() == 1);
+    assert(drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_OK);
+    // The other one takes over once that one is closed.
+    api_session_close(&b.s, "test");
+    assert(api_ha_press(clients, 2, &press, tick_ms) == 1 && replies(a, ca).size() == 1);
+    drain_feedback(&kind);
 }
 
 static void test_ha_press_routing_from_events()
@@ -1052,7 +1138,7 @@ static void test_ha_press_routing_from_events()
     deck_model_record_press(3);
     const int n = press_router_poll(&r, 1100, out, 8);
     assert(n == 1 && !strcmp(out[0].type, "double"));
-    assert(api_ha_press(none, 0, out[0].slot, out[0].type) == 0); // no client at all
+    assert(api_ha_press(none, 0, &out[0], tick_ms) == 0); // no client at all
     assert(drain_feedback(&kind) == 3 && kind == DECK_FEEDBACK_ALERT);
 }
 
@@ -1077,6 +1163,7 @@ int main()
     test_ha_layout_json();
     test_ha_states_on_keys();
     test_ha_press_and_follow_session();
+    test_ha_one_client_gets_each_step();
     test_ha_press_routing_from_events();
     std::puts("test_api: all passed");
     return 0;

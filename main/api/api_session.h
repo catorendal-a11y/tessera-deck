@@ -15,7 +15,7 @@ extern "C" {
 #endif
 
 #define API_BUFFER 1536        /* each of rx, in, out and wire, per connection (PSRAM on the panel) */
-#define API_MESSAGE_MAX 1024   /* the largest protobuf message accepted; a larger frame closes */
+#define API_MESSAGE_MAX 1024   /* the largest protobuf message accepted; a larger data frame is skipped */
 #define API_HANDSHAKE_MAX 128  /* handshake frames */
 #define API_HELLO_TIMEOUT_MS 10000
 #define API_PING_AFTER_MS 20000
@@ -51,6 +51,7 @@ struct api_session {
      * encoded and its encrypted frame (PSA must not encrypt in place on ESP-IDF). */
     uint8_t *rx, *in, *out, *wire;
     size_t rx_len;
+    size_t skip; /* bytes left of an oversized data frame being dropped */
     noise_handshake_t hs;
     noise_cipher_t send, recv;
     int64_t opened_ms, heard_ms;

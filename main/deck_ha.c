@@ -9,20 +9,30 @@
 #include "freertos/semphr.h"
 
 typedef struct {
-    deck_ha_follow_t spec;
-    bool has_state, stale;
-    char state[DECK_HA_STATE_MAX + 1];
-} follow_t;
-
-typedef struct {
     int step_count, follow_count;
     deck_ha_step_t steps[DECK_HA_STEPS_MAX];
-    follow_t follows[DECK_HA_FOLLOWS_MAX];
+    deck_ha_follow_t follows[DECK_HA_FOLLOWS_MAX];
+    uint8_t pc[DECK_MAX_BUTTONS + 1]; /* per key: bit 0 press, 1 hold, 2 double also have PC steps */
 } ha_table_t;
 
-/* About 40 KB: allocated on the first layout (malloc goes to PSRAM above 16 bytes on the panel). */
-static ha_table_t *s_table;
-static uint32_t s_version = 1;
+typedef struct {
+    char entity_id[DECK_HA_ENTITY_MAX + 1];
+    char attribute[DECK_HA_ATTRIBUTE_MAX + 1];
+    char state[DECK_HA_STATE_MAX + 1];
+    bool stale;
+} ha_state_t;
+
+/* About 100 KB, allocated on the first layout (malloc goes to PSRAM above 16 bytes on the panel): the live
+ * table, the scratch one deck_model_ha_prepare fills, and the states. States are kept by pair, so a pair
+ * subscribed on an earlier page still has its state when that page comes back: HA sends a state only when it
+ * changes, and the panel subscribes each pair once per connection. */
+static struct {
+    ha_table_t tables[2];
+    ha_state_t states[DECK_HA_STATES_MAX];
+} *s_mem;
+static ha_table_t *s_table, *s_next; /* s_table is NULL before the first commit */
+static int s_state_count, s_state_next;
+static uint32_t s_version = 1, s_steps_version = 1;
 static SemaphoreHandle_t s_lock;
 
 static void lock(void)
@@ -108,7 +118,7 @@ static bool value_text(const cJSON *item, char *out, size_t size)
     if (cJSON_IsBool(item)) return snprintf(out, size, "%s", cJSON_IsTrue(item) ? "true" : "false") > 0;
     if (cJSON_IsNumber(item)) {
         const double v = item->valuedouble;
-        if (v == (double)(long long)v && v > -1e15 && v < 1e15) snprintf(out, size, "%lld", (long long)v);
+        if (v > -1e15 && v < 1e15 && v == (double)(long long)v) snprintf(out, size, "%lld", (long long)v);
         else snprintf(out, size, "%.15g", v);
         return strlen(out) <= DECK_HA_VALUE_MAX;
     }
@@ -187,11 +197,29 @@ static bool parse_follow(const cJSON *item, int button_id, deck_ha_follow_t *out
     return true;
 }
 
+static const char TRIGGERS[] = {'p', 'h', 'd'};
+
+static int trigger_bit(char trigger)
+{
+    const char *at = trigger ? memchr(TRIGGERS, trigger, sizeof(TRIGGERS)) : NULL;
+    return at ? 1 << (at - TRIGGERS) : 0;
+}
+
 static bool parse_steps(const cJSON *ha, int button_id, ha_table_t *table)
 {
     if (!cJSON_IsObject(ha)) return false;
-    static const char triggers[] = {'p', 'h', 'd'};
-    for (size_t t = 0; t < sizeof(triggers); ++t) {
+    /* "pc": the triggers that also have PC steps, for example "ph". The host then gives their feedback. */
+    const cJSON *pc = cJSON_GetObjectItemCaseSensitive(ha, "pc");
+    if (pc) {
+        if (!cJSON_IsString(pc) || strlen(pc->valuestring) > sizeof(TRIGGERS)) return false;
+        for (const char *c = pc->valuestring; *c; ++c) {
+            const int bit = trigger_bit(*c);
+            if (!bit || (table->pc[button_id] & bit)) return false;
+            table->pc[button_id] |= (uint8_t)bit;
+        }
+    }
+    const char *triggers = TRIGGERS;
+    for (size_t t = 0; t < sizeof(TRIGGERS); ++t) {
         const char name[2] = {triggers[t], '\0'};
         const cJSON *list = cJSON_GetObjectItemCaseSensitive(ha, name);
         if (!list) continue;
@@ -226,7 +254,7 @@ static bool parse_table(const char *layout_json, ha_table_t *table)
         if (valid && hs) {
             /* ids are unique (deck_model_buttons_from_json), so 18 keys give at most 18 follows and pairs */
             valid = table->follow_count < DECK_HA_FOLLOWS_MAX &&
-                    parse_follow(hs, id->valueint, &table->follows[table->follow_count].spec);
+                    parse_follow(hs, id->valueint, &table->follows[table->follow_count]);
             if (valid) ++table->follow_count;
         }
     }
@@ -250,58 +278,76 @@ static bool pairs_differ(const ha_table_t *old, const ha_table_t *next)
         for (int i = 0; i < a_count; ++i) {
             bool found = false;
             for (int j = 0; !found && j < b_count; ++j)
-                found = same_pair(&b->follows[j].spec, a->follows[i].spec.entity_id, a->follows[i].spec.attribute);
+                found = same_pair(&b->follows[j], a->follows[i].entity_id, a->follows[i].attribute);
             if (!found) return true;
         }
     }
     return false;
 }
 
+bool deck_model_ha_prepare(const char *layout_json)
+{
+    if (!s_mem) {
+        s_mem = calloc(1, sizeof(*s_mem));
+        if (!s_mem) return false;
+        s_next = &s_mem->tables[0];
+    }
+    return parse_table(layout_json, s_next); /* s_next is never the live table, and only this writer uses it */
+}
+
+void deck_model_ha_commit(void)
+{
+    if (!s_next) return;
+    lock();
+    ha_table_t *old = s_table, *next = s_next;
+    const bool changed_look = !old || old->follow_count != next->follow_count ||
+                              memcmp(old->follows, next->follows, sizeof(next->follows[0]) * (size_t)next->follow_count);
+    if (pairs_differ(old, next)) ++s_version;
+    if (!old || old->step_count != next->step_count || memcmp(old->pc, next->pc, sizeof(next->pc)) ||
+        memcmp(old->steps, next->steps, sizeof(next->steps[0]) * (size_t)next->step_count))
+        ++s_steps_version;
+    s_table = next;
+    s_next = old ? old : &s_mem->tables[1];
+    unlock();
+    if (changed_look) deck_model_bump_live();
+}
+
 bool deck_model_ha_from_json(const char *layout_json)
 {
-    ha_table_t *next = calloc(1, sizeof(*next));
-    if (!next) return false;
-    if (!parse_table(layout_json, next)) {
-        free(next);
-        return false;
-    }
-    lock();
-    const ha_table_t *old = s_table;
-    bool changed_look = !old || old->follow_count != next->follow_count;
-    for (int i = 0; i < next->follow_count; ++i) { /* carry the known states over */
-        follow_t *f = &next->follows[i];
-        for (int j = 0; old && j < old->follow_count; ++j) {
-            if (!same_pair(&old->follows[j].spec, f->spec.entity_id, f->spec.attribute)) continue;
-            f->has_state = old->follows[j].has_state;
-            f->stale = old->follows[j].stale;
-            memcpy(f->state, old->follows[j].state, sizeof(f->state));
-            break;
-        }
-        if (!changed_look && i < old->follow_count)
-            changed_look = memcmp(&f->spec, &old->follows[i].spec, sizeof(f->spec)) != 0 ||
-                           f->has_state != old->follows[i].has_state;
-    }
-    if (pairs_differ(old, next)) ++s_version;
-    if (!old) {
-        s_table = next;
-        next = NULL;
-    } else {
-        memcpy(s_table, next, sizeof(*next));
-    }
-    unlock();
-    free(next);
-    if (changed_look) deck_model_bump_live();
+    if (!deck_model_ha_prepare(layout_json)) return false;
+    deck_model_ha_commit();
     return true;
 }
 
-int deck_model_ha_steps(int button_id, char trigger, deck_ha_step_t *out, int max)
+static int steps_locked(int button_id, char trigger, deck_ha_step_t *out, int max)
 {
     int n = 0;
-    lock();
     for (int i = 0; s_table && i < s_table->step_count && n < max; ++i) {
         const deck_ha_step_t *step = &s_table->steps[i];
         if (step->button_id == button_id && step->trigger == trigger) out[n++] = *step;
     }
+    return n;
+}
+
+static bool pc_locked(int button_id, char trigger)
+{
+    return s_table && button_id >= 1 && button_id <= DECK_MAX_BUTTONS && (s_table->pc[button_id] & trigger_bit(trigger));
+}
+
+int deck_model_ha_steps(int button_id, char trigger, deck_ha_step_t *out, int max)
+{
+    lock();
+    const int n = steps_locked(button_id, trigger, out, max);
+    unlock();
+    return n;
+}
+
+int deck_model_ha_press_steps(uint32_t version, int button_id, char trigger, deck_ha_step_t *out, int max, bool *pc)
+{
+    lock();
+    const bool current = version == s_steps_version;
+    const int n = current ? steps_locked(button_id, trigger, out, max) : -1;
+    if (pc) *pc = current && pc_locked(button_id, trigger);
     unlock();
     return n;
 }
@@ -316,11 +362,27 @@ bool deck_model_ha_has_steps(int button_id, char trigger)
     return found;
 }
 
+bool deck_model_ha_pc_steps(int button_id, char trigger)
+{
+    lock();
+    const bool pc = pc_locked(button_id, trigger);
+    unlock();
+    return pc;
+}
+
+uint32_t deck_model_ha_steps_version(void)
+{
+    lock();
+    const uint32_t version = s_steps_version;
+    unlock();
+    return version;
+}
+
 int deck_model_ha_follows(deck_ha_follow_t *out, int max)
 {
     int n = 0;
     lock();
-    for (int i = 0; s_table && i < s_table->follow_count && n < max; ++i) out[n++] = s_table->follows[i].spec;
+    for (int i = 0; s_table && i < s_table->follow_count && n < max; ++i) out[n++] = s_table->follows[i];
     unlock();
     return n;
 }
@@ -333,37 +395,107 @@ uint32_t deck_model_ha_version(void)
     return version;
 }
 
-/* Copies at most DECK_HA_STATE_MAX bytes, cut at a UTF-8 boundary, with control characters flattened. */
+/* The length of the valid UTF-8 sequence at c (at most `left` bytes), 0 when it is not one. */
+static size_t utf8_length(const unsigned char *c, size_t left)
+{
+    size_t n;
+    unsigned min;
+    if (*c < 0x80) return 1;
+    if ((*c & 0xE0) == 0xC0) {
+        n = 2;
+        min = 0x80;
+    } else if ((*c & 0xF0) == 0xE0) {
+        n = 3;
+        min = 0x800;
+    } else if ((*c & 0xF8) == 0xF0) {
+        n = 4;
+        min = 0x10000;
+    } else {
+        return 0;
+    }
+    if (n > left) return 0;
+    unsigned point = *c & (0x7Fu >> n);
+    for (size_t i = 1; i < n; ++i) {
+        if ((c[i] & 0xC0) != 0x80) return 0;
+        point = point << 6 | (c[i] & 0x3Fu);
+    }
+    return point < min || point > 0x10FFFF || (point >= 0xD800 && point <= 0xDFFF) ? 0 : n;
+}
+
+/* Copies at most DECK_HA_STATE_MAX bytes of whole characters. Control characters, DEL and bytes that are not
+ * valid UTF-8 become spaces, so nothing odd reaches LVGL. */
 static void copy_state(char *out, const char *state)
 {
-    size_t len = strlen(state);
-    if (len > DECK_HA_STATE_MAX) {
-        len = DECK_HA_STATE_MAX;
-        while (len > 0 && ((unsigned char)state[len] & 0xC0) == 0x80) --len;
+    const unsigned char *in = (const unsigned char *)state;
+    size_t len = 0, left = strlen(state);
+    while (left) {
+        const size_t n = utf8_length(in, left), step = n ? n : 1;
+        if (len + step > DECK_HA_STATE_MAX) break;
+        if (n > 1) memcpy(out + len, in, n);
+        else out[len] = n == 0 || *in < 0x20 || *in == 0x7F ? ' ' : (char)*in;
+        len += step;
+        in += step;
+        left -= step;
     }
-    for (size_t i = 0; i < len; ++i) out[i] = (unsigned char)state[i] < 0x20 ? ' ' : state[i];
     out[len] = '\0';
+}
+
+static bool followed_locked(const char *entity_id, const char *attribute)
+{
+    for (int i = 0; s_table && i < s_table->follow_count; ++i)
+        if (same_pair(&s_table->follows[i], entity_id, attribute)) return true;
+    return false;
+}
+
+static ha_state_t *state_locked(const char *entity_id, const char *attribute)
+{
+    for (int i = 0; s_mem && i < s_state_count; ++i)
+        if (!strcmp(s_mem->states[i].entity_id, entity_id) && !strcmp(s_mem->states[i].attribute, attribute))
+            return &s_mem->states[i];
+    return NULL;
+}
+
+/* A slot for a new pair: a free one, else one no key follows now (stale first), else the next in turn. */
+static ha_state_t *new_state_locked(void)
+{
+    if (s_state_count < DECK_HA_STATES_MAX) return &s_mem->states[s_state_count++];
+    ha_state_t *unfollowed = NULL;
+    for (int i = 0; i < DECK_HA_STATES_MAX; ++i) {
+        ha_state_t *st = &s_mem->states[i];
+        if (followed_locked(st->entity_id, st->attribute)) continue;
+        if (st->stale) return st;
+        if (!unfollowed) unfollowed = st;
+    }
+    if (unfollowed) return unfollowed;
+    s_state_next = (s_state_next + 1) % DECK_HA_STATES_MAX;
+    return &s_mem->states[s_state_next];
 }
 
 bool deck_model_set_ha_state(const char *entity_id, const char *attribute, const char *state)
 {
     if (!entity_id || !state) return false;
     if (!attribute) attribute = "";
+    if (strlen(entity_id) > DECK_HA_ENTITY_MAX || strlen(attribute) > DECK_HA_ATTRIBUTE_MAX) return false;
     char text[DECK_HA_STATE_MAX + 1];
     copy_state(text, state);
-    bool matched = false, changed = false;
     lock();
-    for (int i = 0; s_table && i < s_table->follow_count; ++i) {
-        follow_t *f = &s_table->follows[i];
-        if (!same_pair(&f->spec, entity_id, attribute)) continue;
-        matched = true;
-        changed = changed || !f->has_state || f->stale || strcmp(f->state, text);
-        f->has_state = true;
-        f->stale = false;
-        strcpy(f->state, text);
+    if (!s_mem) { /* no layout yet: nowhere to keep it */
+        unlock();
+        return false;
     }
+    ha_state_t *st = state_locked(entity_id, attribute);
+    bool changed = !st;
+    if (!st) {
+        st = new_state_locked();
+        strcpy(st->entity_id, entity_id);
+        strcpy(st->attribute, attribute);
+    }
+    changed = changed || st->stale || strcmp(st->state, text);
+    strcpy(st->state, text);
+    st->stale = false;
+    const bool matched = followed_locked(entity_id, attribute);
     unlock();
-    if (changed) deck_model_bump_live();
+    if (changed && matched) deck_model_bump_live();
     return matched;
 }
 
@@ -371,9 +503,9 @@ void deck_model_ha_mark_stale(void)
 {
     bool changed = false;
     lock();
-    for (int i = 0; s_table && i < s_table->follow_count; ++i) {
-        follow_t *f = &s_table->follows[i];
-        if (f->has_state && !f->stale) f->stale = changed = true;
+    for (int i = 0; s_mem && i < s_state_count; ++i) {
+        ha_state_t *st = &s_mem->states[i];
+        if (!st->stale) st->stale = changed = true;
     }
     unlock();
     if (changed) deck_model_bump_live();
@@ -397,28 +529,41 @@ static bool is_on(const deck_ha_follow_t *spec, const char *state)
     return false;
 }
 
+/* The state and unit into a key field of `size` bytes, cut at a UTF-8 boundary. */
+static void put_text(char *target, size_t size, const char *state, const char *unit)
+{
+    const int n = snprintf(target, size, "%s%s%s", state, unit[0] ? " " : "", unit);
+    if (n >= (int)size) {
+        size_t len = size - 1;
+        while (len > 0 && ((unsigned char)target[len] & 0xC0) == 0x80) --len;
+        target[len] = '\0';
+    }
+}
+
 void deck_ha_overlay(deck_button_t *button)
 {
     lock();
     for (int i = 0; s_table && i < s_table->follow_count; ++i) {
-        const follow_t *f = &s_table->follows[i];
-        if (f->spec.button_id != button->id || !f->has_state) continue;
-        if (f->spec.mode != 'v') {
-            const uint32_t color = is_on(&f->spec, f->state) ? button->color : DECK_HA_OFF_COLOR;
-            button->color = f->stale ? faded(color) : color;
+        const deck_ha_follow_t *spec = &s_table->follows[i];
+        if (spec->button_id != button->id) continue;
+        /* A wide key shows the value as its second line; a 1-slot key has none, so the value is the label,
+         * shown even when the title is hidden (empty there until a state arrives). */
+        const bool value = spec->mode != 'a', wide = button->span > 1;
+        if (value && !wide && button->title_position == 3) {
+            button->title_position = 0;
+            button->label[0] = '\0';
         }
-        if (f->spec.mode != 'a' && f->state[0]) {
-            /* A wide key shows the value as its second line; a 1-slot key has none, so the value is the label. */
-            const bool wide = button->span > 1;
-            char *target = wide ? button->sub : button->label;
-            const size_t size = wide ? sizeof(button->sub) : sizeof(button->label);
-            int n = snprintf(target, size, "%s%s%s", f->state, f->spec.unit[0] ? " " : "", f->spec.unit);
-            if (n >= (int)size) { /* cut at a UTF-8 boundary */
-                size_t len = size - 1;
-                while (len > 0 && ((unsigned char)target[len] & 0xC0) == 0x80) --len;
-                target[len] = '\0';
-            }
+        const ha_state_t *st = state_locked(spec->entity_id, spec->attribute);
+        if (!st) break;
+        const bool invalid = !strcmp(st->state, "unavailable") || !strcmp(st->state, "unknown");
+        if (spec->mode != 'v') {
+            const uint32_t color = !invalid && is_on(spec, st->state) ? button->color : DECK_HA_OFF_COLOR;
+            button->color = st->stale || invalid ? faded(color) : color;
+            button->ha_accent = true;
         }
+        if (value && st->state[0])
+            put_text(wide ? button->sub : button->label, wide ? sizeof(button->sub) : sizeof(button->label),
+                     invalid ? "-" : st->state, invalid ? "" : spec->unit);
         break;
     }
     unlock();

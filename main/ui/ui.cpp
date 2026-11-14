@@ -165,11 +165,13 @@ void flash(int slot,uint32_t color,uint32_t ms) {
 void send_press(int slot,bool hold) {
     if(!(hold?deck_model_record_hold(ids[slot]):deck_model_record_press(ids[slot])))return;
     awaiting[ids[slot]]=true;stale[ids[slot]]=false;
-    /* A key with Home Assistant steps for this trigger is run by the panel (stage C): it waits while HA is
-     * connected and is red at once otherwise, PC or not. A tap may still become a double, so 'd' counts too. */
-    const bool ha=deck_model_ha_has_steps(ids[slot],hold?'h':'p')||(!hold&&deck_model_ha_has_steps(ids[slot],'d'));
+    /* A trigger with only Home Assistant steps is run by the panel (stage C): it waits while HA takes actions
+     * and is red at once otherwise, PC or not. A tap is the press trigger; a double gets its result when the
+     * second tap is routed. A trigger that also has PC steps keeps the PC rule, and the host's feedback. */
+    const char trigger=hold?'h':'p';
+    const bool ha=deck_model_ha_has_steps(ids[slot],trigger)&&!deck_model_ha_pc_steps(ids[slot],trigger);
     deck_network_t network{};deck_model_network(&network);
-    if(ha)flash(slot,network.api_client?PressedBg:AlertBg,network.api_client?PendingMs:500);
+    if(ha)flash(slot,network.api_actions?PressedBg:AlertBg,network.api_actions?PendingMs:500);
     /* Without a host nothing runs the action: say so at once instead of
      * flashing as if it worked. */
     else if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
@@ -242,6 +244,7 @@ const lv_font_t *title_font(const deck_button_t& value) {
       default:return value.title_bold?&fq_font_dejavu_bold_20:&fq_font_dejavu_16;
     }
 }
+void ha_look(int slot,const deck_button_t& item);
 void build_keys() {
     if(button_version!=deck_model_buttons_version())for(int id=0;id<=DECK_MAX_BUTTONS;++id)if(awaiting[id]){stale[id]=true;awaiting[id]=false;}
     image_missing=false;image_generation=deck_image_generation();
@@ -321,6 +324,7 @@ void build_keys() {
         auto *name=name_label[slot]=label(tile,value.label,4,y,KeyW-8,font,ink);
         lv_obj_set_style_text_align(name,LV_TEXT_ALIGN_CENTER,0);lv_obj_set_hidden(name,value.title_position==3);
         }
+        ha_look(slot,value);
         /* Small marks in the corner say what else a key does: a ring for a long press, two dots for a double tap. */
         int right=width-12;
         if(value.has_double)for(int dot=0;dot<2;++dot){box(tile,right-8,12,8,8,4,Muted);right-=13;}
@@ -333,6 +337,16 @@ void build_keys() {
     /* Empty slots stay visible as faint tiles, so the deck keeps its shape. */
     for(int slot=0;slot<DECK_MAX_BUTTONS;++slot)if(!keys[slot]&&!covered[slot])box(keys_area,(slot%6)*(KeyW+Gap),(slot/6)*(KeyH+Gap),KeyW,KeyH,20,0x0D1316);
     button_version=deck_model_buttons_version();live_version=deck_model_live_version();
+}
+/* Followed Home Assistant states (stage C) that the other in-place updates cannot show: a 1-slot key whose
+ * hidden title now carries the value, and an image key, which has no colored part, gets its accent as an outline. */
+void ha_look(int slot,const deck_button_t& item) {
+    if(name_label[slot]&&!sub_label[slot]){const bool hide=item.title_position==3;
+        if(lv_obj_is_hidden(name_label[slot])!=hide)lv_obj_set_hidden(name_label[slot],hide);}
+    if(!images[slot].widget)return;
+    const bool own=item.style&DECK_STYLE_BORDER;const int width=item.ha_accent?3:own?2:0;
+    if(lv_obj_get_style_border_width(keys[slot],LV_PART_MAIN)!=width)lv_obj_set_style_border_width(keys[slot],width,0);
+    if(width)set_color(keys[slot],LV_STYLE_BORDER_COLOR,item.ha_accent?item.color:item.border);
 }
 /* Labels, colors and gauge values change in place: a rebuild would drop a touch in progress. */
 void update_live() {
@@ -348,7 +362,8 @@ void update_live() {
         if(sub_label[slot]&&strcmp(lv_label_get_text(sub_label[slot]),item.sub))lv_label_set_text(sub_label[slot],item.sub);
         /* Color is not structural (deck_model same_structure), so the gauges recolor here too. */
         if(bar_fill[slot]){lv_obj_set_width(bar_fill[slot],bar_width[slot]*item.progress/100);set_color(bar_fill[slot],LV_STYLE_BG_COLOR,item.color);}
-        if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],gauge[slot]?item.gauge_percent:item.progress);set_color(ring_arc[slot],LV_STYLE_ARC_COLOR,item.color,LV_PART_INDICATOR);}}
+        if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],gauge[slot]?item.gauge_percent:item.progress);set_color(ring_arc[slot],LV_STYLE_ARC_COLOR,item.color,LV_PART_INDICATOR);}
+        ha_look(slot,item);}
     live_version=deck_model_live_version();
 }
 /* ASCII only: UTF-8 multi-byte sequences are copied untouched. */
@@ -655,11 +670,15 @@ void show_offline(bool linked) {
 lv_obj_t *about=nullptr,*about_link=nullptr,*about_wifi=nullptr,*about_ha=nullptr,*about_level=nullptr;
 uint32_t about_wifi_version=0;
 void close_about() {if(about)lv_obj_delete(about);about=about_link=about_wifi=about_ha=about_level=nullptr;}
-/* The Home Assistant line (stage C): off with the API turned off, connected while HA is subscribed, else waiting. */
+/* The Home Assistant line (stage C): off with the API turned off; waiting for Wi-Fi, or for HA; connected, and
+ * whether that client takes the panel's actions (an HA key is red without it). */
 void show_about_ha(const deck_network_t& network) {
     if(!about_ha)return;
-    const char *text=!network.api_enabled?"Home Assistant: off":network.api_client?"Home Assistant: connected":"Home Assistant: waiting";
-    lv_label_set_text(about_ha,text);set_color(about_ha,LV_STYLE_TEXT_COLOR,network.api_enabled&&network.api_client?Accent:Soft);
+    const bool ready=network.api_enabled&&network.api_client&&network.api_actions;
+    const char *text=!network.api_enabled?"Home Assistant: off":network.state!=2?"Home Assistant: waiting for Wi-Fi":
+                     !network.api_client?"Home Assistant: waiting":!network.api_actions?"Home Assistant: connected, no actions":
+                     "Home Assistant: connected";
+    lv_label_set_text(about_ha,text);set_color(about_ha,LV_STYLE_TEXT_COLOR,ready?Accent:network.api_enabled&&network.api_client?Amber:Soft);
 }
 /* The Wi-Fi line under the PC link (protocol 5). ASCII only: the DejaVu subsets may lack other dashes and dots. */
 void show_about_wifi() {

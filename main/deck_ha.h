@@ -32,6 +32,7 @@ extern "C" {
 #define DECK_HA_STATE_MAX 63        /* bytes kept of a state; a longer one is cut at a UTF-8 boundary */
 #define DECK_HA_OFF_COLOR 0x5A6270  /* the accent of a followed key whose state is not in "on" */
 #define DECK_HA_STALE_BG 0x12191D   /* ui_palette Card: a state older than an HA disconnect fades toward it */
+#define DECK_HA_STATES_MAX 72       /* entity/attribute states kept, followed now or on an earlier page */
 
 typedef struct {
     int button_id;
@@ -55,12 +56,23 @@ typedef struct {
 
 void deck_ha_init(void); /* from deck_model_init */
 
-/* Checks the "ha"/"hs" fields of {"buttons":[...]} and, only when every one is valid, replaces the table. False
- * leaves the table as it was (the caller then answers INVALID and keeps the old buttons too). States of
- * entity/attribute pairs that are still followed are kept, so the host's frequent re-pushes lose nothing. */
-bool deck_model_ha_from_json(const char *layout_json);
+/* Checks the "ha"/"hs" fields of {"buttons":[...]} into a scratch table; the live table is unchanged. False when
+ * one is invalid (the caller then answers INVALID and keeps the old buttons too). One writer at a time: the USB
+ * console task, and layout_restore before it starts. */
+bool deck_model_ha_prepare(const char *layout_json);
+/* Makes the prepared table the live one; call it only after deck_model_replace_buttons succeeded. The states
+ * are kept per entity/attribute pair, not per key, so re-pushes and page changes lose nothing. */
+void deck_model_ha_commit(void);
+bool deck_model_ha_from_json(const char *layout_json); /* prepare + commit */
 int deck_model_ha_steps(int button_id, char trigger, deck_ha_step_t *out, int max);
 bool deck_model_ha_has_steps(int button_id, char trigger);
+/* The trigger also has PC steps ("ha".pc): the host gives that press's feedback, and the panel stays quiet. */
+bool deck_model_ha_pc_steps(int button_id, char trigger);
+/* Bumped when the steps (or "pc") changed. Every key event carries the value from when it was recorded. */
+uint32_t deck_model_ha_steps_version(void);
+/* The steps of a press recorded at `version`: -1 when the steps changed since (a page change between a tap and
+ * its routing), else the count. *pc as deck_model_ha_pc_steps. */
+int deck_model_ha_press_steps(uint32_t version, int button_id, char trigger, deck_ha_step_t *out, int max, bool *pc);
 int deck_model_ha_follows(deck_ha_follow_t *out, int max);
 /* Bumped only when the set of followed entity/attribute pairs changed: the API then subscribes again. */
 uint32_t deck_model_ha_version(void);
@@ -70,7 +82,8 @@ bool deck_model_set_ha_state(const char *entity_id, const char *attribute, const
 /* Home Assistant went away: the states stay but are drawn faded until a new one arrives. */
 void deck_model_ha_mark_stale(void);
 
-/* deck_model_get_button calls this with the model lock held: applies a known followed state to the copy. */
+/* deck_model_get_button calls this with the model lock held: applies a known followed state to the copy.
+ * "unavailable" and "unknown" draw the off color, faded, and "-" as the value. */
 void deck_ha_overlay(deck_button_t *button);
 
 /* Shared with the host's rules: ^[a-z_][a-z0-9_]*\.[a-z0-9_]+$ */

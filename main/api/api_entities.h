@@ -20,6 +20,10 @@ extern "C" {
 #define API_OPTIONS_SETTLE_MS 1000 /* new select options: wait this long for more, then make the client re-list */
 #define API_COMMAND_GAP_MS 250     /* select and button commands closer than this from one client are dropped */
 
+/* Stage C: distinct entity/attribute pairs subscribed on one connection. Past this, the panel closes it so the
+ * client starts clean; that takes more followed pairs than DECK_HA_STATES_MAX across the whole profile. */
+#define API_HA_SUBSCRIPTIONS_MAX 72
+
 /* What the states are made of, read once per loop. */
 typedef struct {
     bool pc_linked;
@@ -45,7 +49,8 @@ typedef struct {
     bool ha_services;         /* sent SubscribeHomeassistantServicesRequest (34): gets our action requests */
     bool ha_states;           /* sent SubscribeHomeAssistantStatesRequest (38): gets our state subscriptions */
     uint32_t ha_version_sent; /* deck_model_ha_version() of the pairs it got; 0 before */
-    int ha_subscriptions;     /* SubscribeHomeAssistantStateResponse messages sent on this connection */
+    int ha_subscriptions;     /* distinct pairs subscribed on this connection (HA has no unsubscribe) */
+    uint32_t ha_sent[API_HA_SUBSCRIPTIONS_MAX]; /* their hashes: a pair is subscribed once per connection */
 } api_peer_t;
 
 typedef struct {
