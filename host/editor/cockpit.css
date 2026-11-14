@@ -364,7 +364,7 @@ html body .release-notes{white-space:pre-wrap;font:inherit;font-size:13px;color:
 /* Layout: the only place that sets the zoom, the heights and the columns (style.css and streamdeck.css no longer do).
    Up to 900 px everything stacks; up to 1279 px the key's settings sit under the deck; from 1280 px they get their own
    column beside it. The action list on the right folds into a narrow strip (.library-closed, set by setLibraryOpen). */
-html body .appbar,html body .shell,html body .status-bar,html body #toast{zoom:var(--z)}
+html body .appbar,html body .shell,html body .status-bar,html body #toast,html body dialog{zoom:var(--z)}
 html body #deck-view{--lib:260px;background:var(--bg);min-width:0}
 html body #deck-view.library-closed{--lib:52px}
 html body .workspace{min-width:0;padding:22px 32px 6px;background:none;display:flex;flex-direction:column;align-items:center;gap:14px}
