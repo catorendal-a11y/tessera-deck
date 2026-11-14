@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "api_ha.h"
 #include "api_messages.h"
 #include "cJSON.h"
 
@@ -187,6 +188,7 @@ static void send_all(api_session_t *s, api_peer_t *peer, const api_snapshot_t *n
 
 void api_entities_tick(api_session_t *s, api_peer_t *peer, const api_snapshot_t *now, int64_t now_ms)
 {
+    api_ha_follow_tick(s, peer); /* stage C: the followed entities, again after a layout change */
     if (!peer->subscribed || !api_session_ready(s)) return;
     const uint32_t options = deck_model_api_options_version();
     if (peer->options_version && options != peer->options_version) {
@@ -313,7 +315,9 @@ void api_entities_message(api_session_t *s, api_peer_t *peer, const api_device_t
         break;
     }
     default:
-        break; /* SubscribeLogs (28) included: logs never leave over Wi-Fi */
+        /* Stage C: 34, 38 and 40. Any other id is ignored, SubscribeLogs (28) included: logs never leave over Wi-Fi */
+        api_ha_message(s, peer, type, data, len);
+        break;
     }
 }
 

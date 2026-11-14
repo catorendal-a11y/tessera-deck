@@ -12,6 +12,7 @@
 #include <vector>
 #include "deck_images.h"
 #include "deck_model.h"
+#include "deck_ha.h"
 #include "wifi_config.h"
 #include "ui/ui.h"
 #include "ui/ui_palette.h"
@@ -407,7 +408,11 @@ static void test_about_sheet(){
     /* A long press on the logo opens a sheet with the firmware, the PC link and a brightness slider; a tap outside closes it. */
     keep_host(1000);tap(42,41);assert(!visible("Brightness"));
     hold(42,41,700);assert(visible("Tessera")&&visible("Firmware 9.8.7")&&visible("PC connected")&&visible("Brightness")&&visible("100 %"));
-    assert(visible("Wi-Fi off"));capture("about.ppm");
+    assert(visible("Wi-Fi off")&&visible("Home Assistant: off"));capture("about.ppm");
+    /* The Home Assistant line (stage C): off, waiting while the API is on, connected once HA subscribed. */
+    deck_model_set_api_enabled(true);updates();assert(visible("Home Assistant: waiting"));
+    deck_model_set_api_client(true);updates();assert(visible("Home Assistant: connected"));capture("about-ha-connected.ppm");
+    deck_model_set_api_client(false);deck_model_set_api_enabled(false);updates();assert(visible("Home Assistant: off"));
     /* The Wi-Fi line follows the network record while the sheet is open: connecting, connected, failed. */
     deck_network_t network{};network.state=1;strcpy(network.ssid,"HomeNet");deck_model_set_network(&network);updates();
     assert(visible("Wi-Fi: connecting to HomeNet"));capture("about-wifi-connecting.ppm");
@@ -420,7 +425,7 @@ static void test_about_sheet(){
     network.reason=4;deck_model_set_network(&network);updates();capture("about-wifi-failed.ppm");
     deck_network_t off{};deck_model_set_network(&off);updates();assert(visible("Wi-Fi off"));
     int level=0;bool save=false;while(deck_model_take_brightness_request(&level,&save)){}
-    tap(330,284);assert(deck_model_take_brightness_request(&level,&save)&&save&&level>30&&level<70&&deck_model_brightness()==level);
+    tap(330,318);assert(deck_model_take_brightness_request(&level,&save)&&save&&level>30&&level<70&&deck_model_brightness()==level);
     char shown_level[8];snprintf(shown_level,sizeof(shown_level),"%d %%",level);assert(visible(shown_level));
     const int before=deck_model_last_event_id();
     tap(key_x(12),key_y(12));assert(!visible("Brightness")&&deck_model_last_event_id()==before);
@@ -477,6 +482,42 @@ static void test_key_styling(){
     assert(styled_count==2&&styled[0].style==(DECK_STYLE_BG|DECK_STYLE_TEXT|DECK_STYLE_BORDER)&&styled[0].bg==0x102030&&styled[0].text==0xFFAA00&&styled[0].border==0x00FF00&&styled[1].style==0);
     assert(!deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Bad","bg":"red"}]})",styled,2,&styled_count));
 }
+static lv_obj_t* tile_of(const char* text){auto* found=find(lv_screen_active(),text);assert(found);return lv_obj_get_parent(found);}
+static void test_ha_keys(){
+    /* Stage C: keys that follow a Home Assistant entity change color and text in place, and a key with HA steps
+     * waits while HA is connected and is red at once otherwise, PC or not. */
+    deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
+    const char* layout=R"({"buttons":[
+ {"id":1,"label":"Kitchen","icon":"lc:e0f5","color":"#FFB74D","ha":{"p":[{"a":"light.toggle","e":"light.kitchen"}]},"hs":{"e":"light.kitchen"}},
+ {"id":2,"label":"Living room","sub":"waiting","icon":"lc:e0f5","color":"#64B5F6","span":2,"hs":{"e":"climate.living_room","a":"current_temperature","m":"v","u":"C"}},
+ {"id":4,"label":"Fan","icon":"lc:e0f5","color":"#58E09B","hs":{"e":"switch.fan","m":"b"}},
+ {"id":5,"label":"PC key","icon":"lc:e0f5"}]})";
+    deck_button_t keys[18]{};int key_count=0;
+    assert(deck_model_buttons_from_json(layout,keys,18,&key_count)&&deck_model_ha_from_json(layout)&&deck_model_replace_buttons(keys,key_count));
+    updates();assert(visible("Kitchen")&&visible("waiting")&&visible("Fan"));
+    const uint32_t structure=deck_model_buttons_version();
+    assert(deck_model_set_ha_state("light.kitchen","","off")&&deck_model_set_ha_state("switch.fan","","on"));
+    assert(deck_model_set_ha_state("climate.living_room","current_temperature","21.5"));updates();
+    assert(deck_model_buttons_version()==structure);  /* in place: nothing rebuilt under a finger */
+    assert(visible("21.5 C")&&!visible("waiting")&&visible("Living room")&&visible("on")&&!visible("Fan"));
+    capture("ha-keys.ppm");
+    assert(deck_model_set_ha_state("light.kitchen","","on")&&deck_model_set_ha_state("switch.fan","","off"));updates();
+    assert(visible("off")&&deck_model_buttons_version()==structure);capture("ha-keys-on.ppm");
+    /* Press: no HA connected means red at once, even with the PC there; connected means the pending pulse. */
+    keep_host(1000);deck_model_set_api_client(false);updates();
+    tap(key_x(1),key_y(1));auto* kitchen=tile_of("Kitchen");
+    assert(bg_is(kitchen,ui_palette::AlertBg)&&!lv_anim_get(kitchen,nullptr));
+    keep_host(1000);deck_model_set_api_client(true);updates();
+    tap(key_x(1),key_y(1));assert(lv_anim_get(kitchen,nullptr));
+    deck_model_request_feedback(1,DECK_FEEDBACK_OK);updates();assert(bg_is(kitchen,ui_palette::OkBg)&&!lv_anim_get(kitchen,nullptr));
+    /* A key without HA steps keeps the PC rule. */
+    keep_host(1000);tap(key_x(5),key_y(5));assert(lv_anim_get(tile_of("PC key"),nullptr));
+    deck_model_request_feedback(5,DECK_FEEDBACK_OK);
+    /* HA leaves: the states stay, faded. */
+    deck_model_set_api_client(false);updates();assert(visible("21.5 C"));capture("ha-keys-stale.ppm");
+    while(!taken().empty()){}
+    assert(deck_model_ha_from_json(R"({"buttons":[]})")&&deck_model_replace_buttons(saved,saved_count));keep_host(1000);
+}
 static void test_ambient_clock(){
     /* Ambient clock: shown on request, rendered, and a touch returns to the deck and tells the host once. */
     deck_model_set_ambient("12 C, clear sky - Oslo");deck_model_request_screen(DECK_SCREEN_AMBIENT);updates();
@@ -523,7 +564,7 @@ int main(int argc,char** argv){
      {"agent tap follows its lane",test_agent_tap_follows_its_lane},
      {"agent questions",test_agent_questions},{"mixer",test_mixer},{"rail shortcuts",test_rail_shortcuts},
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"wifi config",test_wifi_config},{"network model",test_network_model},{"about sheet",test_about_sheet},
-     {"status screen",test_status_screen},{"image cache",test_image_cache},{"key styling",test_key_styling},
+     {"status screen",test_status_screen},{"image cache",test_image_cache},{"key styling",test_key_styling},{"home assistant keys",test_ha_keys},
      {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
     capture("deck.ppm");puts("Standalone Deck model, context and render checks passed.");

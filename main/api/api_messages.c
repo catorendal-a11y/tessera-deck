@@ -151,6 +151,32 @@ bool api_encode_event(pb_writer_t *w, uint32_t key, const char *event_type)
     return !w->overflow;
 }
 
+/* HomeassistantActionRequest (35): service = 1, data = 2 (repeated HomeassistantServiceMap {key 1, value 2}).
+ * data_template (3), variables (4), is_event (5), call_id (6), wants_response (7) and response_template (8) stay
+ * at their proto3 defaults, so none is written. Each map entry is encoded into a small buffer first. */
+bool api_encode_ha_action(pb_writer_t *w, const char *service, const api_ha_pair_t *data, size_t count)
+{
+    pb_put_string(w, 1, service);
+    for (size_t i = 0; i < count; ++i) {
+        uint8_t entry_buf[API_HA_PAIR_MAX];
+        pb_writer_t entry;
+        pb_writer_init(&entry, entry_buf, sizeof(entry_buf));
+        pb_put_string(&entry, 1, data[i].key);
+        pb_put_string(&entry, 2, data[i].value);
+        if (entry.overflow) return false;
+        pb_put_bytes(w, 2, entry_buf, entry.len);
+    }
+    return !w->overflow;
+}
+
+/* SubscribeHomeAssistantStateResponse (39): entity_id = 1, attribute = 2, once = 3 (always false here). */
+bool api_encode_ha_state_subscription(pb_writer_t *w, const char *entity_id, const char *attribute)
+{
+    pb_put_string(w, 1, entity_id);
+    pb_put_string(w, 2, attribute);
+    return !w->overflow;
+}
+
 /* ---- decoders ---- */
 
 static bool as_varint(const pb_field_t *f, uint64_t *out)
@@ -224,6 +250,32 @@ bool api_decode_button_command(const uint8_t *data, size_t len, uint32_t *key)
     while (pb_next(&r, &f))
         if (f.field == 1 && f.wire == PB_FIXED32) *key = f.fixed32;
     return !r.error;
+}
+
+/* HomeAssistantStateResponse (40): entity_id = 1, state = 2, attribute = 3. An entity id or attribute that does
+ * not fit is an error (nothing on the panel follows it); a long state (an attribute holding a list, say) is cut
+ * at a UTF-8 boundary, because the key shows at most a short line of it anyway. */
+bool api_decode_ha_state(const uint8_t *data, size_t len, api_ha_state_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    pb_reader_t r;
+    pb_field_t f;
+    bool ok = true;
+    pb_reader_init(&r, data, len);
+    while (pb_next(&r, &f)) {
+        if (f.wire != PB_LEN) continue;
+        if (f.field == 1) ok = pb_field_string(&f, out->entity_id, sizeof(out->entity_id)) && ok;
+        else if (f.field == 3) ok = pb_field_string(&f, out->attribute, sizeof(out->attribute)) && ok;
+        else if (f.field == 2) {
+            size_t take = f.len < sizeof(out->state) - 1 ? f.len : sizeof(out->state) - 1;
+            if (take < f.len)
+                while (take > 0 && (f.data[take] & 0xC0) == 0x80) --take;
+            if (memchr(f.data, '\0', take)) ok = false;
+            memcpy(out->state, f.data, take);
+            out->state[take] = '\0';
+        }
+    }
+    return ok && !r.error && out->entity_id[0];
 }
 
 /* ParsedTimezone (GetTimeResponse field 3) and its DSTRule, as esphome's time/posix_tz.h reads them: offsets

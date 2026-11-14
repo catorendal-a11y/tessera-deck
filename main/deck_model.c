@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "cJSON.h"
+#include "deck_ha.h"
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
@@ -72,6 +73,7 @@ static void deck_model_defaults(void);
 void deck_model_init(void)
 {
     if (!s_lock) s_lock = xSemaphoreCreateMutex();
+    deck_ha_init();
     model_lock();
     model_unlock();
     deck_model_defaults();
@@ -117,7 +119,10 @@ bool deck_model_get_button(int index, deck_button_t *out)
     if (!out || index < 0) return false;
     model_lock();
     bool ok = index < s_button_count;
-    if (ok) *out = s_buttons[index];
+    if (ok) {
+        *out = s_buttons[index];
+        deck_ha_overlay(out); /* a followed Home Assistant state, drawn over the host's color and text */
+    }
     model_unlock();
     return ok;
 }
@@ -167,6 +172,13 @@ bool deck_model_replace_buttons(const deck_button_t *buttons, int count)
 uint32_t deck_model_buttons_version(void)
 {
     return s_buttons_version; /* atomic-enough read of a uint32 */
+}
+
+void deck_model_bump_live(void)
+{
+    model_lock();
+    s_live_version++;
+    model_unlock();
 }
 
 uint32_t deck_model_live_version(void)
@@ -836,7 +848,8 @@ void deck_model_set_network(const deck_network_t *network)
     strncpy(next.ip, network->ip, sizeof(next.ip) - 1);
     next.rssi = network->rssi;
     model_lock();
-    next.api_client = s_network.api_client; /* only deck_model_set_api_client changes it */
+    next.api_client = s_network.api_client;   /* only deck_model_set_api_client changes it */
+    next.api_enabled = s_network.api_enabled; /* and deck_model_set_api_enabled this one */
     if (memcmp(&next, &s_network, sizeof(next)) != 0) {
         s_network = next;
         ++s_network_version;
@@ -859,8 +872,20 @@ uint32_t deck_model_network_version(void)
 void deck_model_set_api_client(bool connected)
 {
     model_lock();
+    const bool lost = s_network.api_client && !connected;
     if (s_network.api_client != connected) {
         s_network.api_client = connected;
+        ++s_network_version;
+    }
+    model_unlock();
+    if (lost) deck_model_ha_mark_stale(); /* outside the model lock: the HA table has its own */
+}
+
+void deck_model_set_api_enabled(bool enabled)
+{
+    model_lock();
+    if (s_network.api_enabled != enabled) {
+        s_network.api_enabled = enabled;
         ++s_network_version;
     }
     model_unlock();

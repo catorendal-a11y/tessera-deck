@@ -82,6 +82,7 @@ bool deck_model_replace_buttons(const deck_button_t *buttons, int count);
 uint32_t deck_model_buttons_version(void);
 /* Bumped when only live gauge values changed; the UI updates them in place. */
 uint32_t deck_model_live_version(void);
+void deck_model_bump_live(void); /* a followed Home Assistant state changed (deck_ha.c) */
 void deck_model_set_context(const char *profile, const char *page, bool can_go_back);
 deck_context_t deck_model_context(void);
 uint32_t deck_model_context_version(void);
@@ -205,10 +206,12 @@ typedef struct {
     char ssid[33];
     char ip[16];
     int8_t rssi;
-    bool api_client; /* stage B: a Home Assistant client is connected */
+    bool api_client;  /* stage B: a Home Assistant client is connected */
+    bool api_enabled; /* the API is turned on (AD_API_SET); with api_client, the About sheet's HA line */
 } deck_network_t;
 void deck_model_set_network(const deck_network_t *network); /* bumps the version only when something changed */
-void deck_model_set_api_client(bool connected); /* stage B; set_network keeps the value */
+void deck_model_set_api_client(bool connected); /* stage B; set_network keeps the value. false fades HA states */
+void deck_model_set_api_enabled(bool enabled);  /* set_network keeps this value too */
 void deck_model_network(deck_network_t *out);
 uint32_t deck_model_network_version(void);
 

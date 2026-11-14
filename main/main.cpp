@@ -34,6 +34,7 @@
 
 extern "C" {
 #include "deck_model.h"
+#include "deck_ha.h"
 #include "time_service.h"
 #include "wifi_service.h"
 #include "api/api_server.h"
@@ -181,8 +182,9 @@ static bool layout_load(const char *path)
     json.resize(size);
     deck_button_t buttons[DECK_MAX_BUTTONS];
     int count = 0;
+    /* The HA steps and followed entities (stage C) come from the same file, so HA keys work offline after a reboot. */
     if (!deck_model_buttons_from_json(json.c_str(), buttons, DECK_MAX_BUTTONS, &count) ||
-        !deck_model_replace_buttons(buttons, count)) return false;
+        !deck_model_ha_from_json(json.c_str()) || !deck_model_replace_buttons(buttons, count)) return false;
     struct stat info = {};
     if (stat(path, &info) == 0 && info.st_mtime > 1600000000) s_layout_saved_unix = info.st_mtime;
     ESP_LOGI(TAG, "restored the last layout from %s: %d buttons", path, count);
@@ -580,6 +582,7 @@ static void usb_console_task(void *)
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
                 wifi_svc_status_t wifi;wifi_service_status(&wifi);cJSON_AddStringToObject(reply,"wifi",wifi_service_state_name(wifi.state));
                 cJSON_AddNumberToObject(reply,"api",1);
+                cJSON_AddNumberToObject(reply,"ha",1);  /* stage C: the layout's "ha"/"hs" key fields */
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
                 app_confirm();  /* the host can talk to this firmware: keep it */
                 char *text=cJSON_PrintUnformatted(reply);
@@ -657,8 +660,9 @@ static void usb_console_task(void *)
             if (cfg_active && cfg_buf) {
                 deck_button_t buttons[DECK_MAX_BUTTONS];
                 int count = 0;
+                /* An invalid "ha" or "hs" makes the whole layout INVALID; the HA table changes only when both parse. */
                 if (deck_model_buttons_from_json(cfg_buf, buttons, DECK_MAX_BUTTONS, &count) &&
-                    deck_model_replace_buttons(buttons, count)) {
+                    deck_model_ha_from_json(cfg_buf) && deck_model_replace_buttons(buttons, count)) {
                     ESP_LOGI(TAG, "deck reprogrammed over USB: %d buttons", count);
                     layout_remember(cfg_buf);
                     std::vector<std::string> icons;

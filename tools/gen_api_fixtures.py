@@ -67,6 +67,16 @@ FIELDS = {
                        ('dst_start', 3, 'msg:DSTRule'), ('dst_end', 4, 'msg:DSTRule')],
     'GetTimeResponse': [('epoch_seconds', 1, 'fixed32'), ('timezone', 2, 'string'),
                         ('parsed_timezone', 3, 'msg:ParsedTimezone')],
+    # Stage C (docs/design/esphome.md, C.1 and C.2)
+    'HomeassistantServiceMap': [('key', 1, 'string'), ('value', 2, 'string')],
+    'HomeassistantActionRequest': [('service', 1, 'string'), ('data', 2, 'msg:HomeassistantServiceMap*'),
+                                   ('data_template', 3, 'msg:HomeassistantServiceMap*'),
+                                   ('variables', 4, 'msg:HomeassistantServiceMap*'), ('is_event', 5, 'bool'),
+                                   ('call_id', 6, 'uint32'), ('wants_response', 7, 'bool'),
+                                   ('response_template', 8, 'string')],
+    'SubscribeHomeAssistantStateResponse': [('entity_id', 1, 'string'), ('attribute', 2, 'string'),
+                                            ('once', 3, 'bool')],
+    'HomeAssistantStateResponse': [('entity_id', 1, 'string'), ('state', 2, 'string'), ('attribute', 3, 'string')],
 }
 
 
@@ -153,6 +163,18 @@ def fixtures(c):
                                                 parsed_timezone=tz(18000, 14400, (3, 2, 0, 7200), (11, 1, 0, 7200))),
         'get_time_string': c['GetTimeResponse'](epoch_seconds=1763121600, timezone='CET-1CEST,M3.5.0,M10.5.0/3'),
         'get_time_iana': c['GetTimeResponse'](epoch_seconds=1763121600, timezone='Europe/Oslo'),
+        # Stage C: what the panel sends for {"a":"light.turn_on","e":"light.kitchen","d":{"brightness_pct":"50"}}
+        'ha_action': c['HomeassistantActionRequest'](service='light.turn_on', data=[
+            c['HomeassistantServiceMap'](key='entity_id', value='light.kitchen'),
+            c['HomeassistantServiceMap'](key='brightness_pct', value='50')]),
+        'ha_action_bare': c['HomeassistantActionRequest'](service='scene.turn_on', data=[
+            c['HomeassistantServiceMap'](key='entity_id', value='scene.evening')]),
+        'ha_subscribe_state': c['SubscribeHomeAssistantStateResponse'](entity_id='light.kitchen'),
+        'ha_subscribe_attribute': c['SubscribeHomeAssistantStateResponse'](
+            entity_id='climate.living_room', attribute='current_temperature'),
+        'ha_state': c['HomeAssistantStateResponse'](entity_id='light.kitchen', state='on'),
+        'ha_state_attribute': c['HomeAssistantStateResponse'](entity_id='climate.living_room', state='21.5',
+                                                             attribute='current_temperature'),
     }
 
 

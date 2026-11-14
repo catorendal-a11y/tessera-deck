@@ -6,6 +6,7 @@
 
 #include "api_crypto.h"
 #include "api_entities.h"
+#include "api_ha.h"
 #include "api_mdns.h"
 #include "api_messages.h"
 #include "api_session.h"
@@ -153,6 +154,7 @@ esp_err_t api_server_init(void)
     s_key_mutex = xSemaphoreCreateMutexStatic(&s_key_mutex_buf);
     load_settings();
     const api_settings_t settings = settings_copy(NULL);
+    deck_model_set_api_enabled(settings.enabled);
     ESP_LOGI(TAG, "Home Assistant API %s (%s)", settings.enabled ? "on" : "off", settings.name);
     return ESP_OK;
 }
@@ -243,6 +245,7 @@ static void set_command(const char *json)
     portENTER_CRITICAL(&s_lock);
     s_settings = next;
     portEXIT_CRITICAL(&s_lock);
+    deck_model_set_api_enabled(next.enabled);
     if (memcmp(&before, &next, sizeof(next)) != 0) bump(true);
     printf("AD_API_SET OK\n");
 }
@@ -538,6 +541,13 @@ static void serve(void)
         }
         if (!alive) slot_close(slot);
     }
+    /* Stage C: the key's homeassistant steps go to every client subscribed to HA actions; the key's feedback
+     * says whether one got them. Keys without such steps return at once. */
+    api_ha_client_t clients[SLOTS];
+    int client_count = 0;
+    for (int i = 0; i < SLOTS; ++i)
+        if (s_slots[i].fd >= 0) clients[client_count++] = (api_ha_client_t){&s_slots[i].session, &s_slots[i].peer};
+    for (int p = 0; p < pressed; ++p) api_ha_press(clients, client_count, presses[p].slot, presses[p].type);
     if (s_router.dropped) {
         ESP_LOGW(TAG, "%u key events were missed (event ring wrapped)", (unsigned)s_router.dropped);
         s_router.dropped = 0;

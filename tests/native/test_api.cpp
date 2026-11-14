@@ -13,10 +13,12 @@
 
 #include "api_crypto.h"
 #include "api_entities.h"
+#include "api_ha.h"
 #include "api_messages.h"
 #include "api_noise.h"
 #include "api_proto.h"
 #include "api_session.h"
+#include "deck_ha.h"
 #include "deck_model.h"
 #include "press_router.h"
 
@@ -811,6 +813,249 @@ static void test_press_router()
     assert(total == DECK_EVENT_RING && r.dropped == 5);
 }
 
+// ---- stage C: Home Assistant keys ----
+
+static void test_ha_codec_golden_bytes()
+{
+    const api_ha_pair_t data[] = {{"entity_id", "light.kitchen"}, {"brightness_pct", "50"}};
+    ENCODE(a, api_encode_ha_action(&a, "light.turn_on", data, 2));
+    assert(written(a) == fixture("ha_action"));
+    const api_ha_pair_t scene[] = {{"entity_id", "scene.evening"}};
+    ENCODE(c, api_encode_ha_action(&c, "scene.turn_on", scene, 1));
+    assert(written(c) == fixture("ha_action_bare"));
+    ENCODE(s, api_encode_ha_state_subscription(&s, "light.kitchen", ""));
+    assert(written(s) == fixture("ha_subscribe_state"));
+    ENCODE(t, api_encode_ha_state_subscription(&t, "climate.living_room", "current_temperature"));
+    assert(written(t) == fixture("ha_subscribe_attribute"));
+
+    api_ha_state_t state;
+    Bytes m = fixture("ha_state");
+    assert(api_decode_ha_state(m.data(), m.size(), &state));
+    assert(!strcmp(state.entity_id, "light.kitchen") && !strcmp(state.state, "on") && !state.attribute[0]);
+    m = fixture("ha_state_attribute");
+    assert(api_decode_ha_state(m.data(), m.size(), &state));
+    assert(!strcmp(state.attribute, "current_temperature") && !strcmp(state.state, "21.5"));
+    // A long state is cut at a UTF-8 boundary; an entity id that does not fit, or none at all, is an error.
+    std::string long_state;
+    for (int i = 0; i < 40; ++i) long_state += "\xC3\xA6"; // 80 bytes of 'ae'
+    Bytes big = {0x0A, 0x05, 's', '.', 'x', 'y', 'z', 0x12, (uint8_t)long_state.size()};
+    big.insert(big.end(), long_state.begin(), long_state.end());
+    assert(api_decode_ha_state(big.data(), big.size(), &state) && strlen(state.state) == 62);
+    Bytes none = {0x12, 0x02, 'o', 'n'};
+    assert(!api_decode_ha_state(none.data(), none.size(), &state));
+    Bytes huge = {0x0A, 0x81, 0x01};
+    huge.insert(huge.end(), 129, 'a');
+    assert(!api_decode_ha_state(huge.data(), huge.size(), &state));
+}
+
+static const char *HA_LAYOUT = R"({"buttons":[
+ {"id":1,"label":"Kitchen","color":"#FFB74D","ha":{"p":[{"a":"light.toggle","e":"light.kitchen","d":{"brightness_pct":"50","transition":2,"flash":true}}],
+  "h":[{"a":"scene.turn_on","e":"scene.evening"},{"a":"script.turn_on","e":"script.a,script.b"}]},
+  "hs":{"e":"light.kitchen","a":"","m":"a","on":["on"],"u":""}},
+ {"id":2,"label":"Temp","span":2,"hs":{"e":"climate.living_room","a":"current_temperature","m":"v","u":"°C"}},
+ {"id":3,"label":"Kitchen 2","hs":{"e":"light.kitchen","m":"b","on":["on","heat"]}},
+ {"id":4,"label":"PC only"}]})";
+
+static void test_ha_layout_json()
+{
+    assert(deck_model_ha_from_json(HA_LAYOUT));
+    deck_ha_step_t steps[4];
+    assert(deck_model_ha_steps(1, 'p', steps, 4) == 1);
+    assert(!strcmp(steps[0].action, "light.toggle") && !strcmp(steps[0].entity_id, "light.kitchen"));
+    assert(steps[0].data_count == 3 && !strcmp(steps[0].keys[1], "transition") && !strcmp(steps[0].values[1], "2"));
+    assert(!strcmp(steps[0].values[2], "true"));
+    assert(deck_model_ha_steps(1, 'h', steps, 4) == 2 && deck_model_ha_steps(1, 'd', steps, 4) == 0);
+    assert(deck_model_ha_has_steps(1, 'p') && !deck_model_ha_has_steps(4, 'p'));
+    deck_ha_follow_t follows[DECK_HA_FOLLOWS_MAX];
+    assert(deck_model_ha_follows(follows, DECK_HA_FOLLOWS_MAX) == 3);
+    assert(follows[1].mode == 'v' && !strcmp(follows[1].unit, "\xC2\xB0" "C") && follows[1].on_count == 1);
+    assert(follows[2].on_count == 2 && follows[2].mode == 'b');
+
+    // Each bad field makes the layout invalid and leaves the table as it was.
+    const uint32_t version = deck_model_ha_version();
+    const char *bad[] = {
+        R"({"buttons":[{"id":1,"label":"x","ha":[]}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":{}}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"e":"light.a"}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"toggle"}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"Light.toggle"}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"light.toggle","e":"light.a,light.b,light.c,light.d,light.e"}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"light.toggle","e":"light."}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"light.toggle","d":{"a":"1","b":"2","c":"3","d":"4","e":"5"}}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"light.toggle","d":{"Bad":"1"}}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"light.toggle","d":{"x":[1]}}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"light.toggle","d":{"entity_id":"light.b"}}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","ha":{"p":[{"a":"a.b"},{"a":"a.c"},{"a":"a.d"}]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.a,light.b"}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"a":"x"}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.a","m":"x"}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.a","a":"Bad-name"}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.a","on":[]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.a","on":["a","b","c","d","e"]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.a","on":["seventeen chars!!"]}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":{"e":"light.a","u":"seven c"}}]})",
+        R"({"buttons":[{"id":1,"label":"x","hs":"light.a"}]})",
+        R"({"buttons":[{"id":"1","label":"x","hs":{"e":"light.a"}}]})",
+        "not json",
+    };
+    for (const char *json : bad) assert(!deck_model_ha_from_json(json));
+    assert(deck_model_ha_version() == version && deck_model_ha_follows(follows, DECK_HA_FOLLOWS_MAX) == 3);
+
+    // 24 steps in a page at most: 12 keys with 2 press steps fit, a 13th key's steps do not.
+    auto keys_with_two_steps = [](int keys) {
+        std::string json = R"({"buttons":[)";
+        for (int id = 1; id <= keys; ++id)
+            json += (id > 1 ? "," : "") + std::string(R"({"id":)") + std::to_string(id) +
+                    R"(,"label":"k","ha":{"p":[{"a":"a.b"},{"a":"a.c"}]}})";
+        return json + "]}";
+    };
+    assert(!deck_model_ha_from_json(keys_with_two_steps(13).c_str()));
+    assert(deck_model_ha_from_json(keys_with_two_steps(12).c_str()) && deck_model_ha_steps(12, 'p', steps, 4) == 2);
+    // Within the 16-deep nesting of the panel's cJSON: the deepest HA field (data) is 7 levels down.
+    assert(deck_model_ha_from_json(HA_LAYOUT) && deck_model_ha_version() != version);
+}
+
+static void set_ha_buttons()
+{
+    deck_button_t buttons[4]{};
+    const char *labels[] = {"Kitchen", "Temp", "Kitchen 2", "PC only"};
+    for (int i = 0; i < 4; ++i) {
+        buttons[i].id = i + 1;
+        snprintf(buttons[i].label, sizeof(buttons[i].label), "%s", labels[i]);
+        buttons[i].span = i == 1 ? 2 : 1;
+        buttons[i].color = 0xFFB74D;
+    }
+    assert(deck_model_replace_buttons(buttons, 4));
+}
+
+static deck_button_t button(int index)
+{
+    deck_button_t b{};
+    assert(deck_model_get_button(index, &b));
+    return b;
+}
+
+static void test_ha_states_on_keys()
+{
+    assert(deck_model_ha_from_json(HA_LAYOUT));
+    set_ha_buttons();
+    assert(button(0).color == 0xFFB74D && !strcmp(button(1).sub, "")); // no state yet: the host's look
+    uint32_t live = deck_model_live_version();
+    assert(deck_model_set_ha_state("light.kitchen", "", "off"));
+    assert(deck_model_live_version() != live);
+    assert(button(0).color == DECK_HA_OFF_COLOR && !strcmp(button(0).label, "Kitchen"));
+    assert(button(2).color == DECK_HA_OFF_COLOR && !strcmp(button(2).label, "off")); // both: color and label
+    assert(deck_model_set_ha_state("light.kitchen", "", "on"));
+    assert(button(0).color == 0xFFB74D && !strcmp(button(2).label, "on"));
+    live = deck_model_live_version();
+    assert(deck_model_set_ha_state("light.kitchen", "", "on") && deck_model_live_version() == live); // no change
+    assert(!deck_model_set_ha_state("light.kitchen", "brightness", "255")); // a pair nobody follows
+    assert(deck_model_set_ha_state("climate.living_room", "current_temperature", "21.5"));
+    assert(!strcmp(button(1).sub, "21.5 \xC2\xB0" "C") && !strcmp(button(1).label, "Temp")); // wide: the sub line
+    // The host re-pushes the same layout: the states stay, and nothing is rebuilt.
+    const uint32_t version = deck_model_ha_version(), buttons = deck_model_buttons_version();
+    assert(deck_model_ha_from_json(HA_LAYOUT));
+    set_ha_buttons();
+    assert(deck_model_ha_version() == version && deck_model_buttons_version() == buttons);
+    assert(!strcmp(button(1).sub, "21.5 \xC2\xB0" "C"));
+    // HA goes away: the states stay, faded; a new state brings the color back.
+    deck_model_set_api_client(true);
+    deck_model_set_api_client(false);
+    const uint32_t faded = button(0).color;
+    assert(faded != 0xFFB74D && faded != DECK_HA_OFF_COLOR && !strcmp(button(1).sub, "21.5 \xC2\xB0" "C"));
+    assert(deck_model_set_ha_state("light.kitchen", "", "on") && button(0).color == 0xFFB74D);
+}
+
+static int drain_feedback(deck_feedback_t *last)
+{
+    int id = 0, n = 0, last_id = 0;
+    deck_feedback_t kind;
+    while (deck_model_take_feedback(&id, &kind)) {
+        ++n;
+        last_id = id;
+        *last = kind;
+    }
+    return n ? last_id : 0;
+}
+
+static void test_ha_press_and_follow_session()
+{
+    assert(deck_model_ha_from_json(HA_LAYOUT));
+    set_ha_buttons();
+    deck_feedback_t kind;
+    drain_feedback(&kind);
+    Server sv;
+    sv.route_entities = true;
+    Client c;
+    connect(sv, c);
+    api_ha_client_t clients[] = {{&sv.s, &sv.peer}};
+
+    // Not subscribed to HA actions: nothing is sent and the key turns red.
+    assert(api_ha_press(clients, 1, 1, "press") == 0);
+    assert(replies(sv, c).empty() && drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_ALERT);
+    // No homeassistant step for that trigger: nothing at all (the PC's feedback, if any, decides).
+    assert(api_ha_press(clients, 1, 4, "press") == -1 && api_ha_press(clients, 1, 1, "double") == -1);
+    assert(drain_feedback(&kind) == 0);
+
+    assert(feed(sv, c.message(API_SUBSCRIBE_HA_SERVICES, {})));
+    assert(sv.peer.ha_services && replies(sv, c).empty());
+    assert(api_ha_press(clients, 1, 1, "press") == 1);
+    auto r = replies(sv, c);
+    assert(r.size() == 1 && r[0].first == API_HA_ACTION_REQUEST);
+    const api_ha_pair_t data[] = {{"entity_id", "light.kitchen"}, {"brightness_pct", "50"}, {"transition", "2"},
+                                  {"flash", "true"}};
+    ENCODE(w, api_encode_ha_action(&w, "light.toggle", data, 4));
+    assert(r[0].second == written(w));
+    assert(drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_OK);
+    assert(api_ha_press(clients, 1, 1, "hold") == 2 && replies(sv, c).size() == 2);
+    assert(drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_OK);
+
+    // States: after 38 the panel subscribes each followed pair once (light.kitchen is followed by two keys).
+    assert(feed(sv, c.message(API_SUBSCRIBE_HA_STATES, {})));
+    r = replies(sv, c);
+    assert(r.size() == 2 && r[0].first == API_HA_STATE_SUBSCRIPTION && r[0].second == fixture("ha_subscribe_state"));
+    assert(r[1].second == fixture("ha_subscribe_attribute"));
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms); // nothing new
+    assert(replies(sv, c).empty());
+    assert(feed(sv, c.message(API_HA_STATE, fixture("ha_state_attribute"))));
+    assert(!strcmp(button(1).sub, "21.5 \xC2\xB0" "C"));
+    // A layout change with a new pair: the pairs go out again on the next tick.
+    const std::string next = std::string(HA_LAYOUT).replace(std::string(HA_LAYOUT).find("PC only\"}"), 9,
+                                                            R"(PC only","hs":{"e":"switch.fan"}})");
+    assert(deck_model_ha_from_json(next.c_str()));
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms);
+    r = replies(sv, c);
+    assert(r.size() == 3 && r[2].first == API_HA_STATE_SUBSCRIPTION);
+    assert(sv.peer.ha_subscriptions == 5);
+    // Too many subscriptions on one connection: the panel closes it, and the client starts clean.
+    sv.peer.ha_subscriptions = API_HA_SUBSCRIPTIONS_MAX - 1;
+    assert(deck_model_ha_from_json(HA_LAYOUT));
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms);
+    assert(sv.s.state == API_SESSION_CLOSED);
+    // Closed: a press finds no client and turns the key red.
+    assert(api_ha_press(clients, 1, 1, "press") == 0 && drain_feedback(&kind) == 1 && kind == DECK_FEEDBACK_ALERT);
+}
+
+static void test_ha_press_routing_from_events()
+{
+    // The real path: a deck event goes through press_router, then api_ha_press (as api_server's serve() does).
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":3,"label":"K3","double":true,"ha":{"d":[{"a":"a.b"}]}}]})"));
+    set_layout_with_double_on_3();
+    deck_feedback_t kind;
+    drain_feedback(&kind);
+    press_router_t r;
+    press_router_init(&r);
+    press_out_t out[8];
+    api_ha_client_t none[1] = {};
+    deck_model_record_press(3);
+    assert(press_router_poll(&r, 1000, out, 8) == 0); // waits for a second tap
+    deck_model_record_press(3);
+    const int n = press_router_poll(&r, 1100, out, 8);
+    assert(n == 1 && !strcmp(out[0].type, "double"));
+    assert(api_ha_press(none, 0, out[0].slot, out[0].type) == 0); // no client at all
+    assert(drain_feedback(&kind) == 3 && kind == DECK_FEEDBACK_ALERT);
+}
+
 int main()
 {
     deck_model_init();
@@ -828,6 +1073,11 @@ int main()
     test_entities_list_and_states();
     test_settings_json();
     test_press_router();
+    test_ha_codec_golden_bytes();
+    test_ha_layout_json();
+    test_ha_states_on_keys();
+    test_ha_press_and_follow_session();
+    test_ha_press_routing_from_events();
     std::puts("test_api: all passed");
     return 0;
 }

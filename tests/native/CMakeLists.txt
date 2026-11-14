@@ -11,7 +11,7 @@ file(GLOB_RECURSE LV_SOURCES "${LVGL}/src/*.c")
 add_library(lvgl_native STATIC ${LV_SOURCES})
 target_include_directories(lvgl_native PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${LVGL}" "${LVGL}/include")
 target_compile_definitions(lvgl_native PUBLIC LV_CONF_INCLUDE_SIMPLE=1 LV_USE_LZ4_INTERNAL=1)
-add_executable(test_ui test_ui.cpp "${ROOT}/main/deck_model.c" "${ROOT}/main/wifi_config.c" "${ROOT}/main/deck_images.cpp"
+add_executable(test_ui test_ui.cpp "${ROOT}/main/deck_model.c" "${ROOT}/main/deck_ha.c" "${ROOT}/main/wifi_config.c" "${ROOT}/main/deck_images.cpp"
   "${ROOT}/managed_components/espressif__cjson/cJSON/cJSON.c" "${ROOT}/main/ui/ui.cpp"
   "${ROOT}/main/ui/fonts/deck_lucide_60.c" "${ROOT}/main/ui/fonts/fq_dejavu_16.c"
   "${ROOT}/main/ui/fonts/fq_dejavu_20.c" "${ROOT}/main/ui/fonts/fq_dejavu_24.c"
@@ -52,8 +52,8 @@ add_subdirectory("${TFPSA}" tfpsacrypto EXCLUDE_FROM_ALL)
 target_include_directories(builtin PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tfpsa_shim")
 set(API "${ROOT}/main/api")
 add_executable(test_api test_api.cpp "${API}/api_proto.c" "${API}/api_messages.c" "${API}/api_crypto.c"
-  "${API}/api_noise.c" "${API}/api_session.c" "${API}/api_entities.c" "${API}/press_router.c"
-  "${ROOT}/main/deck_model.c" "${ROOT}/managed_components/espressif__cjson/cJSON/cJSON.c")
+  "${API}/api_noise.c" "${API}/api_session.c" "${API}/api_entities.c" "${API}/api_ha.c" "${API}/press_router.c"
+  "${ROOT}/main/deck_model.c" "${ROOT}/main/deck_ha.c" "${ROOT}/managed_components/espressif__cjson/cJSON/cJSON.c")
 target_include_directories(test_api PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/main" "${API}"
   "${ROOT}/managed_components/espressif__cjson/cJSON")
 target_compile_definitions(test_api PRIVATE FIXTURES="${ROOT}/tests/fixtures/esphome_api")

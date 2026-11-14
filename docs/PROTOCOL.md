@@ -63,6 +63,8 @@ Each key needs `id` (1 to 18, no duplicates) and a non-empty `label`. The other 
 | `cf` | `1` for a confirm key. See [Confirm keys](#confirm-keys). |
 | `span` | 1 to 3: a wide key covering that many slots to the right (protocol 4). |
 | `sub`, `progress`, `ring` | A second line, a progress bar from 0 to 100, and `true` to draw the progress as a ring (protocol 4). The host fills these for music, timers and every widget, so a new widget needs no new firmware. |
+| `ha` | Home Assistant steps the panel runs itself (`"ha":1`). See [Home Assistant keys](#home-assistant-keys). |
+| `hs` | A Home Assistant entity the key follows (`"ha":1`). See [Home Assistant keys](#home-assistant-keys). |
 
 An invalid key makes the whole layout `INVALID`. A valid layout is saved on the panel after a short delay, so the panel shows its keys without the PC. The panel keeps the previous layout as a backup (`/store/layout.json` and `layout.bak`). Firmware from before the A/B layout kept only 3,800 bytes.
 
@@ -111,8 +113,9 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
 | `wifi` | `off`, `connecting`, `connected` or `failed` (protocol 5). With the protocol number it tells the host that `AD_WIFI_*` exists. |
 | `api` | `1` when the panel has the Home Assistant API and accepts `AD_API_*`. Missing on older firmware. |
+| `ha` | `1` when the panel reads the layout's `ha` and `hs` key fields and runs Home Assistant steps itself. Missing on older firmware: the host strips those fields and runs no Home Assistant step. |
 
-A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once.
+A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once. A key with Home Assistant steps for that trigger follows Home Assistant instead (see [Home Assistant keys](#home-assistant-keys)).
 
 ## Firmware update
 
@@ -165,6 +168,34 @@ Capability `"api":1`. The panel runs an ESPHome-compatible native API server on 
 - The key is 32 random bytes made on the panel (NVS `tessera_net/api_psk`). It leaves the panel only as the answer to `AD_API_KEY` over USB.
 - The settings are in `tessera_net` as `api_on`, `api_name`, `api_friendly` and `api_area`. `name` is `^[a-z0-9-]{1,31}$` and is also the DHCP and mDNS hostname; `friendly` is 1 to 60 characters, `area` 0 to 40. `AD_WIFI_CLEAR` leaves them and the key alone.
 - Entities: `key_1` … `key_18` (events `press`, `hold`, `double`), the `profile` and `page` selects, the `backlight` light, the `wifi_signal` sensor, the `pc_connected` binary sensor and the `show_clock` button. No entity can press a key or run a PC action.
+- The About sheet shows `Home Assistant: off` (API turned off), `waiting` (on, no client subscribed) or `connected`.
+
+### Home Assistant keys
+
+Capability `"ha":1` (needs `"api":1`). The host sends these key fields only to such a panel:
+
+```json
+{"id":3,"label":"Kitchen","ha":{"p":[{"a":"light.toggle","e":"light.kitchen","d":{"brightness_pct":"50"}}],"h":[],"d":[]},
+ "hs":{"e":"light.kitchen","a":"","m":"a","on":["on"],"u":""}}
+```
+
+| Field | Rules |
+|---|---|
+| `ha.p`, `ha.h`, `ha.d` | The steps for a press, a hold and a double press: at most 2 each, at most 24 in a layout. |
+| step `a` | The action, `^[a-z_][a-z0-9_]*\.[a-z0-9_]+$`, at most 64 characters. Needed. |
+| step `e` | Optional: one entity id or up to 4 comma-separated ids of the same form, at most 128 characters. Sent as the `entity_id` data entry. |
+| step `d` | Optional: at most 4 pairs. Keys `^[a-z0-9_]{1,32}$` (not `entity_id`, which is `e`), values strings, numbers or booleans of at most 64 characters, sent as text (`true`/`false`). |
+| `hs.e` | The followed entity: one id, as above. Needed. |
+| `hs.a` | Optional attribute, `^[a-z0-9_]{0,32}$`; `""` follows the state. |
+| `hs.m` | `a` (default): the key's color when the state is in `on`, else gray `#5A6270`. `v`: the state and `u` as the second line of a wide key, or as the label of a 1-slot key. `b`: both. |
+| `hs.on` | 1 to 4 strings of at most 16 characters; default `["on"]`. |
+| `hs.u` | Optional unit, at most 6 characters. |
+
+A bad `ha` or `hs` makes the whole layout `INVALID`, as other key fields do. Unknown keys inside them are ignored; older firmware ignores both fields. The 8,192-byte limit holds, and the deepest field (`d`) is 7 levels down, inside the panel's cJSON limit of 16. The fields are saved with the layout, so HA keys work after a restart without the PC.
+
+- **Who runs the steps:** always the panel, PC or not. It sends one `HomeassistantActionRequest` (35) per step to every client that sent `SubscribeHomeassistantServicesRequest` (34). The host skips `homeassistant` steps, and sends no `AD_FEEDBACK` for a trigger with only such steps, so nothing runs twice.
+- **Feedback:** while Home Assistant is connected the key pulses and then flashes green when every step was delivered to a subscribed client (HA sends no answer, so green means delivered, not done). It flashes red at once without Home Assistant, and red when no client subscribed to actions. Home Assistant must allow the device to perform actions (ESPHome integration options).
+- **Following:** after `SubscribeHomeAssistantStatesRequest` (38) the panel sends one `SubscribeHomeAssistantStateResponse` (39) per distinct entity/attribute pair, and again when the layout's pairs change. Each `HomeAssistantStateResponse` (40) changes the key's color and text in place; a state is cut to 63 bytes. Without a state the key looks as the host sent it. When Home Assistant leaves, the states stay, drawn faded. Past 72 subscriptions on one connection the panel sends `DisconnectRequest` so the client starts clean.
 
 ## Panel lock
 

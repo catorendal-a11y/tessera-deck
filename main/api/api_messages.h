@@ -40,6 +40,8 @@ enum {
     API_GET_TIME_REQUEST = 36,
     API_GET_TIME_RESPONSE = 37,
     API_SUBSCRIBE_HA_STATES = 38,
+    API_HA_STATE_SUBSCRIPTION = 39, /* SubscribeHomeAssistantStateResponse, sent by us */
+    API_HA_STATE = 40,              /* HomeAssistantStateResponse */
     API_LIST_SELECT = 52,
     API_SELECT_STATE = 53,
     API_SELECT_COMMAND = 54,
@@ -96,6 +98,14 @@ bool api_encode_sensor_state(pb_writer_t *w, uint32_t key, float state, bool mis
 bool api_encode_select_state(pb_writer_t *w, uint32_t key, const char *state, bool missing);
 bool api_encode_event(pb_writer_t *w, uint32_t key, const char *event_type);
 
+/* Stage C: Home Assistant actions and followed states. */
+#define API_HA_PAIR_MAX 384 /* one encoded data entry: a 32-byte key and a value of up to 64 UTF-8 characters */
+typedef struct {
+    const char *key, *value;
+} api_ha_pair_t;
+bool api_encode_ha_action(pb_writer_t *w, const char *service, const api_ha_pair_t *data, size_t count);
+bool api_encode_ha_state_subscription(pb_writer_t *w, const char *entity_id, const char *attribute);
+
 /* Client to server */
 typedef struct {
     char client_info[API_TEXT_MAX + 1];
@@ -120,6 +130,13 @@ typedef struct {
     char timezone[API_TEXT_MAX + 1];
 } api_get_time_response_t;
 
+typedef struct {
+    char entity_id[129];
+    char attribute[33];
+    char state[64]; /* cut at a UTF-8 boundary when longer */
+} api_ha_state_t;
+
+bool api_decode_ha_state(const uint8_t *data, size_t len, api_ha_state_t *out);
 bool api_decode_hello_request(const uint8_t *data, size_t len, api_hello_request_t *out);
 bool api_decode_light_command(const uint8_t *data, size_t len, api_light_command_t *out);
 bool api_decode_select_command(const uint8_t *data, size_t len, api_select_command_t *out);

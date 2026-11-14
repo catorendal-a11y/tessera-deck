@@ -3,6 +3,7 @@
 #include "icon_pack.h"
 #include "deck_images.h"
 #include "deck_model.h"
+#include "deck_ha.h"
 #include "time_service.h"
 #include "ui_palette.h"
 #include <Arduino.h>
@@ -164,9 +165,14 @@ void flash(int slot,uint32_t color,uint32_t ms) {
 void send_press(int slot,bool hold) {
     if(!(hold?deck_model_record_hold(ids[slot]):deck_model_record_press(ids[slot])))return;
     awaiting[ids[slot]]=true;stale[ids[slot]]=false;
+    /* A key with Home Assistant steps for this trigger is run by the panel (stage C): it waits while HA is
+     * connected and is red at once otherwise, PC or not. A tap may still become a double, so 'd' counts too. */
+    const bool ha=deck_model_ha_has_steps(ids[slot],hold?'h':'p')||(!hold&&deck_model_ha_has_steps(ids[slot],'d'));
+    deck_network_t network{};deck_model_network(&network);
+    if(ha)flash(slot,network.api_client?PressedBg:AlertBg,network.api_client?PendingMs:500);
     /* Without a host nothing runs the action: say so at once instead of
      * flashing as if it worked. */
-    if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
+    else if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
     else flash(slot,AlertBg,500);
 }
 void press(lv_event_t *event) {
@@ -646,9 +652,15 @@ void show_offline(bool linked) {
     }
 }
 /* ---- About sheet: a long press on the logo shows the firmware, the PC link and a brightness slider. ---- */
-lv_obj_t *about=nullptr,*about_link=nullptr,*about_wifi=nullptr,*about_level=nullptr;
+lv_obj_t *about=nullptr,*about_link=nullptr,*about_wifi=nullptr,*about_ha=nullptr,*about_level=nullptr;
 uint32_t about_wifi_version=0;
-void close_about() {if(about)lv_obj_delete(about);about=about_link=about_wifi=about_level=nullptr;}
+void close_about() {if(about)lv_obj_delete(about);about=about_link=about_wifi=about_ha=about_level=nullptr;}
+/* The Home Assistant line (stage C): off with the API turned off, connected while HA is subscribed, else waiting. */
+void show_about_ha(const deck_network_t& network) {
+    if(!about_ha)return;
+    const char *text=!network.api_enabled?"Home Assistant: off":network.api_client?"Home Assistant: connected":"Home Assistant: waiting";
+    lv_label_set_text(about_ha,text);set_color(about_ha,LV_STYLE_TEXT_COLOR,network.api_enabled&&network.api_client?Accent:Soft);
+}
 /* The Wi-Fi line under the PC link (protocol 5). ASCII only: the DejaVu subsets may lack other dashes and dots. */
 void show_about_wifi() {
     if(!about_wifi)return;
@@ -664,6 +676,7 @@ void show_about_wifi() {
     }
     else snprintf(text,sizeof(text),"Wi-Fi off");
     lv_label_set_text(about_wifi,text);set_color(about_wifi,LV_STYLE_TEXT_COLOR,color);
+    show_about_ha(network);
 }
 void show_about_link() {
     if(!about_link)return;
@@ -682,16 +695,17 @@ void open_about(lv_event_t *) {
     about=lv_obj_create(screen);flat(about,Bg);lv_obj_set_style_bg_opa(about,LV_OPA_70,0);lv_obj_set_pos(about,0,0);lv_obj_set_size(about,W,H);
     lv_obj_add_event_cb(about,about_tapped,LV_EVENT_CLICKED,nullptr);
     constexpr int CardW=460;
-    auto *card=box(about,Rail+16,16,CardW,336,22,Card);lv_obj_set_clickable(card,true);
+    auto *card=box(about,Rail+16,16,CardW,370,22,Card);lv_obj_set_clickable(card,true);
     lv_obj_set_style_border_width(card,2,0);lv_obj_set_style_border_color(card,lv_color_hex(Line),0);
     label(card,"Tessera",28,24,CardW-56,&fq_font_dejavu_bold_28,Text);
     char version[48];snprintf(version,sizeof(version),"Firmware %s",firmware_version);
     label(card,version,28,70,CardW-56,&fq_font_dejavu_20,Soft);
     about_link=label(card,"",28,102,CardW-56,&fq_font_dejavu_20,Accent);show_about_link();
-    about_wifi=label(card,"",28,136,CardW-56,&fq_font_dejavu_20,Soft);show_about_wifi();
-    label(card,"Brightness",28,200,CardW-160,&fq_font_dejavu_20,Soft);
-    about_level=label(card,"",CardW-128,200,100,&fq_font_dejavu_20,Text);lv_obj_set_style_text_align(about_level,LV_TEXT_ALIGN_RIGHT,0);
-    auto *slider=lv_slider_create(card);lv_obj_set_pos(slider,40,258);lv_obj_set_size(slider,CardW-80,20);
+    about_wifi=label(card,"",28,136,CardW-56,&fq_font_dejavu_20,Soft);
+    about_ha=label(card,"",28,170,CardW-56,&fq_font_dejavu_20,Soft);show_about_wifi();  /* fills both lines */
+    label(card,"Brightness",28,234,CardW-160,&fq_font_dejavu_20,Soft);
+    about_level=label(card,"",CardW-128,234,100,&fq_font_dejavu_20,Text);lv_obj_set_style_text_align(about_level,LV_TEXT_ALIGN_RIGHT,0);
+    auto *slider=lv_slider_create(card);lv_obj_set_pos(slider,40,292);lv_obj_set_size(slider,CardW-80,20);
     lv_slider_set_range(slider,1,100);lv_slider_set_value(slider,deck_model_brightness(),LV_ANIM_OFF);
     lv_obj_set_style_bg_color(slider,lv_color_hex(Line),LV_PART_MAIN);lv_obj_set_style_bg_color(slider,lv_color_hex(Accent),LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(slider,lv_color_hex(Text),LV_PART_KNOB);lv_obj_set_style_pad_all(slider,10,LV_PART_KNOB);

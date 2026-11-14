@@ -41,6 +41,11 @@ typedef struct {
     uint32_t options_seen;    /* a newer version, and when it was first seen */
     int64_t options_seen_ms;
     int64_t command_ms;       /* the last select or button command acted on */
+    /* Stage C (api_ha.c) */
+    bool ha_services;         /* sent SubscribeHomeassistantServicesRequest (34): gets our action requests */
+    bool ha_states;           /* sent SubscribeHomeAssistantStatesRequest (38): gets our state subscriptions */
+    uint32_t ha_version_sent; /* deck_model_ha_version() of the pairs it got; 0 before */
+    int ha_subscriptions;     /* SubscribeHomeAssistantStateResponse messages sent on this connection */
 } api_peer_t;
 
 typedef struct {
