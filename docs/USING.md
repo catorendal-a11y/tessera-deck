@@ -179,6 +179,18 @@ The panel can join your Wi-Fi so Home Assistant finds it as an ESPHome device. I
 
 **Forget Wi-Fi** erases the network on the panel and turns Wi-Fi off. The password travels to the panel over USB only: the PC never stores it (not in `profiles.json`, backups, exports, logs or diagnostics). Only the network name is kept, to fill in the dialog next time. The panel keeps the password in its flash, which is not encrypted, so someone holding the board could read it; put the panel on a guest or IoT network if that matters to you.
 
+**Home Assistant.** With panel firmware that has the Home Assistant API (the panel reports `"api":1`), the same dialog gets a *Home Assistant* section. The panel then runs an ESPHome-compatible native API on TCP port 6053, encrypted with a key that the panel makes itself. Nothing of it runs while Wi-Fi is off.
+
+1. Tick *Let Home Assistant find and use the panel*, check the device name (lowercase letters, digits and hyphens, default `tessera-deck`), the name shown in Home Assistant and the area, and choose **Save Home Assistant settings**. The host sends them to the panel.
+2. Wait until the dialog shows *Wi-Fi: connected*. It then shows the panel's address and port 6053.
+3. In Home Assistant open **Settings → Devices & services**. The panel usually appears as a discovered *ESPHome* device (mDNS `_esphomelib._tcp`): choose **Add**. If it does not appear, choose **Add integration → ESPHome** and type the address and port 6053.
+4. When Home Assistant asks for the encryption key, choose **Show key** and **Copy key** in the dialog and paste it there.
+5. For keys that run Home Assistant actions (a later update), open the ESPHome device's **Configure** options in Home Assistant and tick *Allow the device to perform Home Assistant actions*. It is off by default, and the panel cannot see whether it is on.
+
+The key stays on the panel. The editor fetches it over USB only when you choose *Show key*, and the PC never saves it: not in `profiles.json`, backups, exports, logs or diagnostics. **Make new key** gives the panel a new key and disconnects Home Assistant until you give it the new one (in Home Assistant: the ESPHome device, *Reconfigure*). Home Assistant sees the key events, the profile and page, the backlight, a *Show clock* button, the Wi-Fi signal and whether the PC is connected. It can switch profile or page while the PC is connected, but it cannot press keys or run anything on the PC.
+
+To check the API from the PC without Home Assistant, `tools/esphome_check.py` connects like Home Assistant does, prints the device info and entities, and watches states for 20 seconds. It needs `aioesphomeapi`, which is not a host dependency: install it into its own venv (`py -3 -m venv %USERPROFILE%\esphome-check-venv`, then `%USERPROFILE%\esphome-check-venv\Scripts\python.exe -m pip install aioesphomeapi`) and run it with that Python: `... tools\esphome_check.py --host 192.168.1.40`, with the key in the `TESSERA_API_KEY` environment variable (or `--key`). `--press-test` switches the backlight once and back.
+
 ### Back up, export and import
 
 - **Automatic backups:** Tessera keeps the latest 30 while you edit. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.

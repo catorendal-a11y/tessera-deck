@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Home Assistant (host side, needs panel firmware that reports `"api":1`): the **Wi-Fi and Home Assistant** dialog gets a Home Assistant section with an on switch, device name, friendly name and area (`panel.homeassistant`, sent to the panel with `AD_API_SET` when it differs), the pairing state, the panel's address and port 6053, the encryption key behind *Show key* with *Copy* and *Make new key*, and the steps to add it in Home Assistant. The key is read from the panel over USB (`AD_API_KEY`) through the owner-only control API route `POST /v1/api`, and is never stored or written to logs, the runtime file, diagnostics or exports. The host sends the profile and page names (`AD_API_OPTIONS`) and switches when Home Assistant picks one (`{"type":"ha_select"}`, unknown names are ignored). `tools/esphome_check.py` checks the API from the PC with `aioesphomeapi` in a separate venv.
+
 - Wi-Fi (host side, needs panel firmware with protocol 5): **Panel → Wi-Fi and Home Assistant …** sends a network name and password to the panel over USB, shows the live state, address and signal, and can forget the network. The password is never stored on the PC; only `panel.wifi.ssid` is saved. The control API gets `POST /v1/wifi` for the owner token only (never for plugins), and diagnostics hide the network name, address and MAC. Older firmware is told to update and gets nothing sent. `tests/hardware_smoke.py --wifi` checks it on a real panel, asking for the password with `getpass`.
 - Import: *Without commands* also removes text typed after a hotkey (Win+R, a command and Enter runs it), and the review lists such keys.
 - Images: a dropped image is only read as PNG, JPEG, GIF or WebP, so Pillow's other decoders never see it.

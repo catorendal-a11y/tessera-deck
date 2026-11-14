@@ -342,3 +342,6 @@ body{background:#2b2b2b}
 
 .rail-sep{display:block;width:26px;height:1px;background:#1e2a30;margin:2px 0}
 .wifi-fields{border:0;padding:0;margin:0;min-width:0}#wifi-status{margin:4px 0 6px}#wifi-gate{margin:8px 0}
+.ha-section{margin-top:14px;padding-top:10px;border-top:1px solid #1e2a30}.ha-section h3{margin:0 0 4px;font-size:15px}
+.ha-facts{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:10px 0;align-items:center}.ha-facts dt{color:#9fb1b8}.ha-facts dd{margin:0;min-width:0}
+.ha-key{width:100%;font-family:ui-monospace,Consolas,monospace}.ha-steps{padding-left:20px}.ha-steps li{margin:3px 0}
