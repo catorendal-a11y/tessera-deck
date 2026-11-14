@@ -502,9 +502,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         response.read(65536)
                 except urllib.error.HTTPError as exc:  # the server answered, but with an error page
                     raise CommandFailed(f'The web request failed with HTTP {exc.code} {exc.reason}'.strip()) from exc
-        elif kind == ha_keys.KIND:  # the panel sends it to Home Assistant itself, also with the PC off: never twice
-            self.log(f'Home Assistant {action["action"]}: ' + ('run by the panel' if self.panel_supports_ha()
-                                                             else 'not run, ' + ha_keys.UNSUPPORTED.lower()))
+        elif kind == ha_keys.KIND:  # dispatch_press calls this only for a touch the panel ran: never twice
+            self.log(f'Home Assistant {action["action"]}: run by the panel')
         elif kind == 'delay':
             with self.state_lock.suspended():
                 self.stop.wait(action.get('ms', 100)/1000)
@@ -741,7 +740,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                 if not hold and any(b['id'] == job[1] and b.get('double_actions') for b in self.effective_buttons()):
                     self.tap_with_double(job[1], job[4] if len(job) > 4 else None)
                 else:
-                    self.start_press(job[1], hold=hold)
+                    self.start_press(job[1], hold=hold, from_panel=True)
             else:  # the panel showed another key there (a page change crossed the press)
                 self.log(f'Ignored a press on button {job[1]}: the panel showed a different key')
                 self.give_feedback(job[1], False)
@@ -750,7 +749,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
             if (self.pending_single.get(identity) or (None,))[0] == token:
                 del self.pending_single[identity]
                 if identity[:2] == (self.profile, self.page):
-                    self.start_press(identity[2])
+                    self.start_press(identity[2], from_panel=True)
         elif kind == 'profile':
             self.switch_profile(job[1], auto=True)
         elif kind == 'focus-profile':

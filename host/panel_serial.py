@@ -375,7 +375,7 @@ class PanelSerial:
     def push_buttons(self, buttons):
         payload = layout_payload(buttons)
         if len(payload.encode()) > OFFLINE_LAYOUT_BYTES:
-            raise ValueError('The button layout is too large')
+            raise ValueError(f'The button layout is too large ({len(payload.encode()):,} of {OFFLINE_LAYOUT_BYTES:,} bytes)')
         try:
             self.push_payload(payload)
         except TimeoutError:

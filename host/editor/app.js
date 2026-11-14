@@ -166,7 +166,7 @@ function renderInspector() {
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+(activeActions()?.length===1?' STEP':' STEPS'),'section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
   // a step goes on this key (and this trigger) directly: a click in the library makes a new key instead
-  const addSelect=element('select',{'aria-label':'Add a step to this key'});addSelect.append(element('option',{value:'',text:'＋ Step …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));
+  const addSelect=element('select',{'aria-label':'Add a step to this key'});addSelect.append(element('option',{value:'',text:'＋ Step …'}));for(const [key,k] of Object.entries(kinds))if(key!=='homeassistant'||!(base.states&&editList==='actions'))addSelect.append(element('option',{value:key,text:k.name}));  // the panel runs no Home Assistant step from a toggle state
   addSelect.addEventListener('change',()=>{const item=addSelect.value&&actionTemplate(addSelect.value);if(item)mutate(()=>{if(editList==='actions')base.actions??=[];else base[editList]??=[];activeActions().push(...clone(item.actions));});});
   panel.append(addSelect,confirm);
   wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');

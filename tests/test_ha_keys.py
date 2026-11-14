@@ -55,7 +55,9 @@ class ConfigRules(unittest.TestCase):
                  ({'data': {f'k{i}': 1 for i in range(5)}}, 'at most 4'), ({'data': {'Bad': 1}}, 'data names'),
                  ({'data': {'entity_id': 'light.x'}}, 'data names'), ({'data': {'v': 'x' * 65}}, '64'),
                  ({'data': {'v': [1]}}, 'text, numbers'), ({'data': {'v': float('nan')}}, 'text, numbers'),
-                 ({'data': 'x'}, 'object'), ({'service': 'x'}, 'unknown field'), ({'action': 5}, 'must be text')]
+                 ({'data': 'x'}, 'object'), ({'service': 'x'}, 'unknown field'), ({'action': 5}, 'must be text'),
+                 ({'data': {'v': 'a\tb'}}, 'control character'), ({'data': {'v': 'a\nb'}}, 'control character'),
+                 ({'data': {'v': '\x7f'}}, 'control character'), ({'data': {'v': '\x00'}}, 'control character')]
         for change, words in cases:
             with self.subTest(change=change):
                 self.assert_refused(config_with(key(actions=[dict(STEP, **change)])), words)
@@ -67,10 +69,18 @@ class ConfigRules(unittest.TestCase):
         self.assert_refused(config_with(key(), triggers=[{'when': {'type': 'interval', 'seconds': 5}, 'actions': [STEP]}]),
                             'run on the panel')
 
+    def test_page_byte_budget_names_the_keys(self):
+        big = dict(STEP, entity_id=','.join('light.' + 'x' * 24 for _ in range(4)),
+                   data={f'name_{i}': 'v' * 64 for i in range(4)})
+        config = config_with(*[key(i, actions=[big] * 2, hold_actions=[big]) for i in range(1, 8)])
+        self.assert_refused(config, 'bytes (keys 1, 2, 3')
+        config_check.validate_config(config_with(*[key(i, actions=[STEP] * 2, hold_actions=[STEP]) for i in range(1, 9)]))
+
     def test_bad_follow(self):
         cases = [({'entity_id': 'a.b,c.d'}, 'one entity'), ({'entity_id': 'x'}, 'light.kitchen'), ({'attribute': 'A'}, 'attribute'),
                  ({'show': 'icon'}, 'show'), ({'on': []}, 'on must'), ({'on': ['x' * 17]}, 'on must'), ({'unit': 'x' * 7}, 'unit'),
-                 ({'colour': 1}, 'needs entity_id')]
+                 ({'colour': 1}, 'needs entity_id'), ({'on': ['o\nn']}, 'control character'),
+                 ({'unit': '\t'}, 'control character')]
         for change, words in cases:
             with self.subTest(change=change):
                 self.assert_refused(config_with(key(ha_state=dict(FOLLOW, **change))), words)
@@ -116,7 +126,7 @@ class Daemon(host_support.HostCase):
     def test_host_never_runs_it_and_sends_no_feedback_for_panel_only_presses(self):
         self.d.panel.supports_ha.return_value = True
         self.d.panel.feedback = Mock()
-        self.assertTrue(self.d.dispatch_press(1))
+        self.assertTrue(self.d.dispatch_press(1, from_panel=True))
         self.d.panel.feedback.assert_not_called()  # the panel flashes it
         self.assertTrue(any('run by the panel' in str(call) for call in self.d.log.call_args_list))
         self.assertTrue(self.d.dispatch_press(2))
@@ -125,7 +135,7 @@ class Daemon(host_support.HostCase):
     def test_old_firmware_reports_a_failed_press(self):
         self.d.panel.supports_ha.return_value = False
         self.d.panel.feedback = Mock()
-        self.assertFalse(self.d.dispatch_press(1))
+        self.assertFalse(self.d.dispatch_press(1, from_panel=True))
         self.assertIn('update the panel firmware', self.d.last_action['error'])
         self.assertFalse(self.d.panel.feedback.call_args.args[1])
 
@@ -135,9 +145,28 @@ class Daemon(host_support.HostCase):
         ran = []
         original = self.d.run_action
         self.d.run_action = lambda action: (ran.append(action['type']), original(action) if action['type'] == 'homeassistant' else None)
-        self.assertTrue(self.d.dispatch_press(1, double=True))
+        self.assertTrue(self.d.dispatch_press(1, double=True, from_panel=True))
         self.assertEqual(ran, ['hotkey', 'homeassistant'])
-        self.d.panel.feedback.assert_called_once()  # the PC ran a step, so the PC gives the feedback
+        self.d.panel.feedback.assert_not_called()  # the panel's flash stands: a host green would hide its red
+        def fail_pc_step(action):
+            if action['type'] != 'homeassistant':
+                raise RuntimeError('no keyboard')
+        self.d.run_action = fail_pc_step
+        self.assertFalse(self.d.dispatch_press(1, double=True, from_panel=True))
+        self.assertFalse(self.d.panel.feedback.call_args.args[1])  # a failed PC step still flashes red
+
+    def test_a_press_not_made_on_the_panel_fails_loudly(self):
+        self.d.panel.supports_ha.return_value = True
+        self.d.panel.feedback = Mock()
+        self.assertFalse(self.d.dispatch_press(1))  # the control API, a plugin, or deckctl
+        self.assertIn('pressed on the panel', self.d.last_action['error'])
+        self.assertFalse(self.d.panel.feedback.call_args.args[1])
+        self.assertFalse(any('run by the panel' in str(call) for call in self.d.log.call_args_list))
+        page = next(iter(self.d.config['profiles'][self.d.profile]['pages'].values()))
+        page.append(key(3, actions=[{'type': 'press', 'id': 1}]))
+        self.d.panel.feedback.reset_mock()
+        self.assertFalse(self.d.dispatch_press(3, from_panel=True))  # a nested press is not a touch of key 1
+        self.assertFalse(self.d.panel.feedback.call_args.args[1])
 
 
 class Panel(unittest.TestCase):
@@ -155,6 +184,21 @@ class ReviewAndPreview(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertEqual(found[0]['risk'], 'medium')
         self.assertIn('light.toggle', found[0]['detail'])
+        self.assertIn('brightness_pct', found[0]['detail'])
+        unlock = config_with(key(actions=[{'type': 'homeassistant', 'action': 'lock.unlock', 'entity_id': 'lock.front'}]))
+        found = [item for item in import_review.review(unlock) if item['kind'] == 'homeassistant']
+        self.assertEqual(found[0]['risk'], 'high')
+        self.assertIn('unlock a door', found[0]['detail'])
+
+    def test_secret_data_stays_out_of_the_dry_run_and_exports(self):
+        step = dict(STEP, action='alarm_control_panel.alarm_disarm', data={'code': '1234', 'mode': 'away'})
+        self.assertIn('code=***', ha_keys.describe(step))
+        self.assertNotIn('1234', ha_keys.describe(step))
+        config = config_with(key(actions=[step]))
+        shared, _ = import_review.redact_secrets(config)
+        self.assertNotIn('1234', json.dumps(shared))
+        self.assertIn('away', json.dumps(shared))
+        self.assertIn('Home Assistant data code', import_review.export_left_out(config))
         safe = import_review.strip_executable(copy.deepcopy(config))
         self.assertEqual(next(iter(next(iter(safe['profiles'].values()))['pages'].values()))[0]['actions'], [])
 

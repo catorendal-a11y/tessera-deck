@@ -27,7 +27,16 @@ MAX_ON = 4
 MAX_ON_TEXT = 16
 MAX_UNIT = 6
 FOLLOW_KEYS = {'entity_id', 'attribute', 'show', 'on', 'unit'}
+MAX_PAGE_BYTES = 4096  # the `ha`/`hs` fields of one page, so the rest of the 8,192-byte layout keeps room
 UNSUPPORTED = 'The panel firmware does not run Home Assistant keys; update the panel firmware'
+NOT_FROM_PANEL = 'Home Assistant steps run only when the key itself is pressed on the panel'
+# Data names whose values are codes or passwords: hidden in the dry run and left out of exports.
+SECRET_DATA = re.compile(r'(?i)(^|_)(code|pin|password|passcode|passwd|token|secret)($|_)')
+
+
+def plain_text(text) -> bool:
+    """No line breaks or other control characters: the panel refuses the whole layout over one (deck_ha.c text_ok)."""
+    return all(' ' <= c != '\x7f' for c in text)
 
 
 def data_text(value) -> str:
@@ -73,6 +82,8 @@ def check_action(action) -> None:
                 raise ValueError('data names must be 1-32 lowercase letters, digits or _ (put the entity in entity_id)')
             if len(data_text(value)) > MAX_VALUE:
                 raise ValueError(f'data value {key} must be at most {MAX_VALUE} characters')
+            if not plain_text(data_text(value)):
+                raise ValueError(f'data value {key} contains a line break or another control character')
     except ValueError as exc:
         raise ValueError(f'homeassistant: {exc}') from exc
 
@@ -94,9 +105,13 @@ def check_follow(follow) -> None:
     if (not isinstance(on, list) or not 1 <= len(on) <= MAX_ON
             or any(not isinstance(item, str) or not 1 <= len(item) <= MAX_ON_TEXT for item in on)):
         raise ValueError(f'ha_state.on must be 1-{MAX_ON} states of at most {MAX_ON_TEXT} characters')
+    if not all(plain_text(item) for item in on):
+        raise ValueError('ha_state.on contains a line break or another control character')
     unit = follow.get('unit', '')
     if not isinstance(unit, str) or len(unit) > MAX_UNIT:
         raise ValueError(f'ha_state.unit must be at most {MAX_UNIT} characters')
+    if not plain_text(unit):
+        raise ValueError('ha_state.unit contains a line break or another control character')
 
 
 def steps_of(actions) -> list[dict]:
@@ -119,11 +134,17 @@ def check_page(buttons) -> None:
         raise ValueError(f'a page may hold at most {MAX_PER_PAGE} Home Assistant steps')
     if sum('ha_state' in button for button in buttons) > MAX_FOLLOWED:
         raise ValueError(f'a page may follow at most {MAX_FOLLOWED} Home Assistant entities')
+    size = page_bytes(buttons)
+    if size > MAX_PAGE_BYTES:
+        keys = ', '.join(str(button['id']) for button in buttons if uses_homeassistant(button))
+        raise ValueError(f'the Home Assistant parts of this page take {size:,} of {MAX_PAGE_BYTES:,} bytes (keys {keys}); '
+                         'shorten the data and entity lists or use fewer Home Assistant steps')
 
 
-def only_panel_steps(actions) -> bool:
-    """A trigger whose steps all run on the panel: the panel gives the feedback, the host sends none."""
-    return bool(actions) and len(steps_of(actions)) == len(actions)
+def page_bytes(buttons) -> int:
+    """The bytes the `ha`/`hs` fields add to the page's layout, as the host sends it (ensure_ascii)."""
+    return sum(len(json.dumps(fields, ensure_ascii=True, separators=(',', ':')))
+               for fields in map(layout_fields, buttons) if fields)
 
 
 def step_entry(action) -> dict:
@@ -160,5 +181,6 @@ def describe(action) -> str:
     if action.get('entity_id'):
         text += f' on {entity_ids(action["entity_id"]).replace(",", ", ")}'
     if action.get('data'):
-        text += ' with ' + ', '.join(f'{key}={data_text(value)}' for key, value in action['data'].items())
+        text += ' with ' + ', '.join(f'{key}=' + ('***' if SECRET_DATA.search(key) else data_text(value))
+                                     for key, value in action['data'].items())
     return text + ' (the panel sends it)'

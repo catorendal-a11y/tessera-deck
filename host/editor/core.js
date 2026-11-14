@@ -281,20 +281,36 @@ function haEntityProblem(value,many=true) {
   if(parts.length>(many?4:1))return many?'name at most 4 entities':'follow one entity';
   return parts.join(',').length>128?'keep the entity ids to 128 characters':'';
 }
+/* The panel refuses the whole layout over a line break, tab or other control character (deck_ha.c text_ok). */
+const haControl=value=>/[\u0000-\u001f\u007f]/.test(String(value));
 function haStepProblem(a) {
-  if(String(a.action).length>64||!HA_NAME.test(a.action))return 'write the action like light.toggle (domain.service)';
-  if(a.entity_id){const problem=haEntityProblem(a.entity_id);if(problem)return problem;}
+  if(String(a.action).length>64||!HA_NAME.test(a.action))return 'Action: write it like light.toggle (domain.service)';
+  if(a.entity_id){const problem=haEntityProblem(a.entity_id);if(problem)return 'Entity: '+problem;}
   const data=Object.entries(a.data||{});
-  if(data.length>4)return 'use at most 4 data values';
-  if(data.some(([key])=>!HA_DATA_KEY.test(key)||key==='entity_id'))return 'use lowercase letters, digits or _ in data names';
-  if(data.some(([,value])=>String(value).length>64))return 'keep each data value to 64 characters';
+  if(data.length>4)return 'Data: use at most 4 values';
+  for(const [row,[key,value]] of data.entries()){
+    if(key==='entity_id')return `Data name ${row+1}: put the entity in the Entity field`;
+    if(!HA_DATA_KEY.test(key))return `Data name ${row+1}: use 1-32 lowercase letters, digits or _`;
+    if(String(value).length>64)return `Data value ${row+1}: keep it to 64 characters`;
+    if(haControl(value))return `Data value ${row+1}: remove the line break or tab`;
+  }
   return '';
 }
 function followProblem(follow) {
-  if(!follow?.entity_id)return 'fill in the entity to follow';
-  return haEntityProblem(follow.entity_id,false)||(!HA_ATTRIBUTE.test(follow.attribute||'')?'write the attribute in lowercase letters, digits or _':'')
-    ||((follow.on||['on']).some(item=>!item||item.length>16)||(follow.on||[]).length>4?'use 1-4 on states of up to 16 characters':'')
-    ||(String(follow.unit||'').length>6?'keep the unit to 6 characters':'');
+  if(!follow?.entity_id)return 'Follow: fill in the entity';
+  const entity=haEntityProblem(follow.entity_id,false);if(entity)return 'Follow entity: '+entity;
+  if(!HA_ATTRIBUTE.test(follow.attribute||''))return 'Attribute: use up to 32 lowercase letters, digits or _';
+  const on=follow.on||['on'];
+  if(on.length>4||on.some(item=>!item||item.length>16))return 'On states: use 1-4 states of up to 16 characters';
+  if(on.some(haControl))return 'On states: remove the line break or tab';
+  if(String(follow.unit||'').length>6)return 'Unit: keep it to 6 characters';
+  return haControl(follow.unit||'')?'Unit: remove the line break or tab':'';
+}
+/* Where the panel cannot run Home Assistant steps (a toggle state), or more than it keeps per trigger (2). */
+function haPlaceProblem(b) {
+  if((b.states||[]).some(state=>(state.actions||[]).some(a=>a.type==='homeassistant')))return 'Home Assistant steps cannot go in a toggle state: put them under Pressed, Held or Double-press of a key without states';
+  for(const key of ['actions','hold_actions','double_actions']){const count=(b[key]||[]).filter(a=>a.type==='homeassistant').length;if(count>2)return `Home Assistant: ${count} steps of 2 allowed per trigger`;}
+  return '';
 }
 function valueProblem(a) {
   const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
@@ -311,6 +327,7 @@ function valueProblem(a) {
 function keyProblem(b) {
   const name=nameProblem(b);if(name)return name;
   for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {const step=stepProblem(a);if(step)return step;}
+  const place=haPlaceProblem(b);if(place)return place;
   if(b.ha_state)return followProblem(b.ha_state);
   return '';
 }
@@ -329,6 +346,10 @@ function savable(source) {
     for(const name of Object.keys(item.pages))item.pages[name]=item.pages[name].filter(b=>!nameProblem(b));
     if(item.pinned)item.pinned=item.pinned.filter(b=>!nameProblem(b));
     rewriteActions(profileButtons(item).filter(keyProblem),a=>stepProblem(a)?null:a);  // finished keys go as they are, so a merge sees no change
+    for(const b of profileButtons(item).filter(haPlaceProblem)){  // misplaced or extra Home Assistant steps wait too
+      for(const state of b.states||[])state.actions=(state.actions||[]).filter(a=>a.type!=='homeassistant');
+      for(const key of ['actions','hold_actions','double_actions'])if(b[key]){let kept=0;b[key]=b[key].filter(a=>a.type!=='homeassistant'||++kept<=2);}
+    }
     for(const b of profileButtons(item))if(b.ha_state&&followProblem(b.ha_state))delete b.ha_state;  // an unfinished follow waits too
   }
   return sent;
@@ -629,6 +650,9 @@ function addAction(key,id=null) {
   if(key.startsWith('widget:'))return addWidget(key.slice(7),id);
   const item=actionTemplate(key);if(!item)return;
   const made=!visibleButtons().some(b=>b.id===id);
+  const target=visibleButtons().find(b=>b.id===id);
+  if(key==='homeassistant'&&target?.states&&(id!==selected||editList==='actions'))  // the panel runs only a key's own lists
+    return toast('Home Assistant steps cannot go in a toggle state. Use Held or Double-press, or a key without states.');
   inspectorTab=made?'look':'actions';
   mutate(()=>{selected=id;syncEditList();let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
   if(made){const title=$('#inspector .prop-row-title input');title?.focus();title?.select();}  // name the new key first

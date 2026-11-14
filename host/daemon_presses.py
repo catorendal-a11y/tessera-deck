@@ -58,13 +58,14 @@ class PressMixin:
                     return True
         return False
 
-    def start_press(self, button_id, hold=False, double=False):
+    def start_press(self, button_id, hold=False, double=False, from_panel=False):
         """Run a press now, or on the slow lane when it waits (shell, HTTP, delay) so other keys keep working.
 
-        A button that is still running ignores further presses instead of running twice.
+        A button that is still running ignores further presses instead of running twice. from_panel: a touch on the
+        panel, which sends the key's Home Assistant steps itself; a press from the control API or a plugin cannot.
         """
         if not self.is_slow(button_id, hold, double):
-            return self.dispatch_press(button_id, hold=hold, double=double)
+            return self.dispatch_press(button_id, hold=hold, double=double, from_panel=from_panel)
         identity = (self.profile, self.page, button_id)
         with self.slow_lock:
             running = identity in self.slow_running
@@ -75,11 +76,11 @@ class PressMixin:
             self.log(f'Button {button_id} is still running or the slow lane is full; press ignored')
             self.give_feedback(button_id, False)
             return False
-        threading.Thread(target=self.run_slow_press, args=(button_id, hold, identity, double),
+        threading.Thread(target=self.run_slow_press, args=(button_id, hold, identity, double, from_panel),
                          name=f'slow-button-{button_id}', daemon=True).start()
         return True
 
-    def run_slow_press(self, button_id, hold, identity, double=False):
+    def run_slow_press(self, button_id, hold, identity, double=False, from_panel=False):
         try:
             with self.state_lock:
                 # The worker may have changed page before this thread got the lock: the id now names another key
@@ -87,7 +88,7 @@ class PressMixin:
                     self.log(f'Button {button_id} did not run: the page changed before it started')
                     self.give_feedback(button_id, False)
                     return
-                self.dispatch_press(button_id, hold=hold, double=double)
+                self.dispatch_press(button_id, hold=hold, double=double, from_panel=from_panel)
         except Exception as exc:
             self.log(f'Action failed: {exc}')
         finally:
@@ -128,7 +129,7 @@ class PressMixin:
                 self.slow_running.discard(identity)
             self.slow_slots.release()
 
-    def dispatch_press(self, button_id, hold=False, double=False):
+    def dispatch_press(self, button_id, hold=False, double=False, from_panel=False):
         identity = (self.profile, self.page, button_id)
         if identity in self.active_press or len(self.active_press) >= 16:
             raise ValueError('Circular button action')
@@ -145,9 +146,12 @@ class PressMixin:
         state_key = self.state_key(button)
         resolved = self.resolved_button(button)
         actions = resolved.get(action_list_name(hold, double), [])
-        # Home Assistant steps run on the panel. When the list holds nothing else, the panel flashes the result.
+        # Home Assistant steps run on the panel, and only for a touch of this key there (not a nested or API press).
+        # The panel flashes its own result for them, so the host adds only a red for a failed PC step: a green
+        # from the host would hide the panel's red.
         panel_ready = self.panel_supports_ha()
-        panel_feedback = panel_ready and not self.active_press and ha_keys.only_panel_steps(actions)
+        ha_steps = ha_keys.steps_of(actions)
+        panel_ran = bool(ha_steps) and panel_ready and from_panel and not self.active_press
         self.active_press.append(identity)
         ok, error = False, ''
         try:
@@ -155,9 +159,10 @@ class PressMixin:
             for action in actions:
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
-                self.run_action(action)
-            if ha_keys.steps_of(actions) and not panel_ready:
-                raise RuntimeError(ha_keys.UNSUPPORTED)
+                if action.get('type') != ha_keys.KIND or panel_ran:
+                    self.run_action(action)
+            if ha_steps and not panel_ran:  # nobody sent them: never report a press as done
+                raise RuntimeError(ha_keys.UNSUPPORTED if not panel_ready else ha_keys.NOT_FROM_PANEL)
             if (button.get('states') and not hold and not double and not button.get('bind')
                     and state_key not in self.state_set_by_action):
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
@@ -173,7 +178,7 @@ class PressMixin:
             self.events.add('press', button=button_id, label=button['label'], profile=self.profile, page=self.page,
                             ok=ok, hold=hold, double=double)
             try:
-                if not panel_feedback:
+                if not (panel_ran and ok):
                     self.give_feedback(button_id, ok)
             finally:
                 self.publish_runtime(True, force=True)
@@ -190,9 +195,9 @@ class PressMixin:
         pending = self.pending_single.pop(identity, None)
         if pending is not None:
             if at - pending[1] <= DOUBLE_PRESS_SECONDS:
-                self.start_press(button_id, double=True)
+                self.start_press(button_id, double=True, from_panel=True)
                 return
-            self.start_press(button_id)  # too far apart: the first tap was a single tap, and this one starts over
+            self.start_press(button_id, from_panel=True)  # too far apart: the first tap was a single tap, and this one starts over
         token = next(self.single_tokens)
         self.pending_single[identity] = (token, at)
         self.schedule_job(('single-due', identity, token), DOUBLE_PRESS_SECONDS)
