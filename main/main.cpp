@@ -36,6 +36,7 @@ extern "C" {
 #include "deck_model.h"
 #include "time_service.h"
 #include "wifi_service.h"
+#include "api/api_server.h"
 #include "ui/ui.h"
 }
 
@@ -425,7 +426,8 @@ static void wifi_command(char *line)
         }
         wifi_credentials_wipe(&credentials);
     } else if (!strcmp(line, "AD_WIFI_CLEAR")) {
-        printf("AD_WIFI_CLEAR %s\n", wifi_service_clear() == ESP_OK ? "OK" : "FAILED storage");
+        const bool cleared = wifi_service_clear() == ESP_OK; /* the API settings and key stay */
+        printf("AD_WIFI_CLEAR %s\n", cleared ? "OK" : "FAILED storage");
     } else if (!strcmp(line, "AD_WIFI_STATUS")) {
         wifi_status_line();
         return;
@@ -451,6 +453,8 @@ static void usb_console_task(void *)
     uint32_t wake_seen = deck_model_wake_sequence();
     uint32_t wifi_seen = wifi_service_version();
     int64_t wifi_sent_at = 0;
+    uint32_t api_seen = api_server_status_version();
+    int64_t api_sent_at = 0;
     /* A hung loop restarts the panel (CONFIG_ESP_TASK_WDT_TIMEOUT_S); every read below returns within 20 ms. */
     const bool watched = esp_task_wdt_add(nullptr) == ESP_OK;
     for (;;) {
@@ -476,6 +480,15 @@ static void usb_console_task(void *)
             wifi_sent_at = now_us;
             wifi_status_line();
         }
+        /* Home Assistant API (stage B): starts its task once it is on and Wi-Fi is up; status lines as for Wi-Fi. */
+        api_server_poll();
+        if (api_server_status_version() != api_seen && now_us - api_sent_at >= 1000000) {
+            api_seen = api_server_status_version();
+            api_sent_at = now_us;
+            api_server_status_line();
+        }
+        /* "Backlight off" from Home Assistant: dark and dimmed, so the next touch wakes it as the PC's dim does. */
+        if (deck_model_take_backlight_off() && bsp_display_brightness_set(0) == ESP_OK) deck_model_set_dimmed(true);
         /* The about sheet's slider: apply at once, save and tell the host when the finger lifts. */
         int wanted_level = 0;
         bool save_level = false;
@@ -544,6 +557,12 @@ static void usb_console_task(void *)
             used = 0;
             continue;
         }
+        if (!overflow && strncmp(line, "AD_API_", 7) == 0) {
+            api_server_command(line);
+            memset(line, 0, sizeof(line));
+            used = 0;
+            continue;
+        }
         if (!overflow && deck_image_command(line, image_reply)) {
             if (!image_reply.empty()) {printf("%s\n", image_reply.c_str());fflush(stdout);}
             used=0;overflow=false;
@@ -560,6 +579,7 @@ static void usb_console_task(void *)
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
                 wifi_svc_status_t wifi;wifi_service_status(&wifi);cJSON_AddStringToObject(reply,"wifi",wifi_service_state_name(wifi.state));
+                cJSON_AddNumberToObject(reply,"api",1);
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
                 app_confirm();  /* the host can talk to this firmware: keep it */
                 char *text=cJSON_PrintUnformatted(reply);
@@ -792,6 +812,7 @@ extern "C" void app_main(void)
     }
     store_mount();
     /* Never blocks: without stored credentials it only reads NVS and parks a task; the C6 is left alone. */
+    if (nvs == ESP_OK) (void)api_server_init(); /* settings only; the API task starts later, with Wi-Fi */
     if (nvs == ESP_OK && wifi_service_init() != ESP_OK) ESP_LOGW(TAG, "Wi-Fi service unavailable");
     layout_restore();
     deck_model_set_brightness(s_brightness);

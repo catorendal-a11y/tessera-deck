@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #include "esp_err.h"
 
@@ -17,6 +18,9 @@ const char *time_service_time_text(void);  /* "14:32" or, on a 12-hour clock, "2
 /* The PC's choice (AD_TIME ... 12h|24h); 24-hour until it says otherwise. */
 void time_service_set_12h(bool twelve);
 const char *time_service_meridiem(void);   /* "AM" or "PM" on a 12-hour clock, else "" */
+/* Stage B: Home Assistant's GetTimeResponse when the PC is away. A later AD_TIME always wins (back to UTC). */
+bool time_service_host_set(void); /* AD_TIME arrived in this boot */
+bool time_service_set_unix(int64_t epoch, const char *posix_tz);
 
 #ifdef __cplusplus
 }

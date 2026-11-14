@@ -1,5 +1,7 @@
 #include "wifi_service.h"
 
+#include "api/api_server.h"
+
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -310,8 +312,10 @@ static void read_identity(void)
                      ESP_HOSTED_VERSION_MINOR_1);
     }
     if (have_mac) {
-        char hostname[16];
-        snprintf(hostname, sizeof(hostname), "tessera-%02x%02x%02x", mac[3], mac[4], mac[5]);
+        char hostname[32];
+        /* Stage B: the API's device name while the API is on, so DHCP and mDNS agree. */
+        if (!api_server_hostname(hostname, sizeof(hostname)))
+            snprintf(hostname, sizeof(hostname), "tessera-%02x%02x%02x", mac[3], mac[4], mac[5]);
         esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
         if (netif) esp_netif_set_hostname(netif, hostname);
     }
@@ -640,7 +644,12 @@ esp_err_t wifi_service_clear(void)
     nvs_handle_t handle;
     esp_err_t result = nvs_open(NAMESPACE, NVS_READWRITE, &handle);
     if (result == ESP_OK) {
-        result = nvs_erase_all(handle);
+        /* Only Wi-Fi's own keys: the Home Assistant settings and key (api_*) share the namespace and stay. */
+        static const char *const keys[] = {"ssid", "pass", "boot_guard"};
+        for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]) && result == ESP_OK; ++i) {
+            result = nvs_erase_key(handle, keys[i]);
+            if (result == ESP_ERR_NVS_NOT_FOUND) result = ESP_OK;
+        }
         if (result == ESP_OK) result = nvs_commit(handle);
         nvs_close(handle);
     }

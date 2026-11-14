@@ -640,6 +640,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     if line.startswith(('AD_WIFI_SET ', 'AD_WIFI_CLEAR ')):
                         panel.wifi_reply = line
                         panel.wifi_done.set()
+                    if line.startswith('AD_API_KEY '):  # the encryption key: never reaches the log below
+                        panel.api_key_reply = line[11:]
+                        panel.api_key_done.set()
+                        continue
                     if line.startswith('{'):
                         try:
                             message = json.loads(line)

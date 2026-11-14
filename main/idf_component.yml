@@ -10,3 +10,5 @@ dependencies:
   # Wi-Fi through the ESP32-C6 over SDIO (docs/design/esphome.md, stage A). Off until credentials are set.
   espressif/esp_wifi_remote: "^1.6.5"
   espressif/esp_hosted: ">=3.0.10"
+  # Home Assistant native API (docs/design/esphome.md, stage B): _esphomelib._tcp discovery.
+  espressif/mdns: "^1.8.2"

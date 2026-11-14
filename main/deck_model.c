@@ -549,7 +549,7 @@ static int s_agent_count, s_fader_count, s_stat_count;
 static uint32_t s_agents_version = 1, s_faders_version = 1, s_stats_version = 1;
 
 #define DECK_LINE_QUEUE 8
-#define DECK_LINE_MAX 96
+#define DECK_LINE_MAX 128 /* the console reads into 128 bytes; an ha_select line with an escaped name needs ~110 */
 static char s_lines[DECK_LINE_QUEUE][DECK_LINE_MAX];
 static int s_line_head, s_line_count;
 
@@ -835,8 +835,8 @@ void deck_model_set_network(const deck_network_t *network)
     strncpy(next.ssid, network->ssid, sizeof(next.ssid) - 1); /* zero-pads the rest */
     strncpy(next.ip, network->ip, sizeof(next.ip) - 1);
     next.rssi = network->rssi;
-    next.api_client = network->api_client;
     model_lock();
+    next.api_client = s_network.api_client; /* only deck_model_set_api_client changes it */
     if (memcmp(&next, &s_network, sizeof(next)) != 0) {
         s_network = next;
         ++s_network_version;
@@ -853,5 +853,83 @@ void deck_model_network(deck_network_t *out)
 uint32_t deck_model_network_version(void)
 {
     model_lock(); uint32_t version = s_network_version; model_unlock();
+    return version;
+}
+
+void deck_model_set_api_client(bool connected)
+{
+    model_lock();
+    if (s_network.api_client != connected) {
+        s_network.api_client = connected;
+        ++s_network_version;
+    }
+    model_unlock();
+}
+
+static bool s_backlight_off;
+
+void deck_model_request_backlight_off(void)
+{
+    model_lock(); s_backlight_off = true; model_unlock();
+}
+
+bool deck_model_take_backlight_off(void)
+{
+    model_lock();
+    const bool pending = s_backlight_off;
+    s_backlight_off = false;
+    model_unlock();
+    return pending;
+}
+
+static deck_api_options_t s_api_options;
+static uint32_t s_api_options_version = 1;
+
+static bool option_list(const cJSON *list, char (*out)[DECK_API_OPTION_MAX + 1], uint8_t *count)
+{
+    if (!cJSON_IsArray(list) || cJSON_GetArraySize(list) > DECK_API_OPTIONS_MAX) return false;
+    int n = 0;
+    const cJSON *item = NULL;
+    cJSON_ArrayForEach(item, list) {
+        if (!cJSON_IsString(item)) return false;
+        const size_t len = strlen(item->valuestring);
+        if (len == 0 || len > DECK_API_OPTION_MAX) return false;
+        for (size_t i = 0; i < len; ++i)
+            if ((unsigned char)item->valuestring[i] < 0x20) return false;
+        memcpy(out[n], item->valuestring, len + 1);
+        ++n;
+    }
+    *count = (uint8_t)n;
+    return true;
+}
+
+bool deck_model_api_options_from_json(const char *json_text)
+{
+    cJSON *root = json_text ? cJSON_Parse(json_text) : NULL;
+    deck_api_options_t next;
+    memset(&next, 0, sizeof(next));
+    const bool ok = cJSON_IsObject(root) &&
+                    option_list(cJSON_GetObjectItemCaseSensitive(root, "profiles"), next.profiles, &next.profile_count) &&
+                    option_list(cJSON_GetObjectItemCaseSensitive(root, "pages"), next.pages, &next.page_count);
+    cJSON_Delete(root);
+    if (!ok) return false;
+    model_lock();
+    if (memcmp(&next, &s_api_options, sizeof(next)) != 0) {
+        s_api_options = next;
+        ++s_api_options_version;
+    }
+    model_unlock();
+    return true;
+}
+
+void deck_model_api_options(deck_api_options_t *out)
+{
+    if (!out) return;
+    model_lock(); *out = s_api_options; model_unlock();
+}
+
+uint32_t deck_model_api_options_version(void)
+{
+    model_lock(); uint32_t version = s_api_options_version; model_unlock();
     return version;
 }
