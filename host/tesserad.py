@@ -226,13 +226,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         now = time.time()
         if not force and now - self.runtime_written < 1.5:
             return
-        buttons = self.current_buttons()
+        with self.state_lock:  # one snapshot: the worker may switch the page between reading the keys and the page name
+            profile, page, buttons = self.profile, self.page, self.current_buttons()
         gauges = {str(item['id']): dict(item['gauge'], color=item['color']) for item in buttons if 'gauge' in item}
         # what each widget key shows, so the editor tile can show the same text
         widgets = {str(item['id']): {key: item[key] for key in ('label', 'sub', 'progress') if key in item}
                    for item in buttons if 'span' in item and 'sub' in item}
         state = {'pid': os.getpid(), 'updated': now, 'connected': bool(connected),
-                 'port': self.port, 'profile': self.profile, 'page': self.page, 'gauges': gauges, 'widgets': widgets,
+                 'port': self.port, 'profile': profile, 'page': page, 'gauges': gauges, 'widgets': widgets,
                  'dimmed': self.dimmed,
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
@@ -417,7 +418,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.push_page(force=True)
         return True
 
-    def switch_profile(self, profile, auto=False):
+    def switch_profile(self, profile, auto=False, page=None):
         if not getattr(self, 'rail_moving', False):
             self.before_shortcut = None
         if profile not in self.config['profiles']:
@@ -431,6 +432,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if auto and resume and resume[0] == profile and resume[1] in pages:
                 self.page = resume[1]
                 self.folder_stack.extend(name for name in resume[2] if name in pages)
+            if page in pages:  # straight to this page: the profile's first page is never sent in between
+                self.page = page
             self.events.add('profile', profile=profile, page=self.page)
             self.push_page(force=True)  # an identical-looking page must still send the new profile name and path
         if not auto:
@@ -720,6 +723,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.switch_profile(job[1], auto=True)
         elif kind == 'page':
             self.switch_page(job[1])
+        elif kind == 'show':  # the editor's page, picked by hand: the focus rules wait, as for a profile picked on the panel
+            self.switch_profile(job[1], page=job[2])
+            if job[2] != self.page:
+                self.switch_page(job[2])
         elif kind == 'actions':
             self.start_actions(job[1])
         elif kind == 'push':
@@ -817,8 +824,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if context['exe'] == self.manual_focus_exe:
                 return
             self.manual_focus_exe = ''
-        match = next((name for name, p in self.config['profiles'].items()
-                      if any(matches_foreground(pattern, context) for pattern in p.get('match', []))), None)
+        profiles = self.config['profiles'].items()
+        # The window's own program wins over a child process: Chrome runs claude.exe for its extension, and is still Chrome.
+        own = next((name for name, p in profiles if any(
+            pattern.strip().lower().removeprefix('process:').strip() == context['exe'] for pattern in p.get('match', []))), None)
+        match = own or next((name for name, p in profiles
+                             if any(matches_foreground(pattern, context) for pattern in p.get('match', []))), None)
         if match:
             if match != self.profile:
                 if self.auto_profile is None:
@@ -929,9 +940,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         command = json.loads(command_path.read_text(encoding='utf-8'))
                         if command.get('profile') in self.config['profiles']:
                             self.enqueue(('wake',))
-                            self.enqueue(('profile', command['profile']))
-                            if command.get('page') in self.config['profiles'][command['profile']]['pages']:
-                                self.enqueue(('page', command['page']))
+                            if command.get('page') not in self.config['profiles'][command['profile']]['pages']:
+                                self.enqueue(('profile', command['profile']))
+                            else:  # one job: the profile's first page never shows in between
+                                self.enqueue(('show', command['profile'], command['page']))
                                 # the editor's Run now: a press the host finds more than 10 s late is skipped, not run by surprise
                                 if type(command.get('press')) is int and 1 <= command['press'] <= 18                                         and abs(time.time() - float(command.get('at', 0))) < 10:
                                     self.enqueue(('api-press', command['press']))

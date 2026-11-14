@@ -74,6 +74,25 @@ class SwitchingTests(unittest.TestCase):
         while not daemon.jobs.empty():
             daemon.handle_job(daemon.jobs.get_nowait())
 
+    def test_the_editors_page_switches_profile_and_page_in_one_job(self):
+        daemon = self.make_daemon()
+        pages = list(daemon.config['profiles']['coding']['pages'])
+        seen = []
+        daemon.events.add = lambda kind, **fields: seen.append((daemon.profile, daemon.page))
+        daemon.handle_job(('show', 'coding', pages[-1]))
+        self.assertEqual((daemon.profile, daemon.page), ('coding', pages[-1]))
+        self.assertEqual(seen, [('coding', pages[-1])])  # the profile's first page is never sent in between
+        self.assertIsNone(daemon.auto_profile)  # picked by hand: the focus rules do not switch straight back
+
+    def test_the_windows_own_program_wins_over_a_child_process(self):
+        daemon = self.make_daemon()
+        daemon.config['profiles']['coding']['match'] = ['process:claude.exe']
+        daemon.config['profiles'].pop('Chrome', None)
+        daemon.config['profiles']['web'] = {'pages': {'main': []}, 'match': ['chrome.exe']}
+        chrome = {'exe': 'chrome.exe', 'title': 'Docs - Google Chrome', 'processes': ['chrome.exe', 'claude.exe']}
+        self.tick(daemon, chrome)  # Chrome's extension host runs claude.exe; the window is still Chrome
+        self.assertEqual(daemon.profile, 'web')
+
     def test_a_neutral_window_does_not_end_an_automatic_switch(self):
         daemon = self.make_daemon()
         self.tick(daemon, context('code.exe', 'editor'))
