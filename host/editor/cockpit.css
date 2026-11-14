@@ -102,7 +102,7 @@ html body .action-preset{border:0 !important}
 html body .more-menu hr{border-color:var(--line)}
 html body .icon-button{border-radius:12px}
 
-html body .device-frame{width:100%;max-width:none;margin:6px auto 0}
+html body .device-frame{width:100%;max-width:1024px;margin:6px auto 0}
 html body .page-pill{margin:12px auto 0}
 html body .syncbar{margin-top:10px;display:flex;align-items:center;gap:14px}
 html body .syncbar>div:first-child{flex:1}
