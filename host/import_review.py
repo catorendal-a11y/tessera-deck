@@ -5,14 +5,23 @@ import copy
 import re
 import urllib.parse
 
+from ha_keys import SECRET_DATA
+
 SENSITIVE_HEADERS = ('authorization', 'proxy-authorization', 'x-api-key', 'api-key', 'x-auth-token', 'cookie')
 DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
-# A plugin command controls an outside system (a smart home, a stream), so it counts like a web request.
-EXECUTABLE_KINDS = ('shell', 'http', 'plugin')
+# A plugin command controls an outside system (a smart home, a stream), so it counts like a web request, and so does
+# a Home Assistant action, which the panel sends over the network to the smart home.
+EXECUTABLE_KINDS = ('shell', 'http', 'plugin', 'homeassistant')
 SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
 TYPED = ('text', 'clipboard')  # after a hotkey (Win+R, a terminal) typed text is a command
+# Home Assistant domains whose actions open doors, disarm alarms or run anything: the panel runs them with the PC off
+HA_HIGH_DOMAINS = {'lock': 'can unlock a door', 'alarm_control_panel': 'can disarm an alarm',
+                   'cover': 'can open a garage door or gate', 'script': 'runs a Home Assistant script',
+                   'automation': 'runs or changes a Home Assistant automation', 'shell_command': 'runs a command in Home Assistant',
+                   'rest_command': 'sends a web request from Home Assistant', 'homeassistant': 'can restart or change Home Assistant',
+                   'button': 'presses a device button', 'input_button': 'presses a Home Assistant button'}
 
 
 def _typed_after_hotkey(actions) -> bool:
@@ -71,6 +80,13 @@ def _classify(action):
         if action.get('body'):
             detail += ' with a request body'
         return 'medium', 'calls ' + detail
+    if kind == 'homeassistant':
+        name, entity = str(action.get('action', ''))[:64], str(action.get('entity_id', ''))[:128]
+        data = action.get('data') if isinstance(action.get('data'), dict) else {}
+        detail = (f'the panel calls Home Assistant {name}' + (f' on {entity}' if entity else '')
+                  + (f" with {', '.join(str(key)[:32] for key in data)}" if data else '') + ' over the network, also with the PC off')
+        warning = HA_HIGH_DOMAINS.get(name.split('.')[0])
+        return ('high', f'{warning}: {detail}') if warning else ('medium', detail)
     if kind == 'plugin':
         return 'medium', f"runs plugin {str(action.get('plugin', ''))[:60]}.{str(action.get('command', ''))[:60]}"
     if kind == 'open':
@@ -132,6 +148,19 @@ def strip_executable(config: dict) -> dict:
     return safe
 
 
+def _ha_secrets(config):
+    """(action, data name) for Home Assistant data values named like a code or password (ha_keys.SECRET_DATA)."""
+    for _, owner, key, _ in iter_actions(config):
+        for action in owner[key]:
+            data = action.get('data') if isinstance(action, dict) and action.get('type') == 'homeassistant' else None
+            if isinstance(data, dict):
+                yield from ((action, name) for name in data if isinstance(name, str) and SECRET_DATA.search(name))
+
+
+def _ha_secret_names(config):
+    return (name for _, name in _ha_secrets(config))
+
+
 def env_name(header: str) -> str:
     return 'TESSERA_' + re.sub(r'[^A-Z0-9]+', '_', header.upper()).strip('_')
 
@@ -139,6 +168,7 @@ def env_name(header: str) -> str:
 def export_left_out(config: dict) -> list[str]:
     """What redact_secrets drops, in plain words, so the editor can say so after an export."""
     out = ['the calendar address'] if 'calendar' in config else []
+    out += [f'Home Assistant data {name}' for name in sorted(set(_ha_secret_names(config)))]
     for name, plugin in sorted((config.get('plugins') or {}).items()):
         settings = plugin.get('settings') if isinstance(plugin, dict) else None
         out += [f'plugin {name}: {key}' for key in (settings or {}) if SECRET_SETTING.search(key)]
@@ -158,6 +188,10 @@ def redact_secrets(config: dict) -> tuple[dict, list[str]]:
         for name in list(settings or {}):
             if SECRET_SETTING.search(name):
                 del settings[name]
+    for action, name in list(_ha_secrets(shared)):
+        del action['data'][name]
+        if not action['data']:
+            del action['data']
     names = []
     for _, owner, key, _ in iter_actions(shared):
         for action in owner[key]:

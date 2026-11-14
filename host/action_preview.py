@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import shutil
 
+import ha_keys
 from program_locator import locate
 from win_input import parse_hotkey
 from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
@@ -126,6 +127,8 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, f'Switch variable {name} to "{toggled(action, variables.get("var:" + name))}"'
     if kind == 'panel_lock':
         return True, {'on': 'Lock the panel', 'off': 'Unlock the panel'}.get(action.get('mode'), 'Lock or unlock the panel')
+    if kind == ha_keys.KIND:
+        return True, ha_keys.describe(action)
     if kind == 'plugin':
         return True, f'Send the command {action["command"]} to the plugin {action["plugin"]}'
     return False, f'Unknown action type {kind!r}'

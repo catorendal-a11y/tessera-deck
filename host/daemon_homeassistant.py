@@ -13,6 +13,11 @@ class HomeAssistantMixin:
         return (panel is not None and not self.connection_failed.is_set()
                 and callable(getattr(panel, 'supports_api', None)) and panel.supports_api())
 
+    def panel_supports_ha(self) -> bool:
+        """The panel takes `ha`/`hs` in the layout and runs Home Assistant steps itself ("ha":1)."""
+        panel = self.panel
+        return self.panel_supports_api() and callable(getattr(panel, 'supports_ha', None)) and panel.supports_ha() is True
+
     def api_connected(self) -> None:
         """After a handshake: forget what an earlier panel had, and ask this one what it has."""
         self.api_state = self.api_sent = self.api_options_sent = None

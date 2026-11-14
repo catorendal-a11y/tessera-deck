@@ -30,7 +30,7 @@ function renderLibrary() {
   if(('installed programs app launcher'.includes(search)||!search))put('apps',button('Installed programs …',openProgramPicker,'program-launcher'));
   const ready=WIDGETS.map(w=>{const item=make(w.name,'widget',w.sub,'widget:'+w.kind);if(item)item.querySelector('.action-symbol').innerHTML=`<svg viewBox="0 0 24 24">${w.path}</svg>`;return item;}).filter(Boolean);
   if(ready.length){if(searching)list.append(category('Widgets',ready,0,true));else if(libraryTab==='widgets')list.append(text('p','A widget is a wide key that shows something live. Drag one to a key with a free slot to its right.','hint library-note'),element('div',{class:'lib-items lib-flat'},...ready));}
-  const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
+  const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':key==='homeassistant'?'The panel calls it, also with the PC off':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
   [...groups].forEach(([group,items],index)=>put('basics',category(group,items,index%4,searching)));
   if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
   else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)put('ready',category('Ready to use',ready,0,searching));}
@@ -160,12 +160,13 @@ function renderInspector() {
   const bindStart=panel.children.length;
   renderGauge(panel,base);
   renderBind(panel,base);
+  renderFollow(panel,base);
   const actionsStart=panel.children.length;
   panel.append(renderTriggers(base));
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+(activeActions()?.length===1?' STEP':' STEPS'),'section-label'));
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
   // a step goes on this key (and this trigger) directly: a click in the library makes a new key instead
-  const addSelect=element('select',{'aria-label':'Add a step to this key'});addSelect.append(element('option',{value:'',text:'＋ Step …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));
+  const addSelect=element('select',{'aria-label':'Add a step to this key'});addSelect.append(element('option',{value:'',text:'＋ Step …'}));for(const [key,k] of Object.entries(kinds))if(key!=='homeassistant'||!(base.states&&editList==='actions'))addSelect.append(element('option',{value:key,text:k.name}));  // the panel runs no Home Assistant step from a toggle state
   addSelect.addEventListener('change',()=>{const item=addSelect.value&&actionTemplate(addSelect.value);if(item)mutate(()=>{if(editList==='actions')base.actions??=[];else base[editList]??=[];activeActions().push(...clone(item.actions));});});
   panel.append(addSelect,confirm);
   wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');
@@ -308,6 +309,7 @@ function renderStep(action,index,count) {
     step.append(field('First value',values[0],v=>setValue(0,v)),field('Second value',values[1],v=>setValue(1,v)),
       text('p','Each press switches $(var:NAME) between the two values. For a key whose look and steps alternate, give the key states instead.','hint'));
   }
+  if(action.type==='homeassistant')renderHaStep(step,action,index);
   if(action.type==='counter')renderCounterStep(step,action,index);
   if(action.type==='timer')renderTimerStep(step,action,index);
   return step;

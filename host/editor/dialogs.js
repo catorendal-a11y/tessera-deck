@@ -439,6 +439,95 @@ function refreshHomeAssistant(device) {
   $('#ha-status').textContent = haStatusText(device);
   $('#ha-address').textContent = device.wifi?.state === 'connected' && device.wifi.ip ? `${device.wifi.ip}, port ${HA_PORT}` : `Connect Wi-Fi first (port ${HA_PORT})`;
 }
+
+/* Stage C ("ha":1): Home Assistant steps and followed entities. The panel runs them itself over its API; the PC
+   never calls Home Assistant (no token, no REST), so entity ids are typed by hand. */
+const HA_ACTIONS = ['light.toggle', 'switch.toggle', 'scene.turn_on', 'script.turn_on', 'media_player.media_play_pause', 'cover.toggle', 'input_boolean.toggle'];
+const HA_MAX_DATA = 4;
+/* What stops Home Assistant keys from working right now, in plain words, or ''. */
+function haNotice() {
+  const device = dashboard?.device || {};
+  if (device.connected && !device.ha) return 'The panel firmware does not run Home Assistant keys yet: update the panel firmware. Until then nothing happens on a press.';
+  if (config?.panel?.homeassistant?.enabled !== true) return 'Home Assistant is off on the panel: turn it on under Panel, Wi-Fi and Home Assistant.';
+  return '';
+}
+function haNoticeNode() {
+  const notice = haNotice();
+  if (!notice) return null;
+  const node = text('p', notice, 'hint warning');
+  node.setAttribute('role', 'status');
+  return node;
+}
+/* The page limits the host checks on save (ha_keys.check_page), counted over the page and the pinned keys. */
+function haPageNotice() {
+  const keys = visibleButtons();
+  const steps = keys.reduce((sum, b) => sum + ['actions', 'hold_actions', 'double_actions'].reduce((n, key) => n + (b[key] || []).filter(a => a.type === 'homeassistant').length, 0), 0);
+  const follows = keys.filter(b => b.ha_state).length;
+  const over = [steps > 24 ? `This page has ${steps} of 24 Home Assistant steps allowed.` : '', follows > 18 ? `This page follows ${follows} of 18 entities allowed.` : ''].filter(Boolean).join(' ');
+  if (!over) return null;
+  const node = text('p', over + ' The PC refuses to save the configuration until you remove some.', 'hint warning');
+  node.setAttribute('role', 'alert');
+  return node;
+}
+function renderHaStep(step, action, index) {
+  const input = step.querySelector('input');
+  if (input) {
+    const list = element('datalist', {id: `ha-actions-${index}`});
+    for (const name of HA_ACTIONS) list.append(element('option', {value: name}));
+    input.setAttribute('list', list.id);
+    step.append(list);
+  }
+  step.append(field('Entity (optional, several with commas)', action.entity_id || '', v => editAction(index, 'entity_id', v.trim()), {placeholder: 'light.kitchen'}));
+  const data = Object.entries(action.data || {});
+  const setData = (pairs, refresh) => mutate(() => {
+    const a = activeActions()[index];
+    const kept = pairs.filter(([key]) => key !== '' || !refresh);
+    if (kept.length) a.data = Object.fromEntries(kept); else delete a.data;
+  }, refresh, refresh ? null : editKey('action', index, 'data'));
+  if (data.length) step.append(element('div', {class: 'appearance-row', 'aria-hidden': 'true'}, text('small', 'Data name'), text('small', 'Data value')));
+  data.forEach(([key, value], row) => {
+    const name = element('input', {type: 'text', value: key, placeholder: 'brightness_pct', 'aria-label': `Data name ${row + 1}`});
+    const content = element('input', {type: 'text', value: String(value), placeholder: '50', 'aria-label': `Data value ${row + 1}`});
+    name.addEventListener('change', () => setData(data.map((pair, i) => i === row ? [name.value.trim(), pair[1]] : pair), true));
+    content.addEventListener('input', () => { data[row] = [key, content.value]; setData(data, false); });
+    step.append(element('div', {class: 'appearance-row'}, name, content,
+      button('×', () => setData(data.filter((_, i) => i !== row), true), 'quiet danger', `Remove data value ${row + 1}`)));
+  });
+  if (data.length < HA_MAX_DATA) step.append(button('＋ Data value', () => {
+    const fresh = ['value', 'value_2', 'value_3', 'value_4'].find(key => !(key in (action.data || {})));
+    setData([...data, [fresh, '']], true);
+  }, 'text-button'));
+  const afterDelay = activeActions().slice(0, index).some(a => a.type === 'delay');
+  if (data.length) step.append(text('p', 'Do not put codes or passwords here: they are saved on the PC and in the panel. Use a script in Home Assistant instead.', 'hint'));
+  step.append(text('p', 'The panel sends this to Home Assistant itself, also when the PC is off; the PC never runs it, and it runs only when you touch this key on the panel. A green flash means the panel delivered it, not that it worked.', 'hint'));
+  step.append(element('details', {class: 'hint'}, text('summary', 'How to allow it in Home Assistant'),
+    text('p', 'Settings, Devices and services, ESPHome, Configure on the Tessera device: tick Allow the device to perform Home Assistant actions. Without it Home Assistant ignores the action, and the panel cannot tell.')));
+  if (afterDelay) step.append(text('p', 'A Wait before this step does not delay it: the panel sends it at once, while the PC runs its own steps.', 'hint warning'));
+  const notice = haNoticeNode();
+  if (notice) step.append(notice);
+  const page = haPageNotice();
+  if (page) step.append(page);
+}
+/* Live tab: color or text from a Home Assistant entity (ha_state). */
+function renderFollow(panel, base) {
+  const follow = base.ha_state;
+  const set = (key, value, refresh = false) => mutate(() => {
+    const next = {...(base.ha_state || {}), [key]: value};
+    if (value === '' || (Array.isArray(value) && !value.length)) delete next[key];  // empty: the default
+    if (key === 'entity_id' && !value) delete base.ha_state; else base.ha_state = next;
+  }, refresh, refresh ? null : editKey('ha-follow', key));
+  panel.append(field('Follow a Home Assistant entity', follow?.entity_id || '', value => set('entity_id', value.trim(), !follow !== !value.trim()), {placeholder: 'Off · for example light.kitchen'}));
+  if (!follow) return;
+  panel.append(field('Attribute (optional)', follow.attribute || '', v => set('attribute', v.trim()), {placeholder: 'for example brightness'}),
+    field('Show as', follow.show || 'accent', v => set('show', v, true), {values: [['accent', 'Color: the key color while on, gray otherwise'], ['value', 'Value: the state as the key text'], ['both', 'Both']]}),
+    field('On states (with commas; empty means on)', (follow.on || ['on']).join(', '), v => set('on', v.split(',').map(item => item.trim()).filter(Boolean).slice(0, 4))),
+    field('Unit after the value (optional)', follow.unit || '', v => set('unit', v)));
+  panel.append(text('p', 'The panel asks Home Assistant for this entity and updates the key itself, also with the PC off. Without a state yet the key looks as you set it here.', 'hint'));
+  const notice = haNoticeNode();
+  if (notice) panel.append(notice);
+  const page = haPageNotice();
+  if (page) panel.append(page);
+}
 function saveHomeAssistant(event) {
   event?.preventDefault();
   const error = $('#ha-error'), settings = {enabled: $('#ha-enabled').checked, name: $('#ha-name').value.trim(),

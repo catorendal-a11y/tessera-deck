@@ -412,7 +412,7 @@ class HostTests(HostCase):
         daemon.push_page()
         daemon.custom_vars['cpu'] = '43'  # computed after the press, not yet pushed
         daemon.handle_job(('press', 1, 'CPU 41'))
-        daemon.dispatch_press.assert_called_once_with(1, hold=False, double=False)
+        daemon.dispatch_press.assert_called_once_with(1, hold=False, double=False, from_panel=True)  # a touch on the panel
 
     def test_press_from_a_page_that_is_no_longer_shown_is_ignored(self):
         daemon = self.dynamic_label_daemon()

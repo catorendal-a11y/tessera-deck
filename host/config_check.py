@@ -5,6 +5,7 @@ import re
 
 from ambient import check_ambient
 import calendar_feed
+import ha_keys
 from config_store import CONFIG_VERSION, version_of
 from live_state import NAME as LIVE_NAME, check_counter, check_timer
 import widgets
@@ -17,7 +18,8 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None,
-                 'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None}
+                 'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None,
+                 'homeassistant': 'action'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
@@ -166,7 +168,8 @@ ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _c
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
                  'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
                  'shell': _check_shell, 'http': _check_http_action, 'clipboard': _check_clipboard,
-                 'window': _check_window, 'toggle': _check_toggle, 'set': _check_set, 'panel_lock': _check_panel_lock}
+                 'window': _check_window, 'toggle': _check_toggle, 'set': _check_set, 'panel_lock': _check_panel_lock,
+                 'homeassistant': lambda action, pages, profiles: ha_keys.check_action(action)}
 
 
 def _check_action(action, pages, profiles):
@@ -204,11 +207,14 @@ def _check_http(action):
         check_web_url(url)
 
 
-def _check_actions(actions, pages, profiles):
+def _check_actions(actions, pages, profiles, panel_runs=False):
+    """panel_runs: a key's own press, hold or double list, the only lists the panel runs Home Assistant steps from."""
     if not isinstance(actions, list):
         raise ValueError('actions must be a list')
     for action in actions:
         _check_action(action, pages, profiles)
+        if action['type'] == ha_keys.KIND and not panel_runs:
+            raise ValueError("homeassistant steps run on the panel: put them in a key's pressed, held or double-press actions")
 
 
 def _check_color(value, message):
@@ -278,9 +284,9 @@ def _check_button(button, pages, profiles):
     _check_wide(button)
     if 'status' in button:
         _check_status(button['status'])
-    _check_actions(button.get('actions', []), pages, profiles)
-    _check_actions(button.get('hold_actions', []), pages, profiles)
-    _check_actions(button.get('double_actions', []), pages, profiles)
+    _check_actions(button.get('actions', []), pages, profiles, panel_runs=True)
+    _check_actions(button.get('hold_actions', []), pages, profiles, panel_runs=True)
+    _check_actions(button.get('double_actions', []), pages, profiles, panel_runs=True)
     if type(button.get('confirm', False)) is not bool:
         raise ValueError('confirm must be true or false')
     if button.get('confirm') and (button.get('hold_actions') or button.get('double_actions')):
@@ -302,6 +308,7 @@ def _check_button(button, pages, profiles):
     timer_bind = isinstance(bind, str) and bind.startswith('timer-running:') and LIVE_NAME.fullmatch(bind[14:])
     if 'bind' in button and ((bind not in FLAG_SOURCES and not timer_bind) or len(states) < 2):
         raise ValueError(f'bind must be one of {", ".join(FLAG_SOURCES)} or timer-running:NAME, and needs two states')
+    ha_keys.check_button(button)
     title = button.get('title', {})
     if (not isinstance(title, dict) or title.get('size', 16) not in (16, 20, 24, 28)
             or title.get('position', 'bottom') not in ('top', 'middle', 'bottom', 'hidden')):
@@ -346,9 +353,14 @@ def _check_profile(name, profile, profiles):
     for page_name, buttons in list(pages.items()) + [('Pinned buttons', profile.get('pinned', []))]:
         _check_button_list(page_name, buttons, pages, profiles)
     pinned = profile.get('pinned', [])
-    for page_name, buttons in pages.items() if pinned else ():  # the panel shows both lists together, pinned keys win
-        merged = {button['id']: button for button in buttons} | {button['id']: button for button in pinned}
-        _check_spans(f'{page_name} with the pinned buttons', list(merged.values()))
+    for page_name, buttons in pages.items():  # the panel shows both lists together, pinned keys win
+        merged = list(({button['id']: button for button in buttons} | {button['id']: button for button in pinned}).values())
+        if pinned:
+            _check_spans(f'{page_name} with the pinned buttons', merged)
+        try:
+            ha_keys.check_page(merged)
+        except ValueError as exc:
+            raise ValueError(f'{page_name}: {exc}') from exc
 
 
 def _check_trigger(trigger, pages, profiles):
