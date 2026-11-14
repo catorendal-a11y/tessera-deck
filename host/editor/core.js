@@ -29,6 +29,7 @@ const kinds = {
   clipboard:{name:'Copy to clipboard',icon:'download',field:'text',label:'Text to copy',placeholder:'Text; $(var:name) and $(time) work too',group:'On the computer'},
   window:{name:'Window',icon:'list',field:'op',label:'Window operation',group:'On the computer'},
   toggle:{name:'Toggle variable',icon:'loop',field:'variable',label:'Variable name',placeholder:'for example mode',group:'Advanced'},
+  homeassistant:{name:'Home Assistant',icon:'wifi',field:'action',label:'Action',placeholder:'light.toggle',group:'Smart home'},
 };
 // Sensors the host provides, with the ranges and thresholds of the bundled status page.
 const gaugeSensors={
@@ -272,6 +273,29 @@ function stepProblem(a) {
 }
 /* The host refuses the whole configuration over one bad value, so a step it would refuse stays a draft like an empty one (rules from config_check.py). */
 const NAME_RULE=/^[A-Za-z0-9_.-]{1,64}$/;
+/* Home Assistant steps and followed entities (ha_keys.py): the panel keeps them in fixed-size fields. */
+const HA_NAME=/^[a-z_][a-z0-9_]*\.[a-z0-9_]+$/,HA_DATA_KEY=/^[a-z0-9_]{1,32}$/,HA_ATTRIBUTE=/^[a-z0-9_]{0,32}$/;
+function haEntityProblem(value,many=true) {
+  const parts=String(value).split(',').map(part=>part.trim());
+  if(!parts.every(part=>HA_NAME.test(part)))return 'write the entity like light.kitchen'+(many?' (several with commas)':'');
+  if(parts.length>(many?4:1))return many?'name at most 4 entities':'follow one entity';
+  return parts.join(',').length>128?'keep the entity ids to 128 characters':'';
+}
+function haStepProblem(a) {
+  if(String(a.action).length>64||!HA_NAME.test(a.action))return 'write the action like light.toggle (domain.service)';
+  if(a.entity_id){const problem=haEntityProblem(a.entity_id);if(problem)return problem;}
+  const data=Object.entries(a.data||{});
+  if(data.length>4)return 'use at most 4 data values';
+  if(data.some(([key])=>!HA_DATA_KEY.test(key)||key==='entity_id'))return 'use lowercase letters, digits or _ in data names';
+  if(data.some(([,value])=>String(value).length>64))return 'keep each data value to 64 characters';
+  return '';
+}
+function followProblem(follow) {
+  if(!follow?.entity_id)return 'fill in the entity to follow';
+  return haEntityProblem(follow.entity_id,false)||(!HA_ATTRIBUTE.test(follow.attribute||'')?'write the attribute in lowercase letters, digits or _':'')
+    ||((follow.on||['on']).some(item=>!item||item.length>16)||(follow.on||[]).length>4?'use 1-4 on states of up to 16 characters':'')
+    ||(String(follow.unit||'').length>6?'keep the unit to 6 characters':'');
+}
 function valueProblem(a) {
   const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
   if((a.type==='press'&&!whole(a.id,1,18))||(a.type==='state'&&!whole(a.button,1,18)))return 'use a key number from 1 to 18';
@@ -281,11 +305,13 @@ function valueProblem(a) {
   if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
   if(a.type==='timer'&&a.seconds!==undefined&&!whole(a.seconds,1,604800))return 'use a timer length from 1 second to 7 days';
+  if(a.type==='homeassistant')return haStepProblem(a);
   return '';
 }
 function keyProblem(b) {
   const name=nameProblem(b);if(name)return name;
   for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {const step=stepProblem(a);if(step)return step;}
+  if(b.ha_state)return followProblem(b.ha_state);
   return '';
 }
 function draftProblems() {
@@ -303,6 +329,7 @@ function savable(source) {
     for(const name of Object.keys(item.pages))item.pages[name]=item.pages[name].filter(b=>!nameProblem(b));
     if(item.pinned)item.pinned=item.pinned.filter(b=>!nameProblem(b));
     rewriteActions(profileButtons(item).filter(keyProblem),a=>stepProblem(a)?null:a);  // finished keys go as they are, so a merge sees no change
+    for(const b of profileButtons(item))if(b.ha_state&&followProblem(b.ha_state))delete b.ha_state;  // an unfinished follow waits too
   }
   return sent;
 }
@@ -583,9 +610,9 @@ function actionTemplate(key) {
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',clipboard:'',window:'minimize',toggle:'mode'}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',clipboard:'',window:'minimize',toggle:'mode',homeassistant:'light.toggle'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
-    ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
+    ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='homeassistant'?{entity_id:''}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
   // The long list names do not fit on a key (24 bytes).
   const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':key==='folder'?'Folder':key==='page'?'Go to page':k.name;
   return {label,icon:k.icon,actions:[action]};
@@ -611,7 +638,7 @@ function addAction(key,id=null) {
 
 /* The steps of a key as one readable line: "1 Open program: chrome.exe → 2 Hotkey: ctrl+t". */
 function stepDetail(action) {
-  const value = ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op'].map(key => action[key]).find(item => typeof item === 'string' && item);
+  const value = ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op', 'action'].map(key => action[key]).find(item => typeof item === 'string' && item);
   return value ? `${(kinds[action.type] || kinds.hotkey).name}: ${value.length > 28 ? value.slice(0, 27) + '…' : value}` : (kinds[action.type] || kinds.hotkey).name;
 }
 function stepSummary(actions) {

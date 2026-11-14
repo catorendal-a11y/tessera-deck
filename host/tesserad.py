@@ -16,6 +16,7 @@ import urllib.error
 import urllib.request
 from ambient import Weather
 import calendar_feed
+import ha_keys
 from config_store import migrate
 from plugins import EventLog, PluginManager
 from live_state import LiveState
@@ -244,6 +245,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
                  'wifi': self.wifi, 'api': self.device_info.get('api') if type(self.device_info.get('api')) is int else None,
+                 'ha': self.device_info.get('ha') if type(self.device_info.get('ha')) is int else None,
                  'api_state': self.api_state, 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
@@ -344,6 +346,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
 
     def current_buttons(self):
         result = []
+        ha_ready = self.panel_supports_ha()
         for button in map(self.resolved_button, self.effective_buttons()):
             label = ''.join(c if ord(c) >= 32 else ' '
                             for c in self.substitute(button['label']))
@@ -371,6 +374,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                 entry['hold'] = True  # the panel reports long presses for this key
             if button.get('double_actions'):
                 entry['double'] = True  # the panel draws a mark; the host tells one tap from two
+            if ha_ready:  # older firmware ignores unknown fields, but gets none: the editor names the problem instead
+                entry.update(ha_keys.layout_fields(button))
             if button.get('confirm') is True:
                 entry['cf'] = 1  # the panel sends the press only after a 600 ms hold
             if button.get('span', 1) > 1:
@@ -497,6 +502,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         response.read(65536)
                 except urllib.error.HTTPError as exc:  # the server answered, but with an error page
                     raise CommandFailed(f'The web request failed with HTTP {exc.code} {exc.reason}'.strip()) from exc
+        elif kind == ha_keys.KIND:  # the panel sends it to Home Assistant itself, also with the PC off: never twice
+            self.log(f'Home Assistant {action["action"]}: ' + ('run by the panel' if self.panel_supports_ha()
+                                                             else 'not run, ' + ha_keys.UNSUPPORTED.lower()))
         elif kind == 'delay':
             with self.state_lock.suspended():
                 self.stop.wait(action.get('ms', 100)/1000)

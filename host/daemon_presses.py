@@ -4,6 +4,8 @@ import json
 import threading
 import time
 
+import ha_keys
+
 BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive
 DOUBLE_PRESS_SECONDS = 0.35  # a key with double_actions waits this long for a second tap
 
@@ -140,16 +142,22 @@ class PressMixin:
             return False
         if not self.active_press:
             self.state_set_by_action.clear()
-        self.active_press.append(identity)
         state_key = self.state_key(button)
         resolved = self.resolved_button(button)
+        actions = resolved.get(action_list_name(hold, double), [])
+        # Home Assistant steps run on the panel. When the list holds nothing else, the panel flashes the result.
+        panel_ready = self.panel_supports_ha()
+        panel_feedback = panel_ready and not self.active_press and ha_keys.only_panel_steps(actions)
+        self.active_press.append(identity)
         ok, error = False, ''
         try:
             self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ' (double)' if double else ''))
-            for action in resolved.get(action_list_name(hold, double), []):
+            for action in actions:
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
                 self.run_action(action)
+            if ha_keys.steps_of(actions) and not panel_ready:
+                raise RuntimeError(ha_keys.UNSUPPORTED)
             if (button.get('states') and not hold and not double and not button.get('bind')
                     and state_key not in self.state_set_by_action):
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
@@ -165,7 +173,8 @@ class PressMixin:
             self.events.add('press', button=button_id, label=button['label'], profile=self.profile, page=self.page,
                             ok=ok, hold=hold, double=double)
             try:
-                self.give_feedback(button_id, ok)
+                if not panel_feedback:
+                    self.give_feedback(button_id, ok)
             finally:
                 self.publish_runtime(True, force=True)
         return ok

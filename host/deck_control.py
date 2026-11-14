@@ -152,6 +152,7 @@ class Controller:
             result['device']['wifi'] = wifi if isinstance(wifi, dict) else None
             # Home Assistant: "api":1 from get_info, and the panel's last {"type":"api"} line; never the key
             result['device']['api'] = runtime.get('api') if type(runtime.get('api')) is int else None
+            result['device']['ha'] = runtime.get('ha') if type(runtime.get('ha')) is int else None  # stage C keys
             api_state = runtime.get('api_state')
             result['device']['api_state'] = api_state if isinstance(api_state, dict) else None
             result['connection'] = ('Panel connected' if runtime.get('connected')

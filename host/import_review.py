@@ -8,8 +8,9 @@ import urllib.parse
 SENSITIVE_HEADERS = ('authorization', 'proxy-authorization', 'x-api-key', 'api-key', 'x-auth-token', 'cookie')
 DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
-# A plugin command controls an outside system (a smart home, a stream), so it counts like a web request.
-EXECUTABLE_KINDS = ('shell', 'http', 'plugin')
+# A plugin command controls an outside system (a smart home, a stream), so it counts like a web request, and so does
+# a Home Assistant action, which the panel sends over the network to the smart home.
+EXECUTABLE_KINDS = ('shell', 'http', 'plugin', 'homeassistant')
 SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
 TYPED = ('text', 'clipboard')  # after a hotkey (Win+R, a terminal) typed text is a command
@@ -71,6 +72,10 @@ def _classify(action):
         if action.get('body'):
             detail += ' with a request body'
         return 'medium', 'calls ' + detail
+    if kind == 'homeassistant':
+        entity = str(action.get('entity_id', ''))[:128]
+        return 'medium', (f"the panel calls Home Assistant {str(action.get('action', ''))[:64]}"
+                          + (f' on {entity}' if entity else '') + ' over the network')
     if kind == 'plugin':
         return 'medium', f"runs plugin {str(action.get('plugin', ''))[:60]}.{str(action.get('command', ''))[:60]}"
     if kind == 'open':

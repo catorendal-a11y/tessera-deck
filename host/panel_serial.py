@@ -341,6 +341,11 @@ class PanelSerial:
         api = self.info.get('api')
         return type(api) is int and api >= 1
 
+    def supports_ha(self) -> bool:
+        """The panel runs Home Assistant steps and follows entities itself ("ha":1 in get_info, stage C)."""
+        ha = self.info.get('ha')
+        return self.supports_api() and type(ha) is int and ha >= 1
+
     def api_key(self, new=False) -> str:
         """The panel's API encryption key (base64). `new` makes a new one, which closes every API connection.
 
