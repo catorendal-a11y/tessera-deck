@@ -366,7 +366,7 @@ class PasswordNeverLeaks(unittest.TestCase):
 class ApiKeyNeverLogged(unittest.TestCase):
     """The panel's AD_API_KEY answer reaches panel.api_key_reply only, never the verbose log or the runtime file."""
     def test_canary(self):
-        key = 'Q2FuYXJ5LUFwaS1LZXktMTIzNDU2Nzg5MDEyMzQ1Njc4OTA='  # a made-up test key
+        key = 'Q2FuYXJ5LUFwaS1LZXktMzItYnl0ZXMtMTIzNDU2Nzg='  # a made-up 32-byte test key
         folder = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, folder, True)
         profiles = folder / 'profiles.json'
