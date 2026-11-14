@@ -433,6 +433,8 @@ html body .library-tabs .library-tab{text-overflow:clip}
 html body .toolbar{flex-wrap:wrap;row-gap:8px}
 /* A checkbox in a form field took the full width, so it sat alone in the middle of the dialog. */
 html body .form-field input[type=checkbox]{width:18px;height:18px;display:block;margin:8px 0 4px}
+/* Every other checkbox or radio in a dialog (Show the password, Open network, ...): its own size, beside its text. */
+html body dialog input[type=checkbox],html body dialog input[type=radio]{width:18px;height:18px;flex:0 0 auto;padding:0;margin:1px 0 0}
 /* The inspector paints every button card-grey with !important; a swatch must still show its own colour. */
 html body #inspector .prop-value .color-swatch{background:var(--swatch) !important}
 /* The colours a key is given (or its theme) show on its tile: they come in as variables because the tile rule above wins over inline styles. */
