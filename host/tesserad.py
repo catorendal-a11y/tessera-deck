@@ -178,6 +178,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.rail_items = []
         self.activity = agent_activity.AgentActivity()
         self.agent_seen, self.agent_started = {}, {}  # what each agent was doing a second ago, and since when
+        self.agent_since = {}  # agent -> wall-clock time it started working or waiting (shown on the panel)
         self.agent_idle_since = {}  # agent -> (when it went idle, seconds that idle must last to count as finished)
         self.permissions = permission.Desk(lambda: self.enqueue(('question',)))
         self.notices = collections.deque(maxlen=5)

@@ -164,8 +164,11 @@ class BackgroundMixin:
             if state == 'working' and before != 'working':
                 if idle_since.pop(key, None) is None:  # a pause inside the same work keeps its start time
                     self.agent_started[key] = now
+                    self.agent_since[key] = time.time()
             elif state != 'working' and state != 'idle':
                 idle_since.pop(key, None)
+            if state == 'waiting' and before != 'waiting':
+                self.agent_since[key] = time.time()
             if before is not None and before != state:
                 if state == 'waiting':
                     self.notify(names[key], str(view.get(f'{key}.message') or 'Waiting for you'))
@@ -176,6 +179,10 @@ class BackgroundMixin:
                 if ended - self.agent_started.get(key, ended) >= 60:
                     self.notify(names[key], 'Finished' + (f' in {view[f"{key}.project"]}' if view.get(f'{key}.project') else ''))
         self.agent_seen = states
+
+    def agent_times(self):
+        """HH:MM each agent started its current work or wait, for the agents screen."""
+        return {key: time.strftime('%H:%M', time.localtime(stamp)) for key, stamp in getattr(self, 'agent_since', {}).items()}
 
     def notify(self, title, message):
         self.notices.append({'id': int(time.time() * 1000), 'title': title, 'message': message[:120]})
@@ -236,7 +243,8 @@ class BackgroundMixin:
             if asking:
                 self.wake_display()
                 self.panel.send_line('AD_VIEW agents')
-            payload = cockpit.agents_payload(self.agent_view(), self.agents, asking, self.config.get('panel', {}).get('agents'))
+            payload = cockpit.agents_payload(self.agent_view(), self.agents, asking, self.config.get('panel', {}).get('agents'),
+                                             self.agent_times())
             self.panel.send_line(f'AD_AGENTS {payload}')
             self.cockpit_sent['AD_AGENTS'] = payload
 
@@ -264,7 +272,8 @@ class BackgroundMixin:
                 self.panel.send_line(f'{command} {payload}')
                 self.cockpit_sent[command] = payload
         with self.agents_line_lock:  # read the question just before sending: show_question may have changed it
-            payload = cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(), choice.get('agents'))
+            payload = cockpit.agents_payload(self.agent_view(), self.agents, self.permissions.current(), choice.get('agents'),
+                                             self.agent_times())
             if self.cockpit_sent.get('AD_AGENTS') != payload:
                 self.panel.send_line(f'AD_AGENTS {payload}')
                 self.cockpit_sent['AD_AGENTS'] = payload

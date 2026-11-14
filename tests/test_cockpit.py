@@ -25,6 +25,11 @@ class PayloadTests(unittest.TestCase):
         lanes = json.loads(cockpit.agents_payload({'claude': 'working', 'claude.tool': 'Bash'}, {}))['agents']
         self.assertEqual(lanes[0]['text'], 'Using Bash')
 
+    def test_a_busy_agent_says_since_when_and_an_idle_one_does_not(self):
+        since = {'claude': '14:05', 'codex': '13:10'}
+        lanes = json.loads(cockpit.agents_payload({'claude': 'working', 'codex': 'idle'}, {'codex': True}, since=since))['agents']
+        self.assertEqual({lane['id']: lane.get('at') for lane in lanes}, {'claude': '14:05', 'codex': None})
+
     def test_every_line_fits_the_panels_buffer_even_with_long_foreign_text(self):
         variables = {key: 'working' for key, _, _ in cockpit.AGENTS}
         variables.update({f'{key}.message': 'æøå' * 200 for key, _, _ in cockpit.AGENTS})

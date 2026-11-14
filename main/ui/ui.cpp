@@ -410,6 +410,10 @@ void update_rail_dot() {
     for(int i=0;i<count;++i)waiting=waiting||list[i].state==DECK_AGENT_WAITING;
     if(rail_dot)lv_obj_set_hidden(rail_dot,!waiting||view==ViewAgents||rail_agents<0);
 }
+/* Each tool's own icon (the same ones its keys use), so a lane is known at a glance. */
+const char *agent_icon(const char *id) {
+    return !strcmp(id,"claude")?"lc:e412":!strcmp(id,"codex")?"lc:e1bb":!strcmp(id,"zcode")?"lc:e3c6":"lc:e1bb";
+}
 void build_agents() {
     lv_obj_clean(agents_area);
     deck_agent_t list[DECK_AGENTS_MAX];int waiting=0;
@@ -421,12 +425,15 @@ void build_agents() {
         auto *lane=box(agents_area,0,i*160,ContentW,146,20,Card);lv_obj_set_style_clip_corner(lane,true,0);
         box(lane,0,0,7,146,0,color);
         const bool asks=agent.state==DECK_AGENT_WAITING&&agent.asks;  /* only a real question gets Allow and Deny */
-        const int buttons=asks?2:1,text_w=ContentW-26-buttons*132-(buttons-1)*12-38;
+        const int buttons=asks||agent.state==DECK_AGENT_WORKING?2:1,text_w=ContentW-26-buttons*132-(buttons-1)*12-38;
         const int name_y=agent.state==DECK_AGENT_WAITING?16:24;
-        auto *name=label(lane,agent.name,26,name_y,LV_SIZE_CONTENT,&fq_font_dejavu_bold_28,Text);
+        glyph(lane,agent_icon(agent.id),42,name_y+17,30,agent.state==DECK_AGENT_IDLE?Muted:color);
+        auto *name=label(lane,agent.name,66,name_y,LV_SIZE_CONTENT,&fq_font_dejavu_bold_28,Text);
         lv_obj_update_layout(name);
-        label(lane,agent.state==DECK_AGENT_WAITING?"waiting for you":agent.state==DECK_AGENT_WORKING?"working":"idle",
-              26+lv_obj_get_width(name)+14,name_y+9,LV_SIZE_CONTENT,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Muted:color);
+        char state[40];
+        snprintf(state,sizeof(state),"%s%s%s",agent.state==DECK_AGENT_WAITING?"waiting for you":agent.state==DECK_AGENT_WORKING?"working":"idle",
+                 agent.at[0]&&agent.state!=DECK_AGENT_IDLE?" since ":"",agent.state!=DECK_AGENT_IDLE?agent.at:"");
+        label(lane,state,66+lv_obj_get_width(name)+14,name_y+9,LV_SIZE_CONTENT,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Muted:color);
         bool fits=true;
         if(agent.state==DECK_AGENT_WAITING){
             /* A question is shown in full: nobody should allow what they cannot read. Three lines at 20 px, else
@@ -436,16 +443,24 @@ void build_agents() {
             if(lv_obj_get_height(asked)>76){lv_obj_set_style_text_font(asked,&fq_font_dejavu_16,0);lv_obj_update_layout(asked);}
             fits=lv_obj_get_height(asked)<=80;lv_obj_set_height(asked,80);
         } else {
-            label(lane,agent.text,26,68,text_w,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Dim:Soft);
-            label(lane,agent.sub,26,102,text_w,&fq_font_dejavu_20,Dim);
+            label(lane,agent.text[0]?agent.text:agent.state==DECK_AGENT_IDLE?"Ready":"Working",26,68,text_w,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Dim:Soft);
+            if(agent.sub[0]){  /* the project, behind a folder */
+                glyph(lane,"lc:e0d7",36,113,18,Dim);
+                label(lane,agent.sub,54,102,text_w-28,&fq_font_dejavu_20,Dim);
+            }
         }
         const int right=ContentW-20-132;
         if(asks){agent_button(lane,"Deny",right-144,2,i,1);if(fits)agent_button(lane,"Allow",right,0,i,0);}
         else if(agent.state==DECK_AGENT_WAITING)agent_button(lane,"Open",right,1,i,3);  /* waiting in its own window: bring it forward */
-        else if(agent.state==DECK_AGENT_WORKING)agent_button(lane,"Stop",right,1,i,2);
+        else if(agent.state==DECK_AGENT_WORKING){agent_button(lane,"Open",right-144,1,i,3);agent_button(lane,"Stop",right,2,i,2);}
         else agent_button(lane,"Open",right,1,i,3);
     }
-    if(!count){auto *empty=label(agents_area,"No agents are running",0,120,ContentW,&fq_font_dejavu_20,Dim);lv_obj_set_style_text_align(empty,LV_TEXT_ALIGN_CENTER,0);}
+    if(!count){
+        glyph(agents_area,"lc:e1bb",ContentW/2,130,72,Line);
+        auto *empty=label(agents_area,"No agents are running",0,190,ContentW,&fq_font_dejavu_bold_24,Muted);lv_obj_set_style_text_align(empty,LV_TEXT_ALIGN_CENTER,0);
+        auto *hint=label(agents_area,"Claude Code, Codex and ZCode show up here when they start",0,230,ContentW,&fq_font_dejavu_20,Dim);
+        lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_CENTER,0);
+    }
     char summary[32];
     if(waiting>1)snprintf(summary,sizeof(summary),"%d need you",waiting);
     else snprintf(summary,sizeof(summary),"%s",waiting?"One needs you":"Nobody is waiting");
