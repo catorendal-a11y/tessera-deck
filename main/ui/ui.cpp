@@ -236,6 +236,18 @@ const lv_font_t *title_font(const deck_button_t& value) {
       default:return value.title_bold?&fq_font_dejavu_bold_20:&fq_font_dejavu_16;
     }
 }
+/* The ring's inside is about 88 px wide: longer values ("3.8GHz", "302rpm") step down a size instead of spilling over. */
+const lv_font_t *gauge_font(const char *text) {
+    size_t n=strlen(text);
+    return n<=4?&fq_font_dejavu_bold_28:n==5?&fq_font_dejavu_bold_24:&fq_font_dejavu_bold_20;
+}
+/* Sets a ring's value and its size, keeping the line centred where it was. */
+void gauge_value(lv_obj_t *shown,const char *text) {
+    const lv_font_t *font=gauge_font(text);int line=lv_font_get_line_height(font);
+    int mid=lv_obj_get_style_y(shown,LV_PART_MAIN)+lv_obj_get_style_height(shown,LV_PART_MAIN)/2;
+    lv_label_set_text(shown,text);lv_obj_set_style_text_font(shown,font,0);
+    lv_obj_set_height(shown,line);lv_obj_set_y(shown,mid-line/2);
+}
 void build_keys() {
     if(button_version!=deck_model_buttons_version())for(int id=0;id<=DECK_MAX_BUTTONS;++id)if(awaiting[id]){stale[id]=true;awaiting[id]=false;}
     image_missing=false;image_generation=deck_image_generation();
@@ -287,6 +299,7 @@ void build_keys() {
             lv_obj_set_style_arc_color(arc,lv_color_hex(0x0A0E10),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(value.color),LV_PART_INDICATOR);
             gauge[slot]=true;
             auto *shown=value_label[slot]=label(tile,value.gauge_text,cx-KeyW/2,cy-18,KeyW,&fq_font_dejavu_bold_28,value.color);
+            gauge_value(shown,value.gauge_text);
             lv_obj_set_style_text_align(shown,LV_TEXT_ALIGN_CENTER,0);
             if(value.gauge_badge[0])glyph(tile,value.gauge_badge,18,18,20,Muted);
         } else if(image){
@@ -334,7 +347,7 @@ void update_live() {
         if(!deck_model_get_button(n,&item)||item.id<1||item.id>DECK_MAX_BUTTONS||!keys[item.id-1])continue;
         const int slot=item.id-1;
         if(value_label[slot]){
-            if(strcmp(lv_label_get_text(value_label[slot]),item.gauge_text))lv_label_set_text(value_label[slot],item.gauge_text);
+            if(strcmp(lv_label_get_text(value_label[slot]),item.gauge_text))gauge_value(value_label[slot],item.gauge_text);
             set_color(value_label[slot],LV_STYLE_TEXT_COLOR,item.color);
         }
         if(glyph_label[slot])set_color(glyph_label[slot],LV_STYLE_TEXT_COLOR,item.color);
