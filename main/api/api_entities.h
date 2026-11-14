@@ -17,6 +17,8 @@ extern "C" {
 #define API_KEY_SLOTS 18
 #define API_PC_LINK_TIMEOUT_MS 3500
 #define API_RSSI_EVERY_MS 60000
+#define API_OPTIONS_SETTLE_MS 1000 /* new select options: wait this long for more, then make the client re-list */
+#define API_COMMAND_GAP_MS 250     /* select and button commands closer than this from one client are dropped */
 
 /* What the states are made of, read once per loop. */
 typedef struct {
@@ -35,6 +37,10 @@ typedef struct {
     bool subscribed;
     api_snapshot_t sent;
     int64_t rssi_sent_ms;
+    uint32_t options_version; /* deck_model_api_options_version() at ListEntities; 0 before */
+    uint32_t options_seen;    /* a newer version, and when it was first seen */
+    int64_t options_seen_ms;
+    int64_t command_ms;       /* the last select or button command acted on */
 } api_peer_t;
 
 typedef struct {
@@ -48,7 +54,9 @@ void api_snapshot_read(api_snapshot_t *out, bool wifi_connected, int8_t rssi);
 /* Handles DeviceInfo, ListEntities, SubscribeStates and the commands. Other ids are ignored (SubscribeLogs too). */
 void api_entities_message(api_session_t *s, api_peer_t *peer, const api_device_t *device, const api_snapshot_t *now,
                           uint16_t type, const uint8_t *data, size_t len, int64_t now_ms);
-/* Sends the states that changed since this client last saw them, and the Wi-Fi signal every 60 s. */
+/* Sends the states that changed since this client last saw them, and the Wi-Fi signal every 60 s. When the
+ * select options changed after ListEntities (ESPHome has no "entity info changed" message), it sends
+ * DisconnectRequest and closes, so the client reconnects and lists them again. */
 void api_entities_tick(api_session_t *s, api_peer_t *peer, const api_snapshot_t *now, int64_t now_ms);
 bool api_entities_send_event(api_session_t *s, const api_peer_t *peer, int slot, const char *event_type);
 

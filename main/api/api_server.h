@@ -20,8 +20,6 @@ esp_err_t api_server_init(void);
 void api_server_poll(void);
 /* AD_API_SET, AD_API_KEY [NEW], AD_API_OPTIONS, AD_API_STATUS: answers on the console (printf). */
 void api_server_command(const char *line);
-/* After AD_WIFI_CLEAR erased tessera_net: drop the cached settings and key, close every connection. */
-void api_server_reload(void);
 /* Bumped when enabled, the name, the client count or "ha" changes; the console then prints the status line. */
 uint32_t api_server_status_version(void);
 void api_server_status_line(void);

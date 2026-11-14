@@ -52,6 +52,7 @@ void pb_reader_init(pb_reader_t *r, const uint8_t *data, size_t len);
  * but still returned, with no value. */
 bool pb_next(pb_reader_t *r, pb_field_t *out);
 float pb_field_float(const pb_field_t *f);
+int32_t pb_zigzag32(uint64_t varint); /* a sint32 field's value */
 /* Copies a length-delimited field into a NUL-terminated buffer; false when it does not fit or holds a NUL. */
 bool pb_field_string(const pb_field_t *f, char *out, size_t size);
 

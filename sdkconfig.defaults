@@ -121,3 +121,11 @@ CONFIG_ESP_HOSTED_HOST_FEAT_WIFI=y
 CONFIG_MBEDTLS_CHACHA20_C=y
 CONFIG_MBEDTLS_CHACHAPOLY_C=y
 CONFIG_MBEDTLS_ECP_DP_CURVE25519_ENABLED=y
+# LAN flood hardening: give up on half-open and dead connections sooner (lwIP defaults are 12 and 12).
+CONFIG_LWIP_TCP_SYNMAXRTX=4
+CONFIG_LWIP_TCP_MAXRTX=8
+# mDNS: station only, no console commands, no browsing (the panel only announces itself).
+# CONFIG_MDNS_ENABLE_CONSOLE_CLI is not set
+# CONFIG_MDNS_ENABLE_BROWSE is not set
+# CONFIG_MDNS_PREDEF_NETIF_AP is not set
+# CONFIG_MDNS_PREDEF_NETIF_ETH is not set

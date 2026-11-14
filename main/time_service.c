@@ -115,14 +115,20 @@ bool time_service_host_set(void)
 
 bool time_service_set_unix(int64_t epoch, const char *posix_tz)
 {
-    if (epoch < 1700000000) return false;
-    /* A POSIX TZ string ("CET-1CEST,M3.5.0,M10.5.0/3") of printable ASCII; anything else keeps UTC. */
+    if (epoch < 1700000000 || epoch > 4102444800LL) return false; /* 2023 .. 2100 */
+    /* A POSIX TZ string ("CET-1CEST,M3.5.0,M10.5.0/3") of POSIX characters only; anything else keeps UTC. */
     bool zone = posix_tz && posix_tz[0] && strlen(posix_tz) < 64;
-    for (const char *c = posix_tz; zone && *c; ++c) zone = *c > 0x20 && *c < 0x7F;
-    setenv("TZ", zone ? posix_tz : "UTC0", 1);
-    tzset();
+    for (const char *c = posix_tz; zone && *c; ++c)
+        zone = (*c >= 'A' && *c <= 'Z') || (*c >= 'a' && *c <= 'z') || (*c >= '0' && *c <= '9') ||
+               strchr("<>+,.:/ -", *c) != NULL;
+    const char *tz = zone ? posix_tz : "UTC0";
+    const char *current = getenv("TZ");
+    if (!current || strcmp(current, tz)) {
+        setenv("TZ", tz, 1);
+        tzset();
+    }
     struct timeval tv = { .tv_sec = (time_t)epoch, .tv_usec = 0 };
     settimeofday(&tv, NULL);
-    ESP_LOGI(TAG, "Time set from Home Assistant%s", zone ? " with its time zone" : "");
+    ESP_LOGI(TAG, "Time set from Home Assistant, %s", zone ? "with its time zone" : "no usable time zone (UTC)");
     return true;
 }

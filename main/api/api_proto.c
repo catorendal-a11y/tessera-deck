@@ -167,6 +167,12 @@ bool pb_next(pb_reader_t *r, pb_field_t *out)
     }
 }
 
+int32_t pb_zigzag32(uint64_t varint)
+{
+    const uint32_t v = (uint32_t)varint;
+    return (int32_t)((v >> 1) ^ (0u - (v & 1u)));
+}
+
 float pb_field_float(const pb_field_t *f)
 {
     float value = 0.0f;

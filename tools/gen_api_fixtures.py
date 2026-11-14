@@ -61,7 +61,12 @@ FIELDS = {
                             ('has_brightness', 4, 'bool'), ('brightness', 5, 'float')],
     'SelectCommandRequest': [('key', 1, 'fixed32'), ('state', 2, 'string')],
     'ButtonCommandRequest': [('key', 1, 'fixed32')],
-    'GetTimeResponse': [('epoch_seconds', 1, 'fixed32'), ('timezone', 2, 'string')],
+    'DSTRule': [('time_seconds', 1, 'sint32'), ('day', 2, 'uint32'), ('type', 3, 'enum'), ('month', 4, 'uint32'),
+                ('week', 5, 'uint32'), ('day_of_week', 6, 'uint32')],
+    'ParsedTimezone': [('std_offset_seconds', 1, 'sint32'), ('dst_offset_seconds', 2, 'sint32'),
+                       ('dst_start', 3, 'msg:DSTRule'), ('dst_end', 4, 'msg:DSTRule')],
+    'GetTimeResponse': [('epoch_seconds', 1, 'fixed32'), ('timezone', 2, 'string'),
+                        ('parsed_timezone', 3, 'msg:ParsedTimezone')],
 }
 
 
@@ -74,16 +79,20 @@ def classes():
     from google.protobuf import descriptor_pb2, descriptor_pool, message_factory  # noqa: PLC0415
     F = descriptor_pb2.FieldDescriptorProto
     types = {'string': F.TYPE_STRING, 'uint32': F.TYPE_UINT32, 'int32': F.TYPE_INT32, 'bool': F.TYPE_BOOL,
-             'fixed32': F.TYPE_FIXED32, 'float': F.TYPE_FLOAT, 'enum': F.TYPE_UINT32}
+             'fixed32': F.TYPE_FIXED32, 'float': F.TYPE_FLOAT, 'enum': F.TYPE_UINT32, 'sint32': F.TYPE_SINT32}
     file = descriptor_pb2.FileDescriptorProto(name='tessera_api_subset.proto', package='subset', syntax='proto3')
     for name, fields in FIELDS.items():
         message = file.message_type.add(name=name)
         for field, number, kind in fields:
             repeated = kind.endswith('*')
             base = kind.rstrip('*')
+            label = F.LABEL_REPEATED if repeated else F.LABEL_OPTIONAL
+            if base.startswith('msg:'):
+                message.field.add(name=field, number=number, type=F.TYPE_MESSAGE, label=label,
+                                  type_name='.subset.' + base[4:])
+                continue
             # A repeated enum is packed in proto3; uint32 has the same packed varint encoding.
-            message.field.add(name=field, number=number, type=types[base],
-                              label=F.LABEL_REPEATED if repeated else F.LABEL_OPTIONAL)
+            message.field.add(name=field, number=number, type=types[base], label=label)
     pool = descriptor_pool.DescriptorPool()
     pool.Add(file)
     return ({name: message_factory.GetMessageClass(pool.FindMessageTypeByName('subset.' + name)) for name in FIELDS},
@@ -91,6 +100,13 @@ def classes():
 
 
 def fixtures(c):
+    def tz(std, dst, start, end):  # POSIX-style offsets (positive west), as esphome's time/posix_tz.h has them
+        rule = c['DSTRule']
+        return c['ParsedTimezone'](std_offset_seconds=std, dst_offset_seconds=dst,
+                                   dst_start=rule(type=1, month=start[0], week=start[1], day_of_week=start[2],
+                                                  time_seconds=start[3]),
+                                   dst_end=rule(type=1, month=end[0], week=end[1], day_of_week=end[2],
+                                                time_seconds=end[3]))
     return {
         'hello_response': c['HelloResponse'](api_version_major=1, api_version_minor=12, server_info='Tessera 0.8.0',
                                              name='tessera-deck'),
@@ -130,7 +146,13 @@ def fixtures(c):
         'light_off': c['LightCommandRequest'](key=fnv1('backlight'), has_state=True, state=False),
         'select_command': c['SelectCommandRequest'](key=fnv1('profile'), state='Chrome'),
         'button_command': c['ButtonCommandRequest'](key=fnv1('show_clock')),
-        'get_time_response': c['GetTimeResponse'](epoch_seconds=1763121600, timezone='CET-1CEST,M3.5.0,M10.5.0/3'),
+        # What HA 2026.9+ sends: the deprecated string for older firmware, and the parsed zone.
+        'get_time_response': c['GetTimeResponse'](epoch_seconds=1763121600, timezone='CET-1CEST,M3.5.0,M10.5.0/3',
+                                                  parsed_timezone=tz(-3600, -7200, (3, 5, 0, 7200), (10, 5, 0, 10800))),
+        'get_time_parsed': c['GetTimeResponse'](epoch_seconds=1763121600,
+                                                parsed_timezone=tz(18000, 14400, (3, 2, 0, 7200), (11, 1, 0, 7200))),
+        'get_time_string': c['GetTimeResponse'](epoch_seconds=1763121600, timezone='CET-1CEST,M3.5.0,M10.5.0/3'),
+        'get_time_iana': c['GetTimeResponse'](epoch_seconds=1763121600, timezone='Europe/Oslo'),
     }
 
 

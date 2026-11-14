@@ -132,6 +132,8 @@ class PanelSerial:
         self.asset_reply = ''
         self.wifi_done = threading.Event()  # set by the reader loop on an AD_WIFI_SET / AD_WIFI_CLEAR answer
         self.wifi_reply = ''
+        self.api_key_done = threading.Event()  # set by the reader loop on an AD_API_KEY answer
+        self.api_key_reply = ''  # the base64 key; shown on request, never logged or stored
         self.assets_sent = OrderedDict()  # name -> decoded bytes on the panel, oldest first
         self.ser = serial.Serial()
         self.ser.port, self.ser.baudrate = port, 115200

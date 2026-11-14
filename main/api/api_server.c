@@ -18,6 +18,7 @@
 #include "esp_random.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "lwip/sockets.h"
 #include "nvs.h"
@@ -26,14 +27,17 @@
 #include "wifi_service.h"
 
 static const char *TAG = "api";
-static const char *NAMESPACE = "tessera_net"; /* shared with wifi_service: AD_WIFI_CLEAR erases it whole */
+static const char *NAMESPACE = "tessera_net"; /* shared with wifi_service; AD_WIFI_CLEAR erases only its own keys */
 
-#define SLOTS 2
-#define TASK_STACK 8192
+#define SLOTS 4
+#define TASK_STACK 10240 /* back to 8 KB once the on-device high-water mark shows more than 2 KB free */
 #define TASK_PRIORITY 3
 #define TASK_CORE 1
 #define LOOP_MS 20
 #define TIME_EVERY_MS (6LL * 3600 * 1000)
+#define IDLE_EVICT_MS 30000     /* a ready slot this quiet may be replaced by a new client */
+#define TASK_IDLE_EXIT_MS 30000 /* the task ends after this long without Wi-Fi or with the API off */
+#define RETRY_US 5000000LL
 
 /* ---- settings and key, shared by the console task and tessera_api ---- */
 
@@ -44,6 +48,8 @@ static uint32_t s_status_version = 1;
 static int s_clients;
 static bool s_ha;
 static TaskHandle_t s_task;
+static SemaphoreHandle_t s_key_mutex; /* load_key runs on the console task and on tessera_api */
+static StaticSemaphore_t s_key_mutex_buf;
 
 static api_settings_t settings_copy(uint32_t *generation)
 {
@@ -112,37 +118,43 @@ static esp_err_t save_settings(const api_settings_t *settings)
     return result;
 }
 
-/* The 32-byte PSK (NVS blob api_psk): made with esp_fill_random the first time it is needed, or anew. Read
- * from NVS every time, so it can never differ from what survives a reboot. */
-static esp_err_t load_key(uint8_t key[32], bool fresh)
+/* The 32-byte PSK (NVS blob api_psk): made the first time it is needed, or anew. Read from NVS every time, so
+ * it can never differ from what survives a reboot. Only a missing blob makes a key: any other read error is
+ * returned, so a working key is never replaced by accident. esp_fill_random is a true RNG here: the P4 has no
+ * radio, so IDF keeps the SAR ADC entropy source on after boot (docs random.rst), and the app uses no ADC. */
+static esp_err_t load_key(uint8_t key[32], bool fresh, bool *created)
 {
+    if (created) *created = false;
+    xSemaphoreTake(s_key_mutex, portMAX_DELAY);
     nvs_handle_t handle;
     esp_err_t result = nvs_open(NAMESPACE, NVS_READWRITE, &handle);
-    if (result != ESP_OK) return result;
-    size_t length = 32;
-    if (fresh || nvs_get_blob(handle, "api_psk", key, &length) != ESP_OK || length != 32) {
-        esp_fill_random(key, 32);
-        result = nvs_set_blob(handle, "api_psk", key, 32);
-        if (result == ESP_OK) result = nvs_commit(handle);
-        if (result == ESP_OK) ESP_LOGI(TAG, "Made a new API encryption key");
+    if (result == ESP_OK) {
+        size_t length = 32;
+        const esp_err_t read = fresh ? ESP_ERR_NVS_NOT_FOUND : nvs_get_blob(handle, "api_psk", key, &length);
+        if (read == ESP_ERR_NVS_NOT_FOUND) {
+            esp_fill_random(key, 32);
+            result = nvs_set_blob(handle, "api_psk", key, 32);
+            if (result == ESP_OK) result = nvs_commit(handle);
+            if (result == ESP_OK && created) *created = true;
+            if (result == ESP_OK) ESP_LOGI(TAG, "Made a new API encryption key");
+        } else if (read != ESP_OK || length != 32) {
+            result = read != ESP_OK ? read : ESP_ERR_INVALID_SIZE;
+            ESP_LOGW(TAG, "API key not readable: %s", esp_err_to_name(result));
+        }
+        nvs_close(handle);
     }
-    nvs_close(handle);
+    xSemaphoreGive(s_key_mutex);
     if (result != ESP_OK) noise_wipe(key, 32);
     return result;
 }
 
 esp_err_t api_server_init(void)
 {
+    s_key_mutex = xSemaphoreCreateMutexStatic(&s_key_mutex_buf);
     load_settings();
     const api_settings_t settings = settings_copy(NULL);
     ESP_LOGI(TAG, "Home Assistant API %s (%s)", settings.enabled ? "on" : "off", settings.name);
     return ESP_OK;
-}
-
-void api_server_reload(void)
-{
-    load_settings();
-    bump(true);
 }
 
 bool api_server_hostname(char *out, size_t size)
@@ -203,7 +215,8 @@ static void key_command(bool fresh)
 {
     uint8_t key[32];
     char text[45];
-    if (load_key(key, fresh) != ESP_OK) {
+    bool created = false;
+    if (load_key(key, fresh, &created) != ESP_OK) {
         printf("AD_API_KEY FAILED storage\n");
         return;
     }
@@ -211,7 +224,7 @@ static void key_command(bool fresh)
     printf("AD_API_KEY %s\n", text); /* the only place the key leaves the panel: USB, on request */
     noise_wipe(key, sizeof(key));
     noise_wipe(text, sizeof(text));
-    if (fresh) bump(true); /* every connection made with the old key closes */
+    if (fresh || created) bump(true); /* the task reloads s_psk; with NEW, every old connection closes */
 }
 
 static void set_command(const char *json)
@@ -255,6 +268,7 @@ typedef struct {
     uint8_t *buffers[4];
     int64_t opened_ms;
     int64_t time_asked_ms;
+    uint32_t ip; /* the peer's IPv4 address, network order */
 } slot_t;
 
 static slot_t s_slots[SLOTS];
@@ -266,6 +280,8 @@ static api_device_t s_device;
 static api_snapshot_t s_now;
 static press_router_t s_router;
 static bool s_watermark_logged;
+static int64_t s_next_try_us; /* api_server_poll: no new attempt before this, after a failure */
+static bool s_poll_warned;
 
 static int64_t now_ms(void)
 {
@@ -275,12 +291,14 @@ static int64_t now_ms(void)
 static bool slot_write(void *ctx, const uint8_t *data, size_t len)
 {
     const slot_t *slot = (const slot_t *)ctx;
+    /* Blocking with a 250 ms SO_SNDTIMEO and one second in all: a client that stops reading is dropped. */
+    const int64_t deadline = now_ms() + 1000;
     while (len) {
-        /* Blocking with SO_SNDTIMEO: a client that stops reading is dropped within a second. */
         const ssize_t sent = send(slot->fd, data, len, 0);
         if (sent <= 0) return false;
         data += sent;
         len -= (size_t)sent;
+        if (len && now_ms() > deadline) return false;
     }
     return true;
 }
@@ -288,7 +306,10 @@ static bool slot_write(void *ctx, const uint8_t *data, size_t len)
 static void slot_close(slot_t *slot)
 {
     if (slot->fd < 0) return;
-    if (slot->session.why) ESP_LOGI(TAG, "Client closed: %s", slot->session.why);
+    /* A client that never finished Hello logs at debug level, so a LAN flood cannot flood the USB console. */
+    if (slot->session.why && slot->session.hello) ESP_LOGI(TAG, "Client closed: %s", slot->session.why);
+    else if (slot->session.why) ESP_LOGD(TAG, "Client closed before Hello: %s", slot->session.why);
+    ESP_LOGD(TAG, "tessera_api stack: %u bytes left", (unsigned)uxTaskGetStackHighWaterMark(NULL));
     api_session_close(&slot->session, "closed");
     shutdown(slot->fd, SHUT_RDWR);
     close(slot->fd);
@@ -313,7 +334,7 @@ static void on_message(api_session_t *s, uint16_t type, const uint8_t *data, siz
     }
 }
 
-static void slot_open(slot_t *slot, int fd)
+static void slot_open(slot_t *slot, int fd, uint32_t ip)
 {
     const api_session_config_t config = {
         .name = s_name,
@@ -325,24 +346,32 @@ static void slot_open(slot_t *slot, int fd)
         .ctx = slot,
     };
     slot->fd = fd;
+    slot->ip = ip;
     slot->opened_ms = now_ms();
     slot->time_asked_ms = 0;
     memset(&slot->peer, 0, sizeof(slot->peer));
     api_session_open(&slot->session, &config, slot->buffers, slot->opened_ms);
 }
 
-/* Two slots. A third client replaces the oldest slot still in its handshake, or else the oldest slot. */
-static slot_t *pick_slot(void)
+/* A free slot first. When all four are busy, a new client may replace only the oldest pending slot from its own
+ * address (a reconnect, or HA's probe from HA's host) or a ready slot quiet for 30 s (a half-open connection).
+ * Otherwise the new client is refused, so a connect flood evicts neither a live HA session nor another host's
+ * handshake. NULL means refused. */
+static slot_t *pick_slot(uint32_t ip, int64_t now)
 {
-    slot_t *oldest = NULL, *oldest_pending = NULL;
+    slot_t *same_ip = NULL, *idle = NULL;
     for (int i = 0; i < SLOTS; ++i) {
         slot_t *slot = &s_slots[i];
         if (slot->fd < 0) return slot;
-        if (!oldest || slot->opened_ms < oldest->opened_ms) oldest = slot;
-        if (!api_session_ready(&slot->session) && (!oldest_pending || slot->opened_ms < oldest_pending->opened_ms))
-            oldest_pending = slot;
+        if (!api_session_ready(&slot->session)) {
+            if (slot->ip == ip && (!same_ip || slot->opened_ms < same_ip->opened_ms)) same_ip = slot;
+        } else if (now - slot->session.heard_ms > IDLE_EVICT_MS &&
+                   (!idle || slot->session.heard_ms < idle->session.heard_ms)) {
+            idle = slot;
+        }
     }
-    slot_t *victim = oldest_pending ? oldest_pending : oldest;
+    slot_t *victim = same_ip ? same_ip : idle;
+    if (!victim) return NULL;
     victim->session.why = "replaced by a new client";
     slot_close(victim);
     return victim;
@@ -353,12 +382,20 @@ static void accept_client(void)
     struct sockaddr_in from;
     socklen_t from_len = sizeof(from);
     const int fd = accept(s_listen, (struct sockaddr *)&from, &from_len);
-    if (fd < 0) return;
-    const struct timeval timeout = {.tv_sec = 1, .tv_usec = 0};
+    if (fd < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != ECONNABORTED) vTaskDelay(pdMS_TO_TICKS(50));
+        return;
+    }
+    slot_t *slot = pick_slot(from.sin_addr.s_addr, now_ms());
+    if (!slot) {
+        close(fd);
+        return;
+    }
+    const struct timeval timeout = {.tv_sec = 0, .tv_usec = 250 * 1000};
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &timeout, sizeof(timeout));
     const int one = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-    slot_open(pick_slot(), fd);
+    slot_open(slot, fd, from.sin_addr.s_addr);
 }
 
 static bool make_identity(const api_settings_t *settings)
@@ -366,6 +403,11 @@ static bool make_identity(const api_settings_t *settings)
     wifi_svc_status_t wifi;
     wifi_service_status(&wifi);
     const uint8_t *m = wifi.mac;
+    if (!(m[0] | m[1] | m[2] | m[3] | m[4] | m[5])) {
+        /* HA keys the device on this MAC: never announce 00:00:00:00:00:00. start() is tried again in 5 s. */
+        ESP_LOGW(TAG, "Station MAC not known yet; the API waits for it");
+        return false;
+    }
     snprintf(s_mac_hex, sizeof(s_mac_hex), "%02x%02x%02x%02x%02x%02x", m[0], m[1], m[2], m[3], m[4], m[5]);
     snprintf(s_mac_pretty, sizeof(s_mac_pretty), "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4],
              m[5]);
@@ -379,15 +421,16 @@ static bool make_identity(const api_settings_t *settings)
     s_device = (api_device_t){s_name, s_friendly, s_area, s_mac_pretty, s_version, s_compiled};
     esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
     if (netif) esp_netif_set_hostname(netif, s_name); /* used from the next DHCP request on */
-    return load_key(s_psk, false) == ESP_OK;
+    if (load_key(s_psk, false, NULL) != ESP_OK) {
+        ESP_LOGW(TAG, "No API key: NVS not readable or writable");
+        return false;
+    }
+    return true;
 }
 
 static bool start(const api_settings_t *settings)
 {
-    if (!make_identity(settings)) {
-        ESP_LOGW(TAG, "No API key: NVS not writable");
-        return false;
-    }
+    if (!make_identity(settings)) return false;
     const int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (fd < 0) return false;
     const int one = 1;
@@ -461,6 +504,10 @@ static void serve(void)
     }
     struct timeval wait = {.tv_sec = 0, .tv_usec = LOOP_MS * 1000};
     const int ready = select(top + 1, &readable, NULL, NULL, &wait);
+    if (ready < 0) { /* ENOMEM and the like: never spin on core 1, whose idle task the watchdog checks */
+        vTaskDelay(pdMS_TO_TICKS(50));
+        return;
+    }
     const int64_t now = now_ms();
     wifi_svc_status_t wifi;
     wifi_service_status(&wifi);
@@ -516,6 +563,7 @@ static void api_task(void *arg)
     (void)arg;
     if (api_crypto_init() != 0) ESP_LOGW(TAG, "PSA crypto init failed");
     uint32_t running_generation = 0;
+    int64_t unwanted_since = 0;
     for (;;) {
         uint32_t generation = 0;
         const api_settings_t settings = settings_copy(&generation);
@@ -525,9 +573,19 @@ static void api_task(void *arg)
             publish_status();
         }
         if (!wanted) { /* Wi-Fi off or API off: no socket, no mDNS, no crypto */
+            const int64_t now = now_ms();
+            if (!unwanted_since) unwanted_since = now;
+            if (now - unwanted_since > TASK_IDLE_EXIT_MS) {
+                /* Give the internal stack back; api_server_poll starts the task again (the PSRAM buffers stay). */
+                portENTER_CRITICAL(&s_lock);
+                s_task = NULL;
+                portEXIT_CRITICAL(&s_lock);
+                vTaskDelete(NULL);
+            }
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;
         }
+        unwanted_since = 0;
         if (s_listen < 0) {
             if (!start(&settings)) {
                 vTaskDelay(pdMS_TO_TICKS(5000));
@@ -539,18 +597,31 @@ static void api_task(void *arg)
     }
 }
 
+/* After a failure the console task waits 5 s before the next try, and warns only once. */
+static void poll_failed(int64_t now_us, const char *why)
+{
+    s_next_try_us = now_us + RETRY_US;
+    if (!s_poll_warned) ESP_LOGW(TAG, "%s; trying again every 5 s", why);
+    s_poll_warned = true;
+}
+
 void api_server_poll(void)
 {
-    if (s_task) return;
+    const int64_t now_us = esp_timer_get_time();
+    if (now_us < s_next_try_us) return;
+    portENTER_CRITICAL(&s_lock);
+    const bool running = s_task != NULL;
+    portEXIT_CRITICAL(&s_lock);
+    if (running) return;
     const api_settings_t settings = settings_copy(NULL);
     if (!settings.enabled || !wifi_service_connected()) return;
     if (!allocate_buffers()) {
-        ESP_LOGW(TAG, "No PSRAM for the API buffers");
+        poll_failed(now_us, "No PSRAM for the API buffers");
         return;
     }
-    /* Core 1, priority 3, 8 KB internal stack (X25519 and HKDF run here). */
+    /* Core 1, priority 3, internal stack (X25519 and HKDF run here). The handle is set before the task runs. */
     if (xTaskCreatePinnedToCore(api_task, "tessera_api", TASK_STACK, NULL, TASK_PRIORITY, &s_task, TASK_CORE) != pdPASS) {
         s_task = NULL;
-        ESP_LOGW(TAG, "API task not started");
+        poll_failed(now_us, "API task not started");
     }
 }

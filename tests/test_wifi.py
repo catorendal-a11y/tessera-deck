@@ -363,5 +363,35 @@ class PasswordNeverLeaks(unittest.TestCase):
             self.assertNotIn(secret, report)
 
 
+class ApiKeyNeverLogged(unittest.TestCase):
+    """The panel's AD_API_KEY answer reaches panel.api_key_reply only, never the verbose log or the runtime file."""
+    def test_canary(self):
+        key = 'Q2FuYXJ5LUFwaS1LZXktMTIzNDU2Nzg5MDEyMzQ1Njc4OTA='  # a made-up test key
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, folder, True)
+        profiles = folder / 'profiles.json'
+        shutil.copyfile(ROOT / 'host/profiles.default.json', profiles)
+        daemon = host_support.test_daemon(profiles)
+        daemon.args.verbose = True
+        panel = open_panel(5, {'AD_API_KEY': f'AD_API_KEY {key}\nother line\n'})
+        daemon.panel, daemon.device_info = panel, dict(panel.info)
+        output = io.StringIO()
+        reader = threading.Thread(target=daemon.reader_loop, args=(panel,), daemon=True)
+        with contextlib.redirect_stdout(output):
+            reader.start()
+            panel.send_line('AD_API_KEY')
+            self.assertTrue(panel.api_key_done.wait(3))
+            time.sleep(0.2)
+            daemon.publish_runtime(True, force=True)
+            daemon.stop.set()
+            reader.join(2)
+        self.assertEqual(panel.api_key_reply, key)
+        log = output.getvalue()
+        self.assertIn('Panel: other line', log)  # the verbose log was on
+        runtime = (folder / 'deck-runtime.local.json').read_text(encoding='utf-8')
+        for text, where in ((log, 'log'), (runtime, 'runtime')):
+            self.assertNotIn(key, text, where)
+
+
 if __name__ == '__main__':
     unittest.main()

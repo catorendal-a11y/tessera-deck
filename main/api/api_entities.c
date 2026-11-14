@@ -32,6 +32,9 @@ uint32_t api_key_slot_key(int slot)
 #define OBJ_PAGE "page"
 #define OBJ_CLOCK "show_clock"
 
+/* 1 KB, so off the task stack. Only the tessera_api task calls into this file. */
+static deck_api_options_t s_options;
+
 void api_snapshot_read(api_snapshot_t *out, bool wifi_connected, int8_t rssi)
 {
     memset(out, 0, sizeof(*out));
@@ -40,10 +43,9 @@ void api_snapshot_read(api_snapshot_t *out, bool wifi_connected, int8_t rssi)
     out->brightness = deck_model_brightness();
     out->wifi = wifi_connected;
     out->rssi = wifi_connected ? rssi : 0;
-    deck_api_options_t options;
-    deck_model_api_options(&options);
-    out->has_profiles = options.profile_count > 0;
-    out->has_pages = options.page_count > 0;
+    deck_model_api_options(&s_options);
+    out->has_profiles = s_options.profile_count > 0;
+    out->has_pages = s_options.page_count > 0;
     const deck_context_t context = deck_model_context();
     memcpy(out->profile, context.profile, sizeof(out->profile));
     memcpy(out->page, context.page, sizeof(out->page));
@@ -93,7 +95,7 @@ static void list_select(api_session_t *s, const char *object_id, const char *nam
     api_session_send(s, API_LIST_SELECT, &w);
 }
 
-static void list_entities(api_session_t *s)
+static void list_entities(api_session_t *s, api_peer_t *peer)
 {
     pb_writer_t w = api_session_writer(s);
     api_entity_info_t e = entity(OBJ_PC, "PC connected");
@@ -114,10 +116,10 @@ static void list_entities(api_session_t *s)
     api_encode_list_sensor(&w, &e, "dBm", 0, API_STATE_CLASS_MEASUREMENT);
     api_session_send(s, API_LIST_SENSOR, &w);
 
-    deck_api_options_t options;
-    deck_model_api_options(&options);
-    list_select(s, OBJ_PROFILE, "Profile", &options);
-    list_select(s, OBJ_PAGE, "Page", &options);
+    peer->options_version = deck_model_api_options_version(); /* read first: a change during the copy re-lists */
+    deck_model_api_options(&s_options);
+    list_select(s, OBJ_PROFILE, "Profile", &s_options);
+    list_select(s, OBJ_PAGE, "Page", &s_options);
 
     w = api_session_writer(s);
     e = entity(OBJ_CLOCK, "Show clock");
@@ -186,6 +188,17 @@ static void send_all(api_session_t *s, api_peer_t *peer, const api_snapshot_t *n
 void api_entities_tick(api_session_t *s, api_peer_t *peer, const api_snapshot_t *now, int64_t now_ms)
 {
     if (!peer->subscribed || !api_session_ready(s)) return;
+    const uint32_t options = deck_model_api_options_version();
+    if (peer->options_version && options != peer->options_version) {
+        if (options != peer->options_seen) { /* the host often sends several changes in a row */
+            peer->options_seen = options;
+            peer->options_seen_ms = now_ms;
+        } else if (now_ms - peer->options_seen_ms >= API_OPTIONS_SETTLE_MS) {
+            api_session_send_empty(s, API_DISCONNECT_REQUEST);
+            api_session_close(s, "select options changed, the client lists them again");
+            return;
+        }
+    }
     api_snapshot_t *sent = &peer->sent;
     if (now->pc_linked != sent->pc_linked) send_pc(s, now);
     if (now->dimmed != sent->dimmed || now->brightness != sent->brightness) send_light(s, now);
@@ -222,7 +235,8 @@ static void light_command(const uint8_t *data, size_t len, const api_snapshot_t 
     /* On: wake a dimmed panel (the console restores the level and tells the PC), then the new level. */
     if (now->dimmed) deck_model_request_wake();
     if (command.has_brightness && isfinite(command.brightness)) {
-        long level = lroundf(command.brightness * 100.0f);
+        const float b = command.brightness < 0.0f ? 0.0f : command.brightness > 1.0f ? 1.0f : command.brightness;
+        long level = lroundf(b * 100.0f);
         if (level < 1) level = 1;
         if (level > 100) level = 100;
         deck_model_request_brightness((int)level, true);
@@ -236,19 +250,20 @@ static bool option_known(const char *value, const char (*options)[DECK_API_OPTIO
     return false;
 }
 
-/* Valid only while the PC is linked: the host switches, as a rail shortcut does. Otherwise the current state
- * goes back so HA's dropdown snaps back. */
-static void select_command(api_session_t *s, const uint8_t *data, size_t len, const api_snapshot_t *now)
+/* Valid only while the PC is linked: the host switches, as a rail shortcut does. Otherwise (and for a command
+ * too soon after the last one) the current state goes back so HA's dropdown snaps back. The current value
+ * queues nothing, so a flood cannot push the PC's touch lines out of the queue. */
+static void select_command(api_session_t *s, const uint8_t *data, size_t len, const api_snapshot_t *now, bool soon)
 {
     api_select_command_t command;
     const bool decoded = api_decode_select_command(data, len, &command);
     const bool profile = command.key == api_fnv1(OBJ_PROFILE);
     if (!profile && command.key != api_fnv1(OBJ_PAGE)) return;
-    deck_api_options_t options;
-    deck_model_api_options(&options);
-    const bool known = decoded && (profile ? option_known(command.state, options.profiles, options.profile_count)
-                                           : option_known(command.state, options.pages, options.page_count));
-    if (!known || !now->pc_linked) {
+    deck_model_api_options(&s_options);
+    const bool known = decoded && (profile ? option_known(command.state, s_options.profiles, s_options.profile_count)
+                                           : option_known(command.state, s_options.pages, s_options.page_count));
+    const bool current = decoded && !strcmp(command.state, profile ? now->profile : now->page);
+    if (soon || !known || current || !now->pc_linked) {
         send_select(s, now, profile);
         return;
     }
@@ -263,6 +278,14 @@ static void select_command(api_session_t *s, const uint8_t *data, size_t len, co
     cJSON_Delete(line);
 }
 
+/* True for a select or button command less than 250 ms after the last one this client got acted on. */
+static bool too_soon(api_peer_t *peer, int64_t now_ms)
+{
+    if (peer->command_ms && now_ms - peer->command_ms < API_COMMAND_GAP_MS) return true;
+    peer->command_ms = now_ms;
+    return false;
+}
+
 void api_entities_message(api_session_t *s, api_peer_t *peer, const api_device_t *device, const api_snapshot_t *now,
                           uint16_t type, const uint8_t *data, size_t len, int64_t now_ms)
 {
@@ -271,7 +294,7 @@ void api_entities_message(api_session_t *s, api_peer_t *peer, const api_device_t
         device_info(s, device);
         break;
     case API_LIST_ENTITIES_REQUEST:
-        list_entities(s);
+        list_entities(s, peer);
         break;
     case API_SUBSCRIBE_STATES:
         peer->subscribed = true;
@@ -281,11 +304,11 @@ void api_entities_message(api_session_t *s, api_peer_t *peer, const api_device_t
         light_command(data, len, now);
         break;
     case API_SELECT_COMMAND:
-        select_command(s, data, len, now);
+        select_command(s, data, len, now, too_soon(peer, now_ms));
         break;
     case API_BUTTON_COMMAND: {
         uint32_t key = 0;
-        if (api_decode_button_command(data, len, &key) && key == api_fnv1(OBJ_CLOCK))
+        if (api_decode_button_command(data, len, &key) && key == api_fnv1(OBJ_CLOCK) && !too_soon(peer, now_ms))
             deck_model_request_screen(DECK_SCREEN_AMBIENT);
         break;
     }

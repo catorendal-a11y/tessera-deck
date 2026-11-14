@@ -88,6 +88,8 @@ static void test_proto_basics()
     pb_reader_init(&r, fixed64, sizeof(fixed64));
     assert(pb_next(&r, &f) && f.wire == PB_FIXED64 && pb_next(&r, &f) && f.field == 2 && f.varint == 5);
     assert(!pb_next(&r, &f) && !r.error);
+    assert(pb_zigzag32(0) == 0 && pb_zigzag32(1) == -1 && pb_zigzag32(2) == 1 && pb_zigzag32(7199) == -3600);
+    assert(pb_zigzag32(0xFFFFFFFEu) == 2147483647 && pb_zigzag32(0xFFFFFFFFu) == (-2147483647 - 1));
 }
 
 static void test_encoders_match_golden_bytes()
@@ -180,10 +182,31 @@ static void test_decoders_read_golden_bytes()
     uint32_t key = 0;
     assert(api_decode_button_command(b.data(), b.size(), &key) && key == api_fnv1("show_clock"));
 
+    // GetTimeResponse: parsed_timezone (field 3) wins over the deprecated string; the string counts only when it
+    // has a POSIX shape.
     b = fixture("get_time_response");
     api_get_time_response_t time;
     assert(api_decode_get_time_response(b.data(), b.size(), &time));
-    assert(time.epoch_seconds == 1763121600u && !strcmp(time.timezone, "CET-1CEST,M3.5.0,M10.5.0/3"));
+    assert(time.epoch_seconds == 1763121600u && !strcmp(time.timezone, "STD-1DST-2,M3.5.0,M10.5.0/3"));
+    b = fixture("get_time_parsed");
+    assert(api_decode_get_time_response(b.data(), b.size(), &time) && !strcmp(time.timezone, "STD5DST4,M3.2.0,M11.1.0"));
+    b = fixture("get_time_string");
+    assert(api_decode_get_time_response(b.data(), b.size(), &time));
+    assert(!strcmp(time.timezone, "CET-1CEST,M3.5.0,M10.5.0/3"));
+    b = fixture("get_time_iana");
+    assert(api_decode_get_time_response(b.data(), b.size(), &time) && time.epoch_seconds && !time.timezone[0]);
+    // An empty parsed zone is UTC; India (UTC+5:30, no DST); a rule at midnight and one at 01:30.
+    const Bytes utc = {0x0D, 0xC0, 0x19, 0x17, 0x69, 0x1A, 0x00};
+    assert(api_decode_get_time_response(utc.data(), utc.size(), &time) && !strcmp(time.timezone, "UTC0"));
+    const Bytes india = {0x1A, 0x04, 0x08, 0xAF, 0xB5, 0x02}; // std_offset -19800
+    assert(api_decode_get_time_response(india.data(), india.size(), &time) && !strcmp(time.timezone, "STD-5:30"));
+    const Bytes rules = {0x1A, 0x14, 0x08, 0x9F, 0x38, 0x1A, 0x06, 0x18, 0x01, 0x20, 0x03, 0x28, 0x05,
+                         0x22, 0x07, 0x08, 0xB0, 0x54, 0x10, 0x01, 0x18, 0x02};
+    assert(api_decode_get_time_response(rules.data(), rules.size(), &time));
+    assert(!strcmp(time.timezone, "STD-1DST0,M3.5.0/0,J1/1:30"));
+    // An unknown rule type or a bad month gives no zone (UTC), never a half-built string.
+    const Bytes bad = {0x1A, 0x08, 0x08, 0x01, 0x1A, 0x04, 0x18, 0x01, 0x20, 0x0D};
+    assert(api_decode_get_time_response(bad.data(), bad.size(), &time) && !time.timezone[0]);
 }
 
 static void test_fuzz_reader()
@@ -513,6 +536,53 @@ static void test_session_rejects()
     assert(slowly.s.state == API_SESSION_DATA);
 }
 
+// Random bytes into the session from a LAN host with no key: before the hello, inside the handshake, and as
+// encrypted frames after a real handshake. Only "no crash, no overrun" is checked (ASAN/UBSAN in CI).
+static void fuzz_feed(Server &sv, std::mt19937 &rng, Bytes data)
+{
+    size_t at = 0;
+    while (at < data.size()) {
+        const size_t chunk = 1 + rng() % (data.size() - at);
+        const bool alive = api_session_feed(&sv.s, data.data() + at, chunk, tick_ms);
+        assert(sv.s.rx_len <= API_BUFFER);
+        at += chunk;
+        if (!alive) {
+            assert(sv.s.state == API_SESSION_CLOSED);
+            return;
+        }
+    }
+    api_session_tick(&sv.s, tick_ms);
+}
+
+static void test_fuzz_session()
+{
+    std::mt19937 rng(4321);
+    for (int round = 0; round < 100000; ++round) {
+        Server sv;
+        open(sv);
+        Bytes data(1 + rng() % 600);
+        for (uint8_t &b : data) b = (uint8_t)rng();
+        const int start = round % 4; // a random frame, a 0x01 frame, a 0x00 plaintext start, or a client hello first
+        if (start == 1) data[0] = 0x01;
+        if (start == 2) data[0] = 0x00;
+        if (start == 3) {
+            const Bytes hello = {0x01, 0x00, 0x00, 0x01};
+            data.insert(data.begin(), hello.begin(), hello.end());
+        }
+        fuzz_feed(sv, rng, data);
+    }
+    for (int round = 0; round < 2000; ++round) {
+        Server sv;
+        Client c;
+        connect(sv, c);
+        Bytes body(20 + rng() % 1081);
+        for (uint8_t &b : body) b = (uint8_t)rng();
+        Bytes data = frame(body);
+        if (round % 3 == 0) data[1] = (uint8_t)rng(), data[2] = (uint8_t)rng(); // a random length too
+        fuzz_feed(sv, rng, data);
+    }
+}
+
 // ---- entities ----
 
 static void set_layout_with_double_on_3()
@@ -614,10 +684,22 @@ static void test_entities_list_and_states()
     // Select: a known profile with the PC linked goes to the host; anything else snaps back.
     char line[160];
     while (deck_model_take_line(line, sizeof(line))) {}
+    tick_ms += API_COMMAND_GAP_MS;
     assert(feed(sv, c.message(API_SELECT_COMMAND, fixture("select_command"))));
     assert(deck_model_take_line(line, sizeof(line)));
     assert(!strcmp(line, R"({"type":"ha_select","what":"profile","value":"Chrome"})"));
     assert(replies(sv, c).empty());
+    // Too soon after the last command: dropped, and the state goes back.
+    assert(feed(sv, c.message(API_SELECT_COMMAND, fixture("select_command"))));
+    assert(!deck_model_take_line(line, sizeof(line)));
+    r = replies(sv, c);
+    assert(r.size() == 1 && r[0].first == API_SELECT_STATE && r[0].second == fixture("state_select"));
+    // The current value queues nothing either.
+    tick_ms += API_COMMAND_GAP_MS;
+    ENCODE(cur, (pb_put_fixed32(&cur, 1, api_fnv1("profile")), pb_put_string(&cur, 2, "Main"), true));
+    assert(feed(sv, c.message(API_SELECT_COMMAND, written(cur))));
+    assert(!deck_model_take_line(line, sizeof(line)) && replies(sv, c).size() == 1);
+    tick_ms += API_COMMAND_GAP_MS;
     ENCODE(w, (pb_put_fixed32(&w, 1, api_fnv1("profile")), pb_put_string(&w, 2, "Nope"), true));
     assert(feed(sv, c.message(API_SELECT_COMMAND, written(w))));
     assert(!deck_model_take_line(line, sizeof(line)));
@@ -626,6 +708,28 @@ static void test_entities_list_and_states()
     sv.now.pc_linked = false;
     assert(feed(sv, c.message(API_SELECT_COMMAND, fixture("select_command"))));
     assert(!deck_model_take_line(line, sizeof(line)) && replies(sv, c).size() == 1);
+    // New options after ListEntities: after a quiet second the client is told to disconnect, and re-lists.
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms); // sends the PC link that just went away
+    replies(sv, c);
+    assert(deck_model_api_options_from_json(R"({"profiles":["Main","Chrome","Games"],"pages":["main"]})"));
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms);
+    assert(api_session_ready(&sv.s) && replies(sv, c).empty());
+    assert(deck_model_api_options_from_json(R"({"profiles":["Main","Chrome","Games","Work"],"pages":["main"]})"));
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms + 600);
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms + 1200); // the second change restarted the second
+    assert(api_session_ready(&sv.s) && replies(sv, c).empty());
+    api_entities_tick(&sv.s, &sv.peer, &sv.now, tick_ms + 1600);
+    r = replies(sv, c);
+    assert(r.size() == 1 && r[0].first == API_DISCONNECT_REQUEST && sv.s.state == API_SESSION_CLOSED);
+    // Brightness out of range is clamped before rounding.
+    Server sv3;
+    sv3.route_entities = true;
+    Client c5;
+    connect(sv3, c5);
+    ENCODE(huge, (pb_put_fixed32(&huge, 1, api_fnv1("backlight")), pb_put_bool(&huge, 4, true),
+                  pb_put_float(&huge, 5, 3e38f), true));
+    assert(feed(sv3, c5.message(API_LIGHT_COMMAND, written(huge))));
+    assert(deck_model_take_brightness_request(&level, &save) && level == 100);
     // Options validation.
     assert(!deck_model_api_options_from_json(R"({"profiles":["a"]})"));
     assert(!deck_model_api_options_from_json(R"({"profiles":["0123456789012345678901234567890123"],"pages":[]})"));
@@ -715,6 +819,7 @@ int main()
     test_encoders_match_golden_bytes();
     test_decoders_read_golden_bytes();
     test_fuzz_reader();
+    test_fuzz_session();
     test_crypto_known_answers();
     test_noise_cacophony_vector();
     test_session_handshake_and_basics();

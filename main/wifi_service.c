@@ -644,7 +644,12 @@ esp_err_t wifi_service_clear(void)
     nvs_handle_t handle;
     esp_err_t result = nvs_open(NAMESPACE, NVS_READWRITE, &handle);
     if (result == ESP_OK) {
-        result = nvs_erase_all(handle);
+        /* Only Wi-Fi's own keys: the Home Assistant settings and key (api_*) share the namespace and stay. */
+        static const char *const keys[] = {"ssid", "pass", "boot_guard"};
+        for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]) && result == ESP_OK; ++i) {
+            result = nvs_erase_key(handle, keys[i]);
+            if (result == ESP_ERR_NVS_NOT_FOUND) result = ESP_OK;
+        }
         if (result == ESP_OK) result = nvs_commit(handle);
         nvs_close(handle);
     }

@@ -115,7 +115,9 @@ typedef struct {
 
 typedef struct {
     uint32_t epoch_seconds;
-    char timezone[API_TEXT_MAX + 1]; /* POSIX TZ string (field 2); "" when HA sent none */
+    /* POSIX TZ string: built from parsed_timezone (3) when present, else the deprecated string (2) when it has
+     * a POSIX shape; "" when neither gives a usable zone (an IANA name, say). */
+    char timezone[API_TEXT_MAX + 1];
 } api_get_time_response_t;
 
 bool api_decode_hello_request(const uint8_t *data, size_t len, api_hello_request_t *out);

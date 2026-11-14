@@ -426,8 +426,7 @@ static void wifi_command(char *line)
         }
         wifi_credentials_wipe(&credentials);
     } else if (!strcmp(line, "AD_WIFI_CLEAR")) {
-        const bool cleared = wifi_service_clear() == ESP_OK;
-        if (cleared) api_server_reload(); /* tessera_net held the API settings and key too */
+        const bool cleared = wifi_service_clear() == ESP_OK; /* the API settings and key stay */
         printf("AD_WIFI_CLEAR %s\n", cleared ? "OK" : "FAILED storage");
     } else if (!strcmp(line, "AD_WIFI_STATUS")) {
         wifi_status_line();

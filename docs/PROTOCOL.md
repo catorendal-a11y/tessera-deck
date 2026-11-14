@@ -132,7 +132,7 @@ Protocol 5. The panel joins Wi-Fi through its ESP32-C6. Wi-Fi is off until `AD_W
 - `AD_WIFI_SET` takes exactly one space and then the JSON on the rest of the line; the whole line is at most 1,099 bytes, and a longer one is dropped without an answer. `ssid` is 1 to 32 bytes of UTF-8 after JSON decoding, without control characters. `password` is `""` for an open network, 8 to 63 printable ASCII characters, or exactly 64 hex digits. Other keys are ignored. The host sends `json.dumps(…, ensure_ascii=True, separators=(',', ':'))`, so the line is pure ASCII.
 - `INVALID` names the first field that failed: `json` (not an object, or a `\u0000` escape), `ssid` or `password`. `OK` means stored and connecting, not connected; the result arrives as `{"type":"wifi"}` lines. `FAILED storage` means the settings could not be written.
 - The panel keeps the network in NVS (namespace `tessera_net`) and never on the C6. No answer and no log line carries the password; the panel zeroes the line after `AD_WIFI_SET`.
-- `AD_WIFI_CLEAR` erases the whole `tessera_net` namespace and stops Wi-Fi.
+- `AD_WIFI_CLEAR` erases the stored network (`ssid`, `pass`, `boot_guard` in `tessera_net`) and stops Wi-Fi. The Home Assistant settings and key stay.
 
 The status line:
 
@@ -161,9 +161,9 @@ Stages B and C (Home Assistant) add the capability fields `"api":1` and `"ha":1`
 
 Capability `"api":1`. The panel runs an ESPHome-compatible native API server on TCP 6053, so Home Assistant finds it over mDNS (`_esphomelib._tcp`) and adds it with the encryption key. It is off until `AD_API_SET` turns it on, and it runs only while Wi-Fi is connected: with Wi-Fi off there is no socket, no mDNS and no crypto. USB works as before.
 
-- Noise only (`Noise_NNpsk0_25519_ChaChaPoly_SHA256`). A plaintext client gets the reject frame `Bad indicator byte` and a close; a wrong key gets `Handshake MAC failure`. At most 2 clients; the handshake and `HelloRequest` must finish within 10 s.
+- Noise only (`Noise_NNpsk0_25519_ChaChaPoly_SHA256`). A plaintext client gets the reject frame `Bad indicator byte` and a close; a wrong key gets `Handshake MAC failure`. At most 4 clients; when all are busy a new client is refused, unless it replaces a pending connection from its own address or one that has been silent for 30 s. The handshake and `HelloRequest` must finish within 10 s. When the `AD_API_OPTIONS` lists change after a client listed the entities, the panel waits a second, sends `DisconnectRequest`, and the client reconnects and lists the new options.
 - The key is 32 random bytes made on the panel (NVS `tessera_net/api_psk`). It leaves the panel only as the answer to `AD_API_KEY` over USB.
-- The settings are in `tessera_net` as `api_on`, `api_name`, `api_friendly` and `api_area`. `name` is `^[a-z0-9-]{1,31}$` and is also the DHCP and mDNS hostname; `friendly` is 1 to 60 characters, `area` 0 to 40. `AD_WIFI_CLEAR` erases the namespace, so it also turns the API off and forgets the key.
+- The settings are in `tessera_net` as `api_on`, `api_name`, `api_friendly` and `api_area`. `name` is `^[a-z0-9-]{1,31}$` and is also the DHCP and mDNS hostname; `friendly` is 1 to 60 characters, `area` 0 to 40. `AD_WIFI_CLEAR` leaves them and the key alone.
 - Entities: `key_1` … `key_18` (events `press`, `hold`, `double`), the `profile` and `page` selects, the `backlight` light, the `wifi_signal` sensor, the `pc_connected` binary sensor and the `show_clock` button. No entity can press a key or run a PC action.
 
 ## Panel lock
