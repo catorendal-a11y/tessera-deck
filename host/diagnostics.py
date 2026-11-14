@@ -43,6 +43,13 @@ def redact_wifi(wifi):
     return {key: f'<{key}>' if key in ('ssid', 'ip', 'mac') else value for key, value in wifi.items()}
 
 
+def redact_api(state):
+    """The panel's Home Assistant state with only whether it is on and connected; no names, and never a key."""
+    if not isinstance(state, dict):
+        return None
+    return {key: state[key] for key in ('enabled', 'clients', 'ha') if key in state}
+
+
 def _versions() -> dict:
     from importlib import metadata
     found = {}
@@ -106,7 +113,8 @@ def build(folder: Path, config: dict, status: dict, version: str, log_path: Path
               'host': {'running': bool(status.get('running')), 'connection': status.get('connection'),
                        'device': {key: device.get(key) for key in ('connected', 'firmware', 'protocol', 'profile',
                                                                    'page', 'buttons', 'error')}
-                       | {'wifi': redact_wifi(device.get('wifi'))},
+                       | {'wifi': redact_wifi(device.get('wifi')), 'api': device.get('api'),
+                          'api_state': redact_api(device.get('api_state'))},
                        'queue': status.get('queue')},
               'recent_problems': [_no_labels(line) for line in recent_problems(log_path)],
               'created': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now()))}

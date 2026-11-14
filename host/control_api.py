@@ -57,7 +57,8 @@ class Conflict(ApiError):
 
 
 # Routes only the owner token may use, whatever a plugin grant lists: Wi-Fi carries the network password.
-OWNER_ROUTES = frozenset({'wifi'})
+# The Home Assistant route hands out the API encryption key.
+OWNER_ROUTES = frozenset({'wifi', 'api'})
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,7 @@ class ControlServer:
         self.clock = time.monotonic
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display,
-                       'permission': self.ask_permission, 'wifi': self.wifi}
+                       'permission': self.ask_permission, 'wifi': self.wifi, 'api': self.homeassistant}
 
     # --- scoped tokens for plugins -----------------------------------------------------
     def add_grant(self, name, routes, prefix=None, events=False, read=False) -> str:
@@ -262,6 +263,28 @@ class ControlServer:
         except OSError as exc:  # the panel's answer (FAILED storage, INVALID ...) or none; it never holds the password
             raise Conflict(f'The panel refused the Wi-Fi change: {exc}') from exc
         return {'wifi': dict(daemon.wifi or {})}
+
+    def homeassistant(self, data):
+        """The panel's Home Assistant API: {do: key|new-key|status}. The key is read from the panel over USB for this
+        answer only; it is never stored, logged or put in the runtime file (audit() logs only the path and code)."""
+        action = data.get('do')
+        if action not in ('key', 'new-key', 'status'):
+            raise ApiError("do must be 'key', 'new-key' or 'status'")
+        daemon = self.daemon
+        panel = daemon.panel
+        if panel is None or daemon.connection_failed.is_set():
+            raise Conflict('The panel is not connected')
+        if not callable(getattr(panel, 'supports_api', None)) or not panel.supports_api():
+            raise Conflict('The panel firmware does not support Home Assistant; update it')
+        result = {}
+        try:
+            if action == 'status':
+                panel.api_status()  # the answer arrives as a {"type":"api"} line; the editor polls for it
+            else:
+                result['key'] = panel.api_key(new=action == 'new-key')
+        except OSError as exc:  # no answer, or a malformed one; the message never holds a key
+            raise Conflict(f'The panel did not give its key: {exc}') from exc
+        return {'api': dict(daemon.api_state or {}), **result}
 
     def snapshot(self):
         daemon = self.daemon

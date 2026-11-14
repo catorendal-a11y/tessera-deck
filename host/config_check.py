@@ -411,8 +411,12 @@ def _check_display(display):
 def _check_panel(panel, pages=(), profiles=None):
     """The `panel` block: which agents, programs and readings the cockpit screens show."""
     import cockpit
-    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts', 'wifi'}:
-        raise ValueError('panel may only set agents, apps, mic, stats, screens, shortcuts and wifi')
+    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts', 'wifi',
+                                                    'homeassistant'}:
+        raise ValueError('panel may only set agents, apps, mic, stats, screens, shortcuts, wifi and homeassistant')
+    if 'homeassistant' in panel:  # never the API key: the panel keeps it, and the dialog only shows it
+        from panel_serial import homeassistant_settings
+        homeassistant_settings(panel['homeassistant'])
     if 'wifi' in panel:
         # Only the name of the last network sent from this PC: the password is never stored on the PC.
         from panel_serial import check_wifi_ssid

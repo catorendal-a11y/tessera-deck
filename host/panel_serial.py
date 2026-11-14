@@ -101,6 +101,84 @@ def parse_wifi_status(message):
     return result
 
 
+# --- Home Assistant (ESPHome native API on the panel, capability "api":1 in get_info) -------------------
+API_PORT = 6053
+API_UNSUPPORTED = 'The panel firmware does not support Home Assistant; update it'
+API_DEFAULTS = {'enabled': False, 'name': 'tessera-deck', 'friendly_name': 'Tessera Deck', 'area': ''}
+API_OPTIONS_MAX, API_OPTION_BYTES = 16, 31  # AD_API_OPTIONS limits in the firmware
+_API_NAME = re.compile(r'[a-z0-9-]{1,31}', re.ASCII)
+_API_KEY = re.compile(r'[A-Za-z0-9+/]{43}=', re.ASCII)  # base64 of 32 bytes
+
+
+def _plain_text(value, low, high) -> bool:
+    return isinstance(value, str) and low <= len(value) <= high and not any(ord(c) < 0x20 or ord(c) == 0x7F for c in value)
+
+
+def homeassistant_settings(settings) -> dict:
+    """`panel.homeassistant` with defaults filled in. ValueError('panel.homeassistant…') when it breaks a rule."""
+    if not isinstance(settings, dict) or set(settings) - set(API_DEFAULTS):
+        raise ValueError('panel.homeassistant may only set enabled, name, friendly_name and area')
+    result = dict(API_DEFAULTS, **settings)
+    if type(result['enabled']) is not bool:
+        raise ValueError('panel.homeassistant.enabled must be true or false')
+    if not isinstance(result['name'], str) or not _API_NAME.fullmatch(result['name']):
+        raise ValueError('panel.homeassistant.name must be 1-31 lowercase letters, digits or hyphens')
+    if not _plain_text(result['friendly_name'], 1, 60):
+        raise ValueError('panel.homeassistant.friendly_name must be 1-60 characters of text')
+    if not _plain_text(result['area'], 0, 40):
+        raise ValueError('panel.homeassistant.area must be at most 40 characters of text')
+    return result
+
+
+def api_set_line(settings) -> str:
+    """'AD_API_SET {"enabled":…,"name":…,"friendly":…,"area":…}' in pure ASCII."""
+    settings = homeassistant_settings(settings)
+    return 'AD_API_SET ' + json.dumps({'enabled': settings['enabled'], 'name': settings['name'],
+                                       'friendly': settings['friendly_name'], 'area': settings['area']},
+                                      ensure_ascii=True, separators=(',', ':'))
+
+
+def api_options(names) -> list:
+    """The names the panel can offer as a select: at most 16, each 1-31 bytes of text (longer names are left out)."""
+    kept = [name for name in names if _plain_text(name, 1, API_OPTION_BYTES) and len(name.encode('utf-8')) <= API_OPTION_BYTES]
+    return kept[:API_OPTIONS_MAX]
+
+
+def api_options_line(profiles, pages) -> str:
+    return 'AD_API_OPTIONS ' + json.dumps({'profiles': api_options(profiles), 'pages': api_options(pages)},
+                                          ensure_ascii=True, separators=(',', ':'))
+
+
+def parse_api_key(line):
+    """The key from 'AD_API_KEY <44 characters of base64>', or None. The line is a secret: never log it."""
+    key = line.removeprefix('AD_API_KEY ') if isinstance(line, str) and line.startswith('AD_API_KEY ') else ''
+    return key if _API_KEY.fullmatch(key) else None
+
+
+def parse_api_status(message):
+    """A {"type":"api"} line reduced to {enabled, clients, ha, name?}; None when malformed."""
+    if not isinstance(message, dict) or message.get('type') != 'api' or type(message.get('enabled')) is not bool:
+        return None
+    clients = message.get('clients', 0)
+    result = {'enabled': message['enabled'], 'clients': clients if type(clients) is int and 0 <= clients <= 8 else 0,
+              'ha': message.get('ha') is True}
+    if isinstance(message.get('name'), str) and _API_NAME.fullmatch(message['name']):
+        result['name'] = message['name']
+    for key in ('friendly', 'area'):  # not in the design's line; compared when a firmware sends them
+        if _plain_text(message.get(key), 0, 60):
+            result[key] = message[key]
+    return result
+
+
+def api_matches(status, settings) -> bool:
+    """True when what the panel reported already is `settings` (friendly name and area only when it reports them)."""
+    if not isinstance(status, dict):
+        return False
+    wanted = {'enabled': settings['enabled'], 'name': settings['name'], 'friendly': settings['friendly_name'],
+              'area': settings['area']}
+    return all(status.get(key) == value for key, value in wanted.items() if key in ('enabled', 'name') or key in status)
+
+
 def layout_payload(buttons):
     return json.dumps({'buttons': buttons}, ensure_ascii=True, separators=(',', ':'))
 
@@ -132,6 +210,8 @@ class PanelSerial:
         self.asset_reply = ''
         self.wifi_done = threading.Event()  # set by the reader loop on an AD_WIFI_SET / AD_WIFI_CLEAR answer
         self.wifi_reply = ''
+        self.api_key_done = threading.Event()  # set by the reader loop on an AD_API_KEY answer
+        self.api_key_reply = ''  # holds the key for a moment: never log it
         self.assets_sent = OrderedDict()  # name -> decoded bytes on the panel, oldest first
         self.ser = serial.Serial()
         self.ser.port, self.ser.baudrate = port, 115200
@@ -255,6 +335,37 @@ class PanelSerial:
         if not self.supports_wifi():
             raise RuntimeError(WIFI_UNSUPPORTED)
         self.send_line('AD_WIFI_STATUS')
+
+    def supports_api(self) -> bool:
+        """The panel runs the ESPHome-compatible API server ("api":1 in get_info)."""
+        api = self.info.get('api')
+        return type(api) is int and api >= 1
+
+    def api_key(self, new=False) -> str:
+        """The panel's API encryption key (base64). `new` makes a new one, which closes every API connection.
+
+        The key exists only in the return value: never log it or store it."""
+        if not self.supports_api():
+            raise RuntimeError(API_UNSUPPORTED)
+        with self.write_lock:
+            self.api_key_done.clear()
+            self.api_key_reply = ''
+            self.send_line('AD_API_KEY NEW' if new else 'AD_API_KEY')
+            try:
+                if not self.api_key_done.wait(WIFI_REPLY_SECONDS):
+                    raise TimeoutError('The panel did not answer AD_API_KEY')
+                key = parse_api_key(self.api_key_reply)
+            finally:
+                self.api_key_reply = ''
+        if key is None:
+            raise OSError('The panel did not send a valid key')  # never echoes the line, which may hold a key
+        return key
+
+    def api_status(self) -> None:
+        """Ask for a {"type":"api"} line; the reader loop stores it."""
+        if not self.supports_api():
+            raise RuntimeError(API_UNSUPPORTED)
+        self.send_line('AD_API_STATUS')
 
     def push_buttons(self, buttons):
         payload = layout_payload(buttons)

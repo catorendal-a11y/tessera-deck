@@ -150,6 +150,10 @@ class Controller:
             result['device']['widgets'] = runtime.get('widgets', {})
             wifi = runtime.get('wifi')  # the panel's Wi-Fi state (protocol 5); never a password
             result['device']['wifi'] = wifi if isinstance(wifi, dict) else None
+            # Home Assistant: "api":1 from get_info, and the panel's last {"type":"api"} line; never the key
+            result['device']['api'] = runtime.get('api') if type(runtime.get('api')) is int else None
+            api_state = runtime.get('api_state')
+            result['device']['api_state'] = api_state if isinstance(api_state, dict) else None
             result['connection'] = ('Panel connected' if runtime.get('connected')
                                     else runtime.get('error') or 'Waiting for the panel')
         except (OSError, ValueError, TypeError):

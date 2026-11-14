@@ -494,6 +494,18 @@ class Editor:
         finally:
             body.clear()
 
+    def panel_api(self, data):
+        """Pass {do: key|new-key|status} to the running host's /v1/api with the owner token. The answer may hold the
+        panel's Home Assistant key: it goes back to the editor only, and nothing here writes or logs it."""
+        import deckctl
+        if data.get('do') not in ('key', 'new-key', 'status'):
+            raise ValueError("do must be 'key', 'new-key' or 'status'")
+        try:
+            return deckctl.call(deckctl.load_info(self.path.with_name('deck-api.local.json')), 'POST', '/v1/api',
+                                {'do': data['do']}, timeout=WIFI_CALL_SECONDS)
+        except deckctl.DeckctlError as exc:
+            raise ValueError(str(exc).removeprefix('The host rejected the request: ')) from None
+
     # --- firmware installation -----------------------------------------------------------
     def firmware_folders(self):
         return [ROOT / 'dist', ROOT / 'firmware', ROOT / 'host/firmware']
@@ -729,6 +741,8 @@ class Editor:
                 raise ValueError('The city search could not be reached. Check your internet connection.') from exc
         if command == 'panel-wifi':
             return self.panel_wifi(data)
+        if command == 'panel-api':
+            return self.panel_api(data)
         if command == 'firmware-list':
             return self.firmware_list()
         if command == 'firmware-install':

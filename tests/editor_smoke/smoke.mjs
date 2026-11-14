@@ -63,6 +63,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#wifi-fields').disabled, null, {timeout: 5000}).catch(() => {});
   check(await page.locator('#wifi-fields').evaluate(node => node.disabled), 'Wi-Fi: the form is disabled without a panel');
   check(!await page.locator('#wifi-gate').isHidden(), 'Wi-Fi: it says to connect the panel over USB');
+  check(await page.locator('#ha-section').isHidden(), 'Home Assistant: the section stays hidden without an "api":1 panel');
+  check(!await page.locator('#ha-key').inputValue(), 'Home Assistant: no key is in the page until Show key');
   const wifiAxe = await new AxeBuilder({page}).include('#wifi-dialog').analyze();
   for (const v of wifiAxe.violations.filter(item => ['serious', 'critical'].includes(item.impact) && item.id !== 'color-contrast')) {
     check(false, `Wi-Fi axe ${v.impact} ${v.id}: ${v.help}`);

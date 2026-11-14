@@ -402,7 +402,79 @@ async function refreshWifi() {
   $('#wifi-forget').disabled = !ready || !wifi || (wifi.state === 'off' && !wifi.ssid);
   const ssid = $('#wifi-ssid');
   if (!ssid.value && document.activeElement !== ssid) ssid.value = wifi?.ssid || config?.panel?.wifi?.ssid || '';
+  refreshHomeAssistant(device);
 }
+
+/* Home Assistant (stage B, "api":1 in get_info): the panel runs an ESPHome-compatible API on port 6053. Its
+   encryption key stays on the panel; it is fetched only for Show key, kept in the field, and wiped on close. */
+const HA_PORT = 6053;
+const HA_DEFAULTS = {enabled: false, name: 'tessera-deck', friendly_name: 'Tessera Deck', area: ''};
+let haFilled = false;
+function haSettings() { return {...HA_DEFAULTS, ...(config?.panel?.homeassistant || {})}; }
+function haStatusText(device) {
+  const state = device.api_state, wifi = device.wifi;
+  if (!state) return 'Waiting for the panel to report Home Assistant …';
+  if (!state.enabled) return 'Home Assistant: off';
+  if (wifi?.state !== 'connected') return 'Home Assistant: on, waiting for Wi-Fi';
+  if (state.ha) return 'Home Assistant: connected' + (state.clients > 1 ? ` (${state.clients} clients)` : '');
+  return 'Home Assistant: waiting for Home Assistant to connect';
+}
+function hideHaKey() {
+  $('#ha-key').value = '';
+  $('#ha-key-copy').disabled = true;
+  $('#ha-key-show').textContent = 'Show key';
+}
+function refreshHomeAssistant(device) {
+  const shown = !!device.connected && !!device.api;
+  $('#ha-section').hidden = !shown;
+  if (!shown) { hideHaKey(); return; }
+  if (!haFilled) {  // fill the fields once per opening, so the poll never overwrites what you type
+    const settings = haSettings();
+    $('#ha-enabled').checked = settings.enabled;
+    $('#ha-name').value = settings.name;
+    $('#ha-friendly').value = settings.friendly_name;
+    $('#ha-area').value = settings.area;
+    haFilled = true;
+  }
+  $('#ha-status').textContent = haStatusText(device);
+  $('#ha-address').textContent = device.wifi?.state === 'connected' && device.wifi.ip ? `${device.wifi.ip}, port ${HA_PORT}` : `Connect Wi-Fi first (port ${HA_PORT})`;
+}
+function saveHomeAssistant(event) {
+  event?.preventDefault();
+  const error = $('#ha-error'), settings = {enabled: $('#ha-enabled').checked, name: $('#ha-name').value.trim(),
+    friendly_name: $('#ha-friendly').value.trim(), area: $('#ha-area').value.trim()};
+  error.textContent = '';
+  if (!/^[a-z0-9-]{1,31}$/.test(settings.name)) { error.textContent = 'The device name needs 1-31 lowercase letters, digits or hyphens.'; return; }
+  if (!settings.friendly_name || settings.friendly_name.length > 60) { error.textContent = 'The name shown in Home Assistant needs 1-60 characters.'; return; }
+  if (settings.area.length > 40) { error.textContent = 'The area can have at most 40 characters.'; return; }
+  savePanel({homeassistant: settings});  // the host sends it to the panel when the saved config differs
+  toast(settings.enabled ? 'Home Assistant is turned on for the panel' : 'Home Assistant is turned off for the panel');
+}
+async function showHaKey(fresh = false) {
+  $('#ha-error').textContent = '';
+  if (!fresh && $('#ha-key').value) { hideHaKey(); return; }
+  try {
+    const answer = await api('command/panel-api', {do: fresh ? 'new-key' : 'key'});
+    $('#ha-key').value = answer.key || '';
+    $('#ha-key-copy').disabled = !answer.key;
+    $('#ha-key-show').textContent = 'Hide key';
+    if (fresh) toast('The panel has a new key. Give it to Home Assistant.');
+  } catch (failure) { $('#ha-error').textContent = failure.message || String(failure); }
+}
+async function copyHaKey() {
+  const key = $('#ha-key').value;
+  if (!key) return;
+  try { await navigator.clipboard.writeText(key); toast('The key is copied. Paste it into Home Assistant.'); }
+  catch { $('#ha-key').select(); toast('Press Ctrl+C to copy the selected key.'); }
+}
+async function newHaKey() {
+  if (!await confirmDialog('Make a new key?', 'Home Assistant is disconnected until you give it the new key (in Home Assistant: the ESPHome device, Reconfigure).', {ok: 'Make new key'})) return;
+  await showHaKey(true);
+}
+$('#ha-form').addEventListener('submit', saveHomeAssistant);
+$('#ha-key-show').onclick = () => showHaKey();
+$('#ha-key-copy').onclick = () => copyHaKey();
+$('#ha-key-new').onclick = () => newHaKey();
 async function openWifi() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   $('#wifi-error').textContent = '';
@@ -415,6 +487,7 @@ async function openWifi() {
   $('#wifi-dialog').showModal();
   await refreshWifi();
   if (wifiReady()) api('command/panel-wifi', {do: 'status'}).catch(() => {});
+  if (wifiReady() && dashboard?.device?.api) api('command/panel-api', {do: 'status'}).catch(() => {});
   clearInterval(wifiTimer);
   wifiTimer = setInterval(() => refreshWifi().catch(() => {}), 2000);
 }
@@ -460,6 +533,8 @@ $('#wifi-firmware').onclick = () => { $('#wifi-dialog').close(); openFirmware().
 $('#wifi-dialog').addEventListener('close', () => {
   clearInterval(wifiTimer);
   $('#wifi-password').value = '';
+  hideHaKey();  // the key never outlives the dialog
+  haFilled = false;
   $('#panel-menu-toggle').focus();
 });
 
