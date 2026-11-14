@@ -80,8 +80,20 @@ You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk
 - **Macros:** multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
 - **Scripts and AI tools** through a local API, `deckctl`, plugins and Claude Code hooks.
 - **Clock screen, offline layout, auto-dim** and a firmware installer.
+- **Home Assistant (beta):** the panel joins your Wi-Fi and shows up in Home Assistant through the ESPHome integration. See [below](#home-assistant-beta).
 
 See [all features](docs/FEATURES.md).
+
+## Home Assistant (beta)
+
+On the [`esphome-beta`](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta) branch, the panel can also join your Wi-Fi and show up in Home Assistant through the ESPHome integration. USB to Windows keeps working as before, so one panel does both.
+
+- **Keys that run Home Assistant actions** straight from the panel, also when the PC is off. Toggle a light, start a scene, call any action.
+- **Keys that follow an entity:** the key's color while a light is on, or a value such as 21.5 °C as its label.
+- **Every key as an event** (press, hold, double press) for your automations, plus entities for the backlight, the page, the Wi-Fi signal and whether the PC is connected.
+- **Encrypted and found by itself:** Home Assistant discovers the panel over mDNS and asks for its key. Wi-Fi and Home Assistant stay off until you turn them on in *Panel → Wi-Fi and Home Assistant*.
+
+It is a beta. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it, check out the branch, start Tessera, install the panel firmware with *Full install*, and open *Panel → Wi-Fi and Home Assistant*. The firmware on the branch needs the host from the same branch. Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome. The [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
 
 ## A desk console to print
 
