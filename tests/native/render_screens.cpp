@@ -102,6 +102,14 @@ int main(int argc, char** argv) {
             std::ofstream out(field[1], std::ios::binary);
             out << "P6\n1024 600\n255\n";
             out.write(reinterpret_cast<const char*>(pixels.data()), static_cast<std::streamsize>(pixels.size()));
+        } else if (field.size() == 3 && field[0] == "agents") {  // "agents out-file json-file": the agents screen
+            if (!deck_model_agents_from_json(read_file(field[2]).c_str())) { fprintf(stderr, "agents refused: %s\n", field[2].c_str()); ++failures; continue; }
+            ui_show_view(1);
+            deck_model_note_host();
+            updates();
+            std::ofstream out(field[1], std::ios::binary);
+            out << "P6\n1024 600\n255\n";
+            out.write(reinterpret_cast<const char*>(pixels.data()), static_cast<std::streamsize>(pixels.size()));
         }
     }
     return failures ? 1 : 0;

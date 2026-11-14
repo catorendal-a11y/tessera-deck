@@ -58,9 +58,13 @@ def rail_payload(items: list[dict]) -> str:
                            for item in items]})
 
 
-def agents_payload(variables: dict, running: dict, asking: dict | None = None, shown: list | None = None) -> str:
-    """One lane per AI tool that runs or has reported a state through its adapter (deckctl adapter ...)."""
+def agents_payload(variables: dict, running: dict, asking: dict | None = None, shown: list | None = None,
+                   since: dict | None = None) -> str:
+    """One lane per AI tool that runs or has reported a state through its adapter (deckctl adapter ...).
+
+    `since` maps an agent to the HH:MM it started working or waiting; the lane shows it as 'at'."""
     lanes = []
+    since = since or {}
     for key, name, _ in AGENTS:
         if shown is not None and key not in shown:
             continue
@@ -69,6 +73,8 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
             # own dialog) has nothing to answer here, so the panel should offer Open for it instead.
             lanes.append({'id': key, 'name': name, 'state': 'waiting', 'text': asking['text'], 'q': 1,
                           'sub': str(variables.get(f'{key}.project', ''))[:30]})
+            if since.get(key):
+                lanes[-1]['at'] = since[key][:5]
             continue
         reported = str(variables.get(key, ''))
         if not running.get(key) and reported in ('', 'ended'):
@@ -78,6 +84,8 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
         text = message or (f'Using {tool}' if tool and state == 'working' else 'Working' if state == 'working' else '')
         lanes.append({'id': key, 'name': name, 'state': state, 'text': text[:70],
                       'sub': str(variables.get(f'{key}.project', ''))[:30]})
+        if state != 'idle' and since.get(key):
+            lanes[-1]['at'] = since[key][:5]
     line = _line({'agents': lanes})
     if len(line) > MAX_LINE:  # only reachable with long non-ASCII text: shorten rather than be refused
         for lane in lanes:

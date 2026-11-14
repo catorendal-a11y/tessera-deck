@@ -156,6 +156,7 @@ typedef struct {
     uint8_t state;   /* deck_agent_state_t */
     char text[160];  /* what it is doing or asking; a permission prompt is shown in full */
     char sub[32];    /* project */
+    char at[6];      /* HH:MM it started working or waiting ('at' from the host), or empty */
     bool asks;       /* a permission question that Allow and Deny answer ('q' from the host) */
 } deck_agent_t;
 typedef struct {
