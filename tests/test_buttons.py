@@ -31,7 +31,7 @@ class ButtonTests(unittest.TestCase):
         patches = [patch.object(deck, name, Mock()) for name in ('send_hotkey', 'send_text', 'focus_existing_process')]
         patches += [patch.object(deck.os, 'startfile', Mock(), create=True), patch.object(deck.subprocess, 'Popen', Mock()),
                     patch.object(deck, 'run_command', Mock()),
-                    patch.object(deck.urllib.request, 'urlopen', Mock())]
+                    patch.object(deck, 'open_url', Mock())]
         self.mocks = [p.start() for p in patches]
         # never touch the real speakers or microphone: the bundled audio keys call control_audio
         muted = patch.object(deck, 'control_audio', Mock())

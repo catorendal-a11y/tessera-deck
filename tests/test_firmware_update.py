@@ -111,6 +111,19 @@ class PackageTests(unittest.TestCase):
         self.assertEqual({item['version'] for item in found}, {'1.2.3', None})
         self.assertEqual(sum(1 for item in found if item['error']), 1)
 
+    def test_find_packages_sorts_by_version_number_not_by_text(self):
+        folder = self.folder / 'versions'
+        folder.mkdir()
+        for version in ('1.9.0', '1.10.0', '1.2.0'):
+            (folder / f'tessera-firmware-{version}.zip').write_bytes(b'x')
+
+        def fake_load(path, supported):
+            return Mock(version=path.stem.removeprefix('tessera-firmware-'), protocol=1, app=Mock(data=b''))
+
+        with patch.object(fw, 'load_package', fake_load):
+            versions = [item['version'] for item in fw.find_packages([folder], SUPPORTED)]
+        self.assertEqual(versions, ['1.10.0', '1.9.0', '1.2.0'])
+
 
 class InstallTests(unittest.TestCase):
     def setUp(self):

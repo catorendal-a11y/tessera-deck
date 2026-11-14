@@ -205,4 +205,7 @@ def find_packages(folders: list[Path], supported_protocols: tuple[int, ...]) -> 
                                   'bytes': len(package.app.data), 'error': None})
                 except PackageError as exc:
                     found.append({'path': str(path), 'version': None, 'protocol': None, 'bytes': 0, 'error': str(exc)})
-    return sorted(found, key=lambda item: item['path'], reverse=True)
+    def newest(item):
+        numbers = tuple(int(part) for part in re.findall(r'\d+', item['version'] or ''))
+        return numbers, item['path']
+    return sorted(found, key=newest, reverse=True)

@@ -130,12 +130,31 @@ class SubstitutionTests(unittest.TestCase):
             return response
 
         with patch.dict(os.environ, {'TESSERA_TOKEN': 'tok-1'}), \
-                patch.object(deck.urllib.request, 'urlopen', fake_urlopen):
+                patch.object(deck, 'open_url', fake_urlopen):
             daemon.run_action({'type': 'http', 'url': 'http://127.0.0.1/x', 'method': 'POST',
                                'headers': {'Authorization': 'Bearer $(env:TESSERA_TOKEN)'},
                                'body': '{"k":"$(env:TESSERA_TOKEN)","missing":"$(env:NOPE_NOT_SET)"}'})
         self.assertEqual(seen['headers']['Authorization'], 'Bearer tok-1')
         self.assertEqual(seen['body'], b'{"k":"tok-1","missing":""}')
+
+    def test_a_variable_value_that_looks_like_an_env_reference_is_never_expanded(self):
+        daemon = self.daemon()
+        daemon.custom_vars['x'] = '$(env:TESSERA_TOKEN)'
+        seen = {}
+
+        def fake_open(request, timeout):
+            seen['headers'] = dict(request.header_items())
+            seen['body'] = request.data
+            response = Mock()
+            response.__enter__ = Mock(return_value=Mock(read=Mock(return_value=b'')))
+            response.__exit__ = Mock(return_value=False)
+            return response
+
+        with patch.dict(os.environ, {'TESSERA_TOKEN': 'tok-1'}), patch.object(deck, 'open_url', fake_open):
+            daemon.run_action({'type': 'http', 'url': 'http://127.0.0.1/x', 'method': 'POST',
+                               'headers': {'X-Note': '$(var:x)'}, 'body': '$(var:x)'})
+        self.assertEqual(seen['headers']['X-note'], '$(env:TESSERA_TOKEN)')
+        self.assertEqual(seen['body'], b'$(env:TESSERA_TOKEN)')
 
 
 if __name__ == '__main__':

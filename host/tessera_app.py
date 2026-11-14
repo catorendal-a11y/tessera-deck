@@ -574,7 +574,7 @@ def make_server(editor, port=0, token=None):
                 supplied = cookie[name].value if name in cookie else ''
             except Exception:
                 supplied = ''
-            return secrets.compare_digest(supplied, token)
+            return secrets.compare_digest(supplied.encode(), token.encode())
 
         def do_GET(self):
             if not self.allowed():
@@ -633,7 +633,7 @@ def make_server(editor, port=0, token=None):
                 return
             session = self.path == '/api/session'
             if session:
-                if not secrets.compare_digest(self.headers.get('X-Deck-Token', ''), token):
+                if not secrets.compare_digest(self.headers.get('X-Deck-Token', '').encode(), token.encode()):
                     return self.json({'error': 'Invalid session'}, 403)
             elif not self.authenticated() or self.headers.get('X-Deck-Request') != '1':
                 return self.json({'error': 'Invalid session'}, 403)

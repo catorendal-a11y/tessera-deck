@@ -30,6 +30,16 @@ def parse_version(text: str) -> tuple[int, int, int]:
     return tuple(int(part) for part in match.groups())
 
 
+class _GitHubOnlyRedirects(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _check_host(newurl)  # refuse before anything is fetched from another host
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _urlopen(request, timeout):
+    return urllib.request.build_opener(_GitHubOnlyRedirects).open(request, timeout=timeout)
+
+
 def _open(url: str, opener, limit: int) -> tuple[bytes, str]:
     request = urllib.request.Request(url, headers={'User-Agent': 'Tessera-Deck', 'Accept': '*/*'})
     with opener(request, timeout=TIMEOUT_SECONDS) as reply:
@@ -48,7 +58,7 @@ def _check_host(url: str) -> None:
         raise ValueError('Updates are only downloaded from GitHub over https')
 
 
-def check(current: str, opener=urllib.request.urlopen) -> dict:
+def check(current: str, opener=_urlopen) -> dict:
     """Compare `current` with the latest published release."""
     try:
         raw, _ = _open(RELEASE_API, opener, 512 * 1024)
@@ -69,7 +79,7 @@ def check(current: str, opener=urllib.request.urlopen) -> dict:
             'sums': next((item for item in assets if item['name'] == 'SHA256SUMS'), None)}
 
 
-def download_firmware(info: dict, folder: Path, opener=urllib.request.urlopen) -> Path:
+def download_firmware(info: dict, folder: Path, opener=_urlopen) -> Path:
     """Fetch the release's firmware package into `folder`, verified against SHA256SUMS."""
     firmware, sums = info.get('firmware'), info.get('sums')
     if not firmware or not sums:

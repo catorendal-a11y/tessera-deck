@@ -25,6 +25,30 @@ class SubstituteTests(unittest.TestCase):
     def test_url_mode_percent_encodes(self):
         self.assertEqual(substitute('/q?x=$(v)', {'v': 'a b&c'}, 'url'), '/q?x=a%20b%26c')
 
+    def test_environment_references_come_from_the_template_only(self):
+        env = {'SECRET': 'hunter2'}
+        self.assertEqual(substitute('Bearer $(env:SECRET)', {}, None, env), 'Bearer hunter2')
+        self.assertEqual(substitute('$(env:NOPE)|', {}, None, env), '|')
+        self.assertEqual(substitute('x $(v)', {'v': '$(env:SECRET)'}, None, env), 'x $(env:SECRET)')
+        self.assertEqual(substitute('$(env:SECRET)', {}, 'url', {'SECRET': 'https://h/a b'}), 'https://h/a b')
+
+
+class RedirectTests(unittest.TestCase):
+    def follow(self, old, new):
+        import urllib.request
+        from substitution import _SameHostRedirects
+        return _SameHostRedirects().redirect_request(urllib.request.Request(old, headers={'Authorization': 'x'}),
+                                                     None, 302, 'Found', {}, new)
+
+    def test_same_host_redirect_is_followed(self):
+        self.assertIsNotNone(self.follow('https://a.example/x', 'https://a.example/y'))
+
+    def test_other_host_downgrade_and_odd_schemes_are_refused(self):
+        import urllib.error
+        for new in ('https://evil.example/', 'http://a.example/', 'ftp://a.example/'):
+            with self.assertRaises(urllib.error.HTTPError):
+                self.follow('https://a.example/x', new)
+
 
 if __name__ == '__main__':
     unittest.main()

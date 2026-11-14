@@ -50,7 +50,7 @@ class RunTimeTests(unittest.TestCase):
     def test_a_variable_cannot_turn_the_request_into_a_file_or_ftp_address(self):
         daemon = self.make_daemon()
         daemon.custom_vars['base'] = 'file:///C:/Windows/win.ini'
-        with patch.object(deck.urllib.request, 'urlopen', Mock()) as urlopen:
+        with patch.object(deck, 'open_url', Mock()) as urlopen:
             with self.assertRaisesRegex(ValueError, 'http'):
                 daemon.run_action({'type': 'http', 'url': '$(var:base)'})
         urlopen.assert_not_called()
@@ -58,7 +58,7 @@ class RunTimeTests(unittest.TestCase):
     def test_the_address_can_come_from_the_environment(self):
         daemon = self.make_daemon()
         environment = {'TESSERA_TEST_HOOK': 'https://example.com/secret-hook'}
-        with patch.dict(deck.os.environ, environment), patch.object(deck.urllib.request, 'urlopen', MagicMock()) as urlopen:
+        with patch.dict(deck.os.environ, environment), patch.object(deck, 'open_url', MagicMock()) as urlopen:
             daemon.run_action({'type': 'http', 'url': '$(env:TESSERA_TEST_HOOK)'})
         self.assertEqual(urlopen.call_args.args[0].full_url, 'https://example.com/secret-hook')
 

@@ -24,7 +24,7 @@ from action_runner import Busy, CommandFailed, run_command
 from control_api import ControlServer
 from deck_assets import Assets
 from program_locator import locate
-from substitution import check_web_url, expand_environment, substitute
+from substitution import check_web_url, open_url, substitute
 from pc_state import FLAG_SOURCES, PcState, check_audio, control_audio
 from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
@@ -397,7 +397,7 @@ def _check_page(action, pages, profiles):
         raise ValueError(f'Unknown page: {action["page"]}')
 
 
-def _check_profile(action, pages, profiles):
+def _check_profile_action(action, pages, profiles):
     if action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
 
@@ -471,7 +471,7 @@ def _check_state_kind(action, pages, profiles):
 
 
 ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _check_hotkey, 'open': _check_open,
-                 'page': _check_page, 'folder': _check_page, 'profile': _check_profile, 'text': _check_text,
+                 'page': _check_page, 'folder': _check_page, 'profile': _check_profile_action, 'text': _check_text,
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
                  'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
                  'shell': _check_shell, 'http': _check_http_action}
@@ -969,9 +969,9 @@ class Daemon:
     def substitute(self, text, mode=None):
         return substitute(text, self.variables(), mode)
 
-    @staticmethod
-    def expand_environment(text):
-        return expand_environment(text)
+    def render(self, text, mode=None):
+        """Variables and $(env:NAME) credentials in one pass (a variable's value is never expanded again)."""
+        return substitute(text, self.variables(), mode, os.environ)
 
     def effective_buttons(self):
         item = self.config['profiles'][self.profile]
@@ -1236,13 +1236,13 @@ class Daemon:
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
         elif kind == 'http':
-            headers = {name: self.expand_environment(self.substitute(value))
+            headers = {name: self.render(value)
                        for name, value in action.get('headers', {}).items()}
-            request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
+            request = urllib.request.Request(check_web_url(self.render(action['url'], 'url')),
                 method=action.get('method', 'GET'), headers=headers,
-                data=self.expand_environment(self.substitute(action.get('body', ''))).encode() or None)
+                data=self.render(action.get('body', '')).encode() or None)
             with self.state_lock.suspended():
-                with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
+                with open_url(request, action.get('timeout', 5)) as response:
                     response.read(65536)
         elif kind == 'delay':
             with self.state_lock.suspended():

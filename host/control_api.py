@@ -74,7 +74,7 @@ class ControlServer:
         with self.grant_lock:
             found = None
             for token, grant in self.grants.items():
-                if secrets.compare_digest(supplied, token):
+                if secrets.compare_digest(supplied.encode(), token.encode()):
                     found = grant
             return found
 
