@@ -385,7 +385,7 @@ class ApiKeyNeverLogged(unittest.TestCase):
             daemon.publish_runtime(True, force=True)
             daemon.stop.set()
             reader.join(2)
-        self.assertEqual(panel.api_key_reply, key)
+        self.assertEqual(panel_serial.parse_api_key(panel.api_key_reply), key)
         log = output.getvalue()
         self.assertIn('Panel: other line', log)  # the verbose log was on
         runtime = (folder / 'deck-runtime.local.json').read_text(encoding='utf-8')
