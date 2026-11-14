@@ -39,6 +39,11 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 | `AD_WIFI_SET {"ssid":"…","password":"…"}` | `AD_WIFI_SET OK`, `AD_WIFI_SET INVALID json\|ssid\|password` or `AD_WIFI_SET FAILED storage` | Stores the Wi-Fi network and connects (protocol 5). See [Wi-Fi](#wi-fi). |
 | `AD_WIFI_CLEAR` | `AD_WIFI_CLEAR OK` or `AD_WIFI_CLEAR FAILED storage` | Forgets the network and turns Wi-Fi off (protocol 5). |
 | `AD_WIFI_STATUS` | one `{"type":"wifi",…}` line | Asks for the Wi-Fi state (protocol 5). |
+| `AD_API_SET {"enabled":true,"name":"tessera-deck","friendly":"Tessera Deck","area":""}` | `AD_API_SET OK`, `AD_API_SET INVALID json\|enabled\|name\|friendly\|area` or `AD_API_SET FAILED storage` | Turns the Home Assistant API on or off and names the device (`"api":1`). See [Home Assistant](#home-assistant). |
+| `AD_API_KEY` | `AD_API_KEY <44 characters of base64>` or `AD_API_KEY FAILED storage` | The encryption key for Home Assistant; made on the panel if there is none (`"api":1`). |
+| `AD_API_KEY NEW` | the same | Makes a new key and closes every API connection (`"api":1`). |
+| `AD_API_OPTIONS {"profiles":["…"],"pages":["…"]}` | `AD_API_OPTIONS OK` or `AD_API_OPTIONS INVALID` | The names for the Profile and Page selects: at most 16 each, 1 to 31 bytes (`"api":1`). |
+| `AD_API_STATUS` | one `{"type":"api",…}` line | Asks for the API state and the pairing (`"api":1`). |
 | `AD_PRESS <id>` | `AD_PRESS OK` or `UNKNOWN` | A synthetic key press. Only `tests/hardware_smoke.py` uses it. |
 | `FQ_UI_STATUS` | `FQ_UI_STATUS {"screen":N,"labels":"…"}` | A debug dump of the visible text. The host never sends it. |
 
@@ -91,6 +96,8 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `{"type":"image","id":"im:…"}` | The panel needs an image it no longer has. | Sends the image again. |
 | `{"type":"unlocked"}` | The lock badge was held for 2 s. | Marks the panel as unlocked. |
 | `{"type":"wifi","state":"…",…}` | The answer to `AD_WIFI_STATUS`, and on its own when the Wi-Fi state changes (protocol 5). | Shows the state in the editor. See [Wi-Fi](#wi-fi). |
+| `{"type":"api","enabled":true,"clients":1,"ha":true,"name":"tessera-deck"}` | The answer to `AD_API_STATUS`, and on its own when it changes (at most one a second). | `ha` is true while a client has subscribed to the states. |
+| `{"type":"ha_select","what":"profile"\|"page","value":"…"}` | Home Assistant picked a profile or page in its select. Sent only while the PC is linked and the value is one of `AD_API_OPTIONS`. | Validates it and switches, as a rail shortcut does. |
 
 ### Handshake fields
 
@@ -103,6 +110,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `ota` | `1` when the panel accepts `AD_OTA_*`. Missing on older firmware. |
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
 | `wifi` | `off`, `connecting`, `connected` or `failed` (protocol 5). With the protocol number it tells the host that `AD_WIFI_*` exists. |
+| `api` | `1` when the panel has the Home Assistant API and accepts `AD_API_*`. Missing on older firmware. |
 
 A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once.
 
@@ -148,6 +156,15 @@ The status line:
 | `storage` | The settings could not be read. |
 
 Stages B and C (Home Assistant) add the capability fields `"api":1` and `"ha":1` to `get_info`, not a new protocol number.
+
+## Home Assistant
+
+Capability `"api":1`. The panel runs an ESPHome-compatible native API server on TCP 6053, so Home Assistant finds it over mDNS (`_esphomelib._tcp`) and adds it with the encryption key. It is off until `AD_API_SET` turns it on, and it runs only while Wi-Fi is connected: with Wi-Fi off there is no socket, no mDNS and no crypto. USB works as before.
+
+- Noise only (`Noise_NNpsk0_25519_ChaChaPoly_SHA256`). A plaintext client gets the reject frame `Bad indicator byte` and a close; a wrong key gets `Handshake MAC failure`. At most 2 clients; the handshake and `HelloRequest` must finish within 10 s.
+- The key is 32 random bytes made on the panel (NVS `tessera_net/api_psk`). It leaves the panel only as the answer to `AD_API_KEY` over USB.
+- The settings are in `tessera_net` as `api_on`, `api_name`, `api_friendly` and `api_area`. `name` is `^[a-z0-9-]{1,31}$` and is also the DHCP and mDNS hostname; `friendly` is 1 to 60 characters, `area` 0 to 40. `AD_WIFI_CLEAR` erases the namespace, so it also turns the API off and forgets the key.
+- Entities: `key_1` … `key_18` (events `press`, `hold`, `double`), the `profile` and `page` selects, the `backlight` light, the `wifi_signal` sensor, the `pc_connected` binary sensor and the `show_clock` button. No entity can press a key or run a PC action.
 
 ## Panel lock
 

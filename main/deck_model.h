@@ -208,8 +208,25 @@ typedef struct {
     bool api_client; /* stage B: a Home Assistant client is connected */
 } deck_network_t;
 void deck_model_set_network(const deck_network_t *network); /* bumps the version only when something changed */
+void deck_model_set_api_client(bool connected); /* stage B; set_network keeps the value */
 void deck_model_network(deck_network_t *out);
 uint32_t deck_model_network_version(void);
+
+/* ESPHome API (stage B): the console applies "backlight off" from Home Assistant, as it owns the backlight. */
+void deck_model_request_backlight_off(void);
+bool deck_model_take_backlight_off(void);
+/* The profile and page names the host sends with AD_API_OPTIONS; RAM only, the selects' options. */
+#define DECK_API_OPTIONS_MAX 16
+#define DECK_API_OPTION_MAX 31
+typedef struct {
+    char profiles[DECK_API_OPTIONS_MAX][DECK_API_OPTION_MAX + 1];
+    char pages[DECK_API_OPTIONS_MAX][DECK_API_OPTION_MAX + 1];
+    uint8_t profile_count, page_count;
+} deck_api_options_t;
+/* {"profiles":["..."],"pages":["..."]}: at most 16 entries each, 1-31 bytes, no control characters. */
+bool deck_model_api_options_from_json(const char *json_text);
+void deck_model_api_options(deck_api_options_t *out);
+uint32_t deck_model_api_options_version(void);
 
 /* Parser for the layout the host pushes over the USB console.
  * Accepts {"buttons":[...]} text; returns false (count untouched) on any

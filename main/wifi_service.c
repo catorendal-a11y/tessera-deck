@@ -1,5 +1,7 @@
 #include "wifi_service.h"
 
+#include "api/api_server.h"
+
 #include <stdio.h>
 #include <string.h>
 #include "freertos/FreeRTOS.h"
@@ -310,8 +312,10 @@ static void read_identity(void)
                      ESP_HOSTED_VERSION_MINOR_1);
     }
     if (have_mac) {
-        char hostname[16];
-        snprintf(hostname, sizeof(hostname), "tessera-%02x%02x%02x", mac[3], mac[4], mac[5]);
+        char hostname[32];
+        /* Stage B: the API's device name while the API is on, so DHCP and mDNS agree. */
+        if (!api_server_hostname(hostname, sizeof(hostname)))
+            snprintf(hostname, sizeof(hostname), "tessera-%02x%02x%02x", mac[3], mac[4], mac[5]);
         esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
         if (netif) esp_netif_set_hostname(netif, hostname);
     }

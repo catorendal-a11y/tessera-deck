@@ -5,6 +5,15 @@ idf_component_register(
         "deck_model.c"
         "wifi_config.c"
         "wifi_service.c"
+        "api/api_proto.c"
+        "api/api_messages.c"
+        "api/api_crypto.c"
+        "api/api_noise.c"
+        "api/api_session.c"
+        "api/api_entities.c"
+        "api/api_server.c"
+        "api/api_mdns.c"
+        "api/press_router.c"
         "deck_images.cpp"
         "ui/ui.cpp"
         "ui/fonts/deck_lucide_60.c"
@@ -19,6 +28,7 @@ idf_component_register(
     INCLUDE_DIRS
         "."
         "ui"
+        "api"
         "compat"
         "../managed_components/lvgl__lvgl"
     REQUIRES
@@ -38,5 +48,7 @@ idf_component_register(
         esp_event
         espressif__esp_wifi_remote
         espressif__esp_hosted
+        espressif__mdns
+        lwip
 )
 

@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 #include <time.h>
 
@@ -11,6 +12,7 @@ static const char *TAG = "fq_time";
 static char s_date_text[24] = "";
 static char s_time_text[12] = "--:--";
 static bool s_12h;
+static bool s_host_set; /* AD_TIME arrived in this boot */
 
 void time_service_set_12h(bool twelve)
 {
@@ -50,6 +52,10 @@ bool time_service_set_from_host(int year, int month, int day, int hour, int minu
         ESP_LOGW(TAG, "Rejected an invalid time from the PC: %04d-%02d-%02d %02d:%02d", year, month, day, hour, minute);
         return false;
     }
+    /* The PC's local time always wins over a zone from Home Assistant: back to UTC, as time_service_init. */
+    setenv("TZ", "UTC0", 1);
+    tzset();
+    s_host_set = true;
     struct tm tm_set = {0};
     tm_set.tm_year = year - 1900;
     tm_set.tm_mon = month - 1;
@@ -100,4 +106,23 @@ const char *time_service_meridiem(void)
         return "";
     }
     return tm_now.tm_hour < 12 ? "AM" : "PM";
+}
+
+bool time_service_host_set(void)
+{
+    return s_host_set;
+}
+
+bool time_service_set_unix(int64_t epoch, const char *posix_tz)
+{
+    if (epoch < 1700000000) return false;
+    /* A POSIX TZ string ("CET-1CEST,M3.5.0,M10.5.0/3") of printable ASCII; anything else keeps UTC. */
+    bool zone = posix_tz && posix_tz[0] && strlen(posix_tz) < 64;
+    for (const char *c = posix_tz; zone && *c; ++c) zone = *c > 0x20 && *c < 0x7F;
+    setenv("TZ", zone ? posix_tz : "UTC0", 1);
+    tzset();
+    struct timeval tv = { .tv_sec = (time_t)epoch, .tv_usec = 0 };
+    settimeofday(&tv, NULL);
+    ESP_LOGI(TAG, "Time set from Home Assistant%s", zone ? " with its time zone" : "");
+    return true;
 }

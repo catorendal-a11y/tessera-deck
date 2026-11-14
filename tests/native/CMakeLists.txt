@@ -36,3 +36,30 @@ add_executable(render_screens render_screens.cpp ${UI_SOURCES})
 target_include_directories(render_screens PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/main"
   "${ROOT}/managed_components/espressif__cjson/cJSON")
 target_link_libraries(render_screens PRIVATE lvgl_native)
+
+# ESPHome native API (docs/design/esphome.md, B.8): protobuf codec, Noise, session, entities and press router.
+# Crypto is the TF-PSA-Crypto that ESP-IDF builds into the firmware, with its default (full) configuration.
+set(TESSERA_IDF_PATH "$ENV{IDF_PATH}" CACHE PATH "ESP-IDF 6.1, for its TF-PSA-Crypto sources")
+set(TFPSA "${TESSERA_IDF_PATH}/components/mbedtls/mbedtls/tf-psa-crypto")
+if(NOT EXISTS "${TFPSA}/CMakeLists.txt")
+  message(FATAL_ERROR "TF-PSA-Crypto not found: set IDF_PATH (or -DTESSERA_IDF_PATH) to ESP-IDF 6.1")
+endif()
+set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(GEN_FILES OFF CACHE BOOL "" FORCE)
+set(TF_PSA_CRYPTO_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+add_subdirectory("${TFPSA}" tfpsacrypto EXCLUDE_FROM_ALL)
+target_include_directories(builtin PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tfpsa_shim")
+set(API "${ROOT}/main/api")
+add_executable(test_api test_api.cpp "${API}/api_proto.c" "${API}/api_messages.c" "${API}/api_crypto.c"
+  "${API}/api_noise.c" "${API}/api_session.c" "${API}/api_entities.c" "${API}/press_router.c"
+  "${ROOT}/main/deck_model.c" "${ROOT}/managed_components/espressif__cjson/cJSON/cJSON.c")
+target_include_directories(test_api PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/main" "${API}"
+  "${ROOT}/managed_components/espressif__cjson/cJSON")
+target_compile_definitions(test_api PRIVATE FIXTURES="${ROOT}/tests/fixtures/esphome_api")
+target_link_libraries(test_api PRIVATE tfpsacrypto)
+option(TESSERA_SANITIZE "Build test_api with -fsanitize=address,undefined (gcc/clang on Linux)" OFF)
+if(TESSERA_SANITIZE)
+  target_compile_options(test_api PRIVATE -fsanitize=address,undefined -fno-omit-frame-pointer)
+  target_link_options(test_api PRIVATE -fsanitize=address,undefined)
+endif()
