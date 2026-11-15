@@ -28,7 +28,9 @@ Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y
 | `make_dock.py` | Builds the dock; every size is an option |
 | `save_view.py` | Stores a ready view in the FreeCAD file, so it opens looking at the console |
 | `tessera-console.blend` | Console with the panel, feet and cable in a studio, Blender model with five cameras |
-| `make_render.py` | Builds `tessera-console.blend` and renders the five pictures into `renders/` |
+| `tessera-desk.blend` | The same console on an oak desk in front of a monitor, Blender model with three cameras |
+| `make_render.py` | Builds `tessera-console.blend` or `tessera-desk.blend` and renders the pictures into `renders/` |
+| `render_desk.py` | The desk scene for `make_render.py`: the desk, monitor, keyboard, mouse and the everyday things around them |
 | `export_render_mesh.py` | Writes the console as a fine mesh with the exact surface normals for `make_render.py` |
 
 ## Print settings
@@ -150,14 +152,16 @@ The console mesh comes from the CAD model, so make it first. It is not in the re
 blender -b --factory-startup --python-exit-code 1 -P hardware\make_render.py -- --res 3840x2160 --samples 512
 ```
 
-This writes `tessera-console.blend` and `renders/hero.png` to `renders/detail.png`. On a Radeon RX 6950 XT each 4K picture takes about 80 seconds. Options after `--`:
+This writes `tessera-console.blend` and `renders/hero.png` to `renders/detail.png`. On a Radeon RX 6950 XT each 4K picture takes about 80 seconds. Add `--scene desk` for the console on a desk (the picture at the top of the main README is `desk_close`). Options after `--`:
 
 | Option | Default | What it does |
 |---|---|---|
 | `--res` | `3840x2160` | Size of the pictures |
 | `--samples` | `512` | Samples per pixel (denoised) |
-| `--shots` | all five | Cameras to render, for example `hero,user` |
+| `--scene` | `studio` | `desk` puts the console on a used oak desk with a monitor, a keyboard, a mouse, a cup of coffee, headphones and a plant, lit by a window, and saves `tessera-desk.blend` |
+| `--shots` | all of the scene's | Cameras to render, for example `hero,user`; the desk scene has `desk`, `desk_wide` and `desk_close` |
 | `--screen` | `docs/images/panel-main.png` | The picture on the screen; any 1024 × 600 image, such as a render from `tools/render_screens.py` |
+| `--monitor` | `docs/images/editor-widgets.png` | The picture on the monitor in the desk scene; it is cropped to fill 16:9 |
 | `--color` | `2d3034` | Colour of the printed shell (sRGB hex) |
 | `--no-render` | | Only build and save the `.blend` |
 

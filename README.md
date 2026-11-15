@@ -17,13 +17,17 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor" width="760">
+  <img src="docs/images/console-desk.jpg" alt="The Tessera panel in its printed desk console, close up on a desk, with the main page of app keys on the screen and a monitor out of focus behind it" width="900">
 </p>
 
 Tessera is a macro deck for Windows that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. No soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
 > **What you need:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. Other boards need porting, and the host runs on Windows only.
+
+<p align="center">
+  <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor" width="760">
+</p>
 
 ## Why Tessera
 

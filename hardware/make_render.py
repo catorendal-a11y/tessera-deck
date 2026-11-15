@@ -1,13 +1,19 @@
 """HD product renders of the Tessera console with the panel in it. Run with Blender 5.2 or newer:
 
     blender -b --factory-startup --python-exit-code 1 -P hardware/make_render.py -- [--res 3840x2160] [--samples 512]
-            [--shots hero,user,side,back,detail] [--screen docs/images/panel-main.png] [--color 2d3034] [--no-render]
+            [--scene studio|desk] [--shots hero,user,side,back,detail] [--screen docs/images/panel-main.png]
+            [--monitor docs/images/editor-widgets.png] [--color 2d3034] [--no-render]
+
+--scene desk puts the console on an oak desk in front of a 27-inch monitor that shows the editor, with a keyboard,
+a mouse, a desk mat, a cup of coffee, headphones and a plant, lit by a window (render_desk.py builds it); it saves
+tessera-desk.blend and renders desk, desk_wide and desk_close.
 
 Needs tessera-enclosure-render.obj and .json, which export_render_mesh.py writes from the CAD model (FreeCAD).
 Adds the panel in its factory housing from the manufacturer's sizes (outline 181.80 x 113.72, picture 155.01 x 86.72,
 slab 8.00, raised box 124.66 x 74.67 that ends 16.38 behind the glass, posts on 166.00 x 99.00) with a real panel
 screen as the picture, four 10 mm rubber feet, a USB-C cable out through the arch, a studio and five cameras.
-Saves tessera-console.blend and renders/<shot>.png next to this script. Built in metres; the CAD sizes are mm.
+Saves tessera-console.blend (or tessera-desk.blend) and renders/<shot>.png next to this script. Built in metres;
+the CAD sizes are mm.
 """
 import argparse
 import json
@@ -24,8 +30,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--out', default=str(HERE))
 parser.add_argument('--res', default='3840x2160')
 parser.add_argument('--samples', type=int, default=512)
-parser.add_argument('--shots', default='hero,user,side,back,detail')
+parser.add_argument('--scene', choices=('studio', 'desk'), default='studio')
+parser.add_argument('--shots', help='cameras to render; all of the scene\'s cameras by default')
 parser.add_argument('--screen', default=str(HERE.parent / 'docs' / 'images' / 'panel-main.png'))
+parser.add_argument('--monitor', default=str(HERE.parent / 'docs' / 'images' / 'editor-widgets.png'), help='the PC monitor in the desk scene')
 parser.add_argument('--color', default='2d3034', help='the printed shell, sRGB hex')
 parser.add_argument('--no-render', action='store_true')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
@@ -99,16 +107,16 @@ def shell_material():
     return mat
 
 
-def glass_material(screen):
+def glass_material(screen, name='Cover glass and screen', strength=1.6, roughness=0.035):
     """Black cover glass; the panel's own screen shows through it inside the picture area (the UVs), black outside."""
-    mat, bsdf = principled('Cover glass and screen', (0.004, 0.0045, 0.005, 1), 0.035)
+    mat, bsdf = principled(name, (0.004, 0.0045, 0.005, 1), roughness)
     bsdf.inputs['IOR'].default_value = 1.52
     image = node(mat, 'ShaderNodeTexImage', extension='CLIP', interpolation='Cubic')
     image.image = bpy.data.images.load(str(screen))
     image.image.pack()
     link(mat, node(mat, 'ShaderNodeUVMap').outputs['UV'], image.inputs['Vector'])
     link(mat, image.outputs['Color'], bsdf.inputs['Emission Color'])
-    bsdf.inputs['Emission Strength'].default_value = 1.6
+    bsdf.inputs['Emission Strength'].default_value = strength
     return mat
 
 
@@ -219,14 +227,19 @@ def build_feet(material):
     bevel(ob, 0.7, 4)
 
 
-def build_cable(start, bend, material):
-    """From the plug, down inside the shell, out through the arch at the foot of the back and away over the desk."""
-    lie = (DESK + CABLE_R + 0.05) * MM
+LIE = (DESK + CABLE_R + 0.05) * MM                  # the cable's centre where it lies on the desk
+
+
+def build_cable(start, bend, material, tail=None):
+    """From the plug, down inside the shell, out through the arch at the foot of the back and away over the desk.
+    tail: points that replace the last one, such as over the back edge of a desk."""
+    lie = LIE
     arch_y = info['arch']['max'][1] * MM
     back_y = info['box']['max'][1] * MM
     points = [start, bend, Vector((bend.x - 0.006, bend.y + 0.0015, 0.020)), Vector((0.022, arch_y + 0.004, lie)),
               Vector((0.0, back_y - 0.004, lie)), Vector((0.0, back_y + 0.025, lie)), Vector((-0.03, back_y + 0.07, lie)),
-              Vector((-0.10, back_y + 0.16, lie)), Vector((-0.22, back_y + 0.34, lie)), Vector((-0.32, back_y + 0.55, lie))]
+              Vector((-0.10, back_y + 0.16, lie)), Vector((-0.22, back_y + 0.34, lie))]
+    points += tail or [Vector((-0.32, back_y + 0.55, lie))]
     curve = bpy.data.curves.new('USB cable', 'CURVE')
     curve.dimensions = '3D'
     curve.bevel_depth = CABLE_R * MM
@@ -300,22 +313,21 @@ def unlit(objects):
 
 
 CENTRE = Vector((0.0, 0.060, 0.050))
-SHOTS = {   # azimuth from the front (degrees, + to the right), elevation, distance (m), lens (mm), f-stop, what to focus on
-    'hero': (-34, 21, 0.64, 70, 8.0, 'glass'),
-    'user': (0, 40, 0.68, 70, 8.0, 'glass'),
-    'side': (-90, 9, 1.05, 135, 11.0, 'centre'),
-    'back': (152, 18, 0.74, 70, 6.3, 'centre'),
-    'detail': (-26, 20, 0.26, 100, 3.5, 'mark'),
+MARK = Vector((0.0, 0.0062, 0.0163))                           # the tile mark in the chin
+SHOTS = {   # azimuth from the front (degrees, + to the right), elevation, distance (m), lens (mm), f-stop, focus on, aim at
+    'hero': (-34, 21, 0.64, 70, 8.0, 'glass', CENTRE),
+    'user': (0, 40, 0.68, 70, 8.0, 'glass', CENTRE),
+    'side': (-90, 9, 1.05, 135, 11.0, 'centre', CENTRE),
+    'back': (152, 18, 0.74, 70, 6.3, 'centre', CENTRE),
+    'detail': (-26, 20, 0.26, 100, 3.5, 'mark', MARK + Vector((0.010, 0.0015, 0.0035))),
 }
 
 
-def cameras():
+def cameras(shots):
     glass = Vector(info['glass_centre']) * MM
-    mark = Vector((0.0, 0.0062, 0.0163))                       # the tile mark in the chin
-    focus = {'glass': glass, 'centre': CENTRE, 'mark': mark}
+    focus = {'glass': glass, 'centre': CENTRE, 'mark': MARK}
     made = {}
-    for name, (az, el, dist, lens, fstop, aim_at) in SHOTS.items():
-        target = mark + Vector((0.010, 0.0015, 0.0035)) if name == 'detail' else CENTRE
+    for name, (az, el, dist, lens, fstop, aim_at, target) in shots.items():
         a, e = math.radians(az), math.radians(el)
         cam = bpy.data.cameras.new(name)
         cam.lens, cam.sensor_width, cam.clip_start, cam.clip_end = lens, 36.0, 0.01, 20.0
@@ -351,7 +363,7 @@ def use_gpu(scene):
     return 'CPU'
 
 
-def settings(scene):
+def settings(scene, world_color):
     width, height = (int(v) for v in args.res.lower().split('x'))
     scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage = width, height, 100
     c = scene.cycles
@@ -374,7 +386,7 @@ def settings(scene):
     world = bpy.data.worlds.new('Studio') if not scene.world else scene.world
     scene.world = world
     background = next(n for n in world.node_tree.nodes if n.type == 'BACKGROUND')
-    background.inputs['Color'].default_value = (0.018, 0.019, 0.021, 1)
+    background.inputs['Color'].default_value = world_color
     background.inputs['Strength'].default_value = 1.0
 
 
@@ -389,32 +401,43 @@ def main():
         'plug': principled('Plug plastic', '161718', 0.38)[0],
         'cable': principled('Cable TPE', '121314', 0.55)[0],
         'rubber': principled('Rubber feet', '0e0e0f', 0.85)[0],
-        'studio': principled('Studio cove', '3a3c3f', 0.7)[0],
     }
     console = import_enclosure(mats['shell'])
     (glass, *_), start, bend = build_panel(mats)
     skip = unlit([glass])
     build_feet(mats['rubber'])
-    build_cable(start, bend, mats['cable'])
-    build_studio(mats['studio'])
-    area_light('Key', (-0.45, -0.55, 0.62), CENTRE, (0.7, 0.5), 11, skip=skip)
-    area_light('Fill', (0.66, -0.12, 0.18), CENTRE, (0.5, 0.5), 2.6, (1.0, 0.97, 0.93), skip=skip)
-    area_light('Rim left', (-0.30, 0.60, 0.42), CENTRE, (0.6, 0.1), 12)
-    area_light('Rim right', (0.32, 0.58, 0.44), CENTRE, (0.6, 0.1), 12)
-    area_light('Top', (0.0, 0.25, 0.80), CENTRE, (0.7, 0.4), 4.5)
-    area_light('Sheen', (0.55, -0.45, 0.55), CENTRE, (0.8, 0.12), 4)          # one soft gradient across the glass
-    made = cameras()
+    desk = args.scene == 'desk'
+    if desk:
+        sys.path.insert(0, str(HERE))
+        import render_desk
+    build_cable(start, bend, mats['cable'], render_desk.cable_tail() if desk else None)
+    if desk:
+        mats.update(render_desk.materials())
+        render_desk.build(mats, skip)
+        shots, world, blend = render_desk.SHOTS, (0.035, 0.036, 0.04, 1), 'tessera-desk.blend'
+    else:
+        build_studio(principled('Studio cove', '3a3c3f', 0.7)[0])
+        area_light('Key', (-0.45, -0.55, 0.62), CENTRE, (0.7, 0.5), 11, skip=skip)
+        area_light('Fill', (0.66, -0.12, 0.18), CENTRE, (0.5, 0.5), 2.6, (1.0, 0.97, 0.93), skip=skip)
+        area_light('Rim left', (-0.30, 0.60, 0.42), CENTRE, (0.6, 0.1), 12)
+        area_light('Rim right', (0.32, 0.58, 0.44), CENTRE, (0.6, 0.1), 12)
+        area_light('Top', (0.0, 0.25, 0.80), CENTRE, (0.7, 0.4), 4.5)
+        area_light('Sheen', (0.55, -0.45, 0.55), CENTRE, (0.8, 0.12), 4)      # one soft gradient across the glass
+        shots, world, blend = SHOTS, (0.018, 0.019, 0.021, 1), 'tessera-console.blend'
+    made = cameras(shots)
     device = use_gpu(scene)
-    settings(scene)
-    scene.camera = made['hero']
-    out = Path(args.out)
-    bpy.ops.wm.save_as_mainfile(filepath=str(out / 'tessera-console.blend'), compress=True)
+    settings(scene, world)
+    if desk:
+        render_desk.world(scene)
+    scene.camera = next(iter(made.values()))
+    out = Path(args.out).resolve()   # Blender reads a relative render path from the drive root
+    bpy.ops.wm.save_as_mainfile(filepath=str(out / blend), compress=True)
     dims = console.dimensions / MM
     print(f'RESULT console {dims.x:.1f} x {dims.y:.1f} x {dims.z:.1f} mm, custom normals {console.data.has_custom_normals}, '
           f'triangles {sum(len(p.vertices) - 2 for p in console.data.polygons)}, device {device}')
     if args.no_render:
         return
-    for name in [s for s in args.shots.split(',') if s]:
+    for name in [s for s in (args.shots or ','.join(shots)).split(',') if s]:
         scene.camera = made[name]
         scene.render.filepath = str(out / 'renders' / f'{name}.png')
         bpy.ops.render.render(write_still=True)
