@@ -20,17 +20,17 @@
   <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor" width="760">
 </p>
 
-Tessera turns one 7-inch ESP32-P4 touchscreen into an open-source Stream Deck for Windows: 18 touch keys for apps, hotkeys and macros, widgets, live PC gauges, an AI agents screen, a sound mixer and a drag-and-drop editor. No soldering. Everything runs on your PC over USB.
+Tessera is a macro deck for Windows that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. No soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
-> **Made for one board:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600). Other boards need porting. You also need a Windows 10/11 PC and a USB cable.
+> **What you need:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. Other boards need porting, and the host runs on Windows only.
 
 ## Why Tessera
 
 - **It answers your AI agent.** When Claude Code asks for permission, the question shows on the panel. Touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
 - **Everything stays on your PC.** No account, no cloud, no subscription. The panel talks to a small Windows host over USB.
 - **It is yours to change.** Firmware, host and editor are open source (MIT). There are over 600 automated tests, a documented serial protocol and a plugin API.
-- **One cheap board.** The panel costs about $35 to $42 and you flash it from the editor.
+- **One cheap board.** You flash it from the editor, with no toolchain. See [Build it or buy one?](#build-it-or-buy-one)
 
 | Widgets on wide keys | Answer Claude Code from the panel |
 |---|---|
@@ -48,11 +48,11 @@ Tessera turns one 7-inch ESP32-P4 touchscreen into an open-source Stream Deck fo
 
 ## Quick start
 
-You need the board, a USB cable and a Windows 10/11 PC.
+The release zip has the host and the panel firmware, so you need no build tools.
 
 1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up, installs Python if it is missing and puts a shortcut on the Desktop. The editor opens.
 2. Connect the panel with USB. The *Getting started* checklist in the editor ticks off *Host running* and *Panel connected* by itself.
-3. Open **Panel → Panel firmware and updates …**, choose the included firmware and press *Install*. A new or blank board needs *Full install (new or blank panel)* and *Install anyway*. See [Install](docs/INSTALL.md).
+3. Open **Panel → Panel firmware and updates …** and choose the included firmware. A new board needs *Full install (new or blank panel)*, then *Install anyway*. Press *Install*. More in [Install](docs/INSTALL.md).
 4. Click an action in the list on the right. It becomes a new key. Fill it in on the **Look** and **Actions** tabs. Changes are saved automatically.
 5. Press the key on the panel. The editor says "It works" and lights up the key.
 
@@ -64,46 +64,56 @@ Nothing runs in the editor. Keys run only when you press them on the panel.
 |---|---|---|---|
 | Price | the board, about $35–42 | $149.99 | $249.99 |
 | Keys | 18 per page on a 7-inch touchscreen, keys up to three slots wide | 15 physical keys | 32 physical keys |
-| Live widgets, mixer, PC status, AI agents | yes | through plugins | through plugins |
+| Live widgets, mixer, PC status, AI agents | built in | through plugins | through plugins |
 | Source code | MIT | closed | closed |
 
 You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. What you give up is the feel of a real key: Tessera is glass. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026. They change.
 
 ## What it does
 
-- **Four screens on the panel:** your keys, the AI agents, a sound mixer and the PC's status, on a rail you arrange yourself.
+- **Four screens on the panel:** your keys, the AI agents, a sound mixer and the PC's status. A side bar you arrange yourself switches between them.
 - **Wide keys and widgets:** a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, your next meeting, the music that plays or a timer.
 - **Icons:** real app icons from Windows, 1,895 Lucide icons or your own images.
 - **Live gauges:** CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan and FPS.
 - **Profiles that follow the program in front**, with a lock key to stay put.
 - **Over 120 ready-made actions and 10 profile templates** for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
 - **Macros:** multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
-- **Scripts and AI tools** through a local API, `deckctl`, plugins and Claude Code hooks.
+- **Scripts and AI tools:** drive keys from your own scripts with the local API or `deckctl`, or add plugins (one for Home Assistant through the PC and one for OBS Studio are included) and Claude Code hooks.
 - **Clock screen, offline layout, auto-dim** and a firmware installer.
-- **Home Assistant (beta):** the panel joins your Wi-Fi and shows up in Home Assistant through the ESPHome integration. See [below](#home-assistant-beta).
+- **Home Assistant over Wi-Fi (beta, not in the release yet):** the panel joins your Wi-Fi and shows up in Home Assistant through the ESPHome integration. See [below](#home-assistant-beta).
 
 See [all features](docs/FEATURES.md).
 
 ## Home Assistant (beta)
 
-On the [`esphome-beta`](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta) branch, the panel can also join your Wi-Fi and show up in Home Assistant through the ESPHome integration. USB to Windows keeps working as before, so one panel does both.
+This is not in the release yet. On the [`esphome-beta`](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta) branch, the panel can also join your Wi-Fi and show up in Home Assistant through the ESPHome integration. USB to Windows keeps working as before, so one panel does both.
 
 - **Keys that run Home Assistant actions** straight from the panel, also when the PC is off. Toggle a light, start a scene, call any action.
 - **Keys that follow an entity:** the key's color while a light is on, or a value such as 21.5 °C as its label.
 - **Every key as an event** (press, hold, double press) for your automations, plus entities for the backlight, the page, the Wi-Fi signal and whether the PC is connected.
 - **Encrypted and found by itself:** Home Assistant discovers the panel over mDNS and asks for its key. Wi-Fi and Home Assistant stay off until you turn them on in *Panel → Wi-Fi and Home Assistant*.
 
-It is a beta. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it, check out the branch, start Tessera, install the panel firmware with *Full install*, and open *Panel → Wi-Fi and Home Assistant*. The firmware on the branch needs the host from the same branch. Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome. The [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
+It is a beta. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it:
+
+1. Check out the branch and start Tessera.
+2. Install the panel firmware from the branch with *Full install*. It needs the host from the same branch.
+3. Open *Panel → Wi-Fi and Home Assistant*.
+
+Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome. The [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
 
 ## A desk console to print
 
 <p align="center">
-  <img src="hardware/tessera-enclosure.png" alt="The printable desk console with the panel in place, reclined 45 degrees" width="520">
+  <img src="docs/images/console-hero.jpg" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back" width="900">
 </p>
 
-The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock.
-Both print without supports; [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print
-settings and how the panel is fastened.
+| From your chair | The back | The tile mark |
+|---|---|---|
+| <img src="docs/images/console-user.jpg" alt="The console seen from the front at eye height, with the panel's main page"> | <img src="docs/images/console-back.jpg" alt="The back of the console: air openings, two screwdriver holes and the cable arch"> | <img src="docs/images/console-detail.jpg" alt="Close-up of the tile mark in the chin, with the printed layer lines"> |
+
+The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. Both print without supports. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened.
+
+<sub>The pictures are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
 
 ## How it works
 
@@ -127,7 +137,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 |---|---|
 | [Features](docs/FEATURES.md) | Everything Tessera does, by panel screen and editor area |
 | [Install](docs/INSTALL.md) | Hardware, start options, flashing from source |
-| [Desk console](hardware/README.md) | A printable stand for the panel: STL, STEP and the CAD models |
+| [Desk console](hardware/README.md) | A printable stand for the panel: STL, STEP, the CAD models and a Blender scene for renders |
 | [Using Tessera](docs/USING.md) | Actions, labels, gauges, sensors, brightness, scripts, troubleshooting |
 | [Plugins](docs/PLUGINS.md) | Write your own integration |
 | [Serial protocol](docs/PROTOCOL.md) | What the host and the panel say to each other |
