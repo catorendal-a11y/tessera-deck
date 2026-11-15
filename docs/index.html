@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tessera Deck</title>
+<meta name="description" content="Tessera turns a 7-inch ESP32-P4 touchscreen into an open-source macro deck for Windows: touch keys, widgets, live PC gauges, a mixer and a screen that answers your AI agent.">
+<meta property="og:title" content="Tessera Deck">
+<meta property="og:description" content="A DIY Stream Deck on one 7-inch touchscreen board. 18 keys per page, widgets, live gauges, open source.">
+<meta property="og:image" content="https://catorendal-a11y.github.io/tessera-deck/images/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="images/logo-mark.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0c0e; --panel:#131417; --panel2:#1a1b1f; --fg:#f3f3f0; --muted:#9b9b95; --dim:#6c6c67;
+  --line:rgba(255,255,255,.09); --accent:#58e09b; --accent-ink:#06200f; --warn:#ffb74d; --dim-text:#85857f;
+  --display:"Inter Tight",ui-sans-serif,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --text:Inter,ui-sans-serif,system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 var(--text);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+img{max-width:100%;height:auto;display:block}
+.cols>*,.two>*,.screens>*,.stats>*{min-width:0}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+.eyebrow{font:500 12px/1.5 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.eyebrow b{color:var(--accent);font-weight:500}
+h1,h2,h3{font-family:var(--display);font-weight:600;margin:0}
+h1{font-size:clamp(44px,8.4vw,96px);line-height:1;letter-spacing:-.035em}
+h2{font-size:clamp(30px,4.6vw,52px);line-height:1.05;letter-spacing:-.03em}
+h3{font-size:19px;letter-spacing:-.01em}
+h1,h2,.hero .eyebrow{text-wrap:balance}
+p.lead,.note{text-wrap:pretty}
+p code{font:500 .88em var(--mono);color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.quiet{color:var(--dim)}
+p.lead{font-size:clamp(17px,2vw,20px);color:var(--muted);max-width:620px}
+.btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:999px;font:600 15px/1 var(--text);text-decoration:none;border:1px solid var(--line);transition:background .15s,border-color .15s}
+.btn.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.btn.primary:hover{background:#fff}
+.btn:not(.primary):hover{border-color:rgba(255,255,255,.3)}
+.btn:focus-visible,a:focus-visible,summary:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+
+/* nav */
+nav{position:sticky;top:0;z-index:10;background:rgba(11,12,14,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:58px}
+.mark{font:700 15px/1 var(--display);text-decoration:none;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+.mark svg{width:20px;height:20px}
+nav ul{display:flex;gap:22px;list-style:none;margin:0;padding:0;font-size:14px}
+nav ul a{text-decoration:none;color:var(--muted)}
+nav ul a:hover{color:var(--fg)}
+
+/* hero */
+.hero{padding-block:96px 64px;text-align:center}
+.hero h1{margin:22px auto 0;max-width:980px}
+.hero p.lead{margin:26px auto 0}
+.hero .btns{justify-content:center}
+.chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:26px}
+.chip{font:500 12px/1 var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:8px 12px}
+.chip.warn{color:var(--warn);border-color:rgba(255,183,77,.35)}
+
+/* blocks */
+.block{padding-block:72px;border-top:1px solid var(--line)}
+.block h2{margin-top:14px;max-width:820px}
+.block p.lead{margin-top:18px}
+.stage{margin-top:40px;border-radius:24px;overflow:hidden;border:1px solid var(--line);background:var(--panel)}
+.stage.demo{display:flex;justify-content:center;padding:28px}
+.stage.demo img{border-radius:12px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);margin-top:28px;border-top:1px solid var(--line)}
+.stats div{padding:22px 18px 4px 0}
+.stats b{display:block;font:600 clamp(28px,3.6vw,40px)/1 var(--display);letter-spacing:-.03em}
+.stats b small{font-size:.45em;color:var(--muted);font-weight:500;margin-left:4px;letter-spacing:0}
+.stats span{display:block;margin-top:8px;font-size:14px;color:var(--muted)}
+.two{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;align-items:center;margin-top:40px}
+.stats.s3{grid-template-columns:repeat(3,1fr)}
+.two .stage{margin-top:0}
+.two.flip{grid-template-columns:1fr 1.05fr}
+.note{font-size:13px;color:var(--dim-text);margin-top:14px}
+
+/* screens */
+.screens{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px}
+.screens figure{margin:0}
+.screens img{border-radius:12px;border:1px solid var(--line);aspect-ratio:1024/600;object-fit:cover;width:100%}
+.screens figcaption{font-size:13px;color:var(--muted);margin-top:8px}
+
+/* how it works */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:40px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:24px}
+.card .n{font:500 13px/1 var(--mono);color:var(--accent)}
+.card h3{margin-top:18px}
+.card p{color:var(--muted);margin:10px 0 0;font-size:15px}
+
+/* features */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:0 36px;margin-top:40px}
+.features>div{border-top:1px solid var(--line);padding:22px 0 26px}
+.features .n{font:500 12px/1 var(--mono);color:var(--dim-text)}
+.features h3{margin-top:14px}
+.features p{color:var(--muted);margin:8px 0 0;font-size:15px}
+
+/* install */
+.code{margin-top:28px;background:var(--panel);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.code header{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);font:500 12px/1 var(--mono);color:var(--muted)}
+.code button{font:500 12px/1 var(--mono);color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer}
+.code pre{margin:0;padding:18px 16px;overflow-x:auto;font:500 14px/1.7 var(--mono);color:var(--fg)}
+.code pre .c{color:var(--dim-text)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+
+/* faq */
+details{border-top:1px solid var(--line);padding:18px 0}
+details:last-of-type{border-bottom:1px solid var(--line)}
+summary{cursor:pointer;font:600 18px/1.4 var(--display);letter-spacing:-.01em;list-style:none;display:flex;justify-content:space-between;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";color:var(--muted);font-weight:500}
+details[open] summary::after{content:"\2212"}
+details p{color:var(--muted);margin:12px 0 0;max-width:760px}
+.faq{margin-top:36px}
+
+/* status */
+.status{margin:0 0 72px;padding:22px 24px;border:1px solid rgba(255,183,77,.3);border-radius:18px;background:rgba(255,183,77,.05);color:var(--muted);font-size:15px}
+.status b{color:var(--warn)}
+footer{border-top:1px solid var(--line);padding:28px 0 48px;color:var(--dim-text);font-size:14px}
+footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+footer a{color:var(--muted)}
+
+@media (max-width:900px){
+  .two,.two.flip,.cols{grid-template-columns:1fr}
+  .screens{grid-template-columns:repeat(2,1fr)}
+  .cards,.features{grid-template-columns:1fr}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  nav ul{gap:16px}
+  nav ul li:not(:nth-last-child(-n+2)){display:none}
+}
+@media (max-width:600px){
+  .wrap{padding:0 16px}
+  .hero{padding-block:64px 40px}
+  .block{padding-block:56px}
+  .stage.demo{padding:12px}
+  .stats.s3{grid-template-columns:1fr 1fr}
+  .stats.s3 div:last-child{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<nav aria-label="Main">
+  <div class="wrap">
+    <a class="mark" href="#top"><svg viewBox="0 0 56 56" aria-hidden="true"><rect x="4" y="8" width="13" height="13" rx="4" fill="#58E09B"/><rect x="20" y="8" width="13" height="13" rx="4" fill="#52D8BE"/><rect x="4" y="24" width="13" height="13" rx="4" fill="#52D8BE"/><rect x="20" y="24" width="13" height="13" rx="4" fill="#4DD0E1"/><rect x="36" y="24" width="13" height="13" rx="4" fill="#80ACF0"/><rect x="4" y="40" width="13" height="13" rx="4" fill="#4DD0E1"/><rect x="20" y="40" width="13" height="13" rx="4" fill="#80ACF0"/><rect x="36" y="40" width="13" height="13" rx="4" fill="#B388FF"/><rect x="38" y="4" width="12" height="12" rx="4" fill="#FFB74D"/></svg>Tessera</a>
+    <ul>
+      <li><a href="#panel">Panel</a></li>
+      <li><a href="#screens">Screens</a></li>
+      <li><a href="#editor">Editor</a></li>
+      <li><a href="#console">Console</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="https://github.com/catorendal-a11y/tessera-deck">GitHub</a></li>
+    </ul>
+  </div>
+</nav>
+
+<main id="top">
+<section class="hero wrap">
+  <div class="eyebrow">Open-source <b>DIY Stream Deck</b> for Windows</div>
+  <h1><span class="quiet">One 7-inch touchscreen.</span> A deck you build yourself.</h1>
+  <p class="lead">Tessera turns the GUITION JC1060P470C ESP32-P4 board into a macro deck: 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, a sound mixer and a screen that answers your AI agent. No soldering, no account, no cloud.</p>
+  <div class="btns">
+    <a class="btn primary" href="https://github.com/catorendal-a11y/tessera-deck/releases/latest">Download Tessera</a>
+    <a class="btn" href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/INSTALL.md">Read the install guide</a>
+  </div>
+  <div class="chips">
+    <span class="chip">v0.9.0</span>
+    <span class="chip">MIT licence</span>
+    <span class="chip">ESP32-P4 · LVGL 9.6</span>
+    <span class="chip">Windows 10 / 11</span>
+    <span class="chip warn">Home Assistant over Wi-Fi in beta</span>
+  </div>
+</section>
+
+<section class="block wrap" id="panel">
+  <div class="eyebrow">The panel</div>
+  <h2>Your apps, hotkeys and macros under one finger.</h2>
+  <p class="lead">The panel shows a 6 × 3 grid of keys on a 1024 × 600 touchscreen. A key can cover two or three slots and show a widget. It talks to a small Windows host over one USB cable and keeps the last layout for when the PC is off.</p>
+  <div class="stage"><img src="images/console-desk.jpg" width="1920" height="1080" fetchpriority="high" alt="The Tessera panel in its printed desk console on a desk, with the main page of app keys on the screen and a monitor out of focus behind it"></div>
+  <div class="stats">
+    <div><b>18</b><span>keys per page</span></div>
+    <div><b>4</b><span>screens: Keys, Agents, Mixer, Status</span></div>
+    <div><b>1024 × 600</b><span>7-inch capacitive touch</span></div>
+    <div><b>$35–42</b><span>for the board</span></div>
+  </div>
+  <p class="note">A Blender render of the printed console with the panel's real screen. The board price is the AliExpress street price in November 2026, and it changes.</p>
+</section>
+
+<section class="block wrap" id="screens">
+  <div class="eyebrow">Screens</div>
+  <h2><span class="quiet">Drawn by the real firmware.</span> Not mock-ups.</h2>
+  <p class="lead">The animation and the stills come from the panel's own LVGL interface in a native build at 1024 × 600. The agents and mixer screens show sample data.</p>
+  <div class="stage demo"><img src="images/demo.gif" width="800" height="520" loading="lazy" alt="Tessera in motion: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor"></div>
+  <div class="screens">
+    <figure><img src="images/panel-widgets.png" width="1024" height="600" loading="lazy" alt="Widgets on wide keys: clock, date, volume, processor, graphics card, memory, network and AI agents"><figcaption>Widgets on wide keys</figcaption></figure>
+    <figure><img src="images/panel-agents.png" width="1024" height="600" loading="lazy" alt="The agents screen: Claude Code asks for permission, with Deny and Allow"><figcaption>Answer Claude Code</figcaption></figure>
+    <figure><img src="images/panel-mixer.png" width="1024" height="600" loading="lazy" alt="The mixer screen: faders for the speakers, three programs and the microphone"><figcaption>Sound mixer</figcaption></figure>
+    <figure><img src="images/panel-status.png" width="1024" height="600" loading="lazy" alt="The status screen with live gauges for the PC"><figcaption>Live PC status</figcaption></figure>
+  </div>
+</section>
+
+<section class="block wrap" id="how">
+  <div class="eyebrow">Get started</div>
+  <h2>Three steps, no toolchain.</h2>
+  <div class="cards">
+    <div class="card"><div class="n">01</div><h3>Unpack and start</h3><p>Unpack the host zip from the latest release and double-click <code>Tessera.cmd</code>. The first start installs Python if it is missing, puts a shortcut on the Desktop and opens the editor.</p></div>
+    <div class="card"><div class="n">02</div><h3>Flash the panel</h3><p>Connect the board with USB. In the editor, <em>Panel → Panel firmware and updates</em> installs the firmware that comes in the zip. A new board needs <em>Full install</em> once.</p></div>
+    <div class="card"><div class="n">03</div><h3>Add a key, press it</h3><p>Click an action in the list and it becomes a key. Press it on the panel and the editor says "It works". Keys run only when you press them on the panel.</p></div>
+  </div>
+</section>
+
+<section class="block wrap" id="editor">
+  <div class="eyebrow">The editor</div>
+  <h2><span class="quiet">Drag, drop, done.</span> Saved as you go.</h2>
+  <div class="two">
+    <div>
+      <p class="lead" style="margin-top:0">Set up keys, pages and profiles in a drag-and-drop editor on your PC. Start from ready-made actions and profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode, and give each key a real app icon or one of the bundled icons.</p>
+      <div class="stats s3">
+        <div><b>120+</b><span>ready-made actions</span></div>
+        <div><b>10</b><span>profile templates</span></div>
+        <div><b>1,895</b><span>Lucide icons</span></div>
+      </div>
+      <p class="note">Profiles can follow the program in front, with a lock key to stay put. A <em>Getting started</em> checklist ticks itself off as you go.</p>
+    </div>
+    <div class="stage"><img src="images/editor-widgets.png" width="1680" height="1000" loading="lazy" alt="The editor: the rail, the keys with their page tabs, the selected key's settings and the action list"></div>
+  </div>
+</section>
+
+<section class="block wrap" id="console">
+  <div class="eyebrow">Desk console · print it yourself</div>
+  <h2><span class="quiet">A stand you print.</span> No supports, no glue.</h2>
+  <div class="two flip">
+    <div class="stage"><img src="images/console-hero.jpg" width="1920" height="1080" loading="lazy" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back"></div>
+    <div>
+      <p class="lead" style="margin-top:0">A closed console reclines the panel 45° and hides the cables. A lighter open dock holds it at 30° by its own weight. Both print in PLA or PETG: the console needs no supports, and the dock should need none. In the console the panel stays in by its own weight or with four small screws.</p>
+      <div class="stats s3">
+        <div><b>45°</b><span>console recline</span></div>
+        <div><b>191<small>mm</small></b><span>console width, 124 deep</span></div>
+        <div><b>~180<small>g</small></b><span>of plastic, if solid</span></div>
+      </div>
+      <div class="btns">
+        <a class="btn primary" href="https://github.com/catorendal-a11y/tessera-deck/tree/main/hardware">Get the print files</a>
+        <a class="btn" href="https://github.com/catorendal-a11y/tessera-deck/blob/main/hardware/README.md#print-settings">Print settings</a>
+      </div>
+      <p class="note">STL and STEP files, the FreeCAD and Blender models and the renders are in the repository. The maker does not state the thread in the panel's corner posts: try an M2 screw first.</p>
+    </div>
+  </div>
+</section>
+
+<section class="block wrap" id="features">
+  <div class="eyebrow">Features</div>
+  <h2><span class="quiet">Built for the desk.</span> Open to the last line.</h2>
+  <div class="features">
+    <div><div class="n">01</div><h3>It answers your AI agent</h3><p>When Claude Code asks for permission, the question shows on the panel. Touch <em>Allow</em> or <em>Deny</em>. The agents screen shows what Claude Code, Codex and ZCode are doing, since when and in which project.</p></div>
+    <div><div class="n">02</div><h3>Stays on your PC</h3><p>No account, no cloud, no subscription. The panel has no network and speaks only to the host over USB. The editor and the control API listen on 127.0.0.1 only.</p></div>
+    <div><div class="n">03</div><h3>Pages follow the app in front</h3><p>Profiles switch with the program you use, and a lock key keeps the one you are on. Wide keys show the clock, CPU, GPU, memory, network, volume, the music that plays, your next meeting or a timer.</p></div>
+    <div><div class="n">04</div><h3>Macros with more than a tap</h3><p>Multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers. Microphone, speaker and media keys show the real Windows state.</p></div>
+    <div><div class="n">05</div><h3>Live gauges</h3><p>CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan speed and FPS, in the gauge's colour with amber and red at the thresholds.</p></div>
+    <div><div class="n">06</div><h3>Scripts and plugins</h3><p>Drive keys from your own scripts with the local API or <code>deckctl</code>, hook in Claude Code, or write a plugin. Plugins for Home Assistant through the PC and for OBS Studio are included.</p></div>
+  </div>
+</section>
+
+<section class="block wrap" id="install">
+  <div class="eyebrow">Install</div>
+  <h2>Download a release, or build it yourself.</h2>
+  <p class="lead">The release has a host zip with the host, the editor and the panel firmware, and a separate firmware zip, with SHA-256 checksums and a build attestation for the zips. Tessera is not code-signed, so Windows SmartScreen may warn: compare the hash first.</p>
+  <div class="cols">
+    <div class="code">
+      <header><span>Release · Windows</span><button type="button" data-copy="rel">Copy</button></header>
+<pre id="rel"><span class="c"># from the latest release</span>
+tessera-host-v0.9.0.zip
+<span class="c"># unpack, then double-click</span>
+Tessera.cmd</pre>
+    </div>
+    <div class="code">
+      <header><span>Firmware from source · ESP-IDF 6.1</span><button type="button" data-copy="src">Copy</button></header>
+<pre id="src"><span class="c"># in an ESP-IDF 6.1 shell</span>
+<span class="c"># stop the host first: it owns the port</span>
+git clone https://github.com/catorendal-a11y/tessera-deck
+cd tessera-deck
+idf.py -B build/idf6 build
+idf.py -B build/idf6 -p COMx flash</pre>
+    </div>
+  </div>
+  <div class="btns">
+    <a class="btn primary" href="https://github.com/catorendal-a11y/tessera-deck/releases/latest">Latest release</a>
+    <a class="btn" href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/INSTALL.md">INSTALL.md</a>
+  </div>
+</section>
+
+<section class="block wrap" id="faq">
+  <div class="eyebrow">Questions</div>
+  <h2>Before you build one.</h2>
+  <div class="faq">
+    <details><summary>What do I need?</summary><p>The GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C (1024 × 600, about $35 to $42 on AliExpress), a USB cable to its USB Serial/JTAG port and a Windows 10 or 11 PC. The host needs Python 3.11 or newer; the first start installs it with winget if it is missing. No Wi-Fi and no soldering.</p></details>
+    <details><summary>Does it run on another board, or on macOS or Linux?</summary><p>Not yet. The pin setup and the screen layout are written for this board, so another board needs a port, and the host runs on Windows only. CONTRIBUTING.md says what a port takes; open an issue with the board's name and resolution.</p></details>
+    <details><summary>How does it compare with a Stream Deck?</summary><p>A Stream Deck MK.2 lists at $149.99 with 15 physical keys, the XL at $249.99 with 32. Tessera costs the board and gives 18 keys per page, keys up to three slots wide, and widgets, a mixer, PC status and the AI agents built in, under the MIT licence. What you give up is the feel of a real key: Tessera is glass. Prices are US list prices from November 2026.</p></details>
+    <details><summary>Does it send anything to the internet?</summary><p>Only what you ask for: the update check on GitHub, the clock's weather from Open-Meteo, online icons from Iconify, your own HTTP actions and calendar, and the plugins you turn on. The bundled plugins only reach your own Home Assistant and OBS. Setup also downloads Python packages from PyPI, pinned by hash, and Libre Hardware Monitor if you turn on the optional sensors. SECURITY.md lists every connection.</p></details>
+    <details><summary>What happens when the PC is off?</summary><p>The panel keeps the last layout and shows it, so it is never blank. Actions run on the PC, so keys need the host. A hung screen or USB loop restarts the panel by itself.</p></details>
+    <details><summary>Does it work with Home Assistant?</summary><p>Through the PC, yes: the bundled plugin runs Home Assistant actions from keys. On the esphome-beta branch the panel can also join your Wi-Fi and show up through the ESPHome integration, with keys that work while the PC is off. That beta is not in the release yet.</p></details>
+    <details><summary>Licence and contributing?</summary><p>MIT. ESP-IDF, LVGL, cJSON, the Lucide icons (ISC), the DejaVu fonts and the optional Libre Hardware Monitor (MPL-2.0) keep their own licences. Bug reports, ideas, ports and pull requests are welcome.</p></details>
+  </div>
+</section>
+
+<div class="wrap">
+  <p class="status"><b>Beta.</b> Home Assistant over Wi-Fi lives on the <a href="https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta">esphome-beta</a> branch and is not in v0.9.0. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses for ESPHome devices, but it has not been tried in a full Home Assistant install yet. Reports in issues are welcome.</p>
+</div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Tessera Deck · MIT · not affiliated with Elgato or Corsair</span>
+    <span><a href="https://github.com/catorendal-a11y/tessera-deck">GitHub</a> · <a href="https://github.com/catorendal-a11y/tessera-deck/releases">Releases</a> · <a href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/ROADMAP.md">Roadmap</a></span>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll("button[data-copy]").forEach(function (b) {
+  b.addEventListener("click", function () {
+    var text = document.getElementById(b.dataset.copy).innerText;
+    navigator.clipboard.writeText(text).then(function () {
+      b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1400);
+    }, function () { b.textContent = "Select and copy"; });
+  });
+});
+</script>
+</body>
+</html>
