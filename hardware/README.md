@@ -11,7 +11,9 @@ Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y
 | Back | Closed, with air openings, a cable arch and two screwdriver holes | Open, so the ports and cables stay free |
 | Drawn with | FreeCAD (`make_enclosure.py`) | Blender (`make_dock.py`) |
 
-`tessera-enclosure.png` shows the console with the panel in place. The console has a chin with the Tessera tile mark, a short upright apron, a sunken field on each end, a chamfer round the base and four recesses underneath for 10 mm stick-on rubber feet.
+![The console with the panel in it, rendered in Blender](../docs/images/console-hero.jpg)
+
+`tessera-enclosure.png` shows the console with the panel in place in FreeCAD. The console has a chin with the Tessera tile mark, a short upright apron, a sunken field on each end, a chamfer round the base and four recesses underneath for 10 mm stick-on rubber feet.
 
 ## Files
 
@@ -25,6 +27,9 @@ Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y
 | `tessera-dock.blend` | Dock, Blender model |
 | `make_dock.py` | Builds the dock; every size is an option |
 | `save_view.py` | Stores a ready view in the FreeCAD file, so it opens looking at the console |
+| `tessera-console.blend` | Console with the panel, feet and cable in a studio, Blender model with five cameras |
+| `make_render.py` | Builds `tessera-console.blend` and renders the five pictures into `renders/` |
+| `export_render_mesh.py` | Writes the console as a fine mesh with the exact surface normals for `make_render.py` |
 
 ## Print settings
 
@@ -133,3 +138,27 @@ blender -b --factory-startup --python-exit-code 1 -P hardware\make_dock.py -- --
 ```
 
 Run it with `--help` after `--` to list the options.
+
+## Render the console
+
+`make_render.py` builds the console in Blender as a printed part: matte PLA with 0.2 mm layer lines and softly rounded edges. It adds the panel in its factory housing with black cover glass, and shows a real panel screen in the picture area. It also adds four rubber feet and a USB-C cable that runs from the panel's socket out through the cable arch. The scene is a studio with five cameras: `hero`, `user` (the view from your chair), `side`, `back` and `detail` (the tile mark).
+
+The console mesh comes from the CAD model, so make it first. It is not in the repository because the script writes it in a few seconds:
+
+```powershell
+& "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\export_render_mesh.py
+blender -b --factory-startup --python-exit-code 1 -P hardware\make_render.py -- --res 3840x2160 --samples 512
+```
+
+This writes `tessera-console.blend` and `renders/hero.png` to `renders/detail.png`. On a Radeon RX 6950 XT each 4K picture takes about 80 seconds. Options after `--`:
+
+| Option | Default | What it does |
+|---|---|---|
+| `--res` | `3840x2160` | Size of the pictures |
+| `--samples` | `512` | Samples per pixel (denoised) |
+| `--shots` | all five | Cameras to render, for example `hero,user` |
+| `--screen` | `docs/images/panel-main.png` | The picture on the screen; any 1024 × 600 image, such as a render from `tools/render_screens.py` |
+| `--color` | `2d3034` | Colour of the printed shell (sRGB hex) |
+| `--no-render` | | Only build and save the `.blend` |
+
+The panel sizes are the manufacturer's: picture 155.01 × 86.72 mm, so a pixel is a little wider than it is tall, as on the real panel. The panel and the cable do not touch the shell; the build was checked for this.
