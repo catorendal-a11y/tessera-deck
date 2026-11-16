@@ -74,15 +74,20 @@ def _property(line: str):
     return name.upper(), dict(param.partition('=')[::2] for param in params), value
 
 
-def _when(value: str, params: dict):
-    """A date (all day) or a local datetime without time zone."""
+def _local(moment: datetime) -> datetime:
+    """A naive UTC datetime as local time, with the offset that applies on that date."""
+    return moment.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+
+
+def _when(value: str, params: dict, utc: bool = False):
+    """A date (all day) or a local datetime without time zone. `utc` keeps a Z time as UTC."""
     value = value.strip()
     if params.get('VALUE') == 'DATE' or len(value) == 8:
         return date(int(value[:4]), int(value[4:6]), int(value[6:8]))
     moment = datetime(int(value[:4]), int(value[4:6]), int(value[6:8]), int(value[9:11]), int(value[11:13]),
                       int(value[13:15] or 0))
-    if value.endswith('Z'):
-        moment = moment.replace(tzinfo=timezone.utc).astimezone().replace(tzinfo=None)
+    if value.endswith('Z') and not utc:
+        moment = _local(moment)
     return moment
 
 
@@ -101,16 +106,20 @@ def _as_datetime(value) -> datetime:
 
 
 def _events(text: str) -> list[dict]:
-    events, current = [], None
+    events, current, alarm = [], None, False
     for line in _lines(text):
         name, params, value = _property(line)
         if name == 'BEGIN' and value.upper() == 'VEVENT':
-            current = {'exdates': set()}
+            current, alarm = {'exdates': set()}, False
         elif name == 'END' and value.upper() == 'VEVENT' and current is not None:
             if 'start' in current:
                 events.append(current)
             current = None
         elif current is None:
+            continue
+        elif name in ('BEGIN', 'END') and value.upper() == 'VALARM':
+            alarm = name == 'BEGIN'  # an alarm has its own UID-less properties: SUMMARY, DURATION, ...
+        elif alarm:
             continue
         elif name in ('DTSTART', 'DTEND', 'RECURRENCE-ID', 'DURATION', 'EXDATE'):
             try:
@@ -121,6 +130,8 @@ def _events(text: str) -> list[dict]:
                 else:
                     key = {'DTSTART': 'start', 'DTEND': 'end', 'RECURRENCE-ID': 'recurrence'}[name]
                     current[key] = _when(value, params)
+                    if name == 'DTSTART' and value.strip().endswith('Z') and len(value.strip()) > 8:
+                        current['utc'] = _when(value, params, utc=True)  # repeats are walked in UTC, then made local
             except (ValueError, IndexError):  # one unreadable event is dropped, not the whole calendar
                 current = None
         elif name == 'SUMMARY':
@@ -158,6 +169,9 @@ def _starts(event: dict, until: datetime, budget: list | None = None):
     if not rule:
         yield start
         return
+    utc = event.get('utc')  # a Z start repeats at the same UTC time, so its local time follows daylight saving
+    if utc:
+        start = utc
     frequency, interval = rule.get('FREQ', ''), max(1, int(rule.get('INTERVAL', 1) or 1))
     count = int(rule['COUNT']) if rule.get('COUNT', '').isdigit() else None
     end = _when(rule['UNTIL'], {}) if rule.get('UNTIL') else None
@@ -239,7 +253,7 @@ def _starts(event: dict, until: datetime, budget: list | None = None):
     for day in candidates():
         if day < first:
             continue
-        moment = at(day)
+        moment = _local(at(day)) if utc else at(day)
         if _as_datetime(moment) > until or (end and _as_datetime(moment) > end):
             return
         made += 1

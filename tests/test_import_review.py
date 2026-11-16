@@ -123,6 +123,20 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(names, ['TESSERA_AUTHORIZATION'])
         self.assertNotIn('secret123', json.dumps(shared))
 
+    def test_export_replaces_any_credential_header_and_address_field(self):
+        config = bundle()
+        action = config['profiles']['Main']['pages']['First'][2]['actions'][0]
+        action['headers'] = {'Private-Token': 'glpat-abc', 'Accept': 'text/plain'}
+        action['url'] = 'https://hooks.example/x?id=7&token=abc&api_key=def&q=$(var:q)&key=$(env:MINE)#top'
+        shared, names = redact_secrets(config)
+        action = shared['profiles']['Main']['pages']['First'][2]['actions'][0]
+        self.assertEqual(action['headers'], {'Private-Token': '$(env:TESSERA_PRIVATE_TOKEN)', 'Accept': 'text/plain'})
+        self.assertEqual(action['url'], 'https://hooks.example/x?id=7&token=$(env:TESSERA_TOKEN)'
+                                        '&api_key=$(env:TESSERA_API_KEY)&q=$(var:q)&key=$(env:MINE)#top')
+        self.assertEqual(names, ['TESSERA_API_KEY', 'TESSERA_PRIVATE_TOKEN', 'TESSERA_TOKEN'])
+        self.assertNotIn('glpat-abc', json.dumps(shared))
+        self.assertNotIn('=abc', json.dumps(shared))
+
     def test_export_names_what_it_leaves_out(self):
         config = bundle()
         self.assertEqual(export_left_out(config), [])

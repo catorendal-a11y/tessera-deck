@@ -55,6 +55,8 @@ try {
   await dialogRoundTrip('Program settings', () => page.click('#app-settings'), '#form-dialog', () => page.click('#form-dialog [value=cancel]'), 'app-settings');
   await dialogRoundTrip('Page settings from the Page menu', async () => { await page.click('#page-menu-toggle'); await page.click('#page-options'); },
     '#form-dialog', () => page.keyboard.press('Escape'), 'page-menu-toggle');
+  await dialogRoundTrip('Automatic actions from the More menu', async () => { await page.click('#more-toggle'); await page.click('#auto-open'); },
+    '#auto-dialog', () => page.keyboard.press('Escape'), 'more-toggle');
 
   // Wi-Fi: no panel is connected here, so the form is disabled with a hint; axe checks the open dialog too.
   await page.click('#panel-menu-toggle');

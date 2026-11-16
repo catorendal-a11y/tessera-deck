@@ -1,8 +1,11 @@
 """Dependency sync, shortcut and uninstall behaviour of the setup tool, without touching pip or the real Desktop."""
+import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
@@ -123,12 +126,57 @@ class UninstallTests(unittest.TestCase):
             self.assertFalse((self.root / relative).exists(), relative)
         self.assertTrue((self.root / 'host/tessera_app.py').exists())
 
+    def test_a_purge_also_deletes_every_copy_of_the_profiles(self):
+        copies = ('host/profiles-unreadable.local.json', 'host/profiles-unreadable-1.local.json',
+                  'host/profiles-previous.local.json', 'host/profiles.json.abc123.tmp')
+        for relative in copies:
+            (self.root / relative).write_text('x')
+        self.assertIn('your data', self.run_uninstall(purge=True, answer='YES'))
+        for relative in copies:
+            self.assertFalse((self.root / relative).exists(), relative)
+
+    def test_a_purge_that_cannot_delete_everything_says_so(self):
+        unlink = Path.unlink
+        uninstall = setup_tool.uninstall
+
+        def locked(path, *args, **kwargs):  # the host still has the file open
+            if path.name == 'profiles.json':
+                raise PermissionError(13, 'Access is denied', str(path))
+            return unlink(path, *args, **kwargs)
+        with patch('pathlib.Path.unlink', autospec=True, side_effect=locked), \
+                patch.object(setup_tool, 'uninstall', lambda purge: uninstall(
+                    purge, lambda prompt: 'YES', self.messages.append, self.root, self.link,
+                    self.removed_autostart.append)), \
+                patch('builtins.print') as printed:
+            self.assertEqual(setup_tool.main(['uninstall', '--purge']), 1)
+        printed.assert_called_once()
+        self.assertTrue((self.root / 'host/profiles.json').exists())
+        self.assertFalse((self.root / 'host/state.local.json').exists(), 'the rest is still deleted')
+        problem = next(message for message in self.messages if message.startswith('Could not delete'))
+        self.assertIn('profiles.json', problem)
+        self.assertIn('Access is denied', problem)
+        self.assertNotIn('your data', self.messages[-1])
+
     def test_a_failing_autostart_removal_is_reported_and_the_rest_continues(self):
         def broken(enabled):
             raise OSError('no access')
         removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link, broken)
         self.assertEqual(removed, ['Desktop shortcut'])
         self.assertTrue(any('autostart' in message for message in self.messages))
+
+
+class DiagnosticsTests(unittest.TestCase):
+    def test_a_broken_profile_file_still_gives_a_bundle(self):
+        import diagnostics
+        with tempfile.TemporaryDirectory() as folder:
+            target = diagnostics.build(Path(folder), None, {}, '1.0', Path(folder) / 'none.log')
+            with zipfile.ZipFile(target) as archive:
+                report = json.loads(archive.read('report.json'))
+        self.assertEqual(report['configuration'], {'readable': False})
+        with patch('tesserad.Daemon.load_profiles', side_effect=ValueError('Unknown page: Work')), \
+                patch('deck_control.Controller'), patch('diagnostics.build') as build:
+            self.assertIs(setup_tool.diagnostics(), build.return_value)
+        self.assertIsNone(build.call_args.args[1])
 
 
 class CommandLineTests(unittest.TestCase):

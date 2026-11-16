@@ -121,21 +121,47 @@ class PanelQuestionTests(HostCase):
         lanes = json.loads(next(line for line in sent if line.startswith('AD_AGENTS ')).split(' ', 1)[1])['agents']
         self.assertEqual((lanes[0]['id'], lanes[0]['state'], lanes[0]['text']), ('claude', 'waiting', 'Bash: npm test'))
 
-    def test_allow_on_the_panel_answers_the_question_instead_of_opening_the_window(self):
-        daemon = self.cockpit_daemon()
-        import daemon_ticks
+    def ask_in_thread(self, daemon, text, timeout=permission.WAIT_SECONDS):
         result = []
-        thread = threading.Thread(target=lambda: result.append(daemon.ask_permission('claude', 'Bash: npm test')))
+        thread = threading.Thread(target=lambda: result.append(
+            daemon.permissions.ask('claude', text, daemon.panel_takes_questions, timeout)))
         thread.start()
         for _ in range(200):
             if daemon.permissions.current():
                 break
             time.sleep(0.005)
+        return thread, result
+
+    def touch(self, daemon, do):
+        daemon.panel.read_lines.side_effect = [[json.dumps({'type': 'agent', 'id': 'claude', 'do': do})], OSError('unplugged')]
+        daemon.reader_loop(daemon.panel)
+        daemon.connection_failed.clear()  # the fake unplug ended the reader, not the panel
+
+    def test_allow_on_the_panel_answers_the_question_instead_of_opening_the_window(self):
+        daemon = self.cockpit_daemon()
+        import daemon_ticks
+        thread, result = self.ask_in_thread(daemon, 'Bash: npm test')
         with patch.object(daemon_ticks, 'focus_existing_process') as focus:
-            daemon.handle_job(('agent', 'claude', 'allow'))
-        thread.join(5)
-        self.assertEqual(result, ['allow'])
+            self.touch(daemon, 'allow')
+            thread.join(5)
+            self.assertEqual(result, ['allow'])
+            queued = [daemon.jobs.get_nowait() for _ in range(daemon.jobs.qsize())]
+            self.assertNotIn('agent', [job[0] for job in queued], 'answered at the touch: nothing waits in the queue')
         focus.assert_not_called()
+        self.assertEqual(daemon.events.since(0, None)[-1]['action'], 'allow')
+
+    def test_a_touch_that_waited_in_the_queue_never_answers_a_later_question(self):
+        """Slow typing holds the worker: the Allow meant for an earlier screen must not approve what opened since."""
+        daemon = self.cockpit_daemon()
+        import daemon_ticks
+        self.touch(daemon, 'allow')  # no question is open yet: the touch waits in the queue
+        thread, result = self.ask_in_thread(daemon, 'Bash: rm -rf build', timeout=0.3)
+        self.assertIsNotNone(daemon.permissions.current())
+        with patch.object(daemon_ticks, 'focus_existing_process') as focus:
+            daemon.handle_job(daemon.jobs.get_nowait())
+        thread.join(5)
+        self.assertEqual(result, [None])
+        focus.assert_called_once_with('claude.exe')
 
     def test_an_older_panel_is_never_asked(self):
         daemon = self.daemon()

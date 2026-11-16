@@ -52,7 +52,7 @@ def check_wifi_ssid(ssid) -> None:
         size = len(ssid.encode('utf-8'))  # a lone surrogate cannot be encoded and is refused here
     except (AttributeError, UnicodeEncodeError):
         size = 0
-    if not 0 < size <= WIFI_SSID_MAX or any(ord(c) < 0x20 or ord(c) == 0x7F for c in ssid):
+    if not 0 < size <= WIFI_SSID_MAX or any(ord(c) < 0x20 or 0x7F <= ord(c) <= 0x9F for c in ssid):
         raise ValueError('ssid: the network name must be 1-32 bytes of text without control characters')
 
 
@@ -144,9 +144,17 @@ def api_options(names) -> list:
     return kept[:API_OPTIONS_MAX]
 
 
+API_LINE_MAX = 1099  # the panel's line buffer in main/main.cpp is 1100 bytes; a longer line is dropped
+
+
 def api_options_line(profiles, pages) -> str:
-    return 'AD_API_OPTIONS ' + json.dumps({'profiles': api_options(profiles), 'pages': api_options(pages)},
-                                          ensure_ascii=True, separators=(',', ':'))
+    """The panel drops a line over API_LINE_MAX, so the last names of the longer list are left out until it fits."""
+    lists = {'profiles': api_options(profiles), 'pages': api_options(pages)}
+    while True:
+        line = 'AD_API_OPTIONS ' + json.dumps(lists, ensure_ascii=True, separators=(',', ':'))
+        if len(line) <= API_LINE_MAX or not any(lists.values()):
+            return line
+        max(lists.values(), key=len).pop()
 
 
 def parse_api_key(line):
@@ -385,6 +393,7 @@ class PanelSerial:
     def push_payload(self, payload):
         with self.write_lock:
             self.cfg_done.clear()
+            self.cfg_reply = ''
             self.send_line('AD_CFG_BEGIN')
             for i in range(0, len(payload), 380):
                 self.send_line('AD_CFG_DATA ' + payload[i:i+380])

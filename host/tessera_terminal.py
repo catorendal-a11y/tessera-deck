@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import sys
 import config_store
+import import_review
 from deck_control import ROOT, Controller, save_profiles
 from tesserad import Daemon, validate_config
 from deck_forms import ActionForm
@@ -24,6 +25,7 @@ ACTION_FIELDS = {'hotkey': ('keys', 'ctrl+shift+b'), 'text': ('text', 'Text to t
     'profile': ('profile', 'Profile name'), 'press': ('id', 'Button number'),
     'set': ('variable', 'Variable name'), 'folder': ('page', 'Folder'), 'back': (None, 'Back'),
     'state': ('button', 'Button number')}
+STOPPED_PATH = ROOT / 'host/deck-stopped.local.json'  # Stop host writes it, so the tray does not start the host again
 
 
 def profile_buttons(profile):
@@ -32,12 +34,15 @@ def profile_buttons(profile):
 
 
 def rewrite_actions(buttons, transform):
-    """Rewrite all normal and toggle-state actions without skipping hidden variants."""
+    """Rewrite all normal, toggle-state, long-press and double-press actions without skipping hidden variants."""
     for button in buttons:
         holders = [button, *button.get('states', [])]
         for holder in holders:
             holder['actions'] = [changed for action in holder.get('actions', [])
                                  if (changed := transform(action)) is not None]
+        for key in ('hold_actions', 'double_actions'):
+            if key in button:
+                button[key] = [changed for action in button[key] if (changed := transform(action)) is not None]
 
 
 def rewrite_trigger_actions(triggers, transform):
@@ -256,8 +261,10 @@ class DeckPane(TabPane):
     def __init__(self, path=None):
         super().__init__('Deck', id='deck-editor')
         self.path = Path(path or ROOT / 'host/profiles.json')
-        self.config = Daemon.load_profiles(self.path)
-        self.profile = self.config.get('default_profile', next(iter(self.config['profiles'])))
+        if not self.path.exists():
+            Daemon.load_profiles(self.path)  # first run: creates the file from profiles.default.json
+        self.reload()
+        self.profile =self.config.get('default_profile', next(iter(self.config['profiles'])))
         self.page = next(iter(self.config['profiles'][self.profile]['pages']))
         self.loaded = False
 
@@ -325,14 +332,39 @@ class DeckPane(TabPane):
             item.styles.border = ('round', button.get('color', '#35D07F') if button else '#263239')
         self.refresh_log()
 
-    def commit(self, draft, force_backup=False):
-        """Save `draft`; False when it was refused, so callers do not select a profile or page that was not added."""
+    def reload(self):
+        """Read profiles.json. commit() saves only over the bytes read here, so a save from another window stays."""
+        raw = self.path.read_bytes()
+        self.config = config_store.check(raw)
+        self.raw = raw
+
+    def show(self, profile, page=None):
+        """Select `profile` and `page`, or the first one where it does not exist, in the pickers and the grid."""
+        profiles = self.config['profiles']
+        self.profile = profile if profile in profiles else next(iter(profiles))
+        pages = profiles[self.profile]['pages']
+        self.page = page if page in pages else next(iter(pages))
+        for identifier, names, value in (('#deck-profile', profiles, self.profile), ('#deck-page', pages, self.page)):
+            picker = self.query_one(identifier, Select)
+            picker.set_options([(name, name) for name in names])
+            picker.value = value
+        self.refresh_grid()
+
+    def commit(self, draft, force_backup=False, select=None):
+        """Save `draft`, then show `select` (profile, page). False when it was refused; when another window saved
+        since the file was read, that file is loaded instead."""
         try:
             validate_config(draft)
+            if self.path.read_bytes() != self.raw:
+                self.reload()
+                self.show(self.profile, self.page)
+                self.query_one('#deck-state', Static).update(
+                    'Not saved: the profiles were changed in another window. They are loaded again; make the change once more.')
+                return False
             config_store.backup(self.path, force=force_backup)  # the same safety copy the graphical editor keeps
             save_profiles(draft, self.path)
-            self.config = copy.deepcopy(draft)
-            self.refresh_grid()
+            self.reload()
+            self.show(*(select or (self.profile, self.page)))
             self.query_one('#deck-state', Static).update('Saved. The active page updates automatically.')
             return True
         except (ValueError, OSError) as exc:
@@ -341,22 +373,26 @@ class DeckPane(TabPane):
 
     def on_select_changed(self, event):
         event.stop()
-        if not self.loaded or event.value is Select.NULL:
+        value = event.select.value  # the newest one: show() sets each picker twice in a row
+        if not self.loaded or value is Select.NULL:
             return
-        if event.select.id == 'deck-profile':
-            self.profile = str(event.value)
-            self.page = next(iter(self.config['profiles'][self.profile]['pages']))
-            pages = self.query_one('#deck-page', Select)
-            pages.set_options([(name, name) for name in self.config['profiles'][self.profile]['pages']])
-            pages.value = self.page
-        elif event.select.id == 'deck-page':
-            self.page = str(event.value)
-        self.refresh_grid()
+        if event.select.id == 'deck-profile' and value != self.profile:
+            self.show(str(value))
+        elif event.select.id == 'deck-page' and value != self.page:
+            self.page = str(value)
+            self.refresh_grid()
 
     def on_button_pressed(self, event):
         event.stop()
         identifier = event.button.id
         if identifier in ('deck-host-start', 'deck-host-stop'):
+            try:
+                if identifier == 'deck-host-stop':
+                    STOPPED_PATH.write_text('{}', encoding='utf-8')
+                else:
+                    STOPPED_PATH.unlink(missing_ok=True)
+            except OSError:
+                pass  # the tray then starts the host again, as after a crash
             self.app.dispatch('start' if identifier == 'deck-host-start' else 'stop', {})
         elif identifier == 'deck-graphic-editor':
             self.app.action_graphic_editor()
@@ -403,13 +439,7 @@ class DeckPane(TabPane):
                         self.query_one('#deck-state', Static).update('The page already exists')
                         return
                     draft['profiles'][self.profile]['pages'][name] = []
-                if not self.commit(draft):
-                    return
-                self.query_one('#deck-profile', Select).set_options([(n, n) for n in self.config['profiles']])
-                self.query_one('#deck-profile', Select).value = name if kind == 'profile' else self.profile
-                if kind == 'page':
-                    self.query_one('#deck-page', Select).set_options([(n, n) for n in self.config['profiles'][self.profile]['pages']])
-                    self.query_one('#deck-page', Select).value = name
+                self.commit(draft, select=(name, None) if kind == 'profile' else (self.profile, name))
             self.app.push_screen(ActionForm('NEW PROFILE' if kind == 'profile' else 'NEW PAGE', [('name', 'Name', 'text', '', None)]), saved)
         elif identifier == 'template-add':
             try:
@@ -428,15 +458,8 @@ class DeckPane(TabPane):
                     name = f'{template["name"]} {suffix}'
                     suffix += 1
                 draft['profiles'][name] = copy.deepcopy(template['profile'])
-                previous = self.profile, self.page
-                self.profile = name  # set first: commit() redraws the grid for self.profile
-                self.page = next(iter(draft['profiles'][name]['pages']))
-                if not self.commit(draft):
-                    self.profile, self.page = previous
-                    return
-                self.query_one('#deck-profile', Select).set_options([(n, n) for n in self.config['profiles']])
-                self.query_one('#deck-profile', Select).value = name
-            choices = [(name + ' · ' + item['description'], name) for name, item in templates.items()]
+                self.commit(draft, select=(name, None))
+            choices =[(name + ' · ' + item['description'], name) for name, item in templates.items()]
             self.app.push_screen(ActionForm('PROFILE TEMPLATES', [
                 ('template', 'Template', 'select', next(iter(templates)), choices)],
                 note='Added as a new profile. Existing profiles are kept.'), saved)
@@ -460,22 +483,27 @@ class DeckPane(TabPane):
                     return
                 name = values['name'].strip()
                 draft = copy.deepcopy(self.config)
-                pages = draft['profiles'][self.profile]['pages']
-                if name in pages and name != original:
+                profile = draft['profiles'][self.profile]
+                if name in profile['pages'] and name != original:
                     self.query_one('#deck-state', Static).update('The page already exists')
                     return
-                pages[name] = pages.pop(original)
+                # same place: the first page is the one the panel opens
+                profile['pages'] = {(name if key == original else key): buttons for key, buttons in profile['pages'].items()}
                 def update_page(action):
                     if action.get('type') in ('page', 'folder') and action.get('page') == original:
                         action['page'] = name
                     return action
-                rewrite_actions(profile_buttons(draft['profiles'][self.profile]), update_page)
-                if draft.get('default_profile') == self.profile:
+                rewrite_actions(profile_buttons(profile), update_page)
+                shortcuts = [item for item in (draft.get('panel') or {}).get('shortcuts', []) if isinstance(item, dict)]
+                # Rail steps and triggers are checked against the pages of all profiles, as in the graphical editor:
+                # they stay while another profile still has a page with the old name.
+                if not any(other != self.profile and original in item['pages'] for other, item in draft['profiles'].items()):
+                    rewrite_actions([item for item in shortcuts if item.get('type') == 'actions'], update_page)
                     rewrite_trigger_actions(draft.get('triggers', []), update_page)
-                self.page = name
-                self.commit(draft)
-                self.query_one('#deck-page', Select).set_options([(n, n) for n in pages])
-                self.query_one('#deck-page', Select).value = name
+                for item in shortcuts:
+                    if item.get('type', 'page') == 'page' and (item.get('profile'), item.get('page')) == (self.profile, original):
+                        item['page'] = name
+                self.commit(draft, select=(self.profile, name))
             self.app.push_screen(ActionForm('RENAME PAGE', [('name', 'Page name', 'text', original, None)]), saved)
         elif identifier == 'profile-delete':
             if len(self.config['profiles']) <= 1:
@@ -490,24 +518,14 @@ class DeckPane(TabPane):
             except ValueError:
                 self.query_one('#deck-state', Static).update('Remove actions that point to the profile before deleting it')
                 return
-            self.profile = draft.get('default_profile', next(iter(draft['profiles'])))
-            self.page = next(iter(draft['profiles'][self.profile]['pages']))
-            self.commit(draft, force_backup=True)
-            self.query_one('#deck-profile', Select).set_options([(n, n) for n in draft['profiles']])
-            self.query_one('#deck-profile', Select).value = self.profile
+            self.commit(draft, force_backup=True, select=(draft.get('default_profile'), None))
         elif identifier == 'page-delete':
             if len(self.config['profiles'][self.profile]['pages']) <= 1:
                 self.query_one('#deck-state', Static).update('Keep at least one page in every profile')
                 return
             draft = copy.deepcopy(self.config)
             del draft['profiles'][self.profile]['pages'][self.page]
-            previous = self.page
-            self.page = next(iter(draft['profiles'][self.profile]['pages']))
-            self.commit(draft, force_backup=True)
-            if previous in self.config['profiles'][self.profile]['pages']:
-                self.page = previous
-            self.query_one('#deck-page', Select).set_options([(n, n) for n in self.config['profiles'][self.profile]['pages']])
-            self.query_one('#deck-page', Select).value = self.page
+            self.commit(draft, force_backup=True, select=(self.profile, None))
         elif identifier in ('deck-import', 'deck-export'):
             importing = identifier == 'deck-import'
             def saved(values):
@@ -516,24 +534,52 @@ class DeckPane(TabPane):
                 try:
                     path = Path(values['path']).expanduser()
                     if importing:
-                        draft = Daemon.load_profiles(path)
-                        self.profile = draft.get('default_profile', next(iter(draft['profiles'])))
-                        self.page = next(iter(draft['profiles'][self.profile]['pages']))
-                        self.commit(draft, force_backup=True)
-                        self.query_one('#deck-profile', Select).set_options([(n, n) for n in self.config['profiles']])
-                        self.query_one('#deck-profile', Select).value = self.profile
-                        self.query_one('#deck-page', Select).set_options([(n, n) for n in self.config['profiles'][self.profile]['pages']])
-                        self.query_one('#deck-page', Select).value = self.page
+                        self.review_import(config_store.check(path.read_bytes()), path.name)
                     else:
-                        if path.exists():
-                            raise ValueError('Choose a new file name; existing export files are not overwritten')
-                        save_profiles(self.config, path)
-                    self.query_one('#deck-state', Static).update('Imported' if importing else 'Exported')
+                        self.export(path)
                 except (ValueError, OSError) as exc:
                     self.query_one('#deck-state', Static).update(str(exc))
             self.app.push_screen(ActionForm('IMPORT' if importing else 'EXPORT', [
                 ('path', 'Path to profile file', 'text', '', None)],
                 note='Imported actions become active when you press the buttons. Check the source first.'), saved)
+
+    def review_import(self, draft, name):
+        """List what in the file runs commands, uses the network or runs by itself, as the graphical editor does.
+        It is left out unless the user keeps it."""
+        findings = import_review.review(draft)
+        if not findings:
+            return self.finish_import(draft)
+        def chosen(values):
+            if values is None:
+                return
+            if values['keep']:
+                return self.finish_import(draft)
+            safe = import_review.strip_executable(draft)
+            if 'plugins' in self.config:  # plugins run code: the ones set up on this PC stay as they are
+                safe['plugins'] = copy.deepcopy(self.config['plugins'])
+            self.finish_import(safe)
+        lines = [f"{item['risk'].upper()}{' (automatic)' if item['automatic'] else ''}: {item['where']} {item['detail']}"
+                 for item in findings]
+        self.app.push_screen(ActionForm('IMPORT / CHECK THE FILE', [
+            ('keep', 'Keep these actions? Only if you trust where the file came from.', 'bool', False, None)],
+            note=f'{len(findings)} action(s) in {name} run programs, run commands or use the network. '
+                 'They are removed unless you keep them.\n\n' + '\n'.join(lines)), chosen)
+
+    def finish_import(self, draft):
+        if self.commit(draft, force_backup=True, select=(draft.get('default_profile'), None)):
+            self.query_one('#deck-state', Static).update('Imported')
+
+    def export(self, path):
+        """Write a copy to share, redacted as in the graphical editor's export: credentials in web requests become
+        $(env:NAME), and the calendar address, Home Assistant codes and plugin secrets stay on this PC."""
+        if path.exists():
+            raise ValueError('Choose a new file name; existing export files are not overwritten')
+        shared, names = import_review.redact_secrets(self.config)
+        save_profiles(shared, path)
+        notes = [f'Left out: {item}.' for item in import_review.export_left_out(self.config)]
+        notes += [f'A credential in a web request became $(env:{name}); set that environment variable on the PC '
+                  'that imports the file.' for name in names]
+        self.query_one('#deck-state', Static).update(' '.join(['Exported.', *notes]))
 
 
 class TesseraApp(App):

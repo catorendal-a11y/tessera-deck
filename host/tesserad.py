@@ -109,6 +109,13 @@ class ReconnectBackoff:
         return failures
 
 
+def panel_label(text):
+    """A label as the panel shows it and reports it with a press: control characters become spaces, at most 24
+    bytes. Never empty, since the panel rejects a layout with an empty label."""
+    text = ''.join(c if ord(c) >= 32 else ' ' for c in text) or ' '
+    return text.encode('utf-8')[:24].decode('utf-8', 'ignore')
+
+
 
 
 
@@ -350,11 +357,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         result = []
         ha_ready = self.panel_supports_ha()
         for button in map(self.resolved_button, self.effective_buttons()):
-            label = ''.join(c if ord(c) >= 32 else ' '
-                            for c in self.substitute(button['label']))
-            # The panel rejects a layout with an empty label, so a label that is
-            # only an unset $(var:…) must not block the whole page.
-            label = label or ' '
+            # a label that is only an unset $(var:…) must not block the whole page
+            label = panel_label(self.substitute(button['label']))
             color = button.get('color', '#35D07F')
             spec = button.get('stat')
             if isinstance(spec, dict):
@@ -370,7 +374,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                                            for action in button.get(key, [])):
                 color = '#FFB13B'
             entry = dict(
-                id=button['id'], label=label.encode('utf-8')[:24].decode('utf-8', 'ignore'),
+                id=button['id'], label=label,
                 icon=self.resolve_icon(button), color=color, title=button.get('title', {}))
             if button.get('hold_actions'):
                 entry['hold'] = True  # the panel reports long presses for this key
@@ -383,8 +387,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
             if button.get('span', 1) > 1:
                 entry['span'] = button['span']
                 entry.update(self.live_content(button.get('live')))
-                # the panel keeps 24 bytes and reports the label it shows with a press; a longer one would not match
-                entry['label'] = entry['label'].encode('utf-8')[:24].decode('utf-8', 'ignore')
+                # a live label goes through the same steps, or the label a press reports would not match
+                entry['label'] = panel_label(entry['label'])
             entry.update(self.config.get('theme', {}))  # the theme is the default look; a key's own colors win
             entry.update({key: button[key] for key in ('bg', 'text_color', 'border') if key in button})
             if isinstance(button.get('gauge'), dict):
@@ -423,12 +427,18 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         if folder:
             if len(self.folder_stack) >= 16:
                 raise ValueError('Folders are nested more than 16 levels deep')
+        before = (self.page, list(self.folder_stack))
+        if folder:
             self.folder_stack.append(self.page)
         else:
             self.folder_stack.clear()
         self.page = page
+        try:
+            self.push_page(force=True)
+        except ValueError:  # the panel refused the layout (too large): it still shows the old page
+            self.page, self.folder_stack[:] = before
+            raise
         self.events.add('page', profile=self.profile, page=page)
-        self.push_page(force=True)
         return True
 
     def switch_profile(self, profile, auto=False, page=None):
@@ -712,7 +722,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         elif message.get('type') == 'mute' and isinstance(message.get('id'), str):
                             self.enqueue(('mute', message['id'][:80]))
                         elif message.get('type') == 'agent' and message.get('do') in cockpit.AGENT_ACTIONS and cockpit.agent_exe(message.get('id')):
-                            self.enqueue(('agent', message['id'], message['do']))
+                            self.agent_touch(message['id'], message['do'])
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
         except (OSError, ValueError, TypeError, AttributeError) as exc:
@@ -754,8 +764,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                 del self.pending_single[identity]
                 if identity[:2] == (self.profile, self.page):
                     self.start_press(identity[2], from_panel=True)
-        elif kind == 'profile':
-            self.switch_profile(job[1], auto=True)
+        elif kind == 'profile':  # picked through the API or a command file: the focus rules wait, as for the panel
+            self.switch_profile(job[1])
         elif kind == 'focus-profile':
             if not self.profile_locked:
                 self.switch_profile(job[1], auto=True)
@@ -776,12 +786,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         elif kind == 'brightness':
             self.apply_brightness()
         elif kind == 'var':
-            self.custom_vars[job[1]] = str(job[2])
+            # text cut in the middle of an emoji holds a lone surrogate, which no file or label can hold: it becomes ?
+            self.custom_vars[job[1]] = str(job[2]).encode('utf-8', 'replace').decode('utf-8')
             self.push_page()
         elif kind == 'state':
             self.set_button_state(job[1], job[2])
         elif kind == 'feedback':
-            self.panel.feedback(job[1], job[2])
+            self.give_feedback(job[1], job[2])
         elif kind == 'api-press':
             self.wake_display()
             self.start_press(job[1])
@@ -892,6 +903,32 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
             if report[1]:
                 self.notify('Tessera panel', report[1])
 
+    def take_command(self, path):
+        """The command file the editor, the tray and the terminal UI write: show a profile or a page, maybe run a key."""
+        taken = path.with_name('deck-command.taken.local.json')
+        try:
+            os.replace(path, taken)  # a command written while this one is read gets its own turn
+        except OSError:
+            return  # held open by a scanner or the writer: tried again next second
+        try:
+            command = json.loads(taken.read_text(encoding='utf-8'))
+            if command.get('profile') in self.config['profiles']:
+                self.enqueue(('wake',))
+                if command.get('page') not in self.config['profiles'][command['profile']]['pages']:
+                    self.enqueue(('profile', command['profile']))
+                else:  # one job: the profile's first page never shows in between
+                    self.enqueue(('show', command['profile'], command['page']))
+                    # the editor's Run now: a press the host finds more than 10 s late is skipped, not run by surprise
+                    if type(command.get('press')) is int and 1 <= command['press'] <= 18 \
+                            and abs(time.time() - float(command.get('at', 0))) < 10:
+                        self.enqueue(('api-press', command['press']))
+        except (OSError, ValueError, AttributeError, TypeError, KeyError):
+            pass  # an unreadable command is dropped, not retried forever
+        try:
+            taken.unlink(missing_ok=True)
+        except OSError:
+            pass  # the next command replaces it
+
     def open_panel(self):
         """Open the first candidate port that completes the identity and protocol handshake."""
         failures = []
@@ -960,9 +997,6 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         self.publish_runtime(True, force=True)
                         missed = self.reconnect.recovered()
                         self.log(f'USB ready on {self.port}' + (f' after {missed} failed attempts' if missed > 1 else ''))
-                        if not startup_fired:
-                            self.fire_trigger({'type': 'startup'})
-                            startup_fired = True
                     except (OSError, ValueError, TimeoutError) as exc:
                         wait, show = self.reconnect.failed(str(exc))
                         if show:
@@ -970,6 +1004,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         self.publish_runtime(False, exc, force=True)
                         self.connection_failed.set()
                         retry_at, connect_error = time.monotonic() + wait, exc
+                if not startup_fired:  # after the first try to connect, with or without a panel
+                    self.fire_trigger({'type': 'startup'})
+                    startup_fired = True
                 now = time.monotonic()
                 for tick, arguments in ((self.agent_tick, (now,)), (self.stats_tick, (now,)), (self.ambient_tick, (now,)),
                                         (self.plugin_tick, (now,)), (self.cockpit_tick, (now,)), (self.agent_notice_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
@@ -980,20 +1017,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         self.log(f'Background task failed: {exc!r}')
                 command_path = Path(__file__).with_name('deck-command.local.json')
                 if command_path.exists():
-                    try:
-                        command = json.loads(command_path.read_text(encoding='utf-8'))
-                        if command.get('profile') in self.config['profiles']:
-                            self.enqueue(('wake',))
-                            if command.get('page') not in self.config['profiles'][command['profile']]['pages']:
-                                self.enqueue(('profile', command['profile']))
-                            else:  # one job: the profile's first page never shows in between
-                                self.enqueue(('show', command['profile'], command['page']))
-                                # the editor's Run now: a press the host finds more than 10 s late is skipped, not run by surprise
-                                if type(command.get('press')) is int and 1 <= command['press'] <= 18                                         and abs(time.time() - float(command.get('at', 0))) < 10:
-                                    self.enqueue(('api-press', command['press']))
-                        command_path.unlink()
-                    except (OSError, ValueError, AttributeError, TypeError, KeyError):
-                        command_path.unlink(missing_ok=True)  # an unreadable command is dropped, not retried forever
+                    self.take_command(command_path)
                 try:
                     with self.state_lock:
                         self.trigger_tick(time.monotonic())

@@ -364,6 +364,17 @@ class HostRuntimeTests(HostCase):
         self.assertEqual(daemon.jobs.get_nowait()[1][0]['text'], 'a')
         self.assertTrue(daemon.jobs.empty())
 
+    def test_variable_trigger_with_a_value_runs_only_when_it_becomes_that_value(self):
+        daemon = self.daemon()
+        daemon.config['triggers'] = [
+            {'when': {'type': 'variable', 'name': 'claude', 'value': 'waiting'}, 'actions': [{'type': 'text', 'text': 'w'}]},
+            {'when': {'type': 'variable', 'name': 'claude'}, 'actions': [{'type': 'text', 'text': 'any'}]}]
+        ran = lambda: [daemon.jobs.get_nowait()[1][0]['text'] for _ in range(daemon.jobs.qsize())]
+        for value, expected in (('working', ['any']), ('waiting', ['w', 'any']), ('waiting', []), ('idle', ['any']), ('waiting', ['w', 'any'])):
+            daemon.custom_vars['claude'] = value
+            daemon.trigger_tick(1)
+            self.assertEqual(ran(), expected, value)
+
     def test_focus_returns_to_default(self):
         daemon = self.daemon()
         daemon.args.no_focus = False
@@ -613,10 +624,13 @@ class HostRuntimeTests(HostCase):
     def test_trigger_targets_must_be_text_so_a_bad_one_cannot_stop_the_host(self):
         config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
         for when in ({'type': 'file', 'path': ['x']}, {'type': 'file', 'path': 5},
-                     {'type': 'file', 'path': 'a' + chr(0) + 'b'}, {'type': 'variable', 'name': ['x']}):
+                     {'type': 'file', 'path': 'a' + chr(0) + 'b'}, {'type': 'variable', 'name': ['x']},
+                     {'type': 'variable', 'name': 'x', 'value': 1}):
             config['triggers'] = [{'when': when, 'actions': []}]
             with self.assertRaises(ValueError, msg=when):
                 deck.validate_config(config)
+        config['triggers'] = [{'when': {'type': 'variable', 'name': 'claude', 'value': 'waiting'}, 'actions': [{'type': 'back'}]}]
+        deck.validate_config(config)  # a value that is text is fine
 
     def test_saving_the_configuration_does_not_rerun_a_daily_trigger(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -658,6 +672,158 @@ class HostRuntimeTests(HostCase):
                 again.log = Mock()
                 again.trigger_tick(7)
                 self.assertTrue(again.jobs.empty(), 'and not again on the next restart')
+
+    def test_moving_or_removing_a_trigger_does_not_rerun_the_others(self):
+        """The editor's Automatic actions dialog moves and removes rules; a rule keeps its state wherever it ends up."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+            other = {'when': {'type': 'variable', 'name': 'other'}, 'actions': [{'type': 'text', 'text': 'other'}]}
+            waiting = {'when': {'type': 'variable', 'name': 'claude', 'value': 'waiting'}, 'actions': [{'type': 'text', 'text': 'w'}]}
+            config['triggers'] = [other, waiting]
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.log = Mock()
+            daemon.custom_vars['claude'] = 'waiting'
+            daemon.trigger_tick(1)
+            self.assertEqual(daemon.jobs.get_nowait()[1][0]['text'], 'w')
+            for triggers in ([waiting, other], [waiting]):
+                config['triggers'] = triggers
+                path.write_text(json.dumps(config), encoding='utf-8')
+                daemon.profile_stamp = 0
+                daemon.reload_profiles()
+                while not daemon.jobs.empty():
+                    job = daemon.jobs.get_nowait()
+                    self.assertNotEqual(job[0], 'actions', job)
+                daemon.trigger_tick(2)
+                self.assertTrue(daemon.jobs.empty(), triggers)
+
+    def test_a_daily_run_a_full_queue_dropped_is_tried_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+            config['triggers'] = [{'when': {'type': 'daily', 'at': '08:30'}, 'actions': [{'type': 'back'}]}]
+            path.write_text(json.dumps(config), encoding='utf-8')
+            clock = ['08:29']
+            fake_time = types.SimpleNamespace(time=time.time,
+                                              strftime=lambda pattern: '2026-11-16' if pattern == '%Y-%m-%d' else clock[0])
+            with patch('daemon_ticks.time', fake_time):
+                daemon = test_daemon(path)
+                daemon.log = Mock()
+                daemon.trigger_tick(1)
+                clock[0] = '08:30'
+                with patch.object(daemon, 'submit', side_effect=deck.Busy('The host is busy: the action queue is full')):
+                    daemon.trigger_tick(2)
+                self.assertNotIn('0:08:30', daemon.daily_runs(), 'a dropped run is not saved as done')
+                daemon.trigger_tick(3)
+                self.assertEqual(daemon.jobs.get_nowait()[0], 'actions')
+                daemon.trigger_tick(4)
+                self.assertTrue(daemon.jobs.empty(), 'and it runs once')
+                self.assertEqual(daemon.daily_runs()['0:08:30'], '2026-11-16')
+
+    def test_a_file_trigger_fires_when_its_file_first_appears(self):
+        with tempfile.TemporaryDirectory() as directory:
+            created, existing = Path(directory) / 'out.txt', Path(directory) / 'old.txt'
+            existing.write_text('here before the host', encoding='utf-8')
+            daemon = self.daemon()
+            daemon.config['triggers'] = [{'when': {'type': 'file', 'path': str(name)}, 'actions': [{'type': 'text', 'text': name.name}]}
+                                         for name in (created, existing)]
+            daemon.trigger_tick(1)
+            daemon.trigger_tick(2)
+            self.assertTrue(daemon.jobs.empty())
+            created.write_text('built', encoding='utf-8')
+            daemon.trigger_tick(3)
+            self.assertEqual(daemon.jobs.get_nowait()[1][0]['text'], 'out.txt')
+            daemon.trigger_tick(4)
+            self.assertTrue(daemon.jobs.empty())
+
+    def test_a_save_whose_first_read_fails_is_read_again(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.log = Mock()
+            config['profiles']['main']['pages']['main'][0]['label'] = 'Saved'
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon.profile_stamp = -1
+            load = daemon.load_profiles
+            daemon.load_profiles = Mock(side_effect=PermissionError(13, 'The file is in use'))  # a scanner has it open
+            daemon.reload_profiles()
+            daemon.load_profiles = load
+            daemon.reload_profiles()
+            self.assertEqual(daemon.config['profiles']['main']['pages']['main'][0]['label'], 'Saved')
+
+    def test_startup_triggers_run_without_a_panel(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            path.write_text((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.log, daemon.pc.start, daemon.pc.stop = Mock(), Mock(), Mock()
+            daemon.agent_scan_at = daemon.stats_scan_at = float('inf')
+            daemon.open_panel = Mock(side_effect=OSError('No USB port found'))
+            fired = []
+
+            def fire(when):
+                fired.append(when)
+                daemon.stop.set()
+            daemon.fire_trigger = fire
+            timer = threading.Timer(5, daemon.stop.set)  # the loop would otherwise wait for a panel
+            timer.start()
+            self.addCleanup(timer.cancel)
+            # the host's own files (stop and command) are looked for in the temporary folder
+            with patch.object(deck, '__file__', str(Path(directory) / 'tesserad.py')), \
+                    patch.object(deck, 'ControlServer'), \
+                    patch.object(deck, 'PluginManager', return_value=Mock(**{'status.return_value': []})):
+                daemon.run()
+            self.assertEqual(fired, [{'type': 'startup'}])
+
+    def test_a_command_file_held_open_by_a_scanner_waits_for_the_next_second(self):
+        with tempfile.TemporaryDirectory() as directory:
+            daemon = self.daemon()
+            command = Path(directory) / 'deck-command.local.json'
+            command.write_text(json.dumps({'profile': 'main', 'page': 'status'}), encoding='utf-8')
+            with patch.object(deck.os, 'replace', side_effect=PermissionError(13, 'The file is in use')):
+                daemon.take_command(command)  # the host goes on
+            self.assertTrue(command.exists(), 'kept for the next try')
+            self.assertTrue(daemon.jobs.empty())
+            daemon.take_command(command)
+            self.assertEqual([daemon.jobs.get_nowait() for _ in range(2)], [('wake',), ('show', 'main', 'status')])
+            self.assertEqual(list(Path(directory).iterdir()), [])
+            command.write_text('{', encoding='utf-8')
+            daemon.take_command(command)
+            self.assertTrue(daemon.jobs.empty(), 'an unreadable command is dropped')
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_a_lone_surrogate_from_the_api_cannot_stop_the_runtime_file(self):
+        """Text a script cut in the middle of an emoji: the runtime file and the labels keep working."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+            config['profiles']['main']['pages']['main'][0]['label'] = 'Now $(var:plugin.np)'
+            path.write_text(json.dumps(config), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.panel, daemon.log = Mock(), Mock()
+            daemon.profile, daemon.page = 'main', 'main'
+            daemon.handle_job(('var', 'plugin.np', 'ab\udc00'))
+            daemon.publish_runtime(True, force=True)
+            self.assertEqual(json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['vars']['plugin.np'], 'ab?')
+            self.assertEqual(daemon.current_buttons()[0]['label'], 'Now ab?')
+
+    def test_a_profile_picked_through_the_api_is_not_undone_by_the_focus_rules(self):
+        daemon = self.daemon()
+        daemon.args.no_focus = False
+        daemon.config['profiles']['coding']['match'] = ['code.exe']
+        vscode = {'exe': 'code.exe', 'title': 'Editor', 'processes': ['code.exe']}
+        with patch.object(deck, 'foreground_context', return_value=vscode):
+            daemon.focus_tick()
+            daemon.handle_job(daemon.jobs.get_nowait())
+            self.assertEqual(daemon.profile, 'coding')
+            for job in (('profile', 'main'), ('page', 'status')):  # deckctl page main status
+                daemon.handle_job(job)
+            daemon.focus_tick()
+        self.assertTrue(daemon.jobs.empty())
+        self.assertEqual((daemon.profile, daemon.page), ('main', 'status'))
 
     def test_a_slow_trigger_runs_beside_the_key_queue_and_never_twice_at_once(self):
         daemon = self.daemon()

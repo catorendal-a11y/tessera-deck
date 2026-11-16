@@ -28,6 +28,7 @@ LOG_PATH = ROOT / 'host/deck.local.log'
 FIRST_RUN_PATH = ROOT / 'host/tray-first-run.local.json'  # written once the Start with Windows question was asked
 TROUBLE_SECONDS = 30  # how long a problem must last before the tray says so
 PROBLEMS_PATH = ROOT / 'host/recent-problems.local.txt'
+STOPPED_PATH = ROOT / 'host/deck-stopped.local.json'  # Stop host in the terminal writes it, Start host removes it
 RESTART_WAITS = (5, 15, 60, 300)  # seconds before each automatic restart of a host that died; the last repeats
 RESTART_RESET_SECONDS = 600  # a host that ran this long starts a new burst from the first wait
 BRIGHTNESS_LEVELS = (100, 80, 60, 40, 20)
@@ -69,6 +70,15 @@ def trouble_text(status: dict) -> str | None:
     if not status.get('device', {}).get('connected') and error:
         return f'The panel is not connected: {error}'[:200]
     return None
+
+
+def stopped_in_terminal(since: float | None) -> bool:
+    """Whether Stop host in the terminal stopped the host the tray saw start at `since` (time.time()).
+    A file from before that start was left by an earlier host."""
+    try:
+        return since is not None and STOPPED_PATH.stat().st_mtime >= since
+    except OSError:
+        return False
 
 
 def load_config(path: Path = PROFILES_PATH) -> dict:
@@ -145,6 +155,8 @@ class TrayApp:
         self.menu_shows = None  # what the open menu was built from; it is rebuilt when this changes
         self.trouble = None  # (text, since, shown) of a problem that lasts
         self.user_stopped = False  # a host the user stopped is no problem to report
+        self.stopped_elsewhere = False  # the same, for Stop host in the terminal
+        self.started_at = None  # when the tray first saw the running host (time.time())
         self.seen_running = False  # only a host that ran is restarted by itself; a failed first start is reported
         self.restarts = 0  # automatic restarts in this burst
         self.restart_at = None  # when the next automatic restart runs (monotonic), while the host is down
@@ -347,7 +359,11 @@ class TrayApp:
             self.menu_shows = shown
             self.icon.update_menu()
         self.show_notices(self.status.get('notices', []))
-        self.watch_host(bool(self.status.get('running')), time.monotonic())
+        running = bool(self.status.get('running'))
+        if running and self.running_since is None:
+            self.started_at = time.time()
+        self.stopped_elsewhere = not running and stopped_in_terminal(self.started_at)
+        self.watch_host(running, time.monotonic())
         self.report_trouble(trouble_text(self.status), time.monotonic())
         if state != self.state:
             previous, self.state = self.state, state
@@ -374,7 +390,8 @@ class TrayApp:
             return
         self.running_since = None
         # Stop, Restart (while it runs) and a firmware install stop the host on purpose
-        if self.user_stopped or not self.seen_running or self.host_work.locked() or firmware_installing():
+        if (self.user_stopped or self.stopped_elsewhere or not self.seen_running or self.host_work.locked()
+                or firmware_installing()):
             self.restart_at = None
             return
         if self.restart_at is None:
@@ -398,7 +415,8 @@ class TrayApp:
         stopped); the icon colour alone does not say why nothing works. A new problem gets a new notice."""
         # the editor stops the host for a firmware install, which takes longer than TROUBLE_SECONDS
         # a host that is being restarted already got its notice
-        if (text is None or (not self.status.get('running') and (self.user_stopped or self.restart_at is not None))
+        if (text is None or (not self.status.get('running')
+                             and (self.user_stopped or self.stopped_elsewhere or self.restart_at is not None))
                 or firmware_installing()):
             self.trouble = None
             return

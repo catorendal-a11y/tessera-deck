@@ -232,9 +232,9 @@ class PluginManager:
             current = self.running.get(plugin_id)
             if current is not None:
                 if current['process'].poll() is None:
-                    if current['settings'] == entry.get('settings', {}):
+                    if current['settings'] == entry.get('settings', {}) and not self._log_full(plugin_id):
                         continue
-                    self.stop(plugin_id)  # new settings: restart with them
+                    self.stop(plugin_id)  # new settings or a full log: restart, and _start rotates the log
                 else:
                     self._crashed(plugin_id, current)
             state = self.history.setdefault(plugin_id, _blank())
@@ -255,11 +255,7 @@ class PluginManager:
         environment.update({'PYTHONUTF8': '1', 'PYTHONUNBUFFERED': '1', 'TESSERA_API': self._api_url(), 'TESSERA_TOKEN': token,
                             'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(secrets_store.open_settings(settings))})
         log_path = self.log_dir / f'{manifest.id}.log'
-        try:  # keep one previous file instead of letting a chatty plugin fill the disk
-            if log_path.stat().st_size > MAX_LOG_BYTES:
-                os.replace(log_path, log_path.with_name(log_path.name + '.1'))
-        except OSError:
-            pass
+        self._rotate_log(manifest.id)
         try:  # a locked or full log folder must not leak the token granted above or retry without back-off
             log = open(log_path, 'ab')
         except OSError as exc:
@@ -280,6 +276,22 @@ class PluginManager:
                                      'settings': settings}
         self.history.setdefault(manifest.id, _blank())['state'] = 'running'
         self._log(f'Plugin {manifest.id} started')
+
+    def _log_full(self, plugin_id: str) -> bool:
+        try:
+            return (self.log_dir / f'{plugin_id}.log').stat().st_size > MAX_LOG_BYTES
+        except OSError:
+            return False
+
+    def _rotate_log(self, plugin_id: str) -> None:
+        """Keep one previous file instead of letting a chatty plugin fill the disk. Only called while no child
+        holds the log: truncating a file a child writes to leaves NUL padding on Windows."""
+        log_path = self.log_dir / f'{plugin_id}.log'
+        if self._log_full(plugin_id):
+            try:
+                os.replace(log_path, log_path.with_name(log_path.name + '.1'))
+            except OSError:
+                pass
 
     def _record_failure(self, plugin_id: str, error: str) -> None:
         state = self.history.setdefault(plugin_id, _blank())

@@ -69,6 +69,30 @@ class ControlApiTests(unittest.TestCase):
             with self.assertRaises(OSError):
                 second.bind(('127.0.0.1', self.port))
 
+    def test_a_client_that_trickles_bytes_is_disconnected_at_the_deadline(self):
+        with patch.object(control_api, 'REQUEST_DEADLINE', 0.5),                 socket.create_connection(('127.0.0.1', self.port), timeout=0.1) as client:
+            started, closed = time.monotonic(), False
+            while not closed and time.monotonic() - started < 4:
+                try:
+                    client.sendall(b'x')  # one byte, well inside the 10 s per read
+                    closed = client.recv(1) == b''
+                except TimeoutError:
+                    pass
+                except OSError:
+                    closed = True
+            self.assertTrue(closed)
+            self.assertLess(time.monotonic() - started, 3)
+
+    def test_calls_without_a_token_are_logged_only_now_and_then(self):
+        now = [100.0]
+        self.api.clock = lambda: now[0]
+        for _ in range(5):
+            self.call('POST', '/v1/x', {}, token='wrong')
+        self.assertEqual(self.logged, ['API unknown POST /v1/x -> 401'])
+        now[0] += control_api.UNKNOWN_LOG_SECONDS
+        self.call('POST', '/v1/x', {}, token='wrong')
+        self.assertEqual(self.logged[1], 'API unknown POST /v1/x -> 401 (and 4 more like it)')
+
     def test_a_client_that_stalls_is_disconnected(self):
         with patch.object(control_api, 'REQUEST_TIMEOUT', 0.3):
             temp = tempfile.TemporaryDirectory()

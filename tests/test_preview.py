@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 import ambient
 import iconify
 from action_preview import preview
+from program_locator import locate
 from substitution import expand_environment, substitute
 from tessera_app import Editor
 
@@ -94,6 +95,23 @@ class PreviewTests(unittest.TestCase):
         result = self.run_preview([{'type': 'hotkey'}, {'type': 'page'}, {'type': 'timer'}, {}])
         self.assertFalse(result['ok'])
         self.assertEqual(len(result['steps']), 4)
+
+    def test_bad_values_in_a_delay_or_hotkey_are_reported_as_a_step(self):
+        result = self.run_preview([{'type': 'delay', 'ms': None}, {'type': 'hotkey', 'keys': 5}, {'type': 'delay', 'ms': 'x'}])
+        self.assertEqual([step['ok'] for step in result['steps']], [False, False, False])
+        self.assertEqual(result['wait_seconds'], 0)
+
+    def test_uri_schemes_and_app_paths_names_open_without_the_program_lookup(self):
+        result = self.run_preview([{'type': 'open', 'target': 'spotify:playlist:xyz'}])
+        self.assertTrue(result['ok'])
+        found = preview([{'type': 'open', 'target': 'winword'}], {},
+                        locator=lambda target: r'C:\Office\WINWORD.EXE' if target == 'winword.exe' else None)
+        self.assertTrue(found['ok'])
+
+
+class LocateTests(unittest.TestCase):
+    def test_a_web_link_ending_in_exe_is_not_replaced_by_a_local_program(self):
+        self.assertIsNone(locate('https://example.org/downloads/python.exe', registry=lambda name: r'C:\Python\python.exe'))
 
 
 class EditorCommandTests(unittest.TestCase):

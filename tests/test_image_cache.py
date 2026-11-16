@@ -2,11 +2,13 @@
 from collections import OrderedDict
 from pathlib import Path
 import sys
+import tempfile
 import threading
 import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
+import deck_assets  # noqa: E402
 import panel_serial  # noqa: E402
 
 
@@ -56,3 +58,25 @@ class PanelAsksTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class AssetsTests(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+        self.assets = deck_assets.Assets(Path(self.folder.name) / 'profiles.json')
+
+    def test_export_skips_an_image_that_has_no_file(self):
+        self.assets.root.mkdir()
+        (self.assets.root / 'aaaaaaaaaaaa.png').write_bytes(b'png')
+        config = {'pages': [{'buttons': [{'icon': 'im:aaaaaaaaaaaa'}, {'icon': 'im:bbbbbbbbbbbb'}]}]}
+        self.assertEqual(list(self.assets.export(config)), ['im:aaaaaaaaaaaa'])
+
+    def test_a_failed_program_icon_lookup_is_tried_again_after_a_while(self):
+        button = {'icon': 'app', 'actions': [{'type': 'open', 'target': r'E:\laterpp.exe'}]}
+        results = iter([None, 'im:cccccccccccc', 'im:dddddddddddd'])
+        with patch.object(self.assets, 'rebuild_from_actions', lambda _: next(results)),                 patch.object(deck_assets.time, 'monotonic', side_effect=[0, 1, 100, 101]):
+            self.assertEqual(self.assets.icon_for(button), 'ok')
+            self.assertEqual(self.assets.icon_for(button), 'ok')  # inside the retry window
+            self.assertEqual(self.assets.icon_for(button), 'im:cccccccccccc')
+            self.assertEqual(self.assets.icon_for(button), 'im:cccccccccccc')  # a found icon stays cached

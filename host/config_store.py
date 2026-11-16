@@ -15,6 +15,8 @@ CONFIG_VERSION = 2
 BACKUP_KEEP = 30
 BACKUP_INTERVAL_SECONDS = 600
 BACKUP_NAME = re.compile(r'profiles-\d{8}-\d{6}(?:-\d+)?\.json')
+REPLACE_ATTEMPTS = 20
+REPLACE_WAIT_SECONDS = 0.05
 
 
 class FutureConfig(ValueError):
@@ -34,7 +36,16 @@ def write_atomic(path: Path, data: bytes) -> None:
             stream.write(data)
             stream.flush()
             os.fsync(stream.fileno())
-        os.replace(temporary, path)
+        for attempt in range(REPLACE_ATTEMPTS):
+            # Windows refuses the replace while another program has the file open, as the host does for a
+            # moment after every save; that passes, so it is tried again for about a second
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                if attempt == REPLACE_ATTEMPTS - 1:
+                    raise
+                time.sleep(REPLACE_WAIT_SECONDS)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
@@ -166,7 +177,8 @@ def read_backup(path: Path, name: str) -> dict:
 def recover(path: Path) -> str | None:
     """On start: replace an unreadable or invalid `path` with the newest backup that passes the check.
 
-    The broken file is kept next to it as profiles-unreadable.local.json. A file from a newer Tessera is left
+    The broken file is kept next to it as profiles-unreadable.local.json, and one kept there earlier is renamed
+    profiles-unreadable-1.local.json (then -2 and so on). A file from a newer Tessera is left
     alone (it is valid, just not for this version). Returns the name of the backup restored, or None."""
     path = Path(path)
     for attempt in range(3):
@@ -190,11 +202,18 @@ def recover(path: Path) -> str | None:
         pass
     for file in reversed(_backup_files(backups_dir(path))):
         try:
-            data = file.read_bytes()
-            check(data)
+            good = file.read_bytes()
+            check(good)
         except (OSError, ValueError):
             continue
-        shutil.copyfile(path, path.with_name(path.stem + '-unreadable.local.json'))
-        write_atomic(path, data)
+        kept = path.with_name(path.stem + '-unreadable.local.json')
+        if kept.is_file() and kept.read_bytes() != data:
+            # an earlier broken file may still hold edits the user wants back, so it moves aside
+            counter = 1
+            while (older := path.with_name(f'{path.stem}-unreadable-{counter}.local.json')).exists():
+                counter += 1
+            kept.replace(older)
+        kept.write_bytes(data)
+        write_atomic(path, good)
         return file.name
     return None

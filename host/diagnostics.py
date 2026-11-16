@@ -103,13 +103,13 @@ def recent_problems(path: Path, count: int = PROBLEM_LINES) -> list[str]:
     return lines[-count:]
 
 
-def build(folder: Path, config: dict, status: dict, version: str, log_path: Path, now=time.time) -> Path:
-    """Write the bundle into `folder` and return its path."""
+def build(folder: Path, config: dict | None, status: dict, version: str, log_path: Path, now=time.time) -> Path:
+    """Write the bundle into `folder` and return its path. `config` is None when profiles.json could not be read."""
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     device = status.get('device', {})
     report = {'tessera': version, 'python': sys.version.split()[0], 'platform': platform.platform(),
-              'packages': _versions(), 'configuration': _counts(config),
+              'packages': _versions(), 'configuration': {'readable': False} if config is None else _counts(config),
               'host': {'running': bool(status.get('running')), 'connection': status.get('connection'),
                        'device': {key: device.get(key) for key in ('connected', 'firmware', 'protocol', 'profile',
                                                                    'page', 'buttons', 'error')}

@@ -67,6 +67,26 @@ class ReadingTests(unittest.TestCase):
         event = calendar_feed.upcoming(ics(['DTSTART:20261113T090000Z', 'DURATION:PT30M', 'SUMMARY:Sync']), NOW)[0]
         self.assertEqual((event['start'], event['end'] - event['start']), (local, timedelta(minutes=30)))
 
+    def test_a_repeating_utc_event_keeps_its_utc_time_across_daylight_saving(self):
+        def oslo(moment):  # summer time until the end of October
+            return moment + timedelta(hours=2 if moment.month < 11 else 1)
+
+        text = ics(['UID:a', 'DTSTART:20260701T090000Z', 'RRULE:FREQ=WEEKLY', 'EXDATE:20261125T090000Z', 'SUMMARY:Weekly'],
+                   ['UID:a', 'RECURRENCE-ID:20261202T090000Z', 'DTSTART:20261202T120000Z', 'SUMMARY:Weekly moved'])
+        with patch.object(calendar_feed, '_local', oslo):
+            found = [summaries(text, datetime(2026, 11, day, 9, 10)) for day in (18, 25)]
+            found.append(summaries(text, datetime(2026, 12, 2, 9, 10)))
+        self.assertEqual(found, [[('Wed 10:00', 'Weekly')], [], [('Wed 13:00', 'Weekly moved')]])
+
+    def test_an_alarm_inside_an_event_does_not_change_the_event(self):
+        text = ics(['UID:A', 'DTSTART:20261113T090000', 'DURATION:PT1H', 'RRULE:FREQ=DAILY', 'SUMMARY:Standup',
+                    'BEGIN:VALARM', 'UID:ALARM1', 'SUMMARY:Reminder', 'DURATION:PT5M', 'END:VALARM'],
+                   ['UID:A', 'RECURRENCE-ID:20261114T090000', 'DTSTART:20261114T140000', 'SUMMARY:Standup moved'])
+        found = calendar_feed.upcoming(text, NOW)
+        self.assertEqual([(e['start'].strftime('%a %H:%M'), e['summary'], e['end'] - e['start']) for e in found],
+                         [('Fri 09:00', 'Standup', timedelta(hours=1)), ('Sat 14:00', 'Standup moved', timedelta()),
+                          ('Sun 09:00', 'Standup', timedelta(hours=1))])
+
     def test_weekly_repeats_skip_cancelled_and_moved_meetings(self):
         text = ics(['UID:standup', 'DTSTART;TZID=Europe/Oslo:20250106T091500', 'DTEND;TZID=Europe/Oslo:20250106T093000',
                     'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR', 'EXDATE;TZID=Europe/Oslo:20261116T091500', 'SUMMARY:Standup'],

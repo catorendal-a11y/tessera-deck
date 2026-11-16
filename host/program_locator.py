@@ -78,8 +78,8 @@ def _app_paths(name: str) -> str | None:
 
 def locate(target: str, environment=None, registry=_app_paths) -> str | None:
     """Return an existing file for `target`, or None. Targets that are not file paths are not handled."""
-    if not target or not target.lower().endswith(PROGRAM_SUFFIXES):
-        return None
+    if not target or '://' in target or not target.lower().endswith(PROGRAM_SUFFIXES):
+        return None  # a web link such as https://host/setup.exe is not a local file name
     expanded = os.path.expandvars(target)
     if os.path.isfile(expanded):
         return expanded

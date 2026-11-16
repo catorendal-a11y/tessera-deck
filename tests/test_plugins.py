@@ -316,6 +316,15 @@ class ManagerTests(unittest.TestCase):
         self.assertIn('could not start', status['error'])
         self.assertEqual(self.revoked, ['token-0'])
 
+    def test_a_log_that_grows_past_the_limit_while_the_plugin_runs_is_rotated(self):
+        self.manager.sync(self.enabled())
+        log = self.root / 'logs' / 'demo.log'
+        log.write_bytes(b'x' * (plugins.MAX_LOG_BYTES + 1))
+        self.manager.sync(self.enabled())
+        self.assertEqual(log.stat().st_size, 0)
+        self.assertEqual((self.root / 'logs' / 'demo.log.1').stat().st_size, plugins.MAX_LOG_BYTES + 1)
+        self.assertEqual(len(self.spawned), 2)
+
     def test_a_log_that_cannot_be_opened_revokes_the_token_and_backs_off(self):
         with patch('builtins.open', side_effect=PermissionError('locked')):
             self.manager.sync(self.enabled())

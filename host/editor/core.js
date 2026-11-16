@@ -382,14 +382,16 @@ let savedBase=null;  // the configuration as the PC last had it: lets a change m
 /* Another program (the tray's brightness, the terminal editor) saved meanwhile: take its changes where this
    editor changed nothing, and give up only when both changed the same part. */
 async function mergeFromDisk() {
-  const disk=await api('config'),merged={};
+  const disk=await api('config'),merged={},taken=[];
   for(const key of new Set([...Object.keys(disk.config),...Object.keys(config)])){
     const there=JSON.stringify(disk.config[key]),before=JSON.stringify(savedBase?.[key]),here=JSON.stringify(config[key]);
     if(there===before||there===here)merged[key]=config[key];
-    else if(here===before)merged[key]=disk.config[key];
+    else if(here===before){merged[key]=disk.config[key];taken.push(key);}
     else return false;
     if(merged[key]===undefined)delete merged[key];
   }
+  // The undo steps get the other program's parts too, or an undo would save the old ones over them.
+  for(const snapshot of [...history,...future])for(const key of taken){if(disk.config[key]===undefined)delete snapshot[key];else snapshot[key]=clone(disk.config[key]);}
   config=merged;savedBase=clone(disk.config);revision=disk.revision;renderAll();return true;
 }
 async function save() {
@@ -506,6 +508,7 @@ function renderGrid() {
   const covered=new Set();for(const wide of visibleButtons())for(let extra=1;extra<(wide.span||1);extra++)covered.add(wide.id+extra);
   const next=Array.from({length:18},(_,index)=>{
     const id=index+1,base=visibleButtons().find(b=>b.id===id),b=base&&{...base,...(id===selected?appearance(base):base.states?.[0]||{})};
+    const colors=b?.status?.colors,now=String(dashboard.vars?.[b?.status?.var]??'');if(colors&&Object.hasOwn(colors,now))b.color=colors[now];  // as the host shows it now; b is a copy
     const tile=element('button',{class:'deck-key'+(!b?' empty':'')+(id===selected?' selected':''),type:'button',draggable:'false',
       'data-slot':id,'aria-label':`Key ${id}: ${b?.label||'Empty slot'}`,'aria-pressed':id===selected,
       onclick:()=>{selected=id;editState=0;renderGrid();renderInspector();}});

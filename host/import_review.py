@@ -7,7 +7,10 @@ import urllib.parse
 
 from ha_keys import SECRET_DATA
 
-SENSITIVE_HEADERS = ('authorization', 'proxy-authorization', 'x-api-key', 'api-key', 'x-auth-token', 'cookie')
+# Header and address field names that carry a credential: Authorization, Private-Token, X-Api-Key, ?key=, ?sig=
+SECRET_FIELD = re.compile(r'(?i)auth(?!ors?\b)|token|secret|passw(?:or)?d|api.?key|(?:^|[-_])key$|^sig$|signature'
+                          r'|cookie|session|credential')
+QUERY_FIELD = re.compile(r'([?&])([^=&#]+)=([^&#]*)')
 DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
 # A plugin command controls an outside system (a smart home, a stream), so it counts like a web request, and so does
@@ -176,7 +179,8 @@ def export_left_out(config: dict) -> list[str]:
 
 
 def redact_secrets(config: dict) -> tuple[dict, list[str]]:
-    """A copy for export: credentials in HTTP headers become $(env:NAME) references. Returns it and the names used.
+    """A copy for export: credentials in HTTP headers and in address fields (?token=) become $(env:NAME) references.
+    Returns it and the names used.
 
     The calendar's iCal address and plugin settings named like a secret (a token or a password) are left out:
     anyone with them can read the calendar or act as the plugin's account.
@@ -193,11 +197,24 @@ def redact_secrets(config: dict) -> tuple[dict, list[str]]:
         if not action['data']:
             del action['data']
     names = []
+
+    def hide_field(match):
+        lead, field, value = match.groups()
+        name = urllib.parse.unquote(field)
+        if not SECRET_FIELD.search(name) or value.startswith('$(env:'):
+            return match.group(0)
+        names.append(env_name(name))
+        return f'{lead}{field}=$(env:{env_name(name)})'
+
     for _, owner, key, _ in iter_actions(shared):
         for action in owner[key]:
-            headers = action.get('headers') if isinstance(action, dict) and action.get('type') == 'http' else None
+            if not (isinstance(action, dict) and action.get('type') == 'http'):
+                continue
+            headers = action.get('headers')
             for header in list(headers or {}):
-                if header.lower() in SENSITIVE_HEADERS and not headers[header].startswith('$(env:'):
+                if SECRET_FIELD.search(header) and not headers[header].startswith('$(env:'):
                     headers[header] = f'$(env:{env_name(header)})'
                     names.append(env_name(header))
+            if isinstance(action.get('url'), str):
+                action['url'] = QUERY_FIELD.sub(hide_field, action['url'])
     return shared, sorted(set(names))

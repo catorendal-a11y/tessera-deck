@@ -99,8 +99,14 @@ class CredentialRules(unittest.TestCase):
                                ('net', ' !~' * 3), ('Hjem', 'F' * 64)):
             panel_serial.check_wifi_credentials(ssid, password)
 
+    def test_the_options_line_fits_the_panel_line_buffer(self):
+        names = [f'{n:02}' + 'x' * 29 for n in range(16)]  # 1127 bytes untrimmed
+        line = panel_serial.api_options_line(names, names)
+        self.assertLessEqual(len(line), 1099)
+        self.assertTrue(json.loads(line.removeprefix('AD_API_OPTIONS '))['profiles'])
+
     def test_invalid_ssid(self):
-        for ssid in ('', 'a' * 33, 'æ' * 17, 'tab\there', 'bell\x07', 'del\x7f', None, 5, '\ud800'):
+        for ssid in ('', 'a' * 33, 'æ' * 17, 'tab\there', 'bell\x07', 'del\x7f', 'c1\x85', 'c1\x9f', None, 5, '\ud800'):
             with self.assertRaises(ValueError, msg=repr(ssid)) as raised:
                 panel_serial.check_wifi_credentials(ssid, 'password1')
             self.assertTrue(str(raised.exception).startswith('ssid: '))
