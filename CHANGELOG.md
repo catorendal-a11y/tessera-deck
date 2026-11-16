@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
 
 - Editor: **More → Automatic actions …** lists, adds and orders the rules in `triggers` (at startup, every so often, every day at a time, when a file or a variable changes). Each copies its steps from a key.
 - Automatic actions: a variable rule can have a `value`, so it runs only when the variable becomes that value (`"claude"` becomes `waiting`), not on every change.
