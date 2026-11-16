@@ -3,5 +3,6 @@
  * 1 = original firmware, 2 = adds the protocol field and long-press (hold) events,
  * 3 = adds per-key colors (bg, text_color, border), the ambient clock screen and the offline layout,
  * 4 = adds the cockpit screens. Later additions are capability fields in get_info, not new versions:
- * "reset" (why the panel last started), "ota":1 (AD_OTA_* over-USB update) and "layoutSaved". */
+ * "reset" (why the panel last started), "ota":1 (AD_OTA_* over-USB update), "layoutSaved" and
+ * "imgAck":1 (AD_IMG_BEGIN takes "ack" and the panel then acknowledges image data). */
 #define TESSERA_PROTOCOL 4

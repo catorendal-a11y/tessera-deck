@@ -1,8 +1,10 @@
 """Image cache benchmark: page switches with almost-disjoint icon sets while live keys change.
 
 The real Daemon and PanelSerial drive tests/native/cache_bench, which plays the panel with the firmware's image
-cache, model and UI. USB time is virtual: the bytes the host writes over --link-rate, plus the host's own pauses
-between image lines. Build cache_bench first (docs/DEVELOPMENT.md), then run
+cache, model and UI. USB time is virtual: the bytes the host writes over --link-rate, a round trip of --ack-ms for
+every answer the host waits for, and the host's own pauses between image lines. cache_bench reports "imgAck":1, so
+the host waits for image acknowledgements; --old-firmware makes it answer as firmware without them, and the host
+paces image lines instead. Build cache_bench first (docs/DEVELOPMENT.md), then run
 
     host\\.venv\\Scripts\\python.exe tests\\cache_bench.py --exe build\\native\\cache_bench.exe
 """
@@ -30,6 +32,7 @@ from deck_assets import Assets  # noqa: E402
 
 NEXT_KEY = 18  # the key that goes to the next page; the live keys sit just before it
 UI_TICK = 0.040  # the panel takes up a new layout on its next UI tick: lv_timer_create(update, 40, ...) in main/ui/ui.cpp
+WAITED = (b'AD_IMG_DATA ', b'AD_IMG_END ', b'AD_CFG_END ')  # answers the host waits for before it sends more
 
 
 def icon_png(seed, frames):
@@ -86,8 +89,8 @@ def write_config(folder, args, frames):
 class Link:
     """The serial port PanelSerial opens: writes go to cache_bench, its lines come back, and it keeps the USB clock."""
 
-    def __init__(self, process, rate):
-        self.process, self.rate = process, rate
+    def __init__(self, process, rate, ack):
+        self.process, self.rate, self.ack = process, rate, ack
         self.clock = 0.0  # seconds of USB time
         self.bytes = self.lines = 0
         self.layouts = []  # USB time at which each AD_CFG_END went out
@@ -124,6 +127,8 @@ class Link:
             return b''
         if line.startswith(b'AD_IMG_END OK '):
             self.on_panel.add(line.split()[2].decode())
+        if line.startswith(WAITED):  # the host is blocked until it reads this, so the round trip adds to the clock
+            self.clock += self.ack
         return line
 
 
@@ -132,7 +137,7 @@ class Bench:
 
     def __init__(self, folder, process, args, pages):
         self.args, self.pages = args, pages
-        self.link = Link(process, args.link_rate * 1000)
+        self.link = Link(process, args.link_rate * 1000, args.ack_ms / 1000)
         self.daemon = host_support.test_daemon(folder / 'profiles.json')
         self.daemon.log = self.log
         self.daemon.publish_runtime = lambda *_, **__: None
@@ -300,7 +305,10 @@ ROWS = (
 
 def print_table(results, args):
     print(f'{args.pages} pages, {args.shared} shared icons, {args.live} live keys, a tap {args.tap_ms} ms after each switch, '
-          f'a live change every {args.live_ms} ms, link {args.link_rate:g} kB/s; a first, untimed lap fills the cache.')
+          f'a live change every {args.live_ms} ms, link {args.link_rate:g} kB/s, {args.ack_ms:g} ms per answer the host '
+          f'waits for; a first, untimed lap fills the cache.')
+    print('Old firmware: the host pauses 10 ms after every 4 image lines of 160 bytes.' if args.old_firmware else
+          'The panel acknowledges image data every 2 KB ("imgAck":1) and the host sends lines of 512 bytes.')
     print(f'{"":32}' + ''.join(f'{result["scenario"]:>12}' for result in results))
     for label, key, form in ROWS:
         print(f'{label:32}' + ''.join(f'{form.format(result[key]):>12}' for result in results))
@@ -322,8 +330,11 @@ def main():
     parser.add_argument('--tap-ms', type=int, default=1500, help='time from one switch to the next tap (default 1500)')
     parser.add_argument('--live-ms', type=int, default=500)
     # Full-speed USB carries about 1 MB/s at best; 500 kB/s is a guess for the panel's USB Serial/JTAG link until it
-    # is measured. The host's 10 ms pause after every 4 image lines limits images to 64 kB/s anyway.
+    # is measured. With --old-firmware the host's 10 ms pause after every 4 image lines limits images to 64 kB/s anyway.
     parser.add_argument('--link-rate', type=float, default=500, help='USB link rate in kB/s (default 500)')
+    # Also a guess: one 1 ms full-speed USB frame for the last line to reach the panel and one for its answer.
+    parser.add_argument('--ack-ms', type=float, default=2, help='round trip for each answer the host waits for (default 2)')
+    parser.add_argument('--old-firmware', action='store_true', help='cache_bench answers without "imgAck":1, as older firmware does')
     parser.add_argument('--json', action='store_true', help='print the raw numbers as JSON')
     parser.add_argument('--check', action='store_true', help='exit 1 when a key stays blank, host and panel disagree, the host reports an error or every tap was dropped')
     parser.add_argument('--verbose', action='store_true', help="print the host's log")
@@ -336,7 +347,8 @@ def main():
     for frames in args.frames:
         with tempfile.TemporaryDirectory(prefix='tessera-bench-') as folder:
             pages, image_size = write_config(Path(folder), args, frames)
-            process = subprocess.Popen([str(args.exe)], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+            process = subprocess.Popen([str(args.exe)] + ['--old-firmware'] * args.old_firmware,
+                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE)
             try:
                 bench = Bench(Path(folder), process, args, pages)
                 switches, updates = bench.run()

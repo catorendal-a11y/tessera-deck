@@ -487,6 +487,7 @@ static void usb_console_task(void *)
                 cJSON_AddNumberToObject(reply,"uptime",esp_timer_get_time()/1000000);cJSON_AddNumberToObject(reply,"heap",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
+                cJSON_AddNumberToObject(reply,"imgAck",1);  /* "AD_IMG_BEGIN <id> <bytes> <crc> ack", see deck_images.cpp */
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
                 app_confirm();  /* the host can talk to this firmware: keep it */
                 char *text=cJSON_PrintUnformatted(reply);

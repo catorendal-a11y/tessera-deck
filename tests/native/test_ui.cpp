@@ -370,12 +370,16 @@ static void test_status_screen(){
     assert(deck_model_stats_from_json(R"({"stats":[{"name":"CPU load","value":"9","unit":"%","p":9}]})"));updates();assert(visible("9")&&visible("All good"));
     ui_show_view(0);updates();assert(visible("New tab 2"));
 }
+/* A 72 x 72 ADI1 image of `frames` frames colored by n, in runs of at most `longest` pixels; *crc gets its CRC-32. */
+static std::vector<uint8_t> image_blob(unsigned n,int frames,int longest,uint32_t* crc){
+    std::vector<uint8_t> blob={'A','D','I','1',72,72,static_cast<uint8_t>(frames)};
+    for(int f=0;f<frames;++f){std::vector<uint8_t> runs;int left=72*72;while(left>0){const int run=left>longest?longest:left;runs.push_back(static_cast<uint8_t>(run));runs.push_back(static_cast<uint8_t>(n));runs.push_back(static_cast<uint8_t>(f));runs.push_back(7);runs.push_back(255);left-=run;}
+    blob.push_back(100);blob.push_back(0);const uint32_t len=runs.size();for(int i=0;i<4;++i)blob.push_back((len>>(8*i))&255);blob.insert(blob.end(),runs.begin(),runs.end());}
+    uint32_t c=~0u;for(auto b:blob){c^=b;for(int k=0;k<8;++k)c=(c>>1)^(0xedb88320u&(0u-(c&1)));}*crc=~c;
+    return blob;}
 /* Sends a 72 x 72 image of `frames` frames as the host does, as id im:<n in hex>; returns the AD_IMG_END answer. */
 static std::string upload_image(unsigned n,int frames){
-    std::vector<uint8_t> blob={'A','D','I','1',72,72,static_cast<uint8_t>(frames)};
-    for(int f=0;f<frames;++f){std::vector<uint8_t> runs;int left=72*72;while(left>0){const int run=left>255?255:left;runs.push_back(static_cast<uint8_t>(run));runs.push_back(static_cast<uint8_t>(n));runs.push_back(static_cast<uint8_t>(f));runs.push_back(7);runs.push_back(255);left-=run;}
-    blob.push_back(100);blob.push_back(0);const uint32_t len=runs.size();for(int i=0;i<4;++i)blob.push_back((len>>(8*i))&255);blob.insert(blob.end(),runs.begin(),runs.end());}
-    uint32_t c=~0u;for(auto b:blob){c^=b;for(int k=0;k<8;++k)c=(c>>1)^(0xedb88320u&(0u-(c&1)));}c=~c;
+    uint32_t c=0;const std::vector<uint8_t> blob=image_blob(n,frames,255,&c);
     char id[32];snprintf(id,sizeof id,"im:%012x",n);std::string reply;
     deck_image_command((std::string("AD_IMG_BEGIN ")+id+" "+std::to_string(blob.size())+" "+std::to_string(c)).c_str(),reply);
     for(size_t at=0;at<blob.size();at+=300){std::string hexed;for(size_t i=at;i<blob.size()&&i<at+300;++i){char two[3];snprintf(two,3,"%02x",blob[i]);hexed+=two;}deck_image_command(("AD_IMG_DATA "+std::to_string(at)+" "+hexed).c_str(),reply);}
@@ -401,6 +405,42 @@ static void test_image_cache(){
     /* Replacing a cached image keeps the size and count but still counts as a new image for a waiting key. */
     const size_t stable=bytes;for(int round=0;round<5;++round){const uint32_t gen=deck_image_generation();const size_t was=cached;assert(upload(n-1,12).rfind("AD_IMG_END OK",0)==0);deck_image_cache_stats(&bytes,&cached);assert(bytes==stable&&cached==was&&deck_image_generation()!=gen);}}
     assert(upload(41,1)==std::string("AD_IMG_END OK ")+id_of(41));
+}
+static void test_image_upload_ack(){
+    /* AD_IMG_BEGIN with a 4th token "ack": lines of up to 512 bytes, AD_IMG_DATA OK <bytes> every 2048 bytes and at
+     * the end, INVALID once for a refused line. Without it the panel stays silent and keeps the 380-byte limit. */
+    uint32_t crc=0;const std::vector<uint8_t> blob=image_blob(0x3e8,1,1,&crc);  /* 25,933 bytes, one pixel a run */
+    const std::string id="im:0000000003e8",begin="AD_IMG_BEGIN "+id+" "+std::to_string(blob.size())+" "+std::to_string(crc);
+    auto data=[&](size_t at,size_t bytes){std::string line="AD_IMG_DATA "+std::to_string(at)+" ";
+        for(size_t i=at;i<at+bytes&&i<blob.size();++i){char two[3];snprintf(two,3,"%02x",blob[i]);line+=two;}return line;};
+    auto send=[](const std::string& line){std::string reply;assert(deck_image_command(line.c_str(),reply));return reply;};
+    auto answers=[&](const std::string& first,size_t chunk){std::vector<std::string> said;const std::string start=send(first);
+        if(!start.empty())said.push_back(start);
+        for(size_t at=0;at<blob.size();at+=chunk){const std::string reply=send(data(at,chunk));if(!reply.empty())said.push_back(reply);}
+        return said;};
+    /* The 3-token form: 380 bytes a line, no answer until AD_IMG_END; 381 bytes is refused, still silently. */
+    assert(answers(begin,380).empty()&&send("AD_IMG_END")=="AD_IMG_END OK "+id);
+    assert(answers(begin,381).empty()&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    assert(answers(begin,512).empty()&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    /* With "ack": 512 bytes (1,024 digits) a line, answered at every 2048 bytes and once all bytes are in. */
+    std::vector<std::string> wanted;for(size_t n=2048;n<blob.size();n+=2048)wanted.push_back("AD_IMG_DATA OK "+std::to_string(n));
+    wanted.push_back("AD_IMG_DATA OK "+std::to_string(blob.size()));
+    assert(answers(begin+" ack",512)==wanted&&send("AD_IMG_END")=="AD_IMG_END OK "+id);
+    /* After an upload with "ack" the next 3-token upload is silent again. */
+    assert(answers(begin,380).empty()&&send("AD_IMG_END")=="AD_IMG_END OK "+id);
+    /* A refused line answers INVALID once, and AD_IMG_END then says INVALID: a wrong offset, too long, not hex. */
+    assert(send(begin+" ack").empty()&&send(data(0,512)).empty()&&send(data(1024,512))=="AD_IMG_DATA INVALID");
+    assert(send(data(512,512)).empty()&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    assert(send(begin+" ack").empty()&&send(data(0,513))=="AD_IMG_DATA INVALID"&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    assert(send(begin+" ack").empty()&&send("AD_IMG_DATA 0 41444g")=="AD_IMG_DATA INVALID"&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    assert(send(begin+" ack").empty()&&send("AD_IMG_DATA x")=="AD_IMG_DATA INVALID"&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    assert(send(begin+" ack").empty()&&send("AD_IMG_DATA 0 ")=="AD_IMG_DATA INVALID"&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    /* A refused BEGIN with "ack" answers its first line, so the host does not wait for a window. */
+    assert(send("AD_IMG_BEGIN im:bad "+std::to_string(blob.size())+" 1 ack").empty()&&send(data(0,512))=="AD_IMG_DATA INVALID");
+    assert(send(data(512,512)).empty()&&send("AD_IMG_END")=="AD_IMG_END INVALID");
+    /* Any other 4th token, or more tokens, is refused and stays silent. */
+    for(const char* extra:{" nack"," ackx"," ac"," ack 1"," ACK"}){
+        assert(answers(begin+extra,512).empty()&&send("AD_IMG_END")=="AD_IMG_END INVALID");}
 }
 static void test_key_styling(){
     /* Styling: own colors replace the defaults; a bad color rejects the whole page. */
@@ -485,7 +525,7 @@ int main(int argc,char** argv){
      {"agent tap follows its lane",test_agent_tap_follows_its_lane},
      {"agent questions",test_agent_questions},{"mixer",test_mixer},{"rail shortcuts",test_rail_shortcuts},
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
-     {"status screen",test_status_screen},{"image cache",test_image_cache},{"key styling",test_key_styling},
+     {"status screen",test_status_screen},{"image cache",test_image_cache},{"image upload with acknowledgements",test_image_upload_ack},{"key styling",test_key_styling},
      {"tap after a layout swap",test_tap_after_layout_swap},{"image waits for the finger",test_image_waits_for_finger},
      {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}

@@ -12,6 +12,12 @@ std::vector<uint8_t> staging;
 std::string pending;
 size_t expected=0;
 uint32_t crc=0;
+// An upload begun with "ack" (the host saw "imgAck":1) is paced like AD_OTA_DATA: lines of up to ImgChunk bytes, an
+// answer every ImgAckBytes and at the end, and INVALID for the first refused line. The longest such line,
+// "AD_IMG_DATA 319488 " and 1,024 hex digits, is 1,043 characters and fits main.cpp's line[1100].
+// Without "ack" lines stay at 380 bytes (760 digits) and the panel answers only AD_IMG_END.
+constexpr size_t ImgChunk=512,ImgAckBytes=2048;  // IMG_CHUNK, IMG_WINDOW in host/panel_serial.py
+bool acking=false;
 uint32_t crc32(const std::vector<uint8_t>& data) {
     uint32_t c=~0u;
     for(auto b:data){c^=b;for(int n=0;n<8;++n)c=(c>>1)^(0xedb88320u & (0u-(c&1)));}
@@ -78,6 +84,13 @@ std::shared_ptr<DeckImage> decode() {
     }
     return at==expected?image:nullptr;
 }
+// Appends one AD_IMG_DATA line's hex digits at `offset`; false refuses the upload.
+bool append(unsigned offset,const char* raw) {
+    const size_t len=strlen(raw);
+    if(pending.empty()||offset!=staging.size()||len%2||(acking&&!len)||len>(acking?2*ImgChunk:760)||staging.size()+len/2>expected)return false;
+    for(size_t i=0;i<len;i+=2){int a=hex(raw[i]),b=hex(raw[i+1]);if(a<0||b<0)return false;staging.push_back((a<<4)|b);}
+    return true;
+}
 }
 std::shared_ptr<const DeckImage> deck_image_get(const char* id) {
     std::lock_guard<std::mutex> guard(lock);
@@ -101,17 +114,23 @@ uint32_t deck_image_generation() {
 }
 bool deck_image_command(const char* line,std::string& response) {
     if(!strncmp(line,"AD_IMG_BEGIN ",13)) {
-        char id[32]{},extra;unsigned length=0,checksum=0;
+        char id[32]{},mode[4]{},extra;unsigned length=0,checksum=0;
         pending.clear();staging.clear();expected=0;
-        if(sscanf(line+13,"%31s %u %u %c",id,&length,&checksum,&extra)==3&&id_ok(id)&&length>=7&&length<=320000) {
+        const int fields=sscanf(line+13,"%31s %u %u %3s %c",id,&length,&checksum,mode,&extra);
+        acking=fields==4&&!strcmp(mode,"ack");  // a refused upload with "ack" still answers its first line
+        if((fields==3||acking)&&id_ok(id)&&length>=7&&length<=320000) {
             pending=id;expected=length;crc=checksum;staging.reserve(length);
         }
     } else if(!strncmp(line,"AD_IMG_DATA ",12)) {
         unsigned offset=0;int consumed=0;
-        if(sscanf(line+12,"%u %n",&offset,&consumed)!=1||pending.empty())return true;
-        const char* raw=line+12+consumed;size_t len=strlen(raw);
-        if(offset!=staging.size()||len%2||len>760||staging.size()+len/2>expected){pending.clear();return true;}
-        for(size_t i=0;i<len;i+=2){int a=hex(raw[i]),b=hex(raw[i+1]);if(a<0||b<0){pending.clear();break;}staging.push_back((a<<4)|b);}
+        const bool parsed=sscanf(line+12,"%u %n",&offset,&consumed)==1;
+        if(!acking) {  // an unreadable line is skipped, as before "ack"
+            if(parsed&&!append(offset,line+12+consumed))pending.clear();
+        } else if(parsed&&append(offset,line+12+consumed)) {
+            if(staging.size()%ImgAckBytes==0||staging.size()==expected)response="AD_IMG_DATA OK "+std::to_string(staging.size());
+        } else {
+            pending.clear();acking=false;response="AD_IMG_DATA INVALID";
+        }
     } else if(!strcmp(line,"AD_IMG_END")) {
         auto image=pending.empty()?nullptr:decode();
         bool full=false;
@@ -121,7 +140,7 @@ bool deck_image_command(const char* line,std::string& response) {
             if(!full)response="AD_IMG_END OK "+pending;
         }
         if(response.empty())response=full?"AD_IMG_END FULL":"AD_IMG_END INVALID";
-        pending.clear();std::vector<uint8_t>().swap(staging);expected=0;
+        pending.clear();std::vector<uint8_t>().swap(staging);expected=0;acking=false;
     } else return false;
     return true;
 }

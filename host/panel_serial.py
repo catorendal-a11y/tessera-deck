@@ -19,6 +19,8 @@ PANEL_CACHE_BYTES = 8 * 1024 * 1024  # decoded images the panel keeps; CacheLimi
 OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
 OTA_CHUNK = 512  # image bytes per AD_OTA_DATA line; OTA_CHUNK in main/main.cpp
 OTA_WINDOW = 2048  # the panel acknowledges every OTA_WINDOW bytes; OTA_ACK_BYTES in main/main.cpp
+IMG_CHUNK = 512  # image bytes per AD_IMG_DATA line to a panel with "imgAck":1; ImgChunk in main/deck_images.cpp
+IMG_WINDOW = 2048  # such a panel acknowledges every IMG_WINDOW image bytes; ImgAckBytes in main/deck_images.cpp
 # Handshake "reset" reasons that mean the panel crashed or lost power rather than being restarted on purpose.
 CRASH_RESETS = {'panic': 'a crash', 'int_wdt': 'a hang (interrupt watchdog)', 'task_wdt': 'a hang (task watchdog)',
                 'wdt': 'a hang (watchdog)', 'brownout': 'a power dip (brownout)'}
@@ -187,6 +189,22 @@ class PanelSerial:
             self.send_line('AD_DISPLAY_WAKE')
         self.send_line(f'AD_FEEDBACK {"ok" if ok else "alert"} {button_id}')
 
+    image_seconds = 15
+
+    def supports_image_ack(self) -> bool:
+        """The panel acknowledges image data as it does firmware data ("imgAck":1 in get_info)."""
+        ack = self.info.get('imgAck')
+        return type(ack) is int and ack >= 1
+
+    def _image_answer(self, wanted, what) -> None:
+        """Wait for the AD_IMG_* line the reader loop hands over; anything but `wanted` raises with the panel's answer."""
+        if not self.asset_done.wait(self.image_seconds):
+            raise TimeoutError(f'The panel did not acknowledge {what}')
+        if self.asset_reply != wanted:
+            raise ValueError(self.asset_reply)
+        self.asset_done.clear()  # the panel says nothing more until the next window is sent
+        self.asset_reply = ''
+
     def push_assets(self, buttons, assets):
         shown = sorted({b.get('icon', '') for b in buttons if b.get('icon', '').startswith('im:')})
         for name in shown:
@@ -197,21 +215,28 @@ class PanelSerial:
             with self.write_lock:
                 self.asset_done.clear()
                 self.asset_reply = ''
-                self.send_line(f'AD_IMG_BEGIN {name} {len(raw)} {zlib.crc32(raw)}')
-                # USB Serial/JTAG accepts large writes, but the firmware task
-                # consumes line frames in smaller bursts. Pace image chunks so
-                # Windows cannot overrun that receive loop on detailed icons. A pause every 4 chunks (about
-                # 1.3 KB of the panel's 8 KB buffer) is 4 times faster than one per chunk; the lock is held meanwhile.
-                for number, offset in enumerate(range(0, len(raw), 160)):
-                    self.send_line(f'AD_IMG_DATA {offset} ' + raw[offset:offset+160].hex())
-                    if number % 4 == 3:
-                        self.ser.flush()
-                        time.sleep(.01)
+                if self.supports_image_ack():
+                    # As for firmware updates, the panel answers every IMG_WINDOW bytes and the host waits for it,
+                    # so the 8 KB receive buffer cannot overrun and no pauses are needed.
+                    self.send_line(f'AD_IMG_BEGIN {name} {len(raw)} {zlib.crc32(raw)} ack')
+                    for offset in range(0, len(raw), IMG_CHUNK):
+                        self.send_line(f'AD_IMG_DATA {offset} ' + raw[offset:offset + IMG_CHUNK].hex())
+                        done = min(len(raw), offset + IMG_CHUNK)
+                        if done % IMG_WINDOW == 0 or done == len(raw):
+                            self._image_answer(f'AD_IMG_DATA OK {done}', 'the image data')
+                else:
+                    self.send_line(f'AD_IMG_BEGIN {name} {len(raw)} {zlib.crc32(raw)}')
+                    # USB Serial/JTAG accepts large writes, but the firmware task
+                    # consumes line frames in smaller bursts. Pace image chunks so
+                    # Windows cannot overrun that receive loop on detailed icons. A pause every 4 chunks (about
+                    # 1.3 KB of the panel's 8 KB buffer) is 4 times faster than one per chunk; the lock is held meanwhile.
+                    for number, offset in enumerate(range(0, len(raw), 160)):
+                        self.send_line(f'AD_IMG_DATA {offset} ' + raw[offset:offset+160].hex())
+                        if number % 4 == 3:
+                            self.ser.flush()
+                            time.sleep(.01)
                 self.send_line('AD_IMG_END')
-                if not self.asset_done.wait(15):
-                    raise TimeoutError('The panel did not acknowledge the image')
-                if self.asset_reply != 'AD_IMG_END OK ' + name:
-                    raise ValueError(self.asset_reply)
+                self._image_answer('AD_IMG_END OK ' + name, 'the image')
                 self.assets_sent[name] = raw[4] * raw[5] * 4 * raw[6]  # width x height x RGBA x frames
             # The panel keeps PANEL_CACHE_BYTES of decoded images and drops the oldest ones no key shows; forget
             # those here too, so they are sent again when a page needs them.
