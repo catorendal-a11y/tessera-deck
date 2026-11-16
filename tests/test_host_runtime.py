@@ -467,6 +467,15 @@ class HostRuntimeTests(HostCase):
         focus.assert_called_once_with('example.exe')
         start.assert_not_called()
 
+    def test_open_action_expands_environment_variables_in_paths_only(self):
+        daemon = self.daemon()
+        with patch.dict(deck.os.environ, {'TESSERA_TEST_SECRET': 'secret123'}), patch.object(deck, 'IS_WINDOWS', True), \
+             patch.object(deck.os, 'startfile', create=True) as start:
+            daemon.run_action({'type': 'open', 'target': 'https://example.com/?t=%TESSERA_TEST_SECRET%'})
+            daemon.run_action({'type': 'open', 'target': r'%TESSERA_TEST_SECRET%\notes.txt'})
+        self.assertEqual([call.args[0] for call in start.call_args_list],
+                         ['https://example.com/?t=%TESSERA_TEST_SECRET%', r'secret123\notes.txt'])
+
     def test_terminal_profiles_match_child_process_or_title(self):
         context = {'exe': 'windowsterminal.exe', 'title': 'Claude - prosjekt',
                    'processes': ['windowsterminal.exe', 'openconsole.exe', 'claude.exe']}

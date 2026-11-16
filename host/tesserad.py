@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from ambient import Weather
 import calendar_feed
@@ -21,7 +22,7 @@ from plugins import EventLog, PluginManager
 from live_state import LiveState
 import widgets
 from action_runner import Busy, CommandFailed, run_command
-from action_preview import toggled
+from action_preview import URI_SCHEME, toggled
 from control_api import ControlServer
 import agent_activity
 from datetime import datetime
@@ -55,6 +56,22 @@ LOG_KEEP_BYTES = 5 * 1024 * 1024
 
 
 LOG_FILES = 3  # older logs kept as deck.local.log.1 (newest) .. .3
+
+
+class SafeRedirects(urllib.request.HTTPRedirectHandler):
+    """urllib copies the request headers, an Authorization header too, to wherever a redirect points.
+    As in curl, a redirect to another host goes there without them, and https never falls back to http."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        old, new = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(newurl)
+        if new.scheme not in ('http', 'https') or (old.scheme == 'https' and new.scheme != 'https'):
+            raise CommandFailed(f'The web request was redirected to {new.scheme}://{new.hostname}, which is not allowed')
+        request = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if request is not None and new.hostname != old.hostname:
+            request.headers.clear()
+        return request
+
+
+WEB_OPENER = urllib.request.build_opener(SafeRedirects)
 
 
 def shift_logs(path=None, keep=LOG_FILES):
@@ -484,7 +501,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if IS_WINDOWS:
                 process = action.get('process', '')
                 if not (action.get('reuse', False) and focus_existing_process(process)):
-                    expanded = os.path.expandvars(target)
+                    # %NAME% only in a path: in an address it would send this PC's environment to the site
+                    expanded = target if URI_SCHEME.match(target) else os.path.expandvars(target)
                     os.startfile(expanded if os.path.exists(expanded) else locate(expanded) or expanded)
             else:
                 subprocess.Popen(['xdg-open', target])
@@ -504,7 +522,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
             with self.state_lock.suspended():
                 try:
-                    with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
+                    with WEB_OPENER.open(request, timeout=action.get('timeout', 5)) as response:
                         response.read(65536)
                 except urllib.error.HTTPError as exc:  # the server answered, but with an error page
                     raise CommandFailed(f'The web request failed with HTTP {exc.code} {exc.reason}'.strip()) from exc

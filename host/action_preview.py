@@ -40,9 +40,10 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         slow = f' at {action["delay_ms"]} ms per character' if action.get('delay_ms') else ''
         return True, f'Type "{_clip(substitute(action["text"], variables))}"{slow}'
     if kind == 'open':
-        target = os.path.expandvars(substitute(action['target'], variables))
+        target = substitute(action['target'], variables)
         if URI_SCHEME.match(target):
             return True, f'Open {_clip(target)}'
+        target = os.path.expandvars(target)
         # os.startfile also finds a bare name (notepad, mmsys.cpl, code) through PATH and App Paths (winword)
         found = target if os.path.exists(target) or shutil.which(target, mode=os.F_OK) else locator(target)
         if found is None and not os.path.splitext(target)[1]:

@@ -78,10 +78,10 @@ class HttpTests(unittest.TestCase):
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.stop.clear()
         error = tesserad.urllib.error.HTTPError('https://example.com/x', 503, 'Service Unavailable', {}, None)
-        with patch.object(tesserad.urllib.request, 'urlopen', Mock(side_effect=error)):
+        with patch.object(tesserad.WEB_OPENER, 'open', Mock(side_effect=error)):
             with self.assertRaisesRegex(CommandFailed, 'HTTP 503 Service Unavailable'):
                 daemon.run_action({'type': 'http', 'url': 'https://example.com/x'})
-        with patch.object(tesserad.urllib.request, 'urlopen', MagicMock()):
+        with patch.object(tesserad.WEB_OPENER, 'open', MagicMock()):
             daemon.run_action({'type': 'http', 'url': 'https://example.com/x'})  # a good answer passes
 
     def test_the_import_review_names_the_host_each_request_goes_to(self):

@@ -49,7 +49,7 @@ class RunTimeTests(unittest.TestCase):
     def test_a_variable_cannot_turn_the_request_into_a_file_or_ftp_address(self):
         daemon = self.make_daemon()
         daemon.custom_vars['base'] = 'file:///C:/Windows/win.ini'
-        with patch.object(deck.urllib.request, 'urlopen', Mock()) as urlopen:
+        with patch.object(deck.WEB_OPENER, 'open', Mock()) as urlopen:
             with self.assertRaisesRegex(ValueError, 'http'):
                 daemon.run_action({'type': 'http', 'url': '$(var:base)'})
         urlopen.assert_not_called()
@@ -57,9 +57,29 @@ class RunTimeTests(unittest.TestCase):
     def test_the_address_can_come_from_the_environment(self):
         daemon = self.make_daemon()
         environment = {'TESSERA_TEST_HOOK': 'https://example.com/secret-hook'}
-        with patch.dict(deck.os.environ, environment), patch.object(deck.urllib.request, 'urlopen', MagicMock()) as urlopen:
+        with patch.dict(deck.os.environ, environment), patch.object(deck.WEB_OPENER, 'open', MagicMock()) as urlopen:
             daemon.run_action({'type': 'http', 'url': '$(env:TESSERA_TEST_HOOK)'})
         self.assertEqual(urlopen.call_args.args[0].full_url, 'https://example.com/secret-hook')
+
+
+class RedirectTests(unittest.TestCase):
+    def redirect(self, old, new):
+        request = deck.urllib.request.Request(old, headers={'Authorization': 'Bearer x'})
+        return deck.SafeRedirects().redirect_request(request, None, 302, 'Found', {}, new)
+
+    def test_a_redirect_down_to_http_or_to_another_scheme_is_refused(self):
+        with self.assertRaises(deck.CommandFailed):
+            self.redirect('https://api.example.com/a', 'http://api.example.com/a')
+        with self.assertRaises(deck.CommandFailed):
+            self.redirect('http://api.example.com/a', 'ftp://api.example.com/a')
+
+    def test_a_redirect_to_another_host_goes_without_the_headers(self):
+        moved = self.redirect('https://example.com/a', 'https://www.example.com/a')
+        self.assertEqual((moved.full_url, moved.headers), ('https://www.example.com/a', {}))
+
+    def test_a_redirect_on_the_same_host_keeps_the_headers(self):
+        moved = self.redirect('http://api.example.com/a', 'https://api.example.com/b')
+        self.assertEqual((moved.full_url, moved.get_header('Authorization')), ('https://api.example.com/b', 'Bearer x'))
 
 
 if __name__ == '__main__':

@@ -5,6 +5,8 @@ import copy
 import re
 import urllib.parse
 
+from substitution import ENV_REFERENCE
+
 # Header and address field names that carry a credential: Authorization, Private-Token, X-Api-Key, ?key=, ?sig=
 SECRET_FIELD = re.compile(r'(?i)auth(?!ors?\b)|token|secret|passw(?:or)?d|api.?key|(?:^|[-_])key$|^sig$|signature'
                           r'|cookie|session|credential')
@@ -76,6 +78,11 @@ def _classify(action):
         detail += f' (host {host})' if host and '$(' not in host else ' (host set when it runs)'
         if action.get('body'):
             detail += ' with a request body'
+        headers = action.get('headers') if isinstance(action.get('headers'), dict) else {}
+        text = ' '.join(str(part) for pair in headers.items() for part in pair) + f" {url} {action.get('body') or ''}"
+        names = list(dict.fromkeys(ENV_REFERENCE.findall(text)))
+        if names:  # a secret from this PC's environment leaves in the request
+            return 'high', 'calls ' + detail + ' and sends ' + ', '.join(f'$(env:{name})' for name in names)
         return 'medium', 'calls ' + detail
     if kind == 'plugin':
         return 'medium', f"runs plugin {str(action.get('plugin', ''))[:60]}.{str(action.get('command', ''))[:60]}"
