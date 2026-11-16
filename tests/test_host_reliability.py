@@ -203,7 +203,7 @@ class TerminalCommitTests(unittest.TestCase):
 class TrayRestartTests(unittest.TestCase):
     def make_app(self):
         import tessera_tray
-        app = tessera_tray.TrayApp(Mock())
+        app = host_support.tray_app(Mock())
         app.icon = Mock()
         app.host = Mock()  # records each restart instead of starting a thread
         self.enterContext(patch.object(tessera_tray, 'notifications_enabled', return_value=True))  # not the user's own switch
