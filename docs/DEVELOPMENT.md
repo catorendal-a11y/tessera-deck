@@ -133,6 +133,37 @@ Run `render_screens.py` and `test_ui` before the GIF tool. Both tools use the fo
 
 The brand assets have their own generators, which need no native build: `tools/make_logo.py` writes `logo-mark.svg`, `logo.svg` and `logo.png` in `docs/images`, and `tools/make_icon.py` writes `host/tessera.ico` from the tray mark. Run them with `host\.venv\Scripts\python.exe` after a change to the logo.
 
+### Image cache benchmark
+
+`tests/cache_bench.py` measures what the image cache costs when you switch between pages that share almost no icons while live keys change. The real host (`Daemon` and `PanelSerial`) talks to `cache_bench`, a native target that runs the panel's image cache, model and UI on the PC and answers the host as the firmware does. Taps go through the LVGL touch path, so each press reaches the host as it would from the panel.
+
+By default there are 4 pages of 18 keys. Every page shows the same 2 icons and 15 of its own, key 18 goes to the next page, and keys 15 to 17 follow a variable (two labels, and a gauge without an image). The icons are gradient pictures about the size of an imported program icon. One scenario uses still icons, the other 12-frame animations of the same pictures. A first lap through the pages fills the cache and is not timed. After it the next tap comes 1.5 s after the host sent the last page, and a live value changes every 0.5 s. A change that comes during a switch waits until the switch is done.
+
+USB time is virtual: the bytes the host writes divided by `--link-rate` (500 kB/s by default, a guess until someone measures a panel), plus the host's 10 ms pause after every 4 image lines. Paint time is measured on the PC, so it shows how much work the UI does and says nothing about how long the P4 takes. Tap-to-paint is the USB time from the tap until the panel accepts the new layout, the wait for the panel's next 40 ms UI tick, and the paint time. It leaves out the 0-20 ms the panel takes to send a press. A tap that waits behind earlier work keeps its time stamp, so the host drops it after 5 s as it would with a real panel.
+
+```powershell
+cmake --build build/native --target cache_bench
+host\.venv\Scripts\python.exe tests\cache_bench.py --exe build\native\cache_bench.exe
+```
+
+`--json` prints the numbers of every switch and live update. `--check` exits with 1 when a key is still blank after a switch, the host's record of the panel's images differs from the panel's cache, the host reports an error, or no switch was measured because every tap was dropped. `--help` lists the options for pages, shared icons, live keys, frames, timing and link rate.
+
+A run on the development PC (Release build) gave:
+
+| | Still icons | 12 frames |
+|---|---|---|
+| Image size (ADI1) | 11 kB | 133 kB |
+| Hit rate | 100 % | 12 % |
+| Evictions per switch, host and panel | 0 and 0 | 15 and 15 |
+| USB per switch | 1.7 kB, 10 lines | 4.2 MB, 12,537 lines |
+| Tap-to-paint, median | 23 ms | 40 s |
+| Paint time on the PC, median | 0.8 ms | 1.0 ms |
+| Taps dropped, of 12 | 0 | 0 |
+| Live changes in the run | 36 | 908 |
+| Blank keys, re-requests, disagreements | 0 | 0 |
+
+The still icons of all four pages fit in the 8 MiB cache. A 12-frame icon takes 249 kB once decoded, so the cache holds 33 of them. A page shows 17, so two pages fit and four need 62. The pages come round in turn, and by the time a page comes back its own icons are gone: every switch sends 15 images and evicts 15. The 10 ms pauses account for 31 of the 40 s. That run is longer, so it has more live changes, and the ones that come during a switch wait for it. With `--pages 2 --frames 12` both pages stay in the cache and a switch costs 1.7 kB, as with still icons. With `--pages 3 --frames 12` the hit rate is 18 % and a switch takes 37 s.
+
 ## CI
 
 GitHub Actions runs these on every pull request and every push to main:

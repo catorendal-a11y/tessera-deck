@@ -36,3 +36,8 @@ add_executable(render_screens render_screens.cpp ${UI_SOURCES})
 target_include_directories(render_screens PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/main"
   "${ROOT}/managed_components/espressif__cjson/cJSON")
 target_link_libraries(render_screens PRIVATE lvgl_native)
+# Plays the panel for tests/cache_bench.py; not part of the tests.
+add_executable(cache_bench cache_bench.cpp ${UI_SOURCES})
+target_include_directories(cache_bench PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${ROOT}/main"
+  "${ROOT}/managed_components/espressif__cjson/cJSON")
+target_link_libraries(cache_bench PRIVATE lvgl_native)

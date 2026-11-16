@@ -45,6 +45,7 @@
 - Terminal UI: importing a file lists its commands, web requests, plugins and automatic rules, and leaves them out unless you choose to keep them, as the editor does. Export leaves out the calendar address and plugin secrets, and writes credentials in web requests as `$(env:NAME)` references, as the editor's export does.
 - Terminal UI: *Stop host* keeps the host stopped while the tray runs, and the tray no longer reports it as a crash.
 - Editor: undo and redo no longer bring back old settings after the editor merged a change saved elsewhere, such as the tray's brightness.
+- Tests: `tests/cache_bench.py` switches between pages that share almost no icons while live keys change, and reports hit rate, evictions, USB traffic and tap-to-paint time. It runs the real host against the panel's image cache and UI built for the PC (docs/DEVELOPMENT.md).
 
 ## 0.9.0
 
