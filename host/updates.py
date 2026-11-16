@@ -58,6 +58,17 @@ def _check_host(url: str) -> None:
         raise ValueError('Updates are only downloaded from GitHub over https')
 
 
+class _GitHubRedirects(urllib.request.HTTPRedirectHandler):
+    """Every redirect hop must stay on GitHub over https, checked before anything is fetched from it."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        _check_host(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _urlopen(request, timeout):
+    return urllib.request.build_opener(_GitHubRedirects).open(request, timeout=timeout)
+
+
 def notes_excerpt(body, lines: int = NOTES_LINES) -> str:
     """The first non-empty lines of the release notes, short enough for a notice or a dialog."""
     if not isinstance(body, str):
@@ -66,7 +77,7 @@ def notes_excerpt(body, lines: int = NOTES_LINES) -> str:
     return '\n'.join(kept)
 
 
-def check(current: str, opener=urllib.request.urlopen, board: str | None = None) -> dict:
+def check(current: str, opener=_urlopen, board: str | None = None) -> dict:
     """Compare `current` with the latest published release; `board` picks the firmware package of the connected panel."""
     try:
         raw, _ = _open(RELEASE_API, opener, 512 * 1024)
@@ -88,7 +99,7 @@ def check(current: str, opener=urllib.request.urlopen, board: str | None = None)
             'sums': next((item for item in assets if item['name'] == 'SHA256SUMS'), None)}
 
 
-def download_firmware(info: dict, folder: Path, opener=urllib.request.urlopen) -> Path:
+def download_firmware(info: dict, folder: Path, opener=_urlopen) -> Path:
     """Fetch the release's firmware package into `folder`, verified against SHA256SUMS."""
     firmware, sums = info.get('firmware'), info.get('sums')
     if not firmware or not sums:
