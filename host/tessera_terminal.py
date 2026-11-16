@@ -222,7 +222,9 @@ class ButtonEditor(ModalScreen):
                 return
             editing = identifier == 'step-edit'
             if editing and actions[index]['type'] not in ACTION_FIELDS:
-                self.query_one('#button-error', Static).update('Edit this step in the graphical editor')
+                self.query_one('#button-error', Static).update(
+                    'This Home Assistant step from the Wi-Fi beta is kept as it is' if actions[index]['type'] == 'homeassistant'
+                    else 'Edit this step in the graphical editor')
                 return
             def saved(action):
                 if action is not None:

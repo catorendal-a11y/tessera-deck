@@ -103,6 +103,8 @@ The beta runs on one panel and works with aioesphomeapi, the library Home Assist
 2. Install the panel firmware from the branch with *Full install*. It needs the host from the same branch.
 3. Open *Panel → Wi-Fi and Home Assistant*.
 
+To go back, check out `main` again. Your profile file still loads there: it keeps the Wi-Fi and Home Assistant settings and steps, and keys skip those steps until you switch to the beta again. Main does not check the beta's limits for one page (24 Home Assistant steps and 4,096 bytes of them, pinned keys included). If you copy or pin keys with those steps on main and a page goes past them, the beta starts with an older backup instead.
+
 Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome. The [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
 
 ## A desk console to print

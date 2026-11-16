@@ -30,6 +30,9 @@ const kinds = {
   window:{name:'Window',icon:'list',field:'op',label:'Window operation',group:'On the computer'},
   toggle:{name:'Toggle variable',icon:'loop',field:'variable',label:'Variable name',placeholder:'for example mode',group:'Advanced'},
 };
+/* A Home Assistant step from a profile file the Wi-Fi beta saved: shown by name, saved as it is, skipped by the host. */
+const BETA_STEP='homeassistant';
+const kindName=type=>type===BETA_STEP?'Home Assistant step (beta firmware only)':(kinds[type]||kinds.hotkey).name;
 // Sensors the host provides, with the ranges and thresholds of the bundled status page.
 const gaugeSensors={
   fps:['FPS (HWiNFO PresentMon)',{max:240,unit:'fps'}],
@@ -615,7 +618,7 @@ function addAction(key,id=null) {
 /* The steps of a key as one readable line: "1 Open program: chrome.exe → 2 Hotkey: ctrl+t". */
 function stepDetail(action) {
   const value = ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op'].map(key => action[key]).find(item => typeof item === 'string' && item);
-  return value ? `${(kinds[action.type] || kinds.hotkey).name}: ${value.length > 28 ? value.slice(0, 27) + '…' : value}` : (kinds[action.type] || kinds.hotkey).name;
+  return value ? `${kindName(action.type)}: ${value.length > 28 ? value.slice(0, 27) + '…' : value}` : kindName(action.type);
 }
 function stepSummary(actions) {
   const shown = actions.slice(0, 3).map((action, index) => `${actions.length > 1 ? index + 1 + ' ' : ''}${stepDetail(action)}`);

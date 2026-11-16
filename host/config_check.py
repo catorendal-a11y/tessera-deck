@@ -17,7 +17,12 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None,
-                 'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None}
+                 'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None,
+                 'homeassistant': 'action'}
+# A Home Assistant step comes from a profile file saved by the Wi-Fi beta, whose panel sends it. This version keeps it
+# in the file and skips it when the key runs. Like the beta, it allows one only in a key's own press, hold and double
+# lists. The beta's limits for one page (24 steps, 4,096 bytes) are not checked here.
+BETA_STEP = 'homeassistant'
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
@@ -204,11 +209,14 @@ def _check_http(action):
         check_web_url(url)
 
 
-def _check_actions(actions, pages, profiles):
+def _check_actions(actions, pages, profiles, key_lists=False):
+    """key_lists: a key's own press, hold or double list, the only place for a Home Assistant step."""
     if not isinstance(actions, list):
         raise ValueError('actions must be a list')
     for action in actions:
         _check_action(action, pages, profiles)
+        if action['type'] == BETA_STEP and not key_lists:
+            raise ValueError("Home Assistant steps can only be in a key's pressed, held or double-press actions")
 
 
 def _check_color(value, message):
@@ -278,9 +286,9 @@ def _check_button(button, pages, profiles):
     _check_wide(button)
     if 'status' in button:
         _check_status(button['status'])
-    _check_actions(button.get('actions', []), pages, profiles)
-    _check_actions(button.get('hold_actions', []), pages, profiles)
-    _check_actions(button.get('double_actions', []), pages, profiles)
+    _check_actions(button.get('actions', []), pages, profiles, key_lists=True)
+    _check_actions(button.get('hold_actions', []), pages, profiles, key_lists=True)
+    _check_actions(button.get('double_actions', []), pages, profiles, key_lists=True)
     if type(button.get('confirm', False)) is not bool:
         raise ValueError('confirm must be true or false')
     if button.get('confirm') and (button.get('hold_actions') or button.get('double_actions')):
@@ -413,8 +421,11 @@ def _check_display(display):
 def _check_panel(panel, pages=(), profiles=None):
     """The `panel` block: which agents, programs and readings the cockpit screens show."""
     import cockpit
-    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts'}:
+    # wifi and homeassistant are the Wi-Fi beta's panel settings: kept in the file, not used by this version
+    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts', 'wifi', 'homeassistant'}:
         raise ValueError('panel may only set agents, apps, mic, stats, screens and shortcuts')
+    if any(not isinstance(panel.get(key, {}), dict) for key in ('wifi', 'homeassistant')):
+        raise ValueError('panel.wifi and panel.homeassistant must be objects')
     screens = panel.get('screens', list(cockpit.SCREENS))
     if not isinstance(screens, list) or len(set(screens)) != len(screens) or any(item not in cockpit.SCREENS for item in screens):
         raise ValueError('panel.screens must list keys, agents, mixer or status once each')

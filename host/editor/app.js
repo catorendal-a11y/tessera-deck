@@ -143,7 +143,7 @@ function renderInspector() {
   const swatches=element('div',{class:'color-swatches',role:'group','aria-label':'Icon color'},...ICON_COLORS.map(([value,name])=>{
     const on=(b.color||'#35D07F').toUpperCase()===value,swatch=button('',()=>mutate(()=>appearance().color=value),'color-swatch'+(on?' on':''),name);
     swatch.style.setProperty('--swatch',value);swatch.setAttribute('aria-label',name);swatch.setAttribute('aria-pressed',String(on));return swatch;}),color);
-  const head=element('div',{class:'prop-head'},text('b',widget?'Widget':first?(kinds[first.type]||kinds.hotkey).name:'No action yet'),
+  const head=element('div',{class:'prop-head'},text('b',widget?'Widget':first?kindName(first.type):'No action yet'),
     button('Test',()=>testButton().catch(showError),'outline prop-test','What this key does, and Run now'));
   if(widget)previewLabel.textContent=widgetText(base).label;
   // a widget draws its own text, so its title, icon and text rows would do nothing
@@ -155,7 +155,7 @@ function renderInspector() {
   confirmBox.disabled=!base.confirm&&!!(base.hold_actions?.length||base.double_actions?.length);  /* the host refuses the mix */
   confirmBox.onchange=()=>mutate(()=>{if(confirmBox.checked)base.confirm=true;else delete base.confirm;});
   const typeStart=panel.children.length;
-  panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(base.actions||[])},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(base.actions||[])}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;delete base.bind;}  /* the host refuses a bind without two states */editState=0;}),{values:['Normal key','Toggle key']}));
+  panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){const steps=(base.actions||[]).filter(a=>a.type!==BETA_STEP);  /* never in a toggle state, as in the beta */base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(steps)},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(steps)}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;delete base.bind;}  /* the host refuses a bind without two states */editState=0;}),{values:['Normal key','Toggle key']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local key state, not confirmed app status.','hint'));}
   const bindStart=panel.children.length;
   renderGauge(panel,base);
@@ -252,7 +252,7 @@ function renderGauge(panel,base) {
 const windowOps=[['minimize','Minimize'],['maximize','Maximize'],['restore','Restore'],['close','Close'],['topmost','Always on top (on/off)'],['next_monitor','Move to the next monitor'],['focus','Bring a program to the front']];
 function renderStep(action,index,count) {
   const k=kinds[action.type]||kinds.hotkey;
-  const step=element('section',{class:'step','aria-label':`Step ${index+1}: ${k.name}`,draggable:'false','data-step':index});
+  const step=element('section',{class:'step','aria-label':`Step ${index+1}: ${kindName(action.type)}`,draggable:'false','data-step':index});
   step.addEventListener('dragstart',event=>{if(['INPUT','TEXTAREA','SELECT'].includes(event.target.tagName))return event.preventDefault();event.dataTransfer.setData('application/x-deck-step',String(index));event.stopPropagation();});
   step.addEventListener('dragover',event=>{if(Array.from(event.dataTransfer.types).includes('application/x-deck-step'))event.preventDefault();});
   step.addEventListener('drop',event=>{const value=event.dataTransfer.getData('application/x-deck-step');if(value==='')return;event.preventDefault();const source=Number(value);mutate(()=>{const actions=activeActions();actions.splice(index,0,actions.splice(source,1)[0]);});});
@@ -261,8 +261,9 @@ function renderStep(action,index,count) {
   // The title is the step type: a wrong pick changes in place and keeps the step's position.
   const type=element('select',{class:'step-type','aria-label':`Step ${index+1} action type`});options(type,Object.entries(kinds).map(([key,item])=>[key,item.name]),action.type);
   type.addEventListener('change',()=>{const fresh=actionTemplate(type.value)?.actions[0];if(fresh)mutate(()=>{activeActions()[index]=fresh;});});
-  step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,type),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
+  step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,action.type===BETA_STEP?kindName(BETA_STEP):type),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
   let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  if(action.type===BETA_STEP){step.append(text('p',`From the Wi-Fi beta: ${action.action||''}${action.entity_id?' on '+action.entity_id:''}. It is kept as it is, and this version skips it when the key runs.`,'hint'));return step;}
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
   if(action.type==='panel_lock'){step.append(field('Mode',action.mode||'toggle',v=>editAction(index,'mode',v),{values:[['toggle','Lock / unlock'],['on','Lock'],['off','Unlock']]}),text('p','A locked panel ignores taps until you hold the lock badge on the rail for two seconds.','hint'));return step;}

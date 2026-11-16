@@ -132,6 +132,8 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, {'on': 'Lock the panel', 'off': 'Unlock the panel'}.get(action.get('mode'), 'Lock or unlock the panel')
     if kind == 'plugin':
         return True, f'Send the command {action["command"]} to the plugin {action["plugin"]}'
+    if kind == 'homeassistant':  # kept from the Wi-Fi beta, whose panel runs it; this version skips it
+        return True, _clip(f'Skip Home Assistant {action.get("action", "")}: it runs only on the beta firmware with Wi-Fi')
     return False, f'Unknown action type {kind!r}'
 
 

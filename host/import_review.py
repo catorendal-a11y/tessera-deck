@@ -11,10 +11,13 @@ SECRET_FIELD = re.compile(r'(?i)auth(?!ors?\b)|token|secret|passw(?:or)?d|api.?k
 QUERY_FIELD = re.compile(r'([?&])([^=&#]+)=([^&#]*)')
 DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
-# A plugin command controls an outside system (a smart home, a stream), so it counts like a web request.
-EXECUTABLE_KINDS = ('shell', 'http', 'plugin')
+# A plugin command controls an outside system (a smart home, a stream), so it counts like a web request. So does a
+# Home Assistant step: this version skips it, and the Wi-Fi beta's panel sends it to the smart home.
+EXECUTABLE_KINDS = ('shell', 'http', 'plugin', 'homeassistant')
 SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
+# The data of a Home Assistant step (kept from the Wi-Fi beta) named like a code or a password, such as an alarm code
+HA_SECRET_DATA = re.compile(r'(?i)(^|_)(code|pin|password|passcode|passwd|token|secret)($|_)')
 TYPED = ('text', 'clipboard')  # after a hotkey (Win+R, a terminal) typed text is a command
 
 
@@ -76,6 +79,8 @@ def _classify(action):
         return 'medium', 'calls ' + detail
     if kind == 'plugin':
         return 'medium', f"runs plugin {str(action.get('plugin', ''))[:60]}.{str(action.get('command', ''))[:60]}"
+    if kind == 'homeassistant':
+        return 'medium', f"calls Home Assistant {str(action.get('action', ''))[:64]} when the file runs on the Wi-Fi beta"
     if kind == 'open':
         target = str(action.get('target', ''))
         if WEB_TARGET.match(target) or target.lower().endswith(DOCUMENT_SUFFIXES):
@@ -116,8 +121,8 @@ def review(config: dict) -> list[dict]:
 
 
 def strip_executable(config: dict) -> dict:
-    """A copy without shell, HTTP and plugin actions, program launches that are not web links, text typed after a
-    hotkey, automatic rules and plugin setup."""
+    """A copy without shell, HTTP, plugin and Home Assistant actions, program launches that are not web links, text
+    typed after a hotkey, automatic rules and plugin setup."""
     safe = copy.deepcopy(config)
     for _, owner, key, _ in list(iter_actions(safe)):
         typed = _typed_after_hotkey(owner[key])
@@ -135,6 +140,15 @@ def strip_executable(config: dict) -> dict:
     return safe
 
 
+def _ha_secrets(config):
+    """(step, data name) for each Home Assistant data value named like a code or a password."""
+    for _, owner, key, _ in iter_actions(config):
+        for action in owner[key]:
+            data = action.get('data') if isinstance(action, dict) and action.get('type') == 'homeassistant' else None
+            if isinstance(data, dict):
+                yield from ((action, name) for name in data if isinstance(name, str) and HA_SECRET_DATA.search(name))
+
+
 def env_name(header: str) -> str:
     return 'TESSERA_' + re.sub(r'[^A-Z0-9]+', '_', header.upper()).strip('_')
 
@@ -142,6 +156,7 @@ def env_name(header: str) -> str:
 def export_left_out(config: dict) -> list[str]:
     """What redact_secrets drops, in plain words, so the editor can say so after an export."""
     out = ['the calendar address'] if 'calendar' in config else []
+    out += [f'Home Assistant data {name}' for name in sorted({name for _, name in _ha_secrets(config)})]
     for name, plugin in sorted((config.get('plugins') or {}).items()):
         settings = plugin.get('settings') if isinstance(plugin, dict) else None
         out += [f'plugin {name}: {key}' for key in (settings or {}) if SECRET_SETTING.search(key)]
@@ -153,7 +168,8 @@ def redact_secrets(config: dict) -> tuple[dict, list[str]]:
     Returns it and the names used.
 
     The calendar's iCal address and plugin settings named like a secret (a token or a password) are left out:
-    anyone with them can read the calendar or act as the plugin's account.
+    anyone with them can read the calendar or act as the plugin's account. So is a code or password in the data of a
+    Home Assistant step.
     """
     shared = copy.deepcopy(config)
     shared.pop('calendar', None)
@@ -162,6 +178,8 @@ def redact_secrets(config: dict) -> tuple[dict, list[str]]:
         for name in list(settings or {}):
             if SECRET_SETTING.search(name):
                 del settings[name]
+    for action, name in list(_ha_secrets(shared)):
+        del action['data'][name]
     names = []
 
     def hide_field(match):

@@ -792,7 +792,8 @@ function drawRail() {
   // shortcuts: open a page, or run steps like a key; any icon from the library
   const targets = Object.entries(config.profiles).map(([profileName, item]) => element('optgroup', {label: profileName}, ...Object.keys(item.pages).map(pageName => element('option', {value: profileName + '\u0001' + pageName}, `${profileName} › ${pageName}`))));
   const sources = Object.entries(config.profiles).flatMap(([profileName, item]) => Object.entries(item.pages).flatMap(([pageName, keys]) =>
-    keys.filter(key => key.actions?.length).map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
+    keys.filter(key => key.actions?.length && !key.actions.some(a => a.type === BETA_STEP))  // Home Assistant steps stay on their key
+      .map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
   $('#rail-shortcuts').replaceChildren(...d.shortcuts.map((s, index) => {
     const runs = s.type === 'actions';
     const kind = element('select', {'aria-label': `Shortcut ${index + 1}: what it does`, class: 'rail-kind', onchange: event => {
@@ -854,9 +855,9 @@ function autoSettings() {
 }
 // focus: the data-auto name of the control to focus after the redraw, so a keyboard user keeps their place
 function drawAuto(focus = document.activeElement?.dataset?.auto) {
-  // a key's pressed steps
+  // a key's pressed steps; a key with a Home Assistant step from the beta is left out, since the host allows those only on a key
   const sources = Object.entries(config.profiles).flatMap(([profileName, item]) => Object.entries(item.pages).flatMap(([pageName, keys]) =>
-    keys.filter(key => key.actions?.length)
+    keys.filter(key => key.actions?.length && !key.actions.some(a => a.type === BETA_STEP))
       .map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
   $('#auto-list').replaceChildren(...autoDraft.map((rule, index) => {
     const when = rule.when, number = index + 1, name = what => `Automatic action ${number}: ${what}`;

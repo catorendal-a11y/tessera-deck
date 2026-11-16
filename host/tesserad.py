@@ -40,7 +40,7 @@ from win_input import (CHILD_NAMES_SECONDS, IS_WINDOWS, VK, bring_to_front, chil
                        focus_existing_process, foreground_context, is_neutral_window,
                        matches_foreground, parse_hotkey, real_app_exe, send_hotkey, send_mouse, send_text,
                        set_clipboard, window_action)
-from config_check import _check_display, in_quiet_hours, validate_config  # noqa: F401
+from config_check import BETA_STEP, _check_display, in_quiet_hours, validate_config  # noqa: F401
 from daemon_display import DisplayMixin
 from daemon_presses import DOUBLE_PRESS_SECONDS, PressMixin  # noqa: F401
 from daemon_ticks import BackgroundMixin
@@ -154,6 +154,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.slow_lock = threading.Lock()
         self.local = threading.local()
         self.dropped_jobs = 0
+        self.beta_steps_logged = set()  # (step type, key) of each Home Assistant step skipped so far
         self.device_info = {}
         self.weather = Weather()
         self.ambient_active = False
@@ -565,6 +566,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             with self.input_turn():
                 if not window_action(action['op'], action.get('process', '')):
                     raise ValueError('There is no such window')
+        elif kind == BETA_STEP:  # from the Wi-Fi beta, where the panel sends it: skipped, the other steps still run
+            where = (kind, self.active_press[-1] if self.active_press else None)
+            if where not in self.beta_steps_logged:
+                self.beta_steps_logged.add(where)
+                self.log('Skipped a Home Assistant step' + (f' on button {where[1][2]}' if where[1] else '')
+                         + ': these run only on the beta panel firmware with Wi-Fi')
         else:
             raise ValueError(f'Unknown action: {kind}')
         return True
