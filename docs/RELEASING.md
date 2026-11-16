@@ -47,7 +47,7 @@ The workflow stops early when the tag does not match `VERSION` or the changelog 
 Anyone can check that a download came from this workflow:
 
 ```powershell
-gh attestation verify tessera-host-v1.0.0.zip --repo catorendal-a11y/tessera-deck
+gh attestation verify tessera-host-v1.1.0.zip --repo catorendal-a11y/tessera-deck
 ```
 
 [INSTALL.md](INSTALL.md) also explains how to compare a download with `SHA256SUMS`.
