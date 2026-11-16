@@ -6,7 +6,7 @@ import unittest
 import unittest.mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
-from host_support import HostCase
+from host_support import HostCase, tray_app
 
 
 class NoticeTests(HostCase):
@@ -66,7 +66,7 @@ class NoticeTests(HostCase):
         import tessera_tray
         controller = Mock()
         controller.status.return_value = {'running': False}
-        app = tessera_tray.TrayApp(controller)
+        app = tray_app(controller)
         app.icon = Mock()
         self.enterContext(unittest.mock.patch.object(tessera_tray, 'notifications_enabled', return_value=True))
         app.ask_about_autostart, app.asked_autostart = Mock(), False  # never a real message box in a test
@@ -108,7 +108,7 @@ class NoticeTests(HostCase):
         import tessera_tray
         status = {'running': True, 'device': {'connected': False, 'error': 'COM4 is used by another program', 'firmware': '0.6.2'}}
         self.assertIn('panel 0.6.2', tessera_tray.version_text(status))
-        app = tessera_tray.TrayApp(Mock())
+        app = tray_app(Mock())
         app.icon, app.status = Mock(), status
         self.enterContext(unittest.mock.patch.object(tessera_tray, 'notifications_enabled', return_value=True))
         text = tessera_tray.trouble_text(status)
@@ -130,7 +130,7 @@ class NoticeTests(HostCase):
     def test_the_tray_keeps_quiet_and_offers_no_start_while_the_firmware_is_installed(self):
         from unittest.mock import Mock
         import tessera_tray
-        app = tessera_tray.TrayApp(Mock())
+        app = tray_app(Mock())
         app.icon, app.status = Mock(), {'running': False}
         with unittest.mock.patch.object(tessera_tray, 'firmware_installing', return_value=True):
             for now in (100.0, 200.0):
@@ -171,7 +171,7 @@ class NoticeTests(HostCase):
                 self.assertTrue(tessera_tray.notifications_enabled(), 'on unless switched off')
                 tessera_tray.set_notifications(False)
                 self.assertFalse(tessera_tray.notifications_enabled())
-                app = tessera_tray.TrayApp(Mock())
+                app = tray_app(Mock())
                 app.icon = Mock()
                 app.last_notice = 0
                 app.show_notices([{'id': 5, 'title': 'Claude', 'message': 'Waiting for you'}])

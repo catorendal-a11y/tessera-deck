@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+import host_support  # noqa: E402
 
 HAS_TEXTUAL = importlib.util.find_spec('textual') is not None
 if HAS_TEXTUAL:
@@ -218,7 +219,7 @@ class TrayTerminalStopTests(unittest.TestCase):
             patcher = patch.object(tessera_tray, name, value, create=True)
             patcher.start()
             self.addCleanup(patcher.stop)
-        self.app = tessera_tray.TrayApp(Mock())
+        self.app = host_support.tray_app(Mock())
         self.app.icon, self.app.host, self.app.asked_autostart = Mock(), Mock(), True
 
     def host_stops(self, stop_pressed):

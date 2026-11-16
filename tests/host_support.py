@@ -10,7 +10,7 @@ import sys
 import tempfile
 import types
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
@@ -21,6 +21,14 @@ FOLDER = Path(tempfile.mkdtemp(prefix='tessera-tests-'))
 atexit.register(shutil.rmtree, FOLDER, True)
 PROFILES = FOLDER / 'profiles.default.json'
 shutil.copyfile(ROOT / 'host/profiles.default.json', PROFILES)
+
+
+def tray_app(controller):
+    """A TrayApp with a Mock for its tray icon. A real pystray icon keeps its window class until it is garbage
+    collected, so the next test that builds one can fail with "Class already exists"."""
+    import tessera_tray
+    with patch.object(tessera_tray.pystray, 'Icon'):
+        return tessera_tray.TrayApp(controller)
 
 
 def args(path=PROFILES, port='TEST', no_focus=True):
