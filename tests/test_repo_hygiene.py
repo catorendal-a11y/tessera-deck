@@ -14,10 +14,10 @@ def read(path):
 
 class RepoHygieneTests(unittest.TestCase):
     def test_native_targets_stub_every_time_service_call_of_the_ui(self):
-        # Both targets link ui.cpp without time_service.c, so a new call there breaks the default native build.
+        # These targets link ui.cpp without time_service.c, so a new call there breaks the default native build.
         called = set(re.findall(r'\b(time_service_\w+)\s*\(', read('main/ui/ui.cpp')))
         self.assertTrue(called)
-        for stub in ('tests/native/render_screens.cpp', 'tests/native/test_ui.cpp'):
+        for stub in ('tests/native/render_screens.cpp', 'tests/native/test_ui.cpp', 'tests/native/cache_bench.cpp'):
             missing = {name for name in called if not re.search(r'\b' + name + r'\s*\(\s*\)\s*\{', read(stub))}
             self.assertFalse(missing, f'{stub} lacks stubs for {sorted(missing)}')
 

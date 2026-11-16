@@ -23,6 +23,7 @@
 - Import: *Without commands* also removes text typed after a hotkey (Win+R, a command and Enter runs it), and the review lists such keys.
 - Images: a dropped image is only read as PNG, JPEG, GIF or WebP, so Pillow's other decoders never see it.
 - CI: every GitHub Action is pinned to a commit SHA, and a test keeps it that way.
+- Tests: `tests/cache_bench.py` switches between pages that share almost no icons while live keys change, and reports hit rate, evictions, USB traffic and tap-to-paint time. It runs the real host against the panel's image cache and UI built for the PC (docs/DEVELOPMENT.md).
 - CI: a failing host test now turns the main CI check red, and a release is only published when the full CI run (host tests, lint, firmware static analysis, API tests) passes on the tagged commit.
 - Firmware: the comment on `CONFIG_LWIP_TCP_MSS` in `sdkconfig.defaults` now says that 400 is below lwIP's minimum of 536 and is ignored, and that the build uses 1440.
 - Sensors: Libre Hardware Monitor now runs with administrator rights only from a verified copy in `%ProgramFiles%\Tessera`, which other programs cannot change, and a firewall rule keeps its port 8085 off the network. Run `Tessera.cmd --sensors` again to move the sign-in task there.
