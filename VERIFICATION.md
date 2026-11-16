@@ -45,6 +45,21 @@ Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA*
 
 The editor was also walked through against a copy of a real configuration: every page, the three key tabs on every key, all dialogs, pages and profiles created, renamed and deleted, drag and drop with synthetic events, undo and redo. That was before the latest editor redesign. The editor smoke test covers the new layout only in part.
 
+## Screen speed
+
+Measured on 16 November 2026 with firmware 0.10.1 and the panel connected to the host. The numbers come from the `draws` and `drawMaxMs` fields of `get_info` ([docs/PROTOCOL.md](docs/PROTOCOL.md#handshake-fields)). An update is one pass of drawing what changed and copying it into the panel's frame buffer.
+
+| What happens | Screen updates | Slowest update |
+|---|---|---|
+| Nothing changes for 1.5 s | 0 | |
+| A key that opens another page (pressed with `AD_PRESS`) | 1 or 2: the pressed key, then the new page | 43 to 45 ms |
+| A rail button to the mixer, or back to the keys | 1 | 32 to 42 ms |
+| Opening the agents screen | 1 | 47 ms |
+| A working agent's text changes | 1 | 1.2 to 1.6 ms |
+| Waking the dimmed panel, which draws the whole screen | 1 | 44 to 45 ms |
+
+The screen is drawn by two threads, one per core. With one thread, as in 0.10.1 and earlier, a full screen took 56 ms. The touch controller is read every 15 ms. A key shows its pressed look when the finger lands and runs its action when the finger lifts, and the key flashes green or red when the host answers.
+
 ## Not verified on the panel
 
 The code for these is written and tested in simulation. Nobody has tried them on the panel.
@@ -61,6 +76,8 @@ The code for these is written and tested in simulation. Nobody has tried them on
 | Fader drag and rail shortcut taps | Touch with a finger |
 | Ambient screen, key colors, offline layout | Behavior with the layout stored in flash |
 | Installer on a blank board | A full install on a new board (updating a running panel from a published release has been done) |
+| Tap to screen | The time from a finger on the glass to the pressed look, filmed at a high frame rate |
+| Touch accuracy | Missed or wrong keys when every key is tapped many times, edges included |
 | Long sessions | Long-press timing, USB unplug, panel reset, Windows sleep and resume, panel memory use over days |
 
 Check these first after flashing a new version. [CHANGELOG.md](CHANGELOG.md) lists what changed.

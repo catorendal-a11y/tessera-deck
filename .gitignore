@@ -33,3 +33,5 @@ hardware/renders/
 *.local.txt
 host/profiles-unreadable.local.json
 .claude/
+# Screen captures from the native UI tests when they run without an output folder
+*.ppm

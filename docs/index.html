@@ -37,7 +37,6 @@ h3{font-size:19px;letter-spacing:-.01em}
 h1,h2,.hero .eyebrow{text-wrap:balance}
 p.lead,.note{text-wrap:pretty}
 p code{font:500 .88em var(--mono);color:var(--fg);background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
-.quiet{color:var(--dim)}
 p.lead{font-size:clamp(17px,2vw,20px);color:var(--muted);max-width:620px}
 .btns{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:999px;font:600 15px/1 var(--text);text-decoration:none;border:1px solid var(--line);transition:background .15s,border-color .15s}
@@ -165,7 +164,7 @@ footer a{color:var(--muted)}
 <main id="top">
 <section class="hero wrap">
   <div class="eyebrow">Open-source <b>DIY Stream Deck</b> for Windows</div>
-  <h1><span class="quiet">One 7-inch touchscreen.</span> A deck you build yourself.</h1>
+  <h1>One 7-inch touchscreen, a deck you build yourself.</h1>
   <p class="lead">Tessera turns the GUITION JC1060P470C ESP32-P4 board into a macro deck: 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, a sound mixer and a screen that answers your AI agent. It works without soldering, an account or the cloud.</p>
   <div class="btns">
     <a class="btn primary" href="https://github.com/catorendal-a11y/tessera-deck/releases/latest">Download Tessera</a>
@@ -196,7 +195,7 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="screens">
   <div class="eyebrow">Screens</div>
-  <h2><span class="quiet">The panel's screens,</span> drawn by its own firmware.</h2>
+  <h2>The panel's screens, drawn by its own firmware.</h2>
   <p class="lead">The animation and the stills come from the panel's own LVGL interface in a native build at 1024 × 600. The agents and mixer screens show sample data.</p>
   <div class="stage demo"><img src="images/demo.gif" width="800" height="520" loading="lazy" alt="Tessera in motion: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor"></div>
   <div class="screens">
@@ -219,7 +218,7 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="editor">
   <div class="eyebrow">The editor</div>
-  <h2><span class="quiet">Drag keys into place.</span> The editor saves as you go.</h2>
+  <h2>Drag keys into place and the editor saves as you go.</h2>
   <div class="two">
     <div>
       <p class="lead" style="margin-top:0">Set up keys, pages and profiles in a drag-and-drop editor on your PC. Start from ready-made actions and profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode, and give each key a real app icon or one of the bundled icons.</p>
@@ -236,7 +235,7 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="console">
   <div class="eyebrow">Desk console · print it yourself</div>
-  <h2><span class="quiet">A stand you print.</span> The console needs no supports.</h2>
+  <h2>A stand you print without supports.</h2>
   <div class="two flip">
     <div class="stage"><img src="images/console-hero.jpg" width="1920" height="1080" loading="lazy" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back"></div>
     <div>
@@ -257,7 +256,7 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="features">
   <div class="eyebrow">Features</div>
-  <h2><span class="quiet">Built for the desk.</span> Open source under the MIT licence.</h2>
+  <h2>Built for the desk, open source under the MIT licence.</h2>
   <div class="features">
     <div><div class="n">01</div><h3>It answers your AI agent</h3><p>When Claude Code asks for permission, the question shows on the panel. Touch <em>Allow</em> or <em>Deny</em>. The agents screen shows what Claude Code, Codex and ZCode are doing, since when and in which project.</p></div>
     <div><div class="n">02</div><h3>Stays on your PC</h3><p>Tessera needs no account, cloud or subscription. The panel has no network and speaks only to the host over USB. The editor and the control API listen on 127.0.0.1 only.</p></div>
@@ -304,7 +303,7 @@ idf.py -B build/idf6 -p COMx flash</pre>
     <details><summary>Does it run on another board, or on macOS or Linux?</summary><p>Not yet. The pin setup and the screen layout are written for this board, so another board needs a port, and the host runs on Windows only. CONTRIBUTING.md says what a port takes; open an issue with the board's name and resolution.</p></details>
     <details><summary>How does it compare with a Stream Deck?</summary><p>A Stream Deck MK.2 lists at $149.99 with 15 physical keys, the XL at $249.99 with 32. Tessera costs the board and gives 18 keys per page, keys up to three slots wide, and widgets, a mixer, PC status and the AI agents built in, under the MIT licence. You do give up the feel of real keys, since Tessera is a glass touchscreen. Prices are US list prices from November 2026.</p></details>
     <details><summary>Does it send anything to the internet?</summary><p>Only what you ask for: the update check on GitHub, the clock's weather from Open-Meteo, online icons from Iconify, your own HTTP actions and calendar, and the plugins you turn on. The bundled plugins only reach your own Home Assistant and OBS. Setup also downloads Python packages from PyPI, pinned by hash, and Libre Hardware Monitor if you turn on the optional sensors. SECURITY.md lists every connection.</p></details>
-    <details><summary>What happens when the PC is off?</summary><p>The panel keeps the last layout and shows it, so it is never blank. Actions run on the PC, so keys need the host. A hung screen or USB loop restarts the panel by itself.</p></details>
+    <details><summary>What happens when the PC is off?</summary><p>The panel keeps the last layout and is meant to show it while the PC is off. Actions run on the PC, so keys need the host. A watchdog is built in to restart the panel when the screen or USB loop hangs, and the bootloader is set up to roll back a bad update. Nobody has tried the offline layout, the watchdog or the rollback on a panel yet. VERIFICATION.md in the repository lists what has been tried.</p></details>
     <details><summary>Does it work with Home Assistant?</summary><p>Through the PC, yes: the bundled plugin runs Home Assistant actions from keys. On the esphome-beta branch the panel can also join your Wi-Fi and show up through the ESPHome integration, with keys that work while the PC is off. That beta is not in the release yet.</p></details>
     <details><summary>Licence and contributing?</summary><p>MIT. ESP-IDF, LVGL, cJSON, the Lucide icons (ISC), the DejaVu fonts and the optional Libre Hardware Monitor (MPL-2.0) keep their own licences. Bug reports, ideas, ports and pull requests are welcome.</p></details>
   </div>

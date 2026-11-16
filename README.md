@@ -17,24 +17,24 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/console-desk.jpg" alt="The Tessera panel in its printed desk console, close up on a desk, with the main page of app keys on the screen and a monitor out of focus behind it" width="900">
+  <img src="docs/images/console-desk.jpg" alt="A render of the Tessera panel in its printed desk console, close up on a desk, with the main page of app keys on the screen and a monitor out of focus behind it" width="900">
 </p>
 
 Tessera is a macro deck for Windows that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. It needs no soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
-> **What you need:** the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. Other boards need porting, and the host runs on Windows only.
+> You need the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. Other boards need porting, and the host runs on Windows only.
 
 <p align="center">
   <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor" width="760">
 </p>
 
-## Why Tessera
+## In short
 
 - When Claude Code asks for permission, the question shows on the panel and you touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
-- Everything stays on your PC, with no account, cloud service or subscription. The panel talks to a small Windows host over USB.
+- There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on, such as the update check or the weather. [Security](SECURITY.md#what-tessera-contacts) lists every address. The panel talks to a small Windows host over USB.
 - Firmware, host and editor are open source (MIT), with over 600 automated tests, a documented serial protocol and a plugin API.
-- It needs one cheap board, which you flash from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
+- It needs one board, which you flash from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
 
 | Widgets on wide keys | Answer Claude Code from the panel |
 |---|---|
@@ -54,7 +54,8 @@ Tessera is a macro deck for Windows that you build from one 7-inch touchscreen b
 
 The release zip has the host and the panel firmware, so you need no build tools.
 
-1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up, installs Python if it is missing and puts a shortcut on the Desktop. The editor opens.
+1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up and puts a shortcut on the Desktop. The editor opens.
+   Windows SmartScreen may warn about the download because Tessera is not code-signed. You can compare the zip's SHA-256 with `SHA256SUMS` first, as [Install](docs/INSTALL.md#download-and-verify) explains. If no Python 3.11 or newer is found, the first start installs Python 3.12 for your user with winget and accepts its license terms.
 2. Connect the panel with USB. The *Getting started* checklist in the editor ticks off *Host running* and *Panel connected* by itself.
 3. Open **Panel → Panel firmware and updates …** and choose the included firmware. A new board needs *Full install (new or blank panel)*, then *Install anyway*. Press *Install*. More in [Install](docs/INSTALL.md).
 4. Click an action in the list on the right. It becomes a new key. Fill it in on the **Look** and **Actions** tabs. Changes are saved automatically.
@@ -71,7 +72,7 @@ Nothing runs in the editor. Keys run only when you press them on the panel.
 | Live widgets, mixer, PC status, AI agents | built in | through plugins | through plugins |
 | Source code | MIT | closed | closed |
 
-You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. Tessera is glass, so you give up the feel of a real key. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026, so they may have changed.
+You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. Tessera is glass, so you give up the feel of a real key. A key shows it is pressed as soon as your finger lands and runs its action when you lift it. Drawing the whole screen takes about 45 ms; [Verification](VERIFICATION.md#screen-speed) has the measurements. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026, so they may have changed.
 
 ## What it does
 
@@ -150,6 +151,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [Development](docs/DEVELOPMENT.md) | Project layout, tests and tools |
 | [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
+| [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what nobody has tried yet |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 
 ## Credits and license

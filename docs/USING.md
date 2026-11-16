@@ -215,7 +215,7 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 | Hotkey | `hotkey` | Press a key combination or media key |
 | Type text | `text` | Type text |
 | Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program |
-| Run command, HTTP request | `shell`, `http` | Run a command or call an address; an error status (4xx, 5xx) fails the action |
+| Run command, HTTP request | `shell`, `http` | Run a command or call an address; an error status (4xx, 5xx) fails the action, and so does a redirect from https to http. A redirect to another host goes there without the step's headers |
 | Wait | `delay` | Wait between steps |
 | Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate |
 | Trigger another key | `press` | Run another key |
@@ -311,6 +311,7 @@ Start with **More → Host log …**. It shows what the USB host does: connectio
 
 | Symptom | Fix |
 |---|---|
+| A page change takes several seconds | The panel's image cache holds about 33 animated icons of 12 frames. With more on the pages you switch between, the host sends them again on a page change, about 0.65 s each. Use still icons for most keys. |
 | The panel stays black but touch works | A touch wakes a dimmed panel. If it stays black, restart the host; it wakes the backlight on connect. |
 | Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`). FPS needs HWiNFO with PresentMon. |
 | A key makes only a program's taskbar button flash | Update to 0.6.0 or later and restart the host. It then brings the window to the front. |

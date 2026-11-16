@@ -365,6 +365,18 @@ static void lvgl_watchdog(lv_timer_t *)
     if (subscribed) esp_task_wdt_reset();
 }
 
+/* Screen updates since the last get_info, and how long the slowest took to draw and send to the panel.
+ * The host and the docs read these to tell how busy the screen is. */
+static std::atomic<uint32_t> s_draws{0}, s_draw_max_us{0};
+static void draw_timing(lv_event_t *event)
+{
+    static int64_t started = 0;
+    if (lv_event_get_code(event) == LV_EVENT_RENDER_START) { started = esp_timer_get_time(); return; }
+    const uint32_t took = static_cast<uint32_t>(esp_timer_get_time() - started);
+    ++s_draws;
+    if (took > s_draw_max_us) s_draw_max_us = took;
+}
+
 /* Parse "<digits>" within [low, high]; returns false for anything else. */
 static bool parse_percent(const char *text, long low, long high, int *out)
 {
@@ -489,6 +501,8 @@ static void usb_console_task(void *)
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
                 cJSON_AddNumberToObject(reply,"imgAck",1);  /* "AD_IMG_BEGIN <id> <bytes> <crc> ack", see deck_images.cpp */
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
+                cJSON_AddNumberToObject(reply,"draws",s_draws.exchange(0));
+                cJSON_AddNumberToObject(reply,"drawMaxMs",s_draw_max_us.exchange(0)/1000.0);
                 app_confirm();  /* the host can talk to this firmware: keep it */
                 char *text=cJSON_PrintUnformatted(reply);
                 if(text){printf("%s\n",text);cJSON_free(text);}cJSON_Delete(reply);fflush(stdout);
@@ -764,6 +778,8 @@ extern "C" void app_main(void)
         const lv_result_t queued = lv_async_call([](void *) {
             ui_init();
             lv_timer_create(lvgl_watchdog, 1000, nullptr);
+            lv_display_add_event_cb(lv_display_get_default(), draw_timing, LV_EVENT_RENDER_START, nullptr);
+            lv_display_add_event_cb(lv_display_get_default(), draw_timing, LV_EVENT_RENDER_READY, nullptr);
         }, nullptr);
         bsp_display_unlock();
         if (queued != LV_RESULT_OK) {

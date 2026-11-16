@@ -7,6 +7,12 @@
 - A rail shortcut or Home into another profile goes straight to its page. Before, the panel showed that profile's first page for a moment on the way.
 - Firmware: a picture that arrives after its page goes into its own key. Before, each one redrew every key and could drop a press that was still held.
 - Firmware: when an agent's text changes, only that text is redrawn on the Agents screen. Before, the whole list was rebuilt every few seconds and a tap on Open or Stop could get lost.
+- Firmware: the screen is drawn by two threads, one on each core. A full screen takes about 45 ms instead of 56 ms.
+- Firmware: `get_info` reports how many screen updates there were since the last `get_info` and how long the slowest took (`draws`, `drawMaxMs`). [VERIFICATION.md](VERIFICATION.md#screen-speed) has the numbers measured with it.
+- Host: an HTTP action no longer follows a redirect from https to http. A redirect to another host goes there without the action's headers. Before, urllib sent every header, an `Authorization` header too, to wherever the redirect pointed.
+- Host: an *Open* step with an address no longer fills in `%NAME%` from the PC's environment. Paths still do.
+- Import: a web request that sends `$(env:NAME)` in its address, headers or body is marked high risk and names the variable. Before, it was medium.
+- Docs: the README links [VERIFICATION.md](VERIFICATION.md), and the watchdog, the rollback and the offline layout are described as built in and not yet tried on a panel.
 
 ## 0.10.1
 

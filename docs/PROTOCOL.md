@@ -75,7 +75,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 
 | Message | When | What the host does |
 |---|---|---|
-| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"layoutSaved":N}` | The answer to `get_info` | Accepts only `tessera-p4` and a supported protocol. See [Handshake fields](#handshake-fields). |
+| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"layoutSaved":N,"draws":N,"drawMaxMs":N}` | The answer to `get_info` | Accepts only `tessera-p4` and a supported protocol. See [Handshake fields](#handshake-fields). |
 | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed. `hold` is present for a long press. | Runs the key's actions. |
 | `{"type":"wake"}` | A touch woke the dimmed panel. | Resets the idle timer. No key is pressed. |
 | `{"type":"brightness","level":N}` | The brightness slider was released. | Stores the level (1 to 100). |
@@ -99,6 +99,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `ota` | `1` when the panel accepts `AD_OTA_*`. Missing on older firmware. |
 | `imgAck` | `1` when `AD_IMG_BEGIN` takes `ack` and the panel then acknowledges image data. Missing on older firmware: the host sends 160-byte lines and pauses 10 ms after every 4. |
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
+| `draws`, `drawMaxMs` | Screen updates since the previous `get_info`, and how long the slowest took to draw and send to the panel, in ms. Reading them starts a new count. Missing on older firmware. |
 
 A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once.
 

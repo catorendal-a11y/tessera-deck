@@ -15,6 +15,8 @@ The editor and the control API are two small web servers inside the host. Neithe
 - Plugins get their own token with only the routes they declared, and only variable names that start with `<plugin id>.`. See [Plugins](docs/PLUGINS.md).
 - Every call that changes something through the control API is written to the host log (**More → Host log …**) with the caller's name, the method, the path and the answer code. The log never holds request bodies, and it leaves out successful bulk variable updates (`/v1/vars`). Single updates (`/v1/var`) are logged.
 - The panel itself has no network. It only speaks to the host over USB, see [Protocol](docs/PROTOCOL.md).
+- Any program that can open the panel's COM port can write firmware to it, as esptool does. Secure boot is off, so the panel runs that firmware without checking who built it.
+- *Check for updates* keeps a downloaded firmware package only if its SHA-256 matches `SHA256SUMS` from the same GitHub release. That catches a damaged download. Someone who could change the release could change `SHA256SUMS` too, so for provenance use `gh attestation verify` as [Install](docs/INSTALL.md#download-and-verify) shows.
 
 ## Imported profiles
 
@@ -22,7 +24,7 @@ Treat an imported profile like a program. A profile can hold shell commands, web
 
 - Import lists every shell command, web request (with the host it goes to), program launch outside web links and documents, plugin command and automatic rule, and asks before keeping them. You can import without them.
 - Import also lists the plugins a file turns on, and importing without the listed actions drops the file's plugins. A file that leaves a plugin off can still carry settings for it, and *Replace the configuration* keeps them, so check the plugin settings after a Replace import.
-- Variable values in shell commands are refused when they contain anything other than letters, digits, spaces and `. , : / - _`. In web addresses they are percent-encoded.
+- Variable values in shell commands are refused when they contain anything other than letters, digits, spaces and `. , : / - _`. In web addresses they are percent-encoded. Import marks a web request that sends a `$(env:NAME)` value as high risk.
 - Read a shared profile before you import it, even when you know the author.
 
 ## Secrets

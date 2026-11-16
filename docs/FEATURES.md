@@ -34,7 +34,7 @@ This page lists what Tessera does, including the changes under *Unreleased* in t
 | Mixer screen | Faders for the speakers, up to three programs and the microphone. |
 | Status screen | Live gauges for the PC. |
 | Clock screen | An idle clock made of brand-colored tiles, with optional weather from Open-Meteo for a city you choose and an icon for sun, cloud, fog, drizzle, rain, snow or thunder. The clock is 24-hour or 12-hour with AM/PM; *Clock format* in Panel → Display follows Windows by default. |
-| Offline layout | The panel keeps the last layout (up to 8 KB, with the previous one as a backup) and shows it when the PC is off. |
+| Offline layout | The panel keeps the last layout (up to 8 KB, with the previous one as a backup) and is meant to show it when the PC is off. That has not been tried with the layout stored in flash; see [VERIFICATION.md](../VERIFICATION.md). |
 | About sheet | A long press on the logo shows the firmware version, whether the PC is connected and a brightness slider. Tap outside to close. |
 
 ### Touch
@@ -54,6 +54,7 @@ This page lists what Tessera does, including the changes under *Unreleased* in t
 - A key can cover two or three slots (wide keys).
 - Widgets on wide keys: clock, date, processor, graphics card, memory, network speed, volume, AI agents and next meeting. A wide key can also show the music that plays or a timer's countdown.
 - Real app icons come from the Windows shell at 256 px (Store apps, shortcuts and aliases included). You can also use 1,895 bundled [Lucide](https://lucide.dev) icons and your own PNG, JPEG, GIF and WebP images.
+- The panel's 8 MiB image cache holds about 33 animated icons of 12 frames, the most the host sends. If the pages you switch between hold more than that, a page change waits while the host sends them again, about 0.65 s per 12-frame icon and about 10 s for 15. Use still icons for most keys.
 - Live gauges cover CPU, GPU, VRAM, RAM, disk, network, uptime, temperatures, power, fan speed and FPS. The panel shows the value in the gauge's color, amber and red at the thresholds.
 - Microphone, speaker and media keys show the real Windows state (muted, live, playing) and flip on their own. Labels can show the current track and volume.
 - Secondary text meets WCAG 4.5:1 contrast, checked by a native test.
@@ -61,8 +62,9 @@ This page lists what Tessera does, including the changes under *Unreleased* in t
 ### Brightness and reliability
 
 - The panel dims after inactivity or when the PC locks. Quiet hours lower the brightness at night.
-- A hung screen or USB loop restarts the panel by itself. The host logs the restart and why, and shows a notice after a crash, hang or power dip.
-- Firmware updates go over USB. The flash has two 6 MB app slots, and the bootloader returns to the previous firmware if a new one never reaches the host.
+- A watchdog is built in to restart the panel when the screen or the USB loop hangs. The host logs the restart and why, and shows a notice after a crash, hang or power dip.
+- Firmware updates go over USB. The flash has two 6 MB app slots, and the bootloader is set up to return to the previous firmware if a new one never reaches the host.
+- Nobody has tried the watchdog or the rollback on a panel yet. [VERIFICATION.md](../VERIFICATION.md) lists what is tested and what is not.
 
 ## In the editor
 
