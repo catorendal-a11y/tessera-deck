@@ -147,7 +147,7 @@ host\.venv\Scripts\python.exe tests\cache_bench.py --exe build\native\cache_benc
 host\.venv\Scripts\python.exe tests\cache_bench.py --exe build\native\cache_bench.exe --old-firmware
 ```
 
-`--json` prints the numbers of every switch and live update. `--check` exits with 1 when a key is still blank after a switch, the host's record of the panel's images differs from the panel's cache, the host reports an error, or no switch was measured because every tap was dropped. `--help` lists the options for pages, shared icons, live keys, frames, timing and link rate.
+`--json` prints the numbers of every switch and live update. `--check` exits with 1 when a key is still blank after a switch, the host's record of the panel's images differs from the panel's cache, the host reports an error, or no switch was measured because every tap was dropped. CI runs it that way with and without `--old-firmware`. `--help` lists the options for pages, shared icons, live keys, frames, timing and link rate.
 
 Runs on the development PC (Release build) gave:
 
@@ -174,7 +174,7 @@ GitHub Actions runs these on every pull request and every push to main:
 | `ci.yml`, host | Lint, tests with the 73 % coverage floor, terminal check and dependency audit, on Windows with Python 3.11, 3.12 and 3.14 |
 | `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock` (Python 3.11 and 3.14) |
 | `ci.yml`, firmware-analysis | `cppcheck` on the firmware sources |
-| `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests |
+| `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests, and the image cache benchmark with `--check`, with and without `--old-firmware` |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 
 [VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).
