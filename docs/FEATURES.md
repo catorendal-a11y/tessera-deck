@@ -34,7 +34,7 @@ This page lists what Tessera does, including the changes under *Unreleased* in t
 | Mixer screen | Faders for the speakers, up to three programs and the microphone. |
 | Status screen | Live gauges for the PC. |
 | Clock screen | An idle clock made of brand-colored tiles, with optional weather from Open-Meteo for a city you choose and an icon for sun, cloud, fog, drizzle, rain, snow or thunder. The clock is 24-hour or 12-hour with AM/PM; *Clock format* in Panel → Display follows Windows by default. |
-| Offline layout | The panel keeps the last layout (up to 8 KB, with the previous one as a backup) and is meant to show it when the PC is off. That has not been tried with the layout stored in flash; see [VERIFICATION.md](../VERIFICATION.md). |
+| Offline layout | The panel keeps the last layout (up to 8 KB, with the previous one as a backup) and shows it when the PC is off or the host is not running. |
 | About sheet | A long press on the logo shows the firmware version, whether the PC is connected and a brightness slider. Tap outside to close. |
 
 ### Touch
@@ -62,9 +62,9 @@ This page lists what Tessera does, including the changes under *Unreleased* in t
 ### Brightness and reliability
 
 - The panel dims after inactivity or when the PC locks. Quiet hours lower the brightness at night.
-- A watchdog is built in to restart the panel when the screen or the USB loop hangs. The host logs the restart and why, and shows a notice after a crash, hang or power dip.
-- Firmware updates go over USB. The flash has two 6 MB app slots, and the bootloader is set up to return to the previous firmware if a new one never reaches the host.
-- Nobody has tried the watchdog or the rollback on a panel yet. [VERIFICATION.md](../VERIFICATION.md) lists what is tested and what is not.
+- A watchdog restarts the panel when the screen or the USB loop hangs. The host logs the restart and why, and shows a notice after a crash, hang or power dip.
+- Firmware updates go over USB. The flash has two 6 MB app slots, and the bootloader returns to the previous firmware if a new one never reaches the host.
+- The watchdog, the rollback and the offline layout were tried on a panel, the first two with builds made to hang or never confirm. [VERIFICATION.md](../VERIFICATION.md) has the results.
 
 ## In the editor
 

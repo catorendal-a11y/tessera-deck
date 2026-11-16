@@ -12,7 +12,7 @@
 - Host: an HTTP action no longer follows a redirect from https to http. A redirect to another host goes there without the action's headers. Before, urllib sent every header, an `Authorization` header too, to wherever the redirect pointed.
 - Host: an *Open* step with an address no longer fills in `%NAME%` from the PC's environment. Paths still do.
 - Import: a web request that sends `$(env:NAME)` in its address, headers or body is marked high risk and names the variable. Before, it was medium.
-- Docs: the README links [VERIFICATION.md](VERIFICATION.md), and the watchdog, the rollback and the offline layout are described as built in and not yet tried on a panel.
+- Docs: the README links [VERIFICATION.md](VERIFICATION.md). The watchdog, the rollback and the offline layout were tried on a panel, and VERIFICATION.md has the results.
 
 ## 0.10.1
 

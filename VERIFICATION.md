@@ -40,6 +40,11 @@ Other automatic checks:
 | First full install of the A/B layout (0.7.0, esptool 5.4 and again with 5.6) | 0.7.0, 13 November 2026 | Passed |
 | Update over USB into the idle slot: 0.7.0 to 0.7.0, 0.7.0 to 0.8.0, then 0.8.0 to 0.8.0 four times | 0.8.0, 13 November 2026 | Passed, with two failures (below) |
 | Image upload with acknowledgements (`"imgAck":1`): four 12-frame and four still icons sent with the host's own upload code, then again with the old paced upload | 0.8.0, 16 November 2026 | Passed. 0.65 s per 12-frame icon (2.78 s paced), 86 ms per still icon (0.22 s paced) |
+| Offline layout: the panel reset with the host stopped | 0.10.1, 16 November 2026 | Passed. 1.4 s after the reset it showed the 18 keys of the saved layout, not the 12 built-in ones |
+| Watchdog: a test build hangs the screen task, then the USB loop | 0.10.1, 16 November 2026 | Passed. The panel restarted after 6.4 s (screen) and 7.2 s (USB) and reported `task_wdt` as the reason |
+| Rollback: a test build that never confirms itself and restarts 15 s after boot, installed with *Update* | 0.10.1, 16 November 2026 | Passed. After its first restart the bootloader started the previous firmware again, which kept running |
+
+The watchdog and rollback tests used two builds made only for that and never published. One adds a command that hangs the screen task or the USB loop. The other skips the confirmation and restarts while the new firmware is still unconfirmed. The host turns a `task_wdt` reason into a log line and a notice; that part is covered by unit tests, not by these runs. The panel runs the normal 0.10.1 build again.
 
 Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA* on a panel that had run 0.7.0 for about four hours; it kept its old firmware, and the next tries worked. The cause is not found. Since 0.8.0 the host aborts and starts such an upload once more by itself. `hardware_smoke.py` has not been run on 0.7.0 or 0.8.0.
 
@@ -66,15 +71,13 @@ The code for these is written and tested in simulation. Nobody has tried them on
 
 | Feature | What is unknown |
 |---|---|
-| Firmware rollback | Whether the bootloader returns to the old slot after a new firmware crashes or hangs before the host confirms it |
-| Watchdog restart | Whether a hung screen or USB loop restarts the panel under real load |
 | Hold to confirm | The 0.6 s hold and the filling ring with a finger on the glass |
 | Panel lock | Locking, the lock badge and the 2 s hold on the logo that unlocks |
 | Swipe right to go back | Whether the gesture feels right and never presses the key it starts on |
 | About sheet | The long press on the logo and the saved brightness slider |
 | Widgets, mixer faders, status screen | How they look and feel on the glass |
 | Fader drag and rail shortcut taps | Touch with a finger |
-| Ambient screen, key colors, offline layout | Behavior with the layout stored in flash |
+| Ambient screen, key colors | How they look with the layout stored in flash |
 | Installer on a blank board | A full install on a new board (updating a running panel from a published release has been done) |
 | Tap to screen | The time from a finger on the glass to the pressed look, filmed at a high frame rate |
 | Touch accuracy | Missed or wrong keys when every key is tapped many times, edges included |
