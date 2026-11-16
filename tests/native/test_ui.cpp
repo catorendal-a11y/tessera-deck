@@ -253,6 +253,17 @@ static void test_agents(){
     assert(!visible("New tab 2"));
     capture("agents.ppm");
 }
+static void test_agent_words_change_in_place(){
+    /* New words from a working agent change only its labels: the lanes stay, so a tap on Stop is not lost. */
+    auto* stop=lv_obj_get_parent(find(lv_screen_active(),"Stop"));auto* words=find(lv_screen_active(),"Editing host/win_input.py");
+    assert(stop&&words);
+    assert(deck_model_agents_from_json(R"({"agents":[
+ {"id":"claude","name":"Claude Code","state":"waiting","q":1,"text":"Wants to run: npm run build","sub":"tessera-deck-main"},
+ {"id":"codex","name":"Codex","state":"working","text":"Using Bash","sub":"tessera-deck-main"},
+ {"id":"zcode","name":"ZCode","state":"idle","text":"Finished 14:05"}]})"));updates();
+    assert(lv_obj_get_parent(find(lv_screen_active(),"Stop"))==stop&&!strcmp(lv_label_get_text(words),"Using Bash"));
+    assert(deck_model_agents_from_json(ThreeAgents));updates();assert(!strcmp(lv_label_get_text(words),"Editing host/win_input.py"));
+}
 static void test_agent_allow_deny(){
     /* Allow and Deny each go to the host as one line naming the agent; Stop on a working one too. */
     tap(912,145);assert(taken()==R"({"type":"agent","id":"claude","do":"allow"})"&&taken().empty());
@@ -463,18 +474,20 @@ static void test_tap_after_layout_swap(){
     deck_model_request_feedback(1,DECK_FEEDBACK_OK);deck_model_replace_buttons(saved,saved_count);keep_host(1000);
 }
 static bool has_image(lv_obj_t* tile){for(uint32_t i=0;i<lv_obj_get_child_count(tile);++i)if(lv_obj_check_type(lv_obj_get_child(tile,i),&lv_image_class))return true;return false;}
-static void test_image_waits_for_finger(){
-    /* An image that arrives while a finger holds a key does not rebuild the grid under it: the confirm ring fills
-     * and the press is sent. The image shows once the finger lifts. */
+static void test_image_fills_its_key(){
+    /* An image that arrives for a key on show goes into that key alone, also while a finger holds another key: the
+     * grid is not rebuilt, so the confirm ring keeps filling and the press is sent. */
     deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
     std::string layout=R"({"buttons":[{"id":1,"label":"Shut down","cf":1},{"id":2,"label":"Photo","icon":"im:0000000003e7"}]})";
     deck_button_t keys[2]{};int n=0;assert(!deck_image_get("im:0000000003e7"));
     assert(deck_model_buttons_from_json(layout.c_str(),keys,2,&n)&&deck_model_replace_buttons(keys,n));keep_host(1000);while(!taken().empty()){}
-    auto* tile=tile_of("Shut down");assert(!has_image(tile_of("Photo")));const int before=deck_model_last_event_id();
+    auto* tile=tile_of("Shut down");auto* photo=tile_of("Photo");assert(!has_image(photo));const int before=deck_model_last_event_id();
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<5;++i)step();assert(arcs_in(tile)==1);
     assert(upload_image(999,1)=="AD_IMG_END OK im:0000000003e7");
-    for(int i=0;i<15;++i)step();
-    deck_event_t event{};assert(deck_model_events_since(before,&event,1)==1&&event.button_id==1&&!has_image(tile_of("Photo")));
+    for(int i=0;i<2;++i)step();
+    assert(tile_of("Photo")==photo&&has_image(photo)&&tile_of("Shut down")==tile&&arcs_in(tile)==1);
+    for(int i=0;i<13;++i)step();
+    deck_event_t event{};assert(deck_model_events_since(before,&event,1)==1&&event.button_id==1);
     touching=false;updates();assert(has_image(tile_of("Photo")));
     deck_model_request_feedback(1,DECK_FEEDBACK_OK);while(!taken().empty()){}
     deck_model_replace_buttons(saved,saved_count);keep_host(1000);
@@ -521,12 +534,12 @@ int main(int argc,char** argv){
      {"live update in place",test_live_update_in_place},{"wide keys",test_wide_keys},{"deep nesting refused",test_deep_nesting_refused},{"long labels stay inside",test_long_labels_stay_inside},
      {"confirm key",test_confirm_key},{"swipe goes back",test_swipe_goes_back},{"feedback queue",test_feedback_queue},
      {"feedback after a page change",test_feedback_after_page_change},
-     {"host disconnect and reconnect",test_host_disconnect_reconnect},{"agents",test_agents},{"agent allow and deny",test_agent_allow_deny},
+     {"host disconnect and reconnect",test_host_disconnect_reconnect},{"agents",test_agents},{"agent words change in place",test_agent_words_change_in_place},{"agent allow and deny",test_agent_allow_deny},
      {"agent tap follows its lane",test_agent_tap_follows_its_lane},
      {"agent questions",test_agent_questions},{"mixer",test_mixer},{"rail shortcuts",test_rail_shortcuts},
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"image upload with acknowledgements",test_image_upload_ack},{"key styling",test_key_styling},
-     {"tap after a layout swap",test_tap_after_layout_swap},{"image waits for the finger",test_image_waits_for_finger},
+     {"tap after a layout swap",test_tap_after_layout_swap},{"image fills its key",test_image_fills_its_key},
      {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
     capture("deck.ppm");puts("Standalone Deck model, context and render checks passed.");

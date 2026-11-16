@@ -455,7 +455,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
 
     def go_home(self):
         profile = self.config.get('default_profile', next(iter(self.config['profiles'])))
+        moved = profile != self.profile
         self.switch_profile(profile)
+        if moved:  # switch_profile already pushed the first page
+            return True
         first_page = next(iter(self.config['profiles'][profile]['pages']))
         if self.page != first_page:
             self.switch_page(first_page)

@@ -139,6 +139,21 @@ class RailTests(HostCase):
         wake.assert_called_once()
         self.assertEqual(daemon.page, 'main', 'a tap on a dimmed panel only wakes it')
 
+    def test_a_shortcut_into_another_profile_sends_only_its_page(self):
+        daemon = self.daemon()
+        daemon.device_info = {'protocol': 4}
+        daemon.config['panel'] = {'shortcuts': [{'profile': 'coding', 'page': 'git', 'icon': 'lc:e0ff'}]}
+        daemon.cockpit_tick(100.0)
+        shortcut = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'page')
+        keys = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'keys')
+        for tap, shown in ((shortcut, ('coding', 'git')), (keys, ('main', 'main'))):
+            daemon.panel.reset_mock()
+            daemon.handle_job(('rail', tap))
+            contexts = [json.loads(call.args[0].split(' ', 1)[1]) for call in daemon.panel.send_line.call_args_list
+                        if call.args[0].startswith('AD_CONTEXT ')]
+            self.assertEqual([(c['profile'], c['page']) for c in contexts], [shown], "the profile's first page is not sent first")
+            daemon.panel.push_buttons.assert_called_once()
+
 
 
 class CockpitDaemonTests(HostCase):

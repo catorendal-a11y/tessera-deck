@@ -227,7 +227,10 @@ class BackgroundMixin:
             self.before_shortcut = remember
 
     def _go_to(self, profile, page):
-        self.switch_profile(profile)
+        moved = profile != self.profile
+        self.switch_profile(profile, page=page)  # straight to the page: the profile's first page is never shown
+        if moved:
+            return
         if self.page != page:
             self.switch_page(page)
         else:

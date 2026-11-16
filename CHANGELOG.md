@@ -4,6 +4,9 @@
 
 - Firmware: *Update* on a panel with the Wi-Fi beta firmware now says to use *Full install* because this version cannot talk to the beta. Before, the message blamed the A/B flash layout.
 - Firmware: a page change draws the screen once. Before, the panel drew the whole screen again for every wake the host sends with a page and with a key's feedback, so going to a page and back showed it redrawn three or four times in a row.
+- A rail shortcut or Home into another profile goes straight to its page. Before, the panel showed that profile's first page for a moment on the way.
+- Firmware: a picture that arrives after its page goes into its own key. Before, each one redrew every key and could drop a press that was still held.
+- Firmware: when an agent's text changes, only that text is redrawn on the Agents screen. Before, the whole list was rebuilt every few seconds and a tap on Open or Stop could get lost.
 
 ## 0.10.1
 

@@ -440,6 +440,14 @@ class HostRuntimeTests(HostCase):
         self.assertEqual((daemon.profile, daemon.page, daemon.folder_stack), ('main', 'main', []))
         daemon.panel.push_buttons.assert_called()
 
+    def test_home_from_another_profile_sends_the_first_page_once(self):
+        daemon = self.daemon()
+        daemon.switch_profile('coding')
+        daemon.panel.reset_mock()
+        daemon.run_action({'type': 'home'})
+        self.assertEqual((daemon.profile, daemon.page), ('main', 'main'))
+        daemon.panel.push_buttons.assert_called_once()
+
     def test_auto_profile_switching_can_be_disabled(self):
         daemon = self.daemon()
         daemon.args.no_focus = False

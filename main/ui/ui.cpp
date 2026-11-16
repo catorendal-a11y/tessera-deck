@@ -240,6 +240,7 @@ void wake_touch(lv_event_t *event) {
 }
 /* The deck: six by three keys, each in the slot its id names, so the panel shows what the editor shows. */
 uint32_t image_generation=0;bool image_missing=false;  /* a key waits for an image the host has not sent yet */
+struct ImageWait {char icon[DECK_ICON_NAME_MAX+1];int cx,cy;} image_wait[DECK_MAX_BUTTONS]{};  /* where it goes */
 char asked_images[DECK_MAX_BUTTONS][64]{};uint32_t asked_layout=0,asked_at=0;
 bool ask_once(const char *icon) {  /* each rebuild while images stream in would ask again and crowd out touches */
     if(asked_layout!=deck_model_buttons_version()||millis()-asked_at>60000){memset(asked_images,0,sizeof(asked_images));asked_layout=deck_model_buttons_version();asked_at=millis();}
@@ -274,6 +275,7 @@ void build_keys() {
     image_missing=false;image_generation=deck_image_generation();
     memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));memset(value_label,0,sizeof(value_label));
     memset(sub_label,0,sizeof(sub_label));memset(bar_fill,0,sizeof(bar_fill));memset(ring_arc,0,sizeof(ring_arc));memset(gauge,0,sizeof(gauge));
+    memset(image_wait,0,sizeof(image_wait));
     confirm_ring=nullptr;confirm_slot=-1;  /* the clean below deletes a ring in progress */
     lv_obj_clean(keys_area);for(auto& image:images){lv_image_cache_drop(&image.descriptor);image=ImageTile{};}
     memset(keys,0,sizeof(keys));memset(ids,0,sizeof(ids));memset(flash_until,0,sizeof(flash_until));
@@ -322,6 +324,8 @@ void build_keys() {
             auto *symbol=glyph_label[slot]=label(tile,fallback_icon(value.icon),0,cy-26,KeyW,&lv_font_montserrat_48,value.color);
             lv_obj_set_style_text_align(symbol,LV_TEXT_ALIGN_CENTER,0);
         }
+        if(!image&&!ring_arc[slot]&&!strncmp(value.icon,"im:",3)){
+            snprintf(image_wait[slot].icon,sizeof(image_wait[slot].icon),"%s",value.icon);image_wait[slot].cx=cx;image_wait[slot].cy=cy;}
         const uint32_t ink=(value.style&DECK_STYLE_TEXT)?value.text:Text;
         if(cells>1){
             /* Wide key: the title and a second line to the right of the icon, a progress bar underneath. */
@@ -352,6 +356,22 @@ void build_keys() {
     /* Empty slots stay visible as faint tiles, so the deck keeps its shape. */
     for(int slot=0;slot<DECK_MAX_BUTTONS;++slot)if(!keys[slot]&&!covered[slot])box(keys_area,(slot%6)*(KeyW+Gap),(slot/6)*(KeyH+Gap),KeyW,KeyH,20,0x0D1316);
     button_version=buttons_now;live_version=live_now;
+}
+/* An image that arrives for a key on show goes into that key alone. A rebuild of the grid for it redrew every key,
+ * once per image, and dropped a touch in progress. */
+void fill_images() {
+    image_generation=deck_image_generation();image_missing=false;
+    for(int slot=0;slot<DECK_MAX_BUTTONS;++slot){
+        auto& wait=image_wait[slot];if(!wait.icon[0]||!keys[slot])continue;
+        auto image=deck_image_get(wait.icon);
+        if(!image){image_missing=true;continue;}
+        wait.icon[0]='\0';
+        if(glyph_label[slot]){lv_obj_delete(glyph_label[slot]);glyph_label[slot]=nullptr;}
+        auto& target=images[slot];target.image=image;target.widget=lv_image_create(keys[slot]);
+        lv_obj_move_to_index(target.widget,0);  /* under the title and marks, where build_keys puts it */
+        lv_obj_set_pos(target.widget,wait.cx-image->width/2,wait.cy-image->height/2);lv_obj_set_clickable(target.widget,false);
+        image_frame(target);
+    }
 }
 /* Labels, colors and gauge values change in place: a rebuild would drop a touch in progress. */
 void update_live() {
@@ -393,6 +413,26 @@ void update_context() {
 /* ---- Agents -------------------------------------------------------------------------------------- */
 const char *const AgentActions[]={"allow","deny","stop","open"};
 deck_agent_t lane_shown[DECK_AGENTS_MAX]{};  /* what each lane drew: a tap answers that agent, not whoever sits there now */
+lv_obj_t *lane_state[DECK_AGENTS_MAX]{},*lane_text[DECK_AGENTS_MAX]{},*lane_sub[DECK_AGENTS_MAX]{};int lane_count=-1;
+void set_text(lv_obj_t *shown,const char *text) {if(shown&&strcmp(lv_label_get_text(shown),text))lv_label_set_text(shown,text);}
+void agent_state(const deck_agent_t& agent,char *out,size_t size) {
+    snprintf(out,size,"%s%s%s",agent.state==DECK_AGENT_WAITING?"waiting for you":agent.state==DECK_AGENT_WORKING?"working":"idle",
+             agent.at[0]&&agent.state!=DECK_AGENT_IDLE?" since ":"",agent.state!=DECK_AGENT_IDLE?agent.at:"");
+}
+const char *agent_words(const deck_agent_t& agent) {return agent.text[0]?agent.text:agent.state==DECK_AGENT_IDLE?"Ready":"Working";}
+/* The same lanes with new words (a working agent's tool changes every few seconds): only those labels change.
+ * A rebuild redrew most of the screen each time and dropped a tap on Open or Stop. */
+bool update_agents(const deck_agent_t *list,int count) {
+    if(agents_dirty||count!=lane_count)return false;
+    for(int i=0;i<count;++i){const auto& was=lane_shown[i];const auto& now=list[i];
+        if(strcmp(was.id,now.id)||strcmp(was.name,now.name)||was.state!=now.state||was.asks!=now.asks||!was.sub[0]!=!now.sub[0]
+           ||(now.state==DECK_AGENT_WAITING&&strcmp(was.text,now.text)))return false;}  /* a question is laid out to fit */
+    for(int i=0;i<count;++i){
+        char state[40];agent_state(list[i],state,sizeof(state));set_text(lane_state[i],state);
+        set_text(lane_text[i],agent_words(list[i]));set_text(lane_sub[i],list[i].sub);lane_shown[i]=list[i];
+    }
+    return true;
+}
 void agent_pressed(lv_event_t *event) {
     /* Locked: nobody may allow from the panel; the question still shows. No host: nobody would receive the answer. */
     if(deck_model_locked()||!deck_model_host_linked(HostTimeoutMs))return;
@@ -428,9 +468,12 @@ const char *agent_icon(const char *id) {
     return !strcmp(id,"claude")?"lc:e412":!strcmp(id,"codex")?"lc:e1bb":!strcmp(id,"zcode")?"lc:e3c6":"lc:e1bb";
 }
 void build_agents() {
-    lv_obj_clean(agents_area);
+    const uint32_t version=deck_model_agents_version();  /* before the copy, as in build_keys */
     deck_agent_t list[DECK_AGENTS_MAX];int waiting=0;
     const int count=deck_model_agents(list,DECK_AGENTS_MAX);
+    if(update_agents(list,count)){agents_version=agents_dot=version;return;}
+    lv_obj_clean(agents_area);lane_count=count;
+    memset(lane_state,0,sizeof(lane_state));memset(lane_text,0,sizeof(lane_text));memset(lane_sub,0,sizeof(lane_sub));
     for(int i=0;i<count;++i) {
         const auto& agent=lane_shown[i]=list[i];
         const uint32_t color=agent.state==DECK_AGENT_WAITING?Amber:agent.state==DECK_AGENT_WORKING?Cyan:Line;
@@ -445,10 +488,8 @@ void build_agents() {
         auto *title=clear_box(lane,66,name_y,LV_SIZE_CONTENT,LV_SIZE_CONTENT);
         lv_obj_set_flex_flow(title,LV_FLEX_FLOW_ROW);lv_obj_set_style_pad_column(title,14,0);
         label(title,agent.name,0,0,LV_SIZE_CONTENT,&fq_font_dejavu_bold_28,Text);
-        char state[40];
-        snprintf(state,sizeof(state),"%s%s%s",agent.state==DECK_AGENT_WAITING?"waiting for you":agent.state==DECK_AGENT_WORKING?"working":"idle",
-                 agent.at[0]&&agent.state!=DECK_AGENT_IDLE?" since ":"",agent.state!=DECK_AGENT_IDLE?agent.at:"");
-        auto *shown=label(title,state,0,0,LV_SIZE_CONTENT,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Muted:color);
+        char state[40];agent_state(agent,state,sizeof(state));
+        auto *shown=lane_state[i]=label(title,state,0,0,LV_SIZE_CONTENT,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Muted:color);
         lv_obj_set_style_margin_top(shown,9,0);
         bool fits=true;
         if(agent.state==DECK_AGENT_WAITING){
@@ -459,10 +500,10 @@ void build_agents() {
             if(lv_obj_get_height(asked)>76){lv_obj_set_style_text_font(asked,&fq_font_dejavu_16,0);lv_obj_update_layout(asked);}
             fits=lv_obj_get_height(asked)<=80;lv_obj_set_height(asked,80);
         } else {
-            label(lane,agent.text[0]?agent.text:agent.state==DECK_AGENT_IDLE?"Ready":"Working",26,68,text_w,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Dim:Soft);
+            lane_text[i]=label(lane,agent_words(agent),26,68,text_w,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Dim:Soft);
             if(agent.sub[0]){  /* the project, behind a folder */
                 glyph(lane,"lc:e0d7",36,113,18,Dim);
-                label(lane,agent.sub,54,102,text_w-28,&fq_font_dejavu_20,Dim);
+                lane_sub[i]=label(lane,agent.sub,54,102,text_w-28,&fq_font_dejavu_20,Dim);
             }
         }
         const int right=ContentW-20-132;
@@ -482,7 +523,7 @@ void build_agents() {
     else snprintf(summary,sizeof(summary),"%s",waiting?"One needs you":"Nobody is waiting");
     lv_label_set_text(agents_summary,summary);
     lv_obj_set_style_text_color(agents_summary,lv_color_hex(waiting?Amber:Muted),0);
-    agents_version=agents_dot=deck_model_agents_version();agents_dirty=false;update_rail_dot();
+    agents_version=agents_dot=version;agents_dirty=false;update_rail_dot();
 }
 
 /* ---- Mixer --------------------------------------------------------------------------------------- */
@@ -873,13 +914,13 @@ bool question_waiting() {
     for(int i=0;i<count;++i)if(list[i].state==DECK_AGENT_WAITING&&list[i].asks)return true;
     return false;
 }
-/* A finger on a key: a new image waits until it lifts, so a hold or a confirm ring is not cut short. */
-bool key_pressed() {for(auto *tile:keys)if(tile&&lv_obj_has_state(tile,LV_STATE_PRESSED))return true;return false;}
 void update(lv_timer_t*) {
-    /* Compare the insert generation, not the count: a full cache evicts one image per insert. */
-    const bool image_arrived=image_missing&&deck_image_generation()!=image_generation&&!key_pressed();
-    if(button_version!=deck_model_buttons_version()||image_arrived)build_keys();
-    else if(live_version!=deck_model_live_version())update_live();
+    if(button_version!=deck_model_buttons_version())build_keys();
+    else {
+        /* Compare the insert generation, not the count: a full cache evicts one image per insert. */
+        if(image_missing&&deck_image_generation()!=image_generation)fill_images();
+        if(live_version!=deck_model_live_version())update_live();
+    }
     if(context_version!=deck_model_context_version())update_context();
     if(rail_version!=deck_model_rail_version())build_rail();
     if(agents_dirty||agents_version!=deck_model_agents_version()){
