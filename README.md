@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  Two 7-inch ESP32-S3 boards have an experimental build that has not been tested on S3 hardware yet: <a href="docs/S3.md">ESP32-S3 boards</a>.
+  Two 7-inch ESP32-S3 boards have an experimental build that has not been tested on S3 hardware yet: <a href="docs/S3.md">ESP32-S3 boards</a>. If you have one, <a href="https://github.com/catorendal-a11y/tessera-deck/discussions/6">tell me how it goes</a>.
 </p>
 
 <p align="center">
