@@ -114,6 +114,12 @@ static void test_dimmed_touch_only_wakes(){
     tap(180,150);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1&&deck_model_last_event_id()==before);
     tap(180,150);assert(deck_model_last_event_id()==before+1&&deck_model_wake_sequence()==wake+1);
 }
+static void test_backlight_off_then_on(){
+    deck_model_request_backlight_off();deck_model_request_backlight_on();assert(!deck_model_take_backlight_off());
+    const uint32_t wake=deck_model_wake_sequence();deck_model_set_dimmed(true);deck_model_request_backlight_on();
+    assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1);
+    deck_model_request_backlight_on();assert(deck_model_wake_sequence()==wake+1);
+}
 static void test_pending_key_times_out(){
     /* A pressed key pulses until the host confirms; with no answer the pulse stops after ten seconds. */
     keep_host(1000);tap(key_x(2),key_y(2));
@@ -448,17 +454,19 @@ static void test_status_screen(){
     assert(deck_model_stats_from_json(R"({"stats":[{"name":"CPU load","value":"9","unit":"%","p":9}]})"));updates();assert(visible("9")&&visible("All good"));
     ui_show_view(0);updates();assert(visible("New tab 2"));
 }
+/* Sends a 72 x 72 image of `frames` frames as the host does, as id im:<n in hex>; returns the AD_IMG_END answer. */
+static std::string upload_image(unsigned n,int frames){
+    std::vector<uint8_t> blob={'A','D','I','1',72,72,static_cast<uint8_t>(frames)};
+    for(int f=0;f<frames;++f){std::vector<uint8_t> runs;int left=72*72;while(left>0){const int run=left>255?255:left;runs.push_back(static_cast<uint8_t>(run));runs.push_back(static_cast<uint8_t>(n));runs.push_back(static_cast<uint8_t>(f));runs.push_back(7);runs.push_back(255);left-=run;}
+    blob.push_back(100);blob.push_back(0);const uint32_t len=runs.size();for(int i=0;i<4;++i)blob.push_back((len>>(8*i))&255);blob.insert(blob.end(),runs.begin(),runs.end());}
+    uint32_t c=~0u;for(auto b:blob){c^=b;for(int k=0;k<8;++k)c=(c>>1)^(0xedb88320u&(0u-(c&1)));}c=~c;
+    char id[32];snprintf(id,sizeof id,"im:%012x",n);std::string reply;
+    deck_image_command((std::string("AD_IMG_BEGIN ")+id+" "+std::to_string(blob.size())+" "+std::to_string(c)).c_str(),reply);
+    for(size_t at=0;at<blob.size();at+=300){std::string hexed;for(size_t i=at;i<blob.size()&&i<at+300;++i){char two[3];snprintf(two,3,"%02x",blob[i]);hexed+=two;}deck_image_command(("AD_IMG_DATA "+std::to_string(at)+" "+hexed).c_str(),reply);}
+    reply.clear();deck_image_command("AD_IMG_END",reply);return reply;}
 static void test_image_cache(){
     /* Image cache: animated frames are counted, the 8 MiB limit holds, least recently used images go first, referenced ones stay. */
-    auto upload=[&](unsigned n,int frames)->std::string{
-        std::vector<uint8_t> blob={'A','D','I','1',72,72,static_cast<uint8_t>(frames)};
-        for(int f=0;f<frames;++f){std::vector<uint8_t> runs;int left=72*72;while(left>0){const int run=left>255?255:left;runs.push_back(static_cast<uint8_t>(run));runs.push_back(static_cast<uint8_t>(n));runs.push_back(static_cast<uint8_t>(f));runs.push_back(7);runs.push_back(255);left-=run;}
-        blob.push_back(100);blob.push_back(0);const uint32_t len=runs.size();for(int i=0;i<4;++i)blob.push_back((len>>(8*i))&255);blob.insert(blob.end(),runs.begin(),runs.end());}
-        uint32_t c=~0u;for(auto b:blob){c^=b;for(int k=0;k<8;++k)c=(c>>1)^(0xedb88320u&(0u-(c&1)));}c=~c;
-        char id[32];snprintf(id,sizeof id,"im:%012x",n);std::string reply;
-        deck_image_command((std::string("AD_IMG_BEGIN ")+id+" "+std::to_string(blob.size())+" "+std::to_string(c)).c_str(),reply);
-        for(size_t at=0;at<blob.size();at+=300){std::string hexed;for(size_t i=at;i<blob.size()&&i<at+300;++i){char two[3];snprintf(two,3,"%02x",blob[i]);hexed+=two;}deck_image_command(("AD_IMG_DATA "+std::to_string(at)+" "+hexed).c_str(),reply);}
-        reply.clear();deck_image_command("AD_IMG_END",reply);return reply;};
+    auto upload=upload_image;
     auto id_of=[](unsigned n){static char buffer[4][32];static int slot=0;char* id=buffer[slot++&3];snprintf(id,32,"im:%012x",n);return static_cast<const char*>(id);};
     size_t bytes=0,cached=0;
     /* Each page shows one image: the layout trims the cache to 8 MiB, oldest first, as the host trims its record. */
@@ -540,6 +548,77 @@ static void test_ha_keys(){
     while(!taken().empty()){}
     assert(deck_model_ha_from_json(R"({"buttons":[]})")&&deck_model_replace_buttons(saved,saved_count));keep_host(1000);
 }
+static void test_tap_after_layout_swap(){
+    /* A tap on the old grid after a new page arrived, before the grid is rebuilt, is not sent as the new page's key. */
+    deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
+    deck_button_t page[1]{};int n=0;
+    assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Mute","icon":"lc:e13d"}]})",page,1,&n)&&deck_model_replace_buttons(page,n));
+    keep_host(1000);auto* mute=tile_of("Mute");const int before=deck_model_last_event_id();
+    assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Garage door","icon":"lc:e0f5"}]})",page,1,&n)&&deck_model_replace_buttons(page,n));
+    lv_obj_send_event(mute,LV_EVENT_CLICKED,nullptr);assert(deck_model_last_event_id()==before);
+    updates();tap(key_x(1),key_y(1));deck_event_t event{};
+    assert(deck_model_events_since(before,&event,1)==1&&event.button_id==1&&!strcmp(event.label,"Garage door"));
+    deck_model_request_feedback(1,DECK_FEEDBACK_OK);deck_model_replace_buttons(saved,saved_count);keep_host(1000);
+}
+static bool state_sent=false;
+static void state_during_refresh(lv_event_t*){if(!state_sent){state_sent=true;deck_model_set_ha_state("sensor.room","","22");}}
+static void test_ha_state_during_refresh(){
+    /* A followed state that lands while update_live copies the keys is drawn on the next tick, not lost. */
+    deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
+    const char* layout=R"({"buttons":[{"id":1,"label":"Room","icon":"lc:e0f5","hs":{"e":"sensor.room","m":"v"}},
+ {"id":2,"label":"CPU","icon":"ok","color":"#58E09B","gauge":{"p":45,"t":"45%"}}]})";
+    deck_button_t keys[2]{};int n=0;
+    assert(deck_model_buttons_from_json(layout,keys,2,&n)&&deck_model_ha_prepare(layout)&&deck_model_replace_buttons(keys,n));
+    deck_model_ha_commit();assert(deck_model_set_ha_state("sensor.room","","21"));updates();assert(visible("21"));
+    /* Key 2's gauge changes; while update_live redraws it (key 1 already copied), the state for key 1 changes. */
+    lv_obj_add_event_cb(find(lv_screen_active(),"45%"),state_during_refresh,LV_EVENT_STYLE_CHANGED,nullptr);
+    strcpy(keys[1].gauge_text,"50%");keys[1].gauge_percent=50;assert(deck_model_replace_buttons(keys,n));
+    updates();assert(state_sent&&visible("50%")&&visible("22")&&!visible("21"));
+    assert(deck_model_ha_from_json(R"({"buttons":[]})")&&deck_model_replace_buttons(saved,saved_count));updates();
+}
+static void test_ha_value_cut_whole(){
+    /* A followed value longer than a wide key's second line is cut before a character that does not fit whole. */
+    deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
+    const char* layout=R"({"buttons":[{"id":1,"label":"TV","span":2,"hs":{"e":"media_player.tv","a":"media_title","m":"v"}}]})";
+    deck_button_t keys[1]{};int n=0;
+    assert(deck_model_buttons_from_json(layout,keys,1,&n)&&deck_model_ha_prepare(layout)&&deck_model_replace_buttons(keys,n));deck_model_ha_commit();
+    const std::string a39(39,'a'),a38(38,'a');deck_button_t shown{};
+    assert(deck_model_set_ha_state("media_player.tv","media_title",(a39+"\xC3\xA6"+"bbbb").c_str()));  /* the ae at bytes 39 and 40 */
+    assert(deck_model_get_button(0,&shown)&&shown.sub==a39);
+    assert(deck_model_set_ha_state("media_player.tv","media_title",(a38+"\xE2\x82\xAC"+"b").c_str()));  /* the euro sign at 38 to 40 */
+    assert(deck_model_get_button(0,&shown)&&shown.sub==a38);
+    assert(deck_model_set_ha_state("media_player.tv","media_title",(a38+"\xC3\xA6").c_str()));  /* exactly 40 bytes stay */
+    assert(deck_model_get_button(0,&shown)&&shown.sub==a38+"\xC3\xA6");
+    assert(deck_model_ha_from_json(R"({"buttons":[]})")&&deck_model_replace_buttons(saved,saved_count));updates();
+}
+static void test_ha_table_version(){
+    /* The offline copy of the layout is saved again when only the HA steps or follows changed (main.cpp). */
+    const char* desk=R"({"buttons":[{"id":3,"label":"Lamp","ha":{"p":[{"a":"light.turn_on","e":"light.desk"}]},"hs":{"e":"light.desk"}}]})";
+    assert(deck_model_ha_from_json(desk));const uint32_t first=deck_model_ha_table_version();
+    assert(deck_model_ha_from_json(desk)&&deck_model_ha_table_version()==first);  /* a re-push changes nothing */
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":3,"label":"Lamp","ha":{"p":[{"a":"light.turn_on","e":"light.living_room"}]},"hs":{"e":"light.desk"}}]})"));
+    assert(deck_model_ha_table_version()==first+1);
+    assert(deck_model_ha_from_json(R"({"buttons":[{"id":3,"label":"Lamp","ha":{"p":[{"a":"light.turn_on","e":"light.living_room"}]},"hs":{"e":"light.desk","m":"b"}}]})"));
+    assert(deck_model_ha_table_version()==first+2);
+    assert(deck_model_ha_from_json(R"({"buttons":[]})")&&deck_model_ha_table_version()==first+3);updates();
+}
+static bool has_image(lv_obj_t* tile){for(uint32_t i=0;i<lv_obj_get_child_count(tile);++i)if(lv_obj_check_type(lv_obj_get_child(tile,i),&lv_image_class))return true;return false;}
+static void test_image_waits_for_finger(){
+    /* An image that arrives while a finger holds a key does not rebuild the grid under it: the confirm ring fills
+     * and the press is sent. The image shows once the finger lifts. */
+    deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
+    std::string layout=R"({"buttons":[{"id":1,"label":"Shut down","cf":1},{"id":2,"label":"Photo","icon":"im:0000000003e7"}]})";
+    deck_button_t keys[2]{};int n=0;assert(!deck_image_get("im:0000000003e7"));
+    assert(deck_model_buttons_from_json(layout.c_str(),keys,2,&n)&&deck_model_replace_buttons(keys,n));keep_host(1000);while(!taken().empty()){}
+    auto* tile=tile_of("Shut down");assert(!has_image(tile_of("Photo")));const int before=deck_model_last_event_id();
+    touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<5;++i)step();assert(arcs_in(tile)==1);
+    assert(upload_image(999,1)=="AD_IMG_END OK im:0000000003e7");
+    for(int i=0;i<15;++i)step();
+    deck_event_t event{};assert(deck_model_events_since(before,&event,1)==1&&event.button_id==1&&!has_image(tile_of("Photo")));
+    touching=false;updates();assert(has_image(tile_of("Photo")));
+    deck_model_request_feedback(1,DECK_FEEDBACK_OK);while(!taken().empty()){}
+    deck_model_replace_buttons(saved,saved_count);keep_host(1000);
+}
 static void test_ambient_clock(){
     /* Ambient clock: shown on request, rendered, and a touch returns to the deck and tells the host once. */
     deck_model_set_ambient("12 C, clear sky - Oslo");deck_model_request_screen(DECK_SCREEN_AMBIENT);updates();
@@ -578,7 +657,7 @@ int main(int argc,char** argv){
     const Test tests[]={
      {"text contrast",test_text_contrast},{"keys layout",test_keys_layout},{"titles",test_titles},
      {"tap lands in its slot",test_tap_lands_in_slot},{"long press reports a hold",test_long_press_reports_hold},
-     {"a dimmed touch only wakes",test_dimmed_touch_only_wakes},{"pending key times out",test_pending_key_times_out},
+     {"a dimmed touch only wakes",test_dimmed_touch_only_wakes},{"backlight off then on",test_backlight_off_then_on},{"pending key times out",test_pending_key_times_out},
      {"live update in place",test_live_update_in_place},{"wide keys",test_wide_keys},{"deep nesting refused",test_deep_nesting_refused},{"long labels stay inside",test_long_labels_stay_inside},
      {"confirm key",test_confirm_key},{"swipe goes back",test_swipe_goes_back},{"feedback queue",test_feedback_queue},
      {"feedback after a page change",test_feedback_after_page_change},
@@ -587,6 +666,8 @@ int main(int argc,char** argv){
      {"agent questions",test_agent_questions},{"mixer",test_mixer},{"rail shortcuts",test_rail_shortcuts},
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"wifi config",test_wifi_config},{"network model",test_network_model},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"key styling",test_key_styling},{"home assistant keys",test_ha_keys},
+     {"tap after a layout swap",test_tap_after_layout_swap},{"ha state during a refresh",test_ha_state_during_refresh},
+     {"ha value cut whole",test_ha_value_cut_whole},{"ha table version",test_ha_table_version},{"image waits for the finger",test_image_waits_for_finger},
      {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
     capture("deck.ppm");puts("Standalone Deck model, context and render checks passed.");

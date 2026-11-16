@@ -31,6 +31,7 @@ static const char *TAG = "api";
 static const char *NAMESPACE = "tessera_net"; /* shared with wifi_service; AD_WIFI_CLEAR erases only its own keys */
 
 #define SLOTS 4
+#define PENDING_PER_HOST 2 /* handshakes one address may hold open at once */
 #define TASK_STACK 10240 /* back to 8 KB once the on-device high-water mark shows more than 2 KB free */
 #define TASK_PRIORITY 3
 #define TASK_CORE 1
@@ -126,6 +127,7 @@ static esp_err_t save_settings(const api_settings_t *settings)
 static esp_err_t load_key(uint8_t key[32], bool fresh, bool *created)
 {
     if (created) *created = false;
+    if (!s_key_mutex) return ESP_ERR_NVS_NOT_INITIALIZED; /* NVS failed at boot, so api_server_init never ran */
     xSemaphoreTake(s_key_mutex, portMAX_DELAY);
     nvs_handle_t handle;
     esp_err_t result = nvs_open(NAMESPACE, NVS_READWRITE, &handle);
@@ -356,23 +358,29 @@ static void slot_open(slot_t *slot, int fd, uint32_t ip)
     api_session_open(&slot->session, &config, slot->buffers, slot->opened_ms);
 }
 
-/* A free slot first. When all four are busy, a new client may replace only the oldest pending slot from its own
- * address (a reconnect, or HA's probe from HA's host) or a ready slot quiet for 30 s (a half-open connection).
- * Otherwise the new client is refused, so a connect flood evicts neither a live HA session nor another host's
- * handshake. NULL means refused. */
+/* A free slot first, while the new client's address holds fewer than PENDING_PER_HOST pending slots; from then on
+ * it replaces its own oldest pending slot, so one host without the key never fills every slot. When all four are
+ * busy, a new client may replace only the oldest pending slot from its own address (a reconnect, or HA's probe
+ * from HA's host) or a ready slot quiet for 30 s (a half-open connection). Otherwise the new client is refused,
+ * so a connect flood evicts neither a live HA session nor another host's handshake. NULL means refused. */
 static slot_t *pick_slot(uint32_t ip, int64_t now)
 {
-    slot_t *same_ip = NULL, *idle = NULL;
+    slot_t *free_slot = NULL, *same_ip = NULL, *idle = NULL;
+    int same_ip_pending = 0;
     for (int i = 0; i < SLOTS; ++i) {
         slot_t *slot = &s_slots[i];
-        if (slot->fd < 0) return slot;
-        if (!api_session_ready(&slot->session)) {
-            if (slot->ip == ip && (!same_ip || slot->opened_ms < same_ip->opened_ms)) same_ip = slot;
+        if (slot->fd < 0) {
+            if (!free_slot) free_slot = slot;
+        } else if (!api_session_ready(&slot->session)) {
+            if (slot->ip != ip) continue;
+            ++same_ip_pending;
+            if (!same_ip || slot->opened_ms < same_ip->opened_ms) same_ip = slot;
         } else if (now - slot->session.heard_ms > IDLE_EVICT_MS &&
                    (!idle || slot->session.heard_ms < idle->session.heard_ms)) {
             idle = slot;
         }
     }
+    if (free_slot && same_ip_pending < PENDING_PER_HOST) return free_slot;
     slot_t *victim = same_ip ? same_ip : idle;
     if (!victim) return NULL;
     victim->session.why = "replaced by a new client";

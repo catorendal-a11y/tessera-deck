@@ -99,7 +99,7 @@ static const char *LAYOUT_FILE = "/store/layout.json", *LAYOUT_BACKUP = "/store/
 static constexpr size_t LAYOUT_MAX = 8192;  /* all one AD_CFG push can carry (cfg_buf), so every layout is kept */
 static constexpr int64_t LAYOUT_SAVE_INTERVAL_US = 10LL * 60 * 1000000;
 static std::string s_layout_pending;
-static uint32_t s_layout_version_seen = 0, s_layout_version_saved = 0;
+static uint64_t s_layout_version_seen = 0, s_layout_version_saved = 0;
 static int64_t s_layout_saved_at = -LAYOUT_SAVE_INTERVAL_US;
 static int64_t s_layout_saved_unix = 0;  /* reported as layoutSaved; 0 while unknown */
 static std::atomic<bool> s_store_ready{false};
@@ -149,9 +149,15 @@ static bool layout_write(const std::string &json)
     return rename(LAYOUT_TEMP, LAYOUT_FILE) == 0;
 }
 
+/* The key structure and the HA steps and follows: a change to either is saved. Live values alone are not. */
+static uint64_t layout_version(void)
+{
+    return static_cast<uint64_t>(deck_model_buttons_version()) << 32 | deck_model_ha_table_version();
+}
+
 static void layout_remember(const char *json)
 {
-    const uint32_t version = deck_model_buttons_version();
+    const uint64_t version = layout_version();
     if (version == s_layout_version_saved) return;  /* only live values changed */
     s_layout_pending = json;
     s_layout_version_seen = version;
@@ -189,7 +195,7 @@ static bool layout_load(const char *path)
     struct stat info = {};
     if (stat(path, &info) == 0 && info.st_mtime > 1600000000) s_layout_saved_unix = info.st_mtime;
     ESP_LOGI(TAG, "restored the last layout from %s: %d buttons", path, count);
-    s_layout_version_saved = deck_model_buttons_version();
+    s_layout_version_saved = layout_version();
     return true;
 }
 

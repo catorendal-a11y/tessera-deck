@@ -680,6 +680,7 @@ static void test_entities_list_and_states()
     // Commands: backlight off, then on at 30 %.
     assert(feed(sv, c.message(API_LIGHT_COMMAND, fixture("light_off"))));
     assert(deck_model_take_backlight_off() && !deck_model_take_backlight_off());
+    deck_model_set_dimmed(true);  // what the console does once it has applied the "off"
     sv.now.dimmed = true;
     const uint32_t wake = deck_model_wake_sequence();
     assert(feed(sv, c.message(API_LIGHT_COMMAND, fixture("light_command"))));

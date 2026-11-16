@@ -207,9 +207,14 @@ deck_context_t deck_model_context(void)
 
 uint32_t deck_model_context_version(void) { return s_context_version; }
 
-static uint32_t record_event(int button_id, bool hold)
+static uint32_t record_event(int button_id, bool hold, uint32_t layout)
 {
     model_lock();
+    if (layout && layout != s_buttons_version) {
+        model_unlock();
+        ESP_LOGI(TAG, "press for button id %d dropped: the layout changed under the finger", button_id);
+        return 0;
+    }
     deck_button_t *button = NULL;
     for (int i = 0; i < s_button_count; ++i) {
         if (s_buttons[i].id == button_id) {
@@ -241,12 +246,17 @@ static uint32_t record_event(int button_id, bool hold)
 
 uint32_t deck_model_record_press(int button_id)
 {
-    return record_event(button_id, false);
+    return record_event(button_id, false, 0);
 }
 
 uint32_t deck_model_record_hold(int button_id)
 {
-    return record_event(button_id, true);
+    return record_event(button_id, true, 0);
+}
+
+uint32_t deck_model_record_touch(int button_id, bool hold, uint32_t layout)
+{
+    return record_event(button_id, hold, layout);
 }
 
 int deck_model_events_since(int since_id, deck_event_t *out, int max_out)
@@ -918,6 +928,15 @@ bool deck_model_take_backlight_off(void)
     s_backlight_off = false;
     model_unlock();
     return pending;
+}
+
+void deck_model_request_backlight_on(void)
+{
+    /* An "on" cancels an "off" the console has not applied yet, and wakes a panel that is already dark. */
+    model_lock();
+    s_backlight_off = false;
+    if (s_dimmed) { s_dimmed = false; ++s_wake_seq; }
+    model_unlock();
 }
 
 static deck_api_options_t s_api_options;

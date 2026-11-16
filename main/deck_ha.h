@@ -76,6 +76,8 @@ int deck_model_ha_press_steps(uint32_t version, int button_id, char trigger, dec
 int deck_model_ha_follows(deck_ha_follow_t *out, int max);
 /* Bumped only when the set of followed entity/attribute pairs changed: the API then subscribes again. */
 uint32_t deck_model_ha_version(void);
+/* Bumped when anything in the table changed, steps or follows: main then saves the layout for offline use again. */
+uint32_t deck_model_ha_table_version(void);
 
 /* A HomeAssistantStateResponse: updates every key following this pair. True when one did. */
 bool deck_model_set_ha_state(const char *entity_id, const char *attribute, const char *state);

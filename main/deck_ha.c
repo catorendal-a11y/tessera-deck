@@ -32,7 +32,7 @@ static struct {
 } *s_mem;
 static ha_table_t *s_table, *s_next; /* s_table is NULL before the first commit */
 static int s_state_count, s_state_next;
-static uint32_t s_version = 1, s_steps_version = 1;
+static uint32_t s_version = 1, s_steps_version = 1, s_table_version = 1;
 static SemaphoreHandle_t s_lock;
 
 static void lock(void)
@@ -303,9 +303,10 @@ void deck_model_ha_commit(void)
     const bool changed_look = !old || old->follow_count != next->follow_count ||
                               memcmp(old->follows, next->follows, sizeof(next->follows[0]) * (size_t)next->follow_count);
     if (pairs_differ(old, next)) ++s_version;
-    if (!old || old->step_count != next->step_count || memcmp(old->pc, next->pc, sizeof(next->pc)) ||
-        memcmp(old->steps, next->steps, sizeof(next->steps[0]) * (size_t)next->step_count))
-        ++s_steps_version;
+    const bool changed_steps = !old || old->step_count != next->step_count || memcmp(old->pc, next->pc, sizeof(next->pc)) ||
+                               memcmp(old->steps, next->steps, sizeof(next->steps[0]) * (size_t)next->step_count);
+    if (changed_steps) ++s_steps_version;
+    if (changed_steps || changed_look) ++s_table_version;
     s_table = next;
     s_next = old ? old : &s_mem->tables[1];
     unlock();
@@ -391,6 +392,14 @@ uint32_t deck_model_ha_version(void)
 {
     lock();
     const uint32_t version = s_version;
+    unlock();
+    return version;
+}
+
+uint32_t deck_model_ha_table_version(void)
+{
+    lock();
+    const uint32_t version = s_table_version;
     unlock();
     return version;
 }
@@ -532,12 +541,15 @@ static bool is_on(const deck_ha_follow_t *spec, const char *state)
 /* The state and unit into a key field of `size` bytes, cut at a UTF-8 boundary. */
 static void put_text(char *target, size_t size, const char *state, const char *unit)
 {
-    const int n = snprintf(target, size, "%s%s%s", state, unit[0] ? " " : "", unit);
-    if (n >= (int)size) {
-        size_t len = size - 1;
-        while (len > 0 && ((unsigned char)target[len] & 0xC0) == 0x80) --len;
-        target[len] = '\0';
+    char full[DECK_HA_STATE_MAX + 1 + DECK_HA_UNIT_MAX * 4 + 1]; /* a state, a space and a unit */
+    size_t len = (size_t)snprintf(full, sizeof(full), "%s%s%s", state, unit[0] ? " " : "", unit);
+    if (len >= size) {
+        len = size - 1;
+        /* full[len] is the first byte left out: when it continues a character, that character goes too */
+        while (len > 0 && ((unsigned char)full[len] & 0xC0) == 0x80) --len;
     }
+    memcpy(target, full, len);
+    target[len] = '\0';
 }
 
 void deck_ha_overlay(deck_button_t *button)

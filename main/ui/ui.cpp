@@ -45,7 +45,14 @@ int rail_count=0,rail_agents=-1;uint32_t rail_version=0;
 void refresh_rail();
 void build_rail();
 lv_obj_t *rail_marker=nullptr,*rail_dot=nullptr,*clock_label=nullptr,*link_label=nullptr;
-int view=ViewKeys,link_shown=-1;
+int view=ViewKeys;
+/* Model state that several widgets show. update() sets these on the LVGL task and bound widgets follow; a widget's
+ * bindings go away with it when it is deleted. */
+lv_subject_t *link_subject=nullptr;        /* 1 while the PC answers pings, else 0; -1 until update_link has looked */
+lv_subject_t *lock_subject=nullptr;        /* 1 while the panel is locked */
+lv_subject_t *brightness_subject=nullptr;  /* the About sheet's slider and its percentage */
+lv_subject_t *network_subject=nullptr;     /* points at network_now; notified when a new network record arrives */
+deck_network_t network_now{};uint32_t network_seen=0;
 
 /* Keys: indexed by slot (id - 1), six to a row. */
 lv_obj_t *keys_area=nullptr,*page_label=nullptr,*profile_label=nullptr;
@@ -84,11 +91,19 @@ lv_obj_t *stat_unit[DECK_STATS_MAX]{},*stat_fill[DECK_STATS_MAX]{},*stat_name[DE
 int stat_count=-1;
 uint32_t stats_version=0;
 
+/* Shared styles: LVGL keeps one copy for all objects instead of the same local properties on each one.
+ * An added style still wins over the theme; a local property (a key's own color) wins over both. */
+lv_style_t flat_style,key_down_style;
+void init_styles() {
+    lv_style_init(&flat_style);lv_style_set_bg_opa(&flat_style,LV_OPA_COVER);lv_style_set_border_width(&flat_style,0);
+    lv_style_set_pad_all(&flat_style,0);lv_style_set_shadow_width(&flat_style,0);
+    /* A key under the finger: it darkens and sinks. */
+    lv_style_init(&key_down_style);lv_style_set_bg_color(&key_down_style,lv_color_hex(PressedBg));
+    lv_style_set_transform_width(&key_down_style,-4);lv_style_set_transform_height(&key_down_style,-4);
+}
 void flat(lv_obj_t *object,uint32_t color) {
-    lv_obj_set_style_bg_color(object,lv_color_hex(color),0);
-    lv_obj_set_style_bg_opa(object,LV_OPA_COVER,0);
-    lv_obj_set_style_border_width(object,0,0);lv_obj_set_style_pad_all(object,0,0);
-    lv_obj_set_style_shadow_width(object,0,0);lv_obj_set_scrollable(object,false);
+    lv_obj_add_style(object,&flat_style,0);lv_obj_set_style_bg_color(object,lv_color_hex(color),0);
+    lv_obj_set_scrollable(object,false);
 }
 lv_obj_t *label(lv_obj_t *parent,const char *value,int x,int y,int width,const lv_font_t *font,uint32_t color) {
     auto *result=lv_label_create(parent);lv_obj_set_pos(result,x,y);lv_obj_set_width(result,width);
@@ -119,6 +134,15 @@ lv_obj_t *glyph(lv_obj_t *parent,const char *name,int cx,int cy,int px,uint32_t 
         lv_obj_set_style_transform_scale(item,px*256/60,0);
     }
     return item;
+}
+/* A full circle that fills clockwise from the top for 0..100, with no knob and no touch of its own. */
+lv_obj_t *make_ring(lv_obj_t *parent,int size,int width,uint32_t track,uint32_t fill,int value) {
+    auto *arc=lv_arc_create(parent);lv_obj_set_size(arc,size,size);
+    lv_arc_set_rotation(arc,270);lv_arc_set_bg_angles(arc,0,360);lv_arc_set_range(arc,0,100);lv_arc_set_value(arc,value);
+    lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
+    lv_obj_set_style_arc_width(arc,width,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,width,LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(arc,lv_color_hex(track),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(fill),LV_PART_INDICATOR);
+    return arc;
 }
 const char *fallback_icon(const char *name) {
     struct Entry{const char *name,*symbol;};
@@ -163,7 +187,8 @@ void flash(int slot,uint32_t color,uint32_t ms) {
     lv_anim_set_repeat_count(&pulse,LV_ANIM_REPEAT_INFINITE);lv_anim_start(&pulse);
 }
 void send_press(int slot,bool hold) {
-    if(!(hold?deck_model_record_hold(ids[slot]):deck_model_record_press(ids[slot])))return;
+    /* Refused when a new layout arrived since this grid was built: the key at this slot may belong to it. */
+    if(!deck_model_record_touch(ids[slot],hold,button_version))return;
     awaiting[ids[slot]]=true;stale[ids[slot]]=false;
     /* A trigger with only Home Assistant steps is run by the panel (stage C): it waits while HA takes actions
      * and is red at once otherwise, PC or not. A tap is the press trigger; a double gets its result when the
@@ -193,11 +218,7 @@ void confirm_touch(lv_event_t *event) {
     confirm_stop();
     if(lv_event_get_code(event)!=LV_EVENT_PRESSED||deck_model_locked())return;
     auto *tile=keys[slot];const int size=LV_MIN(lv_obj_get_width(tile),lv_obj_get_height(tile))-28;
-    auto *arc=confirm_ring=lv_arc_create(tile);lv_obj_set_size(arc,size,size);lv_obj_center(arc);
-    lv_arc_set_rotation(arc,270);lv_arc_set_bg_angles(arc,0,360);lv_arc_set_range(arc,0,100);lv_arc_set_value(arc,0);
-    lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
-    lv_obj_set_style_arc_width(arc,8,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,8,LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(arc,lv_color_hex(Bg),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(Accent),LV_PART_INDICATOR);
+    auto *arc=confirm_ring=make_ring(tile,size,8,Bg,Accent,0);lv_obj_center(arc);
     confirm_slot=slot;confirm_started=millis();
     lv_anim_t fill;lv_anim_init(&fill);lv_anim_set_var(&fill,arc);lv_anim_set_exec_cb(&fill,confirm_fill);
     lv_anim_set_values(&fill,0,100);lv_anim_set_duration(&fill,ConfirmMs);lv_anim_start(&fill);
@@ -258,7 +279,9 @@ void gauge_value(lv_obj_t *shown,const char *text) {
 }
 void ha_look(int slot,const deck_button_t& item);
 void build_keys() {
-    if(button_version!=deck_model_buttons_version())for(int id=0;id<=DECK_MAX_BUTTONS;++id)if(awaiting[id]){stale[id]=true;awaiting[id]=false;}
+    /* Versions read before the copy: a change that lands during it bumps them again and is drawn next tick. */
+    const uint32_t buttons_now=deck_model_buttons_version(),live_now=deck_model_live_version();
+    if(button_version!=buttons_now)for(int id=0;id<=DECK_MAX_BUTTONS;++id)if(awaiting[id]){stale[id]=true;awaiting[id]=false;}
     image_missing=false;image_generation=deck_image_generation();
     memset(name_label,0,sizeof(name_label));memset(glyph_label,0,sizeof(glyph_label));memset(value_label,0,sizeof(value_label));
     memset(sub_label,0,sizeof(sub_label));memset(bar_fill,0,sizeof(bar_fill));memset(ring_arc,0,sizeof(ring_arc));memset(gauge,0,sizeof(gauge));
@@ -282,8 +305,7 @@ void build_keys() {
         base_bg[slot]=(value.style&DECK_STYLE_BG)?value.bg:Card;
         flat(tile,base_bg[slot]);lv_obj_set_style_radius(tile,20,0);
         if(value.style&DECK_STYLE_BORDER){lv_obj_set_style_border_width(tile,2,0);lv_obj_set_style_border_color(tile,lv_color_hex(value.border),0);}
-        lv_obj_set_style_bg_color(tile,lv_color_hex(PressedBg),LV_STATE_PRESSED);
-        lv_obj_set_style_transform_width(tile,-4,LV_STATE_PRESSED);lv_obj_set_style_transform_height(tile,-4,LV_STATE_PRESSED);  /* sinks under the finger */
+        lv_obj_add_style(tile,&key_down_style,LV_STATE_PRESSED);
         const bool title_top=cells==1&&value.title_position==1;  /* the icon moves down to make room for the title */
         const int cx=cells>1?58:KeyW/2,cy=cells>1?KeyH/2-12:title_top?KeyH-60:60;
         auto image=deck_image_get(value.icon);
@@ -294,18 +316,10 @@ void build_keys() {
         }
         if(cells>1&&value.ring&&value.has_progress){
             /* A ring (a timer) on the left, the time big to its right. */
-            auto *arc=ring_arc[slot]=lv_arc_create(tile);lv_obj_set_size(arc,104,104);lv_obj_set_pos(arc,14,(KeyH-104)/2);
-            lv_arc_set_rotation(arc,270);lv_arc_set_bg_angles(arc,0,360);lv_arc_set_range(arc,0,100);lv_arc_set_value(arc,value.progress);
-            lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
-            lv_obj_set_style_arc_width(arc,10,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,10,LV_PART_INDICATOR);
-            lv_obj_set_style_arc_color(arc,lv_color_hex(0x0A0E10),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(value.color),LV_PART_INDICATOR);
+            ring_arc[slot]=make_ring(tile,104,10,0x0A0E10,value.color,value.progress);lv_obj_set_pos(ring_arc[slot],14,(KeyH-104)/2);
         } else if(value.has_gauge){
             /* A ring filled to the percentage with the value inside; the badge says what is measured. */
-            auto *arc=ring_arc[slot]=lv_arc_create(tile);lv_obj_set_size(arc,104,104);lv_obj_set_pos(arc,cx-52,cy-52);
-            lv_arc_set_rotation(arc,270);lv_arc_set_bg_angles(arc,0,360);lv_arc_set_range(arc,0,100);lv_arc_set_value(arc,value.gauge_percent);
-            lv_obj_remove_style(arc,nullptr,LV_PART_KNOB);lv_obj_set_clickable(arc,false);
-            lv_obj_set_style_arc_width(arc,8,LV_PART_MAIN);lv_obj_set_style_arc_width(arc,8,LV_PART_INDICATOR);
-            lv_obj_set_style_arc_color(arc,lv_color_hex(0x0A0E10),LV_PART_MAIN);lv_obj_set_style_arc_color(arc,lv_color_hex(value.color),LV_PART_INDICATOR);
+            ring_arc[slot]=make_ring(tile,104,8,0x0A0E10,value.color,value.gauge_percent);lv_obj_set_pos(ring_arc[slot],cx-52,cy-52);
             gauge[slot]=true;
             auto *shown=value_label[slot]=label(tile,value.gauge_text,cx-KeyW/2,cy-18,KeyW,&fq_font_dejavu_bold_28,value.color);
             gauge_value(shown,value.gauge_text);
@@ -349,7 +363,7 @@ void build_keys() {
     }
     /* Empty slots stay visible as faint tiles, so the deck keeps its shape. */
     for(int slot=0;slot<DECK_MAX_BUTTONS;++slot)if(!keys[slot]&&!covered[slot])box(keys_area,(slot%6)*(KeyW+Gap),(slot/6)*(KeyH+Gap),KeyW,KeyH,20,0x0D1316);
-    button_version=deck_model_buttons_version();live_version=deck_model_live_version();
+    button_version=buttons_now;live_version=live_now;
 }
 /* Followed Home Assistant states (stage C) that the other in-place updates cannot show: a 1-slot key whose
  * hidden title now carries the value, and an image key, which has no colored part, gets its accent as an outline. */
@@ -363,6 +377,7 @@ void ha_look(int slot,const deck_button_t& item) {
 }
 /* Labels, colors and gauge values change in place: a rebuild would drop a touch in progress. */
 void update_live() {
+    const uint32_t version=deck_model_live_version();  /* before the copy, as in build_keys */
     for(int n=0;n<deck_model_button_count();++n){deck_button_t item{};
         if(!deck_model_get_button(n,&item)||item.id<1||item.id>DECK_MAX_BUTTONS||!keys[item.id-1])continue;
         const int slot=item.id-1;
@@ -377,7 +392,7 @@ void update_live() {
         if(bar_fill[slot]){lv_obj_set_width(bar_fill[slot],bar_width[slot]*item.progress/100);set_color(bar_fill[slot],LV_STYLE_BG_COLOR,item.color);}
         if(ring_arc[slot]){lv_arc_set_value(ring_arc[slot],gauge[slot]?item.gauge_percent:item.progress);set_color(ring_arc[slot],LV_STYLE_ARC_COLOR,item.color,LV_PART_INDICATOR);}
         ha_look(slot,item);}
-    live_version=deck_model_live_version();
+    live_version=version;
 }
 /* ASCII only: UTF-8 multi-byte sequences are copied untouched. */
 void title_case(const char *in,char *out,size_t size) {
@@ -449,12 +464,15 @@ void build_agents() {
         const int buttons=asks||agent.state==DECK_AGENT_WORKING?2:1,text_w=ContentW-26-buttons*132-(buttons-1)*12-38;
         const int name_y=agent.state==DECK_AGENT_WAITING?16:24;
         glyph(lane,agent_icon(agent.id),42,name_y+17,30,agent.state==DECK_AGENT_IDLE?Muted:color);
-        auto *name=label(lane,agent.name,66,name_y,LV_SIZE_CONTENT,&fq_font_dejavu_bold_28,Text);
-        lv_obj_update_layout(name);
+        /* The name, then its state in smaller type on about the same baseline. */
+        auto *title=clear_box(lane,66,name_y,LV_SIZE_CONTENT,LV_SIZE_CONTENT);
+        lv_obj_set_flex_flow(title,LV_FLEX_FLOW_ROW);lv_obj_set_style_pad_column(title,14,0);
+        label(title,agent.name,0,0,LV_SIZE_CONTENT,&fq_font_dejavu_bold_28,Text);
         char state[40];
         snprintf(state,sizeof(state),"%s%s%s",agent.state==DECK_AGENT_WAITING?"waiting for you":agent.state==DECK_AGENT_WORKING?"working":"idle",
                  agent.at[0]&&agent.state!=DECK_AGENT_IDLE?" since ":"",agent.state!=DECK_AGENT_IDLE?agent.at:"");
-        label(lane,state,66+lv_obj_get_width(name)+14,name_y+9,LV_SIZE_CONTENT,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Muted:color);
+        auto *shown=label(title,state,0,0,LV_SIZE_CONTENT,&fq_font_dejavu_20,agent.state==DECK_AGENT_IDLE?Muted:color);
+        lv_obj_set_style_margin_top(shown,9,0);
         bool fits=true;
         if(agent.state==DECK_AGENT_WAITING){
             /* A question is shown in full: nobody should allow what they cannot read. Three lines at 20 px, else
@@ -535,7 +553,7 @@ void mute_pressed(lv_event_t *event) {
 void build_faders() {
     lv_obj_clean(mixer_area);memset(fader_hold,0,sizeof(fader_hold));
     for(int i=0;i<fader_count;++i) {
-        auto *card=box(mixer_area,i*(FaderW+FaderGap),0,FaderW,H-2*Top,20,Card);
+        auto *card=box(mixer_area,0,0,FaderW,H-2*Top,20,Card);  /* mixer_area's flex row places it */
         fader_value[i]=label(card,"",0,18,FaderW,&fq_font_dejavu_bold_24,Text);lv_obj_set_style_text_align(fader_value[i],LV_TEXT_ALIGN_CENTER,0);
         auto *zone=fader_zone[i]=clear_box(card,(FaderW-TrackW)/2,64,TrackW,TrackH);lv_obj_set_clickable(zone,true);
         box(zone,44,0,22,TrackH,11,Bg);
@@ -550,7 +568,8 @@ void build_faders() {
         lv_obj_add_event_cb(mute,mute_pressed,LV_EVENT_CLICKED,slot_data(i));
         draw_fader(i);
     }
-    if(!fader_count){auto *empty=label(mixer_area,"The PC has not sent its sound yet",0,240,ContentW,&fq_font_dejavu_20,Dim);lv_obj_set_style_text_align(empty,LV_TEXT_ALIGN_CENTER,0);}
+    if(!fader_count){auto *empty=label(mixer_area,"The PC has not sent its sound yet",0,240,ContentW,&fq_font_dejavu_20,Dim);lv_obj_set_style_text_align(empty,LV_TEXT_ALIGN_CENTER,0);
+        lv_obj_set_ignore_layout(empty,true);}
 }
 void sync_faders() {
     deck_fader_t latest[DECK_FADERS_MAX]{};
@@ -587,7 +606,7 @@ void sync_stats() {
     if(count!=stat_count) {
         lv_obj_clean(stats_area);stat_count=count;
         for(int i=0;i<count;++i) {
-            auto *card=stat_card[i]=box(stats_area,(i%4)*(StatW+StatGap),(i/4)*(StatH+StatGap),StatW,StatH,20,Card);
+            auto *card=stat_card[i]=box(stats_area,0,0,StatW,StatH,20,Card);  /* stats_area's flex wraps four to a row */
             stat_name[i]=label(card,"",20,18,StatW-40,&fq_font_dejavu_20,Muted);
             auto *row=clear_box(card,20,44,StatW-40,62);
             lv_obj_set_flex_flow(row,LV_FLEX_FLOW_ROW);lv_obj_set_flex_align(row,LV_FLEX_ALIGN_START,LV_FLEX_ALIGN_END,LV_FLEX_ALIGN_CENTER);
@@ -598,7 +617,8 @@ void sync_stats() {
             auto *track=box(card,20,StatH-28,StatW-40,6,3,Bg);
             stat_fill[i]=box(track,0,0,0,6,3,Accent);
         }
-        if(!count){auto *empty=label(stats_area,"The PC has not sent its readings yet",0,120,ContentW,&fq_font_dejavu_20,Dim);lv_obj_set_style_text_align(empty,LV_TEXT_ALIGN_CENTER,0);}
+        if(!count){auto *empty=label(stats_area,"The PC has not sent its readings yet",0,120,ContentW,&fq_font_dejavu_20,Dim);lv_obj_set_style_text_align(empty,LV_TEXT_ALIGN_CENTER,0);
+            lv_obj_set_ignore_layout(empty,true);}
     }
     const char *warned=nullptr;
     for(int i=0;i<count;++i){draw_stat(i,list[i]);if(list[i].warn&&!warned)warned=list[i].name;}
@@ -680,38 +700,35 @@ void build_rail() {
     rail_dot=rail_agents>=0?box(rail_items,15+54-13,RailTop+rail_agents*RailPitch+3,12,12,6,Amber):nullptr;
     refresh_rail();
 }
-lv_obj_t *offline_card[3]{};
-void show_offline(bool linked) {
-    lv_obj_t *areas[3]={agents_area,mixer_area,stats_area};
-    for(int i=0;i<3;++i) {
-        if(!areas[i])continue;
-        if(!offline_card[i]) {
-            auto *card=offline_card[i]=box(lv_obj_get_parent(areas[i]),Pad+(ContentW-600)/2,H/2-80,600,150,22,WarnBg);
-            lv_obj_set_style_border_width(card,2,0);lv_obj_set_style_border_color(card,lv_color_hex(Amber),0);
-            auto *title=label(card,"PC not connected",0,34,600,&fq_font_dejavu_bold_28,Amber);lv_obj_set_style_text_align(title,LV_TEXT_ALIGN_CENTER,0);
-            auto *hint=label(card,"Start Tessera on the PC, or check the USB cable",0,86,600,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_CENTER,0);
-        }
-        lv_obj_set_hidden(offline_card[i],linked);lv_obj_move_foreground(offline_card[i]);
-    }
+void hide_when_linked(lv_obj_t *object,int32_t linked) {lv_obj_set_hidden(object,linked==1);}
+void dim_when_unlinked(lv_obj_t *area,int32_t linked) {lv_obj_set_style_opa(area,linked==1?LV_OPA_COVER:LV_OPA_40,0);}
+/* A card over a cockpit screen, and the screen dimmed, while the PC does not answer. */
+void add_offline_card(lv_obj_t *area) {
+    auto *card=box(lv_obj_get_parent(area),Pad+(ContentW-600)/2,H/2-80,600,150,22,WarnBg);
+    lv_obj_set_style_border_width(card,2,0);lv_obj_set_style_border_color(card,lv_color_hex(Amber),0);
+    auto *title=label(card,"PC not connected",0,34,600,&fq_font_dejavu_bold_28,Amber);lv_obj_set_style_text_align(title,LV_TEXT_ALIGN_CENTER,0);
+    auto *hint=label(card,"Start Tessera on the PC, or check the USB cable",0,86,600,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(hint,LV_TEXT_ALIGN_CENTER,0);
+    lv_obj_bind_int(card,link_subject,hide_when_linked);lv_obj_bind_int(area,link_subject,dim_when_unlinked);
 }
 /* ---- About sheet: a long press on the logo shows the firmware, the PC link and a brightness slider. ---- */
-lv_obj_t *about=nullptr,*about_link=nullptr,*about_wifi=nullptr,*about_ha=nullptr,*about_level=nullptr;
-uint32_t about_wifi_version=0;
-void close_about() {if(about)lv_obj_delete(about);about=about_link=about_wifi=about_ha=about_level=nullptr;}
+lv_obj_t *about=nullptr;
+void close_about() {if(about)lv_obj_delete(about);about=nullptr;}
+void show_link(lv_obj_t *line,int32_t linked) {
+    lv_label_set_text(line,linked==1?"PC connected":"PC not connected");set_color(line,LV_STYLE_TEXT_COLOR,linked==1?Accent:Amber);
+}
 /* The Home Assistant line (stage C): off with the API turned off; waiting for Wi-Fi, or for HA; connected, and
  * whether that client takes the panel's actions (an HA key is red without it). */
-void show_about_ha(const deck_network_t& network) {
-    if(!about_ha)return;
+void show_ha(lv_obj_t *line,const void *record) {
+    const auto& network=*static_cast<const deck_network_t*>(record);
     const bool ready=network.api_enabled&&network.api_client&&network.api_actions;
     const char *text=!network.api_enabled?"Home Assistant: off":network.state!=2?"Home Assistant: waiting for Wi-Fi":
                      !network.api_client?"Home Assistant: waiting":!network.api_actions?"Home Assistant: connected, no actions":
                      "Home Assistant: connected";
-    lv_label_set_text(about_ha,text);set_color(about_ha,LV_STYLE_TEXT_COLOR,ready?Accent:network.api_enabled&&network.api_client?Amber:Soft);
+    lv_label_set_text(line,text);set_color(line,LV_STYLE_TEXT_COLOR,ready?Accent:network.api_enabled&&network.api_client?Amber:Soft);
 }
 /* The Wi-Fi line under the PC link (protocol 5). ASCII only: the DejaVu subsets may lack other dashes and dots. */
-void show_about_wifi() {
-    if(!about_wifi)return;
-    deck_network_t network;deck_model_network(&network);about_wifi_version=deck_model_network_version();
+void show_wifi(lv_obj_t *line,const void *record) {
+    const auto& network=*static_cast<const deck_network_t*>(record);
     char text[80];uint32_t color=Soft;
     if(network.state==1)snprintf(text,sizeof(text),"Wi-Fi: connecting to %s",network.ssid);
     else if(network.state==2){snprintf(text,sizeof(text),"Wi-Fi: %s, %d dBm",network.ip,network.rssi);color=Accent;}
@@ -722,20 +739,13 @@ void show_about_wifi() {
         snprintf(text,sizeof(text),"Wi-Fi: %s",why);color=Amber;
     }
     else snprintf(text,sizeof(text),"Wi-Fi off");
-    lv_label_set_text(about_wifi,text);set_color(about_wifi,LV_STYLE_TEXT_COLOR,color);
-    show_about_ha(network);
-}
-void show_about_link() {
-    if(!about_link)return;
-    const bool linked=deck_model_host_linked(HostTimeoutMs);
-    lv_label_set_text(about_link,linked?"PC connected":"PC not connected");set_color(about_link,LV_STYLE_TEXT_COLOR,linked?Accent:Amber);
+    lv_label_set_text(line,text);set_color(line,LV_STYLE_TEXT_COLOR,color);
 }
 void about_tapped(lv_event_t *event) {if(lv_event_get_target(event)==about)close_about();}  /* outside the card */
 void brightness_moved(lv_event_t *event) {
-    auto *slider=static_cast<lv_obj_t*>(lv_event_get_target(event));const int level=lv_slider_get_value(slider);
+    auto *slider=static_cast<lv_obj_t*>(lv_event_get_target(event));
     /* Every step lights the panel; the level is saved (and the host told) once, when the finger lifts. */
-    deck_model_request_brightness(level,lv_event_get_code(event)==LV_EVENT_RELEASED);
-    lv_label_set_text_fmt(about_level,"%d %%",level);
+    deck_model_request_brightness(lv_slider_get_value(slider),lv_event_get_code(event)==LV_EVENT_RELEASED);
 }
 void open_about(lv_event_t *) {
     if(about||deck_model_locked())return;
@@ -747,30 +757,33 @@ void open_about(lv_event_t *) {
     label(card,"Tessera",28,24,CardW-56,&fq_font_dejavu_bold_28,Text);
     char version[48];snprintf(version,sizeof(version),"Firmware %s",firmware_version);
     label(card,version,28,70,CardW-56,&fq_font_dejavu_20,Soft);
-    about_link=label(card,"",28,102,CardW-56,&fq_font_dejavu_20,Accent);show_about_link();
-    about_wifi=label(card,"",28,136,CardW-56,&fq_font_dejavu_20,Soft);
-    about_ha=label(card,"",28,170,CardW-56,&fq_font_dejavu_20,Soft);show_about_wifi();  /* fills both lines */
+    /* The PC link, Wi-Fi and Home Assistant, one line each; each line follows its subject while the sheet is open. */
+    auto *lines=clear_box(card,28,102,CardW-56,LV_SIZE_CONTENT);
+    lv_obj_set_flex_flow(lines,LV_FLEX_FLOW_COLUMN);lv_obj_set_style_pad_row(lines,10,0);
+    lv_obj_bind_int(label(lines,"",0,0,CardW-56,&fq_font_dejavu_20,Accent),link_subject,show_link);
+    lv_obj_bind_pointer(label(lines,"",0,0,CardW-56,&fq_font_dejavu_20,Soft),network_subject,show_wifi);
+    lv_obj_bind_pointer(label(lines,"",0,0,CardW-56,&fq_font_dejavu_20,Soft),network_subject,show_ha);
+    /* The slider and the percentage share one subject: a drag updates the number with no code of ours. */
+    lv_subject_set_int(brightness_subject,deck_model_brightness());
     label(card,"Brightness",28,234,CardW-160,&fq_font_dejavu_20,Soft);
-    about_level=label(card,"",CardW-128,234,100,&fq_font_dejavu_20,Text);lv_obj_set_style_text_align(about_level,LV_TEXT_ALIGN_RIGHT,0);
+    auto *level=label(card,"",CardW-128,234,100,&fq_font_dejavu_20,Text);lv_obj_set_style_text_align(level,LV_TEXT_ALIGN_RIGHT,0);
+    lv_label_bind_text(level,brightness_subject,"%d %%");
     auto *slider=lv_slider_create(card);lv_obj_set_pos(slider,40,292);lv_obj_set_size(slider,CardW-80,20);
-    lv_slider_set_range(slider,1,100);lv_slider_set_value(slider,deck_model_brightness(),LV_ANIM_OFF);
+    lv_slider_set_range(slider,1,100);lv_slider_bind_value(slider,brightness_subject);
     lv_obj_set_style_bg_color(slider,lv_color_hex(Line),LV_PART_MAIN);lv_obj_set_style_bg_color(slider,lv_color_hex(Accent),LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(slider,lv_color_hex(Text),LV_PART_KNOB);lv_obj_set_style_pad_all(slider,10,LV_PART_KNOB);
     lv_obj_set_ext_click_area(slider,20);  /* a fingertip, not a 20 px bar */
-    lv_label_set_text_fmt(about_level,"%d %%",deck_model_brightness());
     for(auto code:{LV_EVENT_VALUE_CHANGED,LV_EVENT_RELEASED})lv_obj_add_event_cb(slider,brightness_moved,code,nullptr);
 }
 
 /* ---- Panel lock: the logo turns into a lock badge; holding it LockHoldMs unlocks and tells the host. ---- */
 lv_obj_t *logo=nullptr,*lock_badge=nullptr,*lock_ring=nullptr;
-int lock_shown=-1;uint32_t lock_pressed_at=0;
+uint32_t lock_pressed_at=0;
 void lock_touched(lv_event_t *) {lock_pressed_at=millis();}
 void update_lock() {
     const int locked=deck_model_locked()?1:0;
-    if(locked!=lock_shown){
-        lock_shown=locked;lv_obj_set_hidden(logo,locked);lv_obj_set_hidden(lock_badge,!locked);
-        if(locked)close_about();
-    }
+    if(locked&&lv_subject_get_int(lock_subject)!=1)close_about();
+    lv_subject_set_int(lock_subject,locked);  /* the logo and the lock badge follow */
     const bool holding=locked&&lv_obj_has_state(lock_badge,LV_STATE_PRESSED);
     const uint32_t held=holding?millis()-lock_pressed_at:0;
     lv_arc_set_value(lock_ring,static_cast<int32_t>(held>=LockHoldMs?100:held*100/LockHoldMs));
@@ -781,10 +794,8 @@ void update_lock() {
 
 void update_link() {
     const int linked=deck_model_host_linked(HostTimeoutMs)?1:0;
-    if(linked==link_shown)return;
-    link_shown=linked;lv_obj_set_hidden(link_label,linked);show_about_link();
-    for(auto *area:{agents_area,mixer_area,stats_area})if(area)lv_obj_set_style_opa(area,linked?LV_OPA_COVER:LV_OPA_40,0);
-    show_offline(linked);
+    if(linked==lv_subject_get_int(link_subject))return;
+    lv_subject_set_int(link_subject,linked);  /* the rail's NO PC, the About line, the offline cards and the dimming follow */
     if(linked){agents_dirty=true;sync_stats();return;}
     for(auto *summary:{agents_summary,stats_summary}){lv_label_set_text(summary,"PC not connected");lv_obj_set_style_text_color(summary,lv_color_hex(Amber),0);}
 }
@@ -915,13 +926,18 @@ bool question_waiting() {
     for(int i=0;i<count;++i)if(list[i].state==DECK_AGENT_WAITING&&list[i].asks)return true;
     return false;
 }
+/* A finger on a key: a new image waits until it lifts, so a hold or a confirm ring is not cut short. */
+bool key_pressed() {for(auto *tile:keys)if(tile&&lv_obj_has_state(tile,LV_STATE_PRESSED))return true;return false;}
 void update(lv_timer_t*) {
     /* Compare the insert generation, not the count: a full cache evicts one image per insert. */
-    if(button_version!=deck_model_buttons_version()||(image_missing&&deck_image_generation()!=image_generation))build_keys();
+    const bool image_arrived=image_missing&&deck_image_generation()!=image_generation&&!key_pressed();
+    if(button_version!=deck_model_buttons_version()||image_arrived)build_keys();
     else if(live_version!=deck_model_live_version())update_live();
     if(context_version!=deck_model_context_version())update_context();
     if(rail_version!=deck_model_rail_version())build_rail();
-    if(about_wifi&&about_wifi_version!=deck_model_network_version())show_about_wifi();
+    /* One version read before the copy: a record that lands after it bumps the version again and is shown next tick. */
+    const uint32_t network_version=deck_model_network_version();
+    if(network_seen!=network_version){network_seen=network_version;deck_model_network(&network_now);lv_subject_notify(network_subject);}
     if(agents_dirty||agents_version!=deck_model_agents_version()){
         if(view==ViewAgents)build_agents();
         else if(agents_dot!=deck_model_agents_version()){agents_dot=deck_model_agents_version();update_rail_dot();}
@@ -956,6 +972,11 @@ void update(lv_timer_t*) {
 }
 
 extern "C" void ui_init(void) {
+    init_styles();
+    link_subject=lv_subject_create(LV_SUBJECT_TYPE_INT);lv_subject_set_int(link_subject,-1);
+    lock_subject=lv_subject_create(LV_SUBJECT_TYPE_INT);
+    brightness_subject=lv_subject_create(LV_SUBJECT_TYPE_INT);
+    network_subject=lv_subject_create(LV_SUBJECT_TYPE_POINTER);lv_subject_set_pointer(network_subject,&network_now);
     screen=lv_obj_create(nullptr);flat(screen,Bg);
     for(int i=0;i<ViewCount;++i)views[i]=clear_box(screen,Rail,0,W-Rail,H);
     /* Keys */
@@ -969,9 +990,11 @@ extern "C" void ui_init(void) {
     agents_area=clear_box(views[ViewAgents],Pad,Top+HeadH,ContentW,H-Top-HeadH);
     /* Mixer: no heading, the faders take the whole height */
     mixer_area=clear_box(views[ViewMixer],Pad,Top,ContentW,H-2*Top);
-    /* Status */
+    lv_obj_set_flex_flow(mixer_area,LV_FLEX_FLOW_ROW);lv_obj_set_style_pad_column(mixer_area,FaderGap,0);
+    /* Status: four cards to a row (4 x StatW and 3 gaps fit ContentW), the rest wrap below */
     head(views[ViewStatus],"This PC",&stats_summary);
     stats_area=clear_box(views[ViewStatus],Pad,Top+HeadH,ContentW,H-Top-HeadH);
+    lv_obj_set_flex_flow(stats_area,LV_FLEX_FLOW_ROW_WRAP);lv_obj_set_style_pad_column(stats_area,StatGap,0);lv_obj_set_style_pad_row(stats_area,StatGap,0);
     /* Rail */
     auto *rail=box(screen,0,0,Rail,H,0,RailBg);
     logo=clear_box(rail,0,8,Rail,68);make_logo(logo,19,12);lv_obj_set_clickable(logo,true);
@@ -979,18 +1002,18 @@ extern "C" void ui_init(void) {
     lock_badge=lv_button_create(rail);flat(lock_badge,RailOn);lv_obj_set_pos(lock_badge,15,14);lv_obj_set_size(lock_badge,54,54);
     lv_obj_set_style_radius(lock_badge,27,0);lv_obj_add_event_cb(lock_badge,lock_touched,LV_EVENT_PRESSED,nullptr);
     if(!glyph(lock_badge,"lc:e10b",27,27,26,Amber)){auto *mark=label(lock_badge,"L",0,15,54,&fq_font_dejavu_bold_20,Amber);lv_obj_set_style_text_align(mark,LV_TEXT_ALIGN_CENTER,0);}
-    lock_ring=lv_arc_create(lock_badge);lv_obj_set_size(lock_ring,54,54);lv_obj_set_pos(lock_ring,0,0);
-    lv_arc_set_rotation(lock_ring,270);lv_arc_set_bg_angles(lock_ring,0,360);lv_arc_set_range(lock_ring,0,100);lv_arc_set_value(lock_ring,0);
-    lv_obj_remove_style(lock_ring,nullptr,LV_PART_KNOB);lv_obj_set_clickable(lock_ring,false);
-    lv_obj_set_style_arc_width(lock_ring,3,LV_PART_MAIN);lv_obj_set_style_arc_width(lock_ring,3,LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(lock_ring,lv_color_hex(Amber),LV_PART_MAIN);lv_obj_set_style_arc_color(lock_ring,lv_color_hex(Accent),LV_PART_INDICATOR);
-    lv_obj_set_hidden(lock_badge,true);
+    lock_ring=make_ring(lock_badge,54,3,Amber,Accent,0);
+    lv_obj_bind_bool(logo,lock_subject,lv_obj_set_hidden);
+    lv_obj_bind_int(lock_badge,lock_subject,[](lv_obj_t *badge,int32_t locked){lv_obj_set_hidden(badge,locked!=1);});
     rail_items=clear_box(rail,0,0,Rail,H);
     link_label=label(rail,"NO PC",0,H-74,Rail,&fq_font_dejavu_bold_20,Amber);lv_obj_set_style_text_align(link_label,LV_TEXT_ALIGN_CENTER,0);
+    lv_obj_bind_int(link_label,link_subject,hide_when_linked);
     clock_label=label(rail,"--:--",0,H-44,Rail,&fq_font_dejavu_20,Soft);lv_obj_set_style_text_align(clock_label,LV_TEXT_ALIGN_CENTER,0);
     for(lv_indev_t *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_add_event_cb(indev,wake_touch,LV_EVENT_PRESSED,nullptr);
     build_ambient();
-    build_keys();build_rail();update_context();build_agents();sync_faders();sync_stats();set_view(ViewKeys);link_shown=-1;update_link();
+    build_keys();build_rail();update_context();build_agents();sync_faders();sync_stats();set_view(ViewKeys);
+    for(auto *area:{agents_area,mixer_area,stats_area})add_offline_card(area);
+    update_link();
     lv_screen_load(screen);update(nullptr);lv_timer_create(update,40,nullptr);
 }
 /* Names are user text: a quote or backslash must not break the JSON of the status line. */
@@ -1005,7 +1028,7 @@ extern "C" int ui_debug_visible_text(char *out,size_t size) {
     char profile[2*sizeof(context.profile)],page[2*sizeof(context.page)];
     json_escape(context.profile,profile,sizeof(profile));json_escape(context.page,page,sizeof(page));
     const int n=snprintf(out,size,"{\"screen\":\"%s\",\"view\":\"%s\",\"buttons\":%d,\"profile\":\"%s\",\"page\":\"%s\",\"canBack\":%s,\"pc\":%s,\"weather\":\"%s\"}",
-                         deck_model_screen()==DECK_SCREEN_AMBIENT?"ambient":"deck",ViewNames[view],deck_model_button_count(),profile,page,context.can_go_back?"true":"false",link_shown==1?"true":"false",weather_shown);
+                         deck_model_screen()==DECK_SCREEN_AMBIENT?"ambient":"deck",ViewNames[view],deck_model_button_count(),profile,page,context.can_go_back?"true":"false",link_subject&&lv_subject_get_int(link_subject)==1?"true":"false",weather_shown);
     return n>0&&n<static_cast<int>(size)?0:-1;
 }
 extern "C" void ui_set_firmware_version(const char *version) {

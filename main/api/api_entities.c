@@ -226,7 +226,7 @@ bool api_entities_send_event(api_session_t *s, const api_peer_t *peer, int slot,
 
 /* ---- commands ---- */
 
-static void light_command(const uint8_t *data, size_t len, const api_snapshot_t *now)
+static void light_command(const uint8_t *data, size_t len)
 {
     api_light_command_t command;
     if (!api_decode_light_command(data, len, &command) || command.key != api_fnv1(OBJ_LIGHT)) return;
@@ -234,8 +234,9 @@ static void light_command(const uint8_t *data, size_t len, const api_snapshot_t 
         deck_model_request_backlight_off();
         return;
     }
-    /* On: wake a dimmed panel (the console restores the level and tells the PC), then the new level. */
-    if (now->dimmed) deck_model_request_wake();
+    /* On: wake a dimmed panel (the console restores the level and tells the PC), then the new level.
+     * The live state, not the snapshot: an "off" earlier in the same pass is not in the snapshot yet. */
+    deck_model_request_backlight_on();
     if (command.has_brightness && isfinite(command.brightness)) {
         const float b = command.brightness < 0.0f ? 0.0f : command.brightness > 1.0f ? 1.0f : command.brightness;
         long level = lroundf(b * 100.0f);
@@ -303,7 +304,7 @@ void api_entities_message(api_session_t *s, api_peer_t *peer, const api_device_t
         send_all(s, peer, now, now_ms);
         break;
     case API_LIGHT_COMMAND:
-        light_command(data, len, now);
+        light_command(data, len);
         break;
     case API_SELECT_COMMAND:
         select_command(s, data, len, now, too_soon(peer, now_ms));

@@ -376,6 +376,11 @@ static bool bring_up(void)
         return false;
     }
     s_stack_up = true;
+    wifi_svc_status_t now;
+    wifi_service_status(&now);
+    /* A C6 slower than INIT_TIMEOUT_US: the init timer already reported it missing. */
+    if (s_wanted && now.state == WIFI_SVC_FAILED && now.reason == WIFI_REASON_NO_COPROCESSOR)
+        set_state(WIFI_SVC_CONNECTING, WIFI_REASON_NONE);
     read_identity();
     ESP_LOGI(TAG, "Wi-Fi chip ready; DMA heap free %u, stack left %u",
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA), (unsigned)uxTaskGetStackHighWaterMark(NULL));
