@@ -57,9 +57,6 @@ CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
 # CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG is not set
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
-
-CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM=y
-
 # Meant to keep panel->client segments small: the phone's return path drops
 # anything much above ~500 B (white-page signature: headers pass, body dies).
 # 400 is below the lwIP Kconfig minimum (536), so it is ignored and the build uses 1440.
