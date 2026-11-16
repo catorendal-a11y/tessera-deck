@@ -152,6 +152,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
 | [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what nobody has tried yet |
+| [ESP32-S3 boards](docs/S3.md) | The experimental port to two 800 x 480 S3 boards, not tested on S3 hardware yet |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 
 ## Credits and license

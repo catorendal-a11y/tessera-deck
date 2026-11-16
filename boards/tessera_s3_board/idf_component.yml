@@ -1,0 +1,9 @@
+description: Display, touch and backlight for the 800 x 480 ESP32-S3 boards, behind the BSP calls main.cpp makes
+targets:
+  - esp32s3
+dependencies:
+  idf: ">=6.1,<6.2"
+  espressif/esp_lvgl_port:
+    version: "^2.9.0"
+    public: true
+  espressif/esp_lcd_touch_gt911: "^1"

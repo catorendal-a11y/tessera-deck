@@ -263,7 +263,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'dimmed': self.dimmed,
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
-                 'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
+                 'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'),
                  'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],

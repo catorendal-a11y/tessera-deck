@@ -2,6 +2,7 @@
 
 Usage: host\\.venv\\Scripts\\python.exe tools\\render_screens.py [profiles.json] [output folder] [path to render_screens]
 Nothing is sent to the panel and the profile file is only read. Sensor values are read from this PC.
+Set TESSERA_SCREEN=800x480 to draw another screen size (default 1024x600).
 """
 from __future__ import annotations
 
@@ -41,7 +42,11 @@ def safe(name: str) -> str:
 
 
 def contact_sheet(shots: list[tuple[str, Path]], path: Path, columns: int = 3) -> None:
-    width, height, title = 640, 375, 30
+    if not shots:
+        return
+    first = Image.open(shots[0][1])
+    width, title = 640, 30
+    height = width * first.height // first.width  # 375 for 1024 x 600
     rows = (len(shots) + columns - 1) // columns
     sheet = Image.new('RGB', (columns * (width + 12) + 12, rows * (height + title + 12) + 12), '#202020')
     draw = ImageDraw.Draw(sheet)

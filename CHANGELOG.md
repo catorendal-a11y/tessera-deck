@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Experimental firmware for two ESP32-S3 boards with an 800 x 480 screen, the Waveshare ESP32-S3-Touch-LCD-7 and the Sunton ESP32-8048S070. It has not run on real S3 hardware. [S3.md](docs/S3.md) has the build commands and the open points. The P4 firmware and its screen are unchanged.
+- Firmware: the screen layout is scaled to the display size at start. 1024 x 600 draws as before.
+- Firmware: `get_info` reports the screen size and the image cache size (`w`, `h`, `imgCache`). The host assumes 1024 x 600 and 8 MiB when firmware does not send them.
+- Host: the firmware dialog and the update check pick the package for the connected board. S3 packages are named `tessera-firmware-<board>-<version>.zip`, and a package for another board is refused.
+- Host: a CH340 serial port is found as a panel and opened at 921600 baud with DTR and RTS low.
+
 ## 1.0.0
 
 A panel with 0.7.0 or later takes this version with *Update*. An older panel, or one with the Wi-Fi beta firmware, needs *Full install* once.

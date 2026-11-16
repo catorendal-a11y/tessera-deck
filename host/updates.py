@@ -22,6 +22,15 @@ MAX_DOWNLOAD = 16 * 1024 * 1024
 NOTES_LINES = 10
 VERSION = re.compile(r'v?(\d+)\.(\d+)\.(\d+)')
 FIRMWARE_ASSET = re.compile(r'tessera-firmware-[0-9A-Za-z.\-]+\.zip')
+P4_ASSET = re.compile(r'tessera-firmware-v?\d[0-9A-Za-z.\-]*\.zip')  # the P4 package has no board in its name
+
+
+def firmware_asset(assets: list, board: str | None) -> dict | None:
+    """The release package for `board`; the P4 (and a panel whose board is not known) gets the one without a board."""
+    if board and board != 'tessera-p4':
+        wanted = re.compile(rf'tessera-firmware-{re.escape(board)}-v?\d[0-9A-Za-z.\-]*\.zip')
+        return next((item for item in assets if wanted.fullmatch(item['name'])), None)
+    return next((item for item in assets if P4_ASSET.fullmatch(item['name'])), None)
 
 
 def parse_version(text: str) -> tuple[int, int, int]:
@@ -57,8 +66,8 @@ def notes_excerpt(body, lines: int = NOTES_LINES) -> str:
     return '\n'.join(kept)
 
 
-def check(current: str, opener=urllib.request.urlopen) -> dict:
-    """Compare `current` with the latest published release."""
+def check(current: str, opener=urllib.request.urlopen, board: str | None = None) -> dict:
+    """Compare `current` with the latest published release; `board` picks the firmware package of the connected panel."""
     try:
         raw, _ = _open(RELEASE_API, opener, 512 * 1024)
     except urllib.error.HTTPError as exc:
@@ -75,7 +84,7 @@ def check(current: str, opener=urllib.request.urlopen) -> dict:
         raise ValueError('GitHub sent an answer Tessera cannot read') from exc
     return {'current': current, 'latest': latest.lstrip('v'), 'newer': newer, 'page': release.get('html_url', ''),
             'notes': notes_excerpt(release.get('body')),
-            'firmware': next((item for item in assets if FIRMWARE_ASSET.fullmatch(item['name'])), None),
+            'firmware': firmware_asset(assets, board),
             'sums': next((item for item in assets if item['name'] == 'SHA256SUMS'), None)}
 
 

@@ -4,6 +4,9 @@ dependencies:
   lvgl/lvgl:
     version: 9.6.*
     public: true
-  espressif/esp_lcd_jd9165: "*"
+  espressif/esp_lcd_jd9165:
+    version: "*"
+    rules:
+      - if: "target in [esp32p4]"
   espressif/esp_lvgl_port: "^2.9.0"
   espressif/esp_lcd_touch_gt911: "^1"

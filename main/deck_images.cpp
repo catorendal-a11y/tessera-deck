@@ -4,6 +4,9 @@
 #include <mutex>
 #include <cstring>
 #include <cstdio>
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
 
 namespace {
 std::mutex lock;
@@ -29,10 +32,16 @@ bool id_ok(const char* id) {
     for(int i=3;i<15;++i)if(hex(id[i])<0)return false;
     return true;
 }
-constexpr size_t CacheLimit=8*1024*1024;  // decoded RGBA bytes kept between pages; PANEL_CACHE_BYTES in host/panel_serial.py
+// Decoded RGBA bytes kept between pages; PANEL_CACHE_BYTES in host/panel_serial.py, which get_info's "imgCache" overrides.
+#ifdef CONFIG_TESSERA_IMAGE_CACHE_KB
+constexpr size_t CacheLimit=size_t(CONFIG_TESSERA_IMAGE_CACHE_KB)*1024;  // the S3 boards, main/Kconfig.projbuild
+#else
+constexpr size_t CacheLimit=8*1024*1024;
+#endif
 // The host uploads a page's images before its layout and trims its own record only afterwards, so an upload may
-// pass CacheLimit by one page of images (18 keys of 72x72x12 frames); beyond that an upload is refused.
-constexpr size_t UploadLimit=CacheLimit+18*72*72*4*12;
+// pass CacheLimit by one page of images (18 keys of 72x72x12 frames at 8 MiB, the same share of a smaller cache);
+// beyond that an upload is refused.
+constexpr size_t UploadLimit=CacheLimit+size_t(uint64_t(18*72*72*4*12)*CacheLimit/(8*1024*1024));
 std::map<std::string,uint32_t> last_used;  // insertion order, renewed when a layout uses the image (as on the host)
 uint32_t use_tick=0;
 uint32_t generation=0;  // bumped per insert: a full cache swaps one image for another without changing the count
@@ -97,6 +106,7 @@ std::shared_ptr<const DeckImage> deck_image_get(const char* id) {
     auto it=images.find(id);
     return it==images.end()?nullptr:it->second;
 }
+size_t deck_image_cache_limit() {return CacheLimit;}
 void deck_image_cache_stats(size_t* bytes,size_t* count) {
     std::lock_guard<std::mutex> guard(lock);
     if(bytes)*bytes=cache_bytes();

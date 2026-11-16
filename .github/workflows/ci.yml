@@ -108,3 +108,28 @@ jobs:
           /tmp/bench/bin/pip install --quiet pyserial==3.5 psutil==7.2.2 Pillow==13.0.0  # the versions in host/requirements.lock
           /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --check
           /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --old-firmware --check
+
+  firmware-s3:
+    name: Firmware build for ${{ matrix.board }}
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [tessera-s3-ws7, tessera-s3-8048s070]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py -B build/${{ matrix.board }} -DSDKCONFIG=build/${{ matrix.board }}/sdkconfig -DIDF_TARGET=esp32s3 \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/${{ matrix.board }}.defaults" build
+          ls -l build/${{ matrix.board }}/tessera.bin
+      - name: Package firmware
+        shell: bash
+        run: python3 tools/package_firmware.py build/${{ matrix.board }} dist --board ${{ matrix.board }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tessera-firmware-${{ matrix.board }}
+          path: dist/

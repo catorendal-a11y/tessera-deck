@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -17,17 +18,25 @@
 #include "ui/icon_pack.h"
 
 static uint32_t tick=10000;static std::vector<uint8_t> pixels;static unsigned flushes=0;
+/* The screen (TESSERA_SCREEN=800x480, default 1024x600) and the panel's layout from the same formulas as ui.cpp:
+ * lengths drawn for 1024 x 600 and scaled by sc(). */
+static int width=1024,height=600;static float scale=1;
+static int sc(int v){return static_cast<int>(std::lround(v*scale));}
+static int rail_w,pad,top,head_h,content_w,gap,key_w,key_h,fader_w,track_h;
+static void set_layout(){
+    scale=std::min(width/1024.f,height/600.f);rail_w=sc(84);pad=sc(26);top=sc(22);head_h=sc(50);content_w=width-rail_w-2*pad;
+    gap=sc(12);key_w=(content_w-5*gap)/6;key_h=(height-2*top-head_h-2*gap)/3;fader_w=(content_w-4*sc(18))/5;track_h=height-2*top-sc(216);}
 uint32_t millis(){return tick;}
 extern "C" int64_t esp_timer_get_time(){return static_cast<int64_t>(tick)*1000;}
 static const char *clock_text="14:32",*clock_meridiem="";
 extern "C" const char* time_service_time_text(){return clock_text;}
 extern "C" const char* time_service_meridiem(){return clock_meridiem;}
 extern "C" const char* time_service_date_text(){return "Tue 20 Oct 2026";}
-static void flush(lv_display_t* display,const lv_area_t* area,uint8_t* data){++flushes;const auto* source=reinterpret_cast<const uint32_t*>(data);int offset=0;for(int y=area->y1;y<=area->y2;++y)for(int x=area->x1;x<=area->x2;++x){const uint32_t v=source[offset++];const int at=(y*1024+x)*3;pixels[at]=v&255;pixels[at+1]=(v>>8)&255;pixels[at+2]=(v>>16)&255;}lv_display_flush_ready(display);}
+static void flush(lv_display_t* display,const lv_area_t* area,uint8_t* data){++flushes;const auto* source=reinterpret_cast<const uint32_t*>(data);int offset=0;for(int y=area->y1;y<=area->y2;++y)for(int x=area->x1;x<=area->x2;++x){const uint32_t v=source[offset++];const int at=(y*width+x)*3;pixels[at]=v&255;pixels[at+1]=(v>>8)&255;pixels[at+2]=(v>>16)&255;}lv_display_flush_ready(display);}
 static void step(uint32_t ms=40){lv_timer_handler();tick+=ms;lv_tick_inc(ms);}
 static void updates(){for(int i=0;i<6;++i)step();lv_refr_now(nullptr);}
 static std::filesystem::path output;
-static void capture(const char* name){updates();std::ofstream out(output/name,std::ios::binary);out<<"P6\n1024 600\n255\n";assert(flushes);assert(*std::max_element(pixels.begin(),pixels.end())>128);for(size_t i=0;i<pixels.size();i+=3){out.put(pixels[i+2]);out.put(pixels[i+1]);out.put(pixels[i]);}}
+static void capture(const char* name){updates();std::ofstream out(output/name,std::ios::binary);out<<"P6\n"<<width<<" "<<height<<"\n255\n";assert(flushes);assert(*std::max_element(pixels.begin(),pixels.end())>128);for(size_t i=0;i<pixels.size();i+=3){out.put(pixels[i+2]);out.put(pixels[i+1]);out.put(pixels[i]);}}
 static bool touching=false;static lv_point_t touch_at{};
 static void touch_read(lv_indev_t*,lv_indev_data_t* data){data->point=touch_at;data->state=touching?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y){touch_at={x,y};touching=true;updates();touching=false;updates();}
@@ -45,9 +54,21 @@ static bool view_is(const char* name){char want[32];snprintf(want,sizeof(want),"
 static lv_obj_t* arc_in(lv_obj_t* parent){for(uint32_t i=0;i<lv_obj_get_child_count(parent);++i)if(lv_obj_check_type(lv_obj_get_child(parent,i),&lv_arc_class))return lv_obj_get_child(parent,i);return nullptr;}
 static bool bg_is(lv_obj_t* object,uint32_t rgb){return lv_color_eq(lv_obj_get_style_bg_color(object,LV_PART_MAIN),lv_color_hex(rgb));}
 static int arcs_in(lv_obj_t* parent){int n=0;for(uint32_t i=0;i<lv_obj_get_child_count(parent);++i)n+=lv_obj_check_type(lv_obj_get_child(parent,i),&lv_arc_class);return n;}
-/* Key slot centres: the keys start at (110, 72), 150 px apart across and 172 down. */
-static int key_x(int id){return 110+((id-1)%6)*150+69;}
-static int key_y(int id){return 72+((id-1)/6)*172+80;}
+/* Key slot centres: on 1024 x 600 the keys start at (110, 72), 150 px apart across and 172 down. */
+static int key_x(int id){return rail_w+pad+((id-1)%6)*(key_w+gap)+key_w/2;}
+static int key_y(int id){return top+head_h+((id-1)/6)*(key_h+gap)+key_h/2;}
+/* Rail button n (42, 111 + 60 n), the logo and lock badge (42, 41), an agent lane's right button (912, 145 + 160 lane),
+ * the first fader at three quarters (191, 171), its mute (191, 522), the middle of the brightness slider (330, 250). */
+static int rail_x(){return sc(15)+sc(54)/2;}
+static int rail_y(int n){return sc(84)+n*sc(60)+sc(54)/2;}
+static int logo_y(){return sc(14)+sc(54)/2;}
+static int agent_x(){return rail_w+pad+content_w-sc(20)-sc(132)/2;}
+static int agent_y(int lane){return top+head_h+lane*sc(160)+sc(25)+sc(96)/2;}
+static int fader_x(){return rail_w+pad+fader_w/2;}
+static int fader_y(){return top+sc(64)+track_h/4;}
+static int mute_y(){return top+sc(64)+track_h+sc(20)+sc(36)+sc(80)/2;}
+static int slider_x(){return rail_w+sc(16)+sc(40)+(sc(460)-sc(80))/2;}
+static int slider_y(){return sc(16)+sc(224)+sc(20)/2;}
 static void keep_host(uint32_t ms){for(uint32_t t=0;t<ms;t+=1000){deck_model_note_host();tick+=1000;lv_tick_inc(1000);updates();}}
 
 static deck_button_t parsed[18]{};static int count=0;
@@ -94,9 +115,9 @@ static void test_titles(){
 }
 static void test_tap_lands_in_slot(){
     /* A tap lands on the key in that slot: id 4 is the fourth tile of the first row, id 1 the first. */
-    int before=deck_model_last_event_id();tap(629,150);deck_event_t event{};
+    int before=deck_model_last_event_id();tap(key_x(4),key_y(4));deck_event_t event{};
     assert(deck_model_events_since(before,&event,1)==1&&event.button_id==4&&!event.hold&&!strcmp(event.label,"New tab"));
-    before=deck_model_last_event_id();tap(180,150);assert(deck_model_events_since(before,&event,1)==1&&event.button_id==1);
+    before=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_events_since(before,&event,1)==1&&event.button_id==1);
 }
 static void test_long_press_reports_hold(){
     /* A key with a hold action reports a hold past the long-press time, and nothing else. */
@@ -109,8 +130,8 @@ static void test_long_press_reports_hold(){
 static void test_dimmed_touch_only_wakes(){
     /* A touch on a dimmed panel only wakes it, even on a key; the next touch presses. */
     const int before=deck_model_last_event_id();const uint32_t wake=deck_model_wake_sequence();deck_model_set_dimmed(true);
-    tap(180,150);assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1&&deck_model_last_event_id()==before);
-    tap(180,150);assert(deck_model_last_event_id()==before+1&&deck_model_wake_sequence()==wake+1);
+    tap(key_x(1),key_y(1));assert(!deck_model_dimmed()&&deck_model_wake_sequence()==wake+1&&deck_model_last_event_id()==before);
+    tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1&&deck_model_wake_sequence()==wake+1);
 }
 static void test_pending_key_times_out(){
     /* A pressed key pulses until the host confirms; with no answer the pulse stops after ten seconds. */
@@ -169,8 +190,9 @@ static void test_long_labels_stay_inside(){
     int checked=0;
     std::vector<lv_obj_t*> stack{lv_screen_active()};
     while(!stack.empty()){auto* at=stack.back();stack.pop_back();for(uint32_t i=0;i<lv_obj_get_child_count(at);++i)stack.push_back(lv_obj_get_child(at,i));
-        /* LONG_DOT writes the dots into the text, so the shown text is a shorter run of W ending in "..." */
-        if(!lv_obj_check_type(at,&lv_label_class)||strncmp(lv_label_get_text(at),"WWW",3))continue;
+        /* LONG_DOT writes the dots into the text, so the shown text is a shorter run of W ending in "..." (a 800 px
+           screen's single key keeps two) */
+        if(!lv_obj_check_type(at,&lv_label_class)||strncmp(lv_label_get_text(at),"WW",2))continue;
         assert(strstr(lv_label_get_text(at),"..."));
         lv_area_t text,key;lv_obj_get_coords(at,&text);lv_obj_get_coords(lv_obj_get_parent(at),&key);
         const int line=lv_font_get_line_height(lv_obj_get_style_text_font(at,LV_PART_MAIN));
@@ -205,9 +227,9 @@ static void test_swipe_goes_back(){
        and the key under the finger is not pressed. */
     keep_host(1000);while(!taken().empty()){}
     const int before=deck_model_last_event_id();
-    drag(key_x(7),key_y(7),key_x(7)+400,key_y(7));assert(taken()==R"({"type":"rail","i":0})"&&taken().empty());
-    drag(key_x(10),key_y(10),key_x(10)-400,key_y(10));assert(taken().empty());
-    drag(key_x(8),key_y(8),key_x(8),key_y(8)-160);assert(taken().empty());
+    drag(key_x(7),key_y(7),key_x(7)+sc(400),key_y(7));assert(taken()==R"({"type":"rail","i":0})"&&taken().empty());
+    drag(key_x(10),key_y(10),key_x(10)-sc(400),key_y(10));assert(taken().empty());
+    drag(key_x(8),key_y(8),key_x(8),key_y(8)-sc(160));assert(taken().empty());
     assert(deck_model_last_event_id()==before&&view_is("keys"));
 }
 static void test_feedback_queue(){
@@ -248,7 +270,7 @@ static const char* const ThreeAgents=R"({"agents":[
 static void test_agents(){
     /* Agents: one lane each; a waiting agent offers Allow and Deny. */
     assert(deck_model_agents_from_json(ThreeAgents));
-    tap(42,171);assert(view_is("agents"));
+    tap(rail_x(),rail_y(1));assert(view_is("agents"));
     assert(visible("Claude Code")&&visible("waiting for you")&&visible("Allow")&&visible("Deny")&&visible("Stop")&&visible("Open")&&visible("One needs you"));
     assert(!visible("New tab 2"));
     capture("agents.ppm");
@@ -266,11 +288,11 @@ static void test_agent_words_change_in_place(){
 }
 static void test_agent_allow_deny(){
     /* Allow and Deny each go to the host as one line naming the agent; Stop on a working one too. */
-    tap(912,145);assert(taken()==R"({"type":"agent","id":"claude","do":"allow"})"&&taken().empty());
-    tap(912-144,145);assert(taken()==R"({"type":"agent","id":"claude","do":"deny"})"&&taken().empty());
-    tap(912,145+160);assert(taken()==R"({"type":"agent","id":"codex","do":"stop"})"&&taken().empty());
+    tap(agent_x(),agent_y(0));assert(taken()==R"({"type":"agent","id":"claude","do":"allow"})"&&taken().empty());
+    tap(agent_x()-sc(144),agent_y(0));assert(taken()==R"({"type":"agent","id":"claude","do":"deny"})"&&taken().empty());
+    tap(agent_x(),agent_y(1));assert(taken()==R"({"type":"agent","id":"codex","do":"stop"})"&&taken().empty());
     /* Without the PC nobody would hear the answer: nothing is sent. */
-    tick+=4000;lv_tick_inc(4000);updates();tap(912,145);assert(taken().empty());deck_model_note_host();updates();
+    tick+=4000;lv_tick_inc(4000);updates();tap(agent_x(),agent_y(0));assert(taken().empty());deck_model_note_host();updates();
 }
 static void test_agent_tap_follows_its_lane(){
     /* A tap answers the agent its lane showed, even when the list changed before the lanes were redrawn. */
@@ -303,10 +325,10 @@ static void test_mixer(){
  {"id":"mic","name":"Mic","level":70,"mic":true,"color":"#4DD0E1"}]})"));
     ui_show_view(2);updates();assert(visible("Master")&&visible("62 %")&&visible("Muted")&&visible("Mic"));
     capture("mixer.ppm");
-    tap(190,171);const std::string moved=taken();
+    tap(fader_x(),fader_y());const std::string moved=taken();
     assert(moved.rfind(R"({"type":"fader","id":"speaker","level":7)",0)==0);while(!taken().empty()){}
     assert(!visible("62 %"));
-    tap(191,523);assert(taken()==R"({"type":"mute","id":"speaker"})");
+    tap(fader_x(),mute_y());assert(taken()==R"({"type":"mute","id":"speaker"})");
     assert(!deck_model_faders_from_json(R"({"faders":[{"id":"x","name":"x","color":"red"}]})"));
 }
 static void test_rail_shortcuts(){
@@ -315,22 +337,22 @@ static void test_rail_shortcuts(){
     assert(!deck_model_rail_from_json(R"({"rail":[{"k":"weather"}]})")&&!deck_model_rail_from_json(R"({"rail":[{"k":"page","i":"lc:e0e8"}]})"));
     ui_show_view(1);updates();capture("rail.ppm");
     deck_model_note_host();  /* a shortcut does something only with the PC there */
-    tap(42,84+3*60+27);
+    tap(rail_x(),rail_y(3));
     assert(taken()==R"({"type":"rail","i":3})"&&taken().empty()&&view_is("keys"));
 }
 static void test_rail_back_after_shortcut(){
     /* Keys while the keys show (after a shortcut) asks the host to go back; from another screen it only switches. */
-    tap(42,84+0*60+27);assert(taken()==R"({"type":"rail","i":0})"&&taken().empty());
-    tap(42,84+2*60+27);assert(view_is("status"));
-    tap(42,84+0*60+27);assert(taken().empty()&&view_is("keys"));
+    tap(rail_x(),rail_y(0));assert(taken()==R"({"type":"rail","i":0})"&&taken().empty());
+    tap(rail_x(),rail_y(2));assert(view_is("status"));
+    tap(rail_x(),rail_y(0));assert(taken().empty()&&view_is("keys"));
     /* A shortcut that runs steps tells the host and keeps the screen: here, status. */
-    tap(42,84+2*60+27);
+    tap(rail_x(),rail_y(2));
     assert(deck_model_rail_from_json(R"({"rail":[{"k":"keys"},{"k":"agents"},{"k":"status"},{"k":"act","i":"lc:e09e"}]})"));updates();
-    tap(42,84+3*60+27);assert(taken()==R"({"type":"rail","i":3})"&&view_is("status"));
-    tap(42,84+0*60+27);assert(taken().empty()&&view_is("keys"));
-    tap(42,84+2*60+27);
+    tap(rail_x(),rail_y(3));assert(taken()==R"({"type":"rail","i":3})"&&view_is("status"));
+    tap(rail_x(),rail_y(0));assert(taken().empty()&&view_is("keys"));
+    tap(rail_x(),rail_y(2));
     assert(deck_model_rail_from_json(R"({"rail":[{"k":"agents"}]})"));updates();
-    tap(42,84+1*60+27);assert(view_is("agents"));
+    tap(rail_x(),rail_y(1));assert(view_is("agents"));
     assert(deck_model_rail_from_json(R"({"rail":[{"k":"keys"},{"k":"agents"},{"k":"mixer"},{"k":"status"}]})"));updates();ui_show_view(0);updates();
 }
 static void test_panel_lock(){
@@ -340,33 +362,33 @@ static void test_panel_lock(){
     deck_model_set_locked(true);updates();capture("locked.ppm");
     const int before=deck_model_last_event_id();
     tap(key_x(1),key_y(1));hold(key_x(4),key_y(4),700);assert(deck_model_last_event_id()==before);
-    tap(42,84+1*60+27);assert(view_is("keys"));
-    drag(key_x(7),key_y(7),key_x(7)+400,key_y(7));assert(taken().empty());
-    hold(42,41,1000);assert(deck_model_locked()&&taken().empty());
-    hold(42,41,2200);assert(!deck_model_locked()&&taken()==R"({"type":"unlocked"})"&&taken().empty());
+    tap(rail_x(),rail_y(1));assert(view_is("keys"));
+    drag(key_x(7),key_y(7),key_x(7)+sc(400),key_y(7));assert(taken().empty());
+    hold(rail_x(),logo_y(),1000);assert(deck_model_locked()&&taken().empty());
+    hold(rail_x(),logo_y(),2200);assert(!deck_model_locked()&&taken()==R"({"type":"unlocked"})"&&taken().empty());
     updates();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
 }
 static void test_lock_covers_agents_and_mixer(){
     /* A locked panel still shows a question, but Allow, the faders and mute do nothing until it is unlocked. */
     keep_host(1000);while(!taken().empty()){}
     deck_model_set_locked(true);ui_show_view(1);updates();assert(visible("Allow"));
-    tap(912,145);tap(912-144,145);assert(taken().empty());
-    ui_show_view(2);updates();tap(190,171);tap(191,523);assert(taken().empty());
-    deck_model_set_locked(false);updates();tap(191,523);assert(taken()==R"({"type":"mute","id":"speaker"})");
-    tap(191,523);while(!taken().empty()){}ui_show_view(0);updates();
+    tap(agent_x(),agent_y(0));tap(agent_x()-sc(144),agent_y(0));assert(taken().empty());
+    ui_show_view(2);updates();tap(fader_x(),fader_y());tap(fader_x(),mute_y());assert(taken().empty());
+    deck_model_set_locked(false);updates();tap(fader_x(),mute_y());assert(taken()==R"({"type":"mute","id":"speaker"})");
+    tap(fader_x(),mute_y());while(!taken().empty()){}ui_show_view(0);updates();
 }
 static void test_about_sheet(){
     /* A long press on the logo opens a sheet with the firmware, the PC link and a brightness slider; a tap outside closes it. */
-    keep_host(1000);tap(42,41);assert(!visible("Brightness"));
-    hold(42,41,700);assert(visible("Tessera")&&visible("Firmware 9.8.7")&&visible("PC connected")&&visible("Brightness")&&visible("100 %"));
+    keep_host(1000);tap(rail_x(),logo_y());assert(!visible("Brightness"));
+    hold(rail_x(),logo_y(),700);assert(visible("Tessera")&&visible("Firmware 9.8.7")&&visible("PC connected")&&visible("Brightness")&&visible("100 %"));
     capture("about.ppm");
     int level=0;bool save=false;while(deck_model_take_brightness_request(&level,&save)){}
-    tap(330,250);assert(deck_model_take_brightness_request(&level,&save)&&save&&level>30&&level<70&&deck_model_brightness()==level);
+    tap(slider_x(),slider_y());assert(deck_model_take_brightness_request(&level,&save)&&save&&level>30&&level<70&&deck_model_brightness()==level);
     char shown_level[8];snprintf(shown_level,sizeof(shown_level),"%d %%",level);assert(visible(shown_level));
     const int before=deck_model_last_event_id();
     tap(key_x(12),key_y(12));assert(!visible("Brightness")&&deck_model_last_event_id()==before);
     /* A locked panel has no logo to hold. */
-    deck_model_set_locked(true);updates();hold(42,41,700);assert(!visible("Brightness"));deck_model_set_locked(false);updates();
+    deck_model_set_locked(true);updates();hold(rail_x(),logo_y(),700);assert(!visible("Brightness"));deck_model_set_locked(false);updates();
     while(!taken().empty()){}
 }
 static void test_status_screen(){
@@ -511,7 +533,7 @@ static void test_ambient_clock(){
     const char *const twelve[][2]={{"2:32","ambient-12h.ppm"},{"10:49","ambient-12h-10.ppm"},{"12:59","ambient-12h-12.ppm"}};
     for(const auto& item:twelve){clock_text=item[0];clock_meridiem="PM";updates();capture(item[1]);}
     clock_text="14:32";clock_meridiem="";updates();
-    tap(512,300);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return()&&!deck_model_take_touch_return());
+    tap(width/2,height/2);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return()&&!deck_model_take_touch_return());
     assert(ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"screen\":\"deck\""));
 }
 static void test_icon_pack(){
@@ -522,9 +544,13 @@ static void test_icon_pack(){
 
 int main(int argc,char** argv){
     output=argc>1?argv[1]:".";std::filesystem::create_directories(output);
-    lv_init();lv_tick_set_cb(millis);pixels.resize(1024*600*3);auto* display=lv_display_create(1024,600);
-    lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);alignas(64)static uint32_t buffer[1024*600];
-    lv_display_set_buffers(display,buffer,nullptr,sizeof(buffer),LV_DISPLAY_RENDER_MODE_FULL);lv_display_set_flush_cb(display,flush);lv_tick_inc(tick);deck_model_init();
+    alignas(64)static uint32_t buffer[1024*600];
+    if(const char* size=getenv("TESSERA_SCREEN"))
+        if(sscanf(size,"%dx%d",&width,&height)!=2||width<320||height<240||width*height>1024*600){fprintf(stderr,"TESSERA_SCREEN must be WxH, at most 1024x600 pixels\n");return 2;}
+    set_layout();
+    lv_init();lv_tick_set_cb(millis);pixels.resize(static_cast<size_t>(width)*height*3);auto* display=lv_display_create(width,height);
+    lv_display_set_color_format(display,LV_COLOR_FORMAT_XRGB8888);
+    lv_display_set_buffers(display,buffer,nullptr,static_cast<uint32_t>(width*height*4),LV_DISPLAY_RENDER_MODE_FULL);lv_display_set_flush_cb(display,flush);lv_tick_inc(tick);deck_model_init();
     auto* touch=lv_indev_create();lv_indev_set_type(touch,LV_INDEV_TYPE_POINTER);lv_indev_set_read_cb(touch,touch_read);deck_model_note_host();
     struct Test{const char* name;void(*run)();};
     const Test tests[]={

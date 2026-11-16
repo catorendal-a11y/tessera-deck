@@ -1,0 +1,27 @@
+menu "Tessera board"
+    depends on IDF_TARGET_ESP32S3
+
+    choice TESSERA_BOARD
+        prompt "Board"
+        default TESSERA_BOARD_S3_WS7
+        help
+            The ESP32-P4 build always uses the P4 function EV board and has no choice here.
+
+        config TESSERA_BOARD_S3_WS7
+            bool "Waveshare ESP32-S3-Touch-LCD-7 (800 x 480, native USB)"
+        config TESSERA_BOARD_S3_8048S070
+            bool "Sunton/Guition ESP32-8048S070 (800 x 480, CH340 on UART0)"
+    endchoice
+
+    config TESSERA_BOARD_ID
+        string
+        default "tessera-s3-ws7" if TESSERA_BOARD_S3_WS7
+        default "tessera-s3-8048s070" if TESSERA_BOARD_S3_8048S070
+
+    config TESSERA_IMAGE_CACHE_KB
+        int "Key image cache (KiB)"
+        range 512 8192
+        default 2048
+        help
+            Decoded key images kept in PSRAM. The P4 keeps 8 MiB; the S3 boards have 8 MB of PSRAM in all.
+endmenu

@@ -315,7 +315,7 @@ class EditorFirmwareTests(unittest.TestCase):
     def test_the_editor_lists_packages_and_the_device_firmware(self):
         with patch.object(self.editor, 'firmware_folders', return_value=[self.package_path.parent]):
             listing = self.editor.command('firmware-list', {})
-        self.assertEqual(listing['device'], {'firmware': '1.0.0', 'protocol': 2, 'connected': True})
+        self.assertEqual(listing['device'], {'firmware': '1.0.0', 'protocol': 2, 'board': None, 'connected': True})
         self.assertEqual([item['version'] for item in listing['packages']], ['1.2.3'])
 
     def test_a_panel_on_a_protocol_the_host_does_not_speak_is_marked_for_the_full_install(self):

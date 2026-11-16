@@ -482,7 +482,7 @@ class Editor:
         status = self.status().get('device', {})
         version_file = ROOT / 'VERSION'
         return {'packages': firmware_update.find_packages(self.firmware_folders(), SUPPORTED_PROTOCOLS),
-                'device': {'firmware': status.get('firmware'), 'protocol': status.get('protocol'),
+                'device': {'firmware': status.get('firmware'), 'protocol': status.get('protocol'), 'board': status.get('board'),
                            'connected': bool(status.get('connected'))},
                 'host': version_file.read_text(encoding='utf-8').strip() if version_file.is_file() else None,
                 'job': dict(self.firmware_job)}
@@ -496,7 +496,8 @@ class Editor:
             if exc.kind == 'silent':
                 return None
             if exc.kind == 'protocol':  # for example the Wi-Fi beta: only a full install replaces it
-                return {'boardId': firmware_update.BOARD_ID, 'firmwareVersion': None, 'protocolUnknown': True}
+                info = exc.info or {}
+                return {'boardId': info.get('boardId', firmware_update.BOARD_ID), 'firmwareVersion': None, 'protocolUnknown': True}
             raise firmware_update.PackageError(str(exc)) from exc
         except OSError as exc:
             raise firmware_update.InstallError(f'{port} could not be opened: {exc}') from exc
@@ -591,7 +592,7 @@ class Editor:
 
     def check_updates(self):
         try:
-            self.last_release = updates.check(self.version())
+            self.last_release = updates.check(self.version(), board=self.status().get('board'))
         except OSError as exc:
             raise ValueError('GitHub could not be reached. Check your internet connection.') from exc
         return self.last_release

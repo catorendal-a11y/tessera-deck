@@ -34,6 +34,14 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           idf.py -B build/idf6 build
+      # The S3 boards: one build and one package each. The board file adds the target, the display and the partition table.
+      - name: Build firmware for the ESP32-S3 boards
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          for board in tessera-s3-ws7 tessera-s3-8048s070; do
+            idf.py -B build/$board -DSDKCONFIG=build/$board/sdkconfig -DIDF_TARGET=esp32s3 -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/$board.defaults" build
+          done
       - name: Native LVGL render and model tests
         shell: bash
         run: |
@@ -45,9 +53,12 @@ jobs:
         shell: bash
         run: |
           python3 tools/package_firmware.py build/idf6 dist
+          for board in tessera-s3-ws7 tessera-s3-8048s070; do
+            python3 tools/package_firmware.py build/$board dist --board $board
+          done
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git archive --format=zip --prefix="tessera-${GITHUB_REF_NAME}/" -o "dist/tessera-host-${GITHUB_REF_NAME}.zip" HEAD
-          python3 -c "import glob,os,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'a'); f=glob.glob('dist/tessera-firmware-*.zip')[0]; z.write(f,'tessera-'+sys.argv[2]+'/firmware/'+os.path.basename(f)); z.close()" "dist/tessera-host-${GITHUB_REF_NAME}.zip" "${GITHUB_REF_NAME}"
+          python3 -c "import glob,os,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'a'); [z.write(f,'tessera-'+sys.argv[2]+'/firmware/'+os.path.basename(f)) for f in sorted(glob.glob('dist/tessera-firmware-*.zip'))]; z.close()" "dist/tessera-host-${GITHUB_REF_NAME}.zip" "${GITHUB_REF_NAME}"
           (cd dist && rm -f *.sha256 && sha256sum *.zip > SHA256SUMS)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

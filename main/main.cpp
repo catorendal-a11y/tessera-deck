@@ -17,8 +17,14 @@
 #include "esp_timer.h"
 #include "deck_images.h"
 #include "protocol_version.h"
+#include "sdkconfig.h"
+#ifdef CONFIG_ESP_CONSOLE_UART
+#include "driver/uart.h"
+#include "driver/uart_vfs.h"
+#else
 #include "driver/usb_serial_jtag.h"
 #include "driver/usb_serial_jtag_vfs.h"
+#endif
 #include "esp_system.h"
 #include "esp_random.h"
 #include "nvs.h"
@@ -27,6 +33,7 @@
 #include "esp_spiffs.h"
 #include "esp_task_wdt.h"
 #include "psa/crypto.h"
+#include <algorithm>
 #include <atomic>
 #include <ctime>
 #include <sys/stat.h>
@@ -39,6 +46,44 @@ extern "C" {
 }
 
 static const char *TAG = "tessera";
+#ifdef CONFIG_TESSERA_BOARD_ID
+static const char *const BOARD_ID = CONFIG_TESSERA_BOARD_ID;  /* the S3 boards, see main/Kconfig.projbuild */
+#else
+static const char *const BOARD_ID = "tessera-p4";
+#endif
+
+/* The host link is USB Serial/JTAG, or UART0 through the CH340 on boards without native USB (921600 baud, set in
+ * boards/tessera-s3-8048s070.defaults). Replies and logs share it through stdout either way. */
+#ifdef CONFIG_ESP_CONSOLE_UART
+static constexpr uart_port_t HOST_UART = static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM);
+#endif
+
+static void host_link_start(void)
+{
+#ifdef CONFIG_ESP_CONSOLE_UART
+    ESP_ERROR_CHECK(uart_driver_install(HOST_UART, 8192, 8192, 0, nullptr, 0));
+    uart_vfs_dev_use_driver(HOST_UART);
+#else
+    usb_serial_jtag_driver_config_t usb = {};
+    usb.rx_buffer_size = 8192;
+    usb.tx_buffer_size = 8192;
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
+    usb_serial_jtag_vfs_use_driver();
+#endif
+}
+
+/* Waits up to 20 ms for input. uart_read_bytes waits for the whole count, so it asks only for what has arrived. */
+static int host_link_read(uint8_t *buffer, size_t size)
+{
+#ifdef CONFIG_ESP_CONSOLE_UART
+    size_t ready = 0;
+    uart_get_buffered_data_len(HOST_UART, &ready);
+    return uart_read_bytes(HOST_UART, buffer, static_cast<uint32_t>(ready ? std::min(ready, size) : 1), pdMS_TO_TICKS(20));
+#else
+    return usb_serial_jtag_read_bytes(buffer, size, pdMS_TO_TICKS(20));
+#endif
+}
+
 /* Backlight level restored by AD_DISPLAY_WAKE; set by the host with AD_BRIGHTNESS
  * and kept in NVS so the panel boots at the chosen level, not at full power. */
 static int s_brightness = 100;
@@ -387,7 +432,7 @@ static bool parse_percent(const char *text, long low, long high, int *out)
     return true;
 }
 /* USB console: line protocol with the Windows host. The panel has no network
- * stack; USB is the only transport. */
+ * stack; the host link (USB, or UART on the Sunton board) is the only transport. */
 static void usb_console_task(void *)
 {
     static uint8_t received[2048];
@@ -465,7 +510,7 @@ static void usb_console_task(void *)
             }
             fflush(stdout);
         }
-            rx_size = usb_serial_jtag_read_bytes(received, sizeof(received), pdMS_TO_TICKS(20));
+            rx_size = host_link_read(received, sizeof(received));
             rx_at = 0;
             if (rx_size <= 0) continue;
         }
@@ -494,10 +539,13 @@ static void usb_console_task(void *)
             const cJSON *cmd=cJSON_GetObjectItemCaseSensitive(request,"cmd");
             if(cJSON_IsString(cmd)&&!strcmp(cmd->valuestring,"get_info")) {
                 cJSON *reply=cJSON_CreateObject();const esp_app_desc_t *app=esp_app_get_description();
-                cJSON_AddStringToObject(reply,"type","info");cJSON_AddStringToObject(reply,"boardId","tessera-p4");
+                cJSON_AddStringToObject(reply,"type","info");cJSON_AddStringToObject(reply,"boardId",BOARD_ID);
                 cJSON_AddStringToObject(reply,"firmwareVersion",app->version);cJSON_AddNumberToObject(reply,"protocol",TESSERA_PROTOCOL);cJSON_AddNumberToObject(reply,"bootId",boot_id);
                 cJSON_AddNumberToObject(reply,"uptime",esp_timer_get_time()/1000000);cJSON_AddNumberToObject(reply,"heap",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+                /* Screen and image cache size; a host that finds none assumes 1024 x 600 and 8 MiB. */
+                cJSON_AddNumberToObject(reply,"w",BSP_LCD_H_RES);cJSON_AddNumberToObject(reply,"h",BSP_LCD_V_RES);
+                cJSON_AddNumberToObject(reply,"imgCache",static_cast<double>(deck_image_cache_limit()));
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
                 cJSON_AddNumberToObject(reply,"imgAck",1);  /* "AD_IMG_BEGIN <id> <bytes> <crc> ack", see deck_images.cpp */
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
@@ -713,11 +761,7 @@ extern "C" void app_main(void)
 {
     // Keep the scarce internal/DMA heap for the panel and SDIO driver.
     heap_caps_malloc_extmem_enable(16);
-    usb_serial_jtag_driver_config_t usb = {};
-    usb.rx_buffer_size = 8192;
-    usb.tx_buffer_size = 8192;
-    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
-    usb_serial_jtag_vfs_use_driver();
+    host_link_start();
     deck_model_init();
     /* Idempotent; the stored brightness must be readable before the display starts. A full or newer-format
        partition is erased and set up again (the usual ESP-IDF recovery): otherwise nothing is ever stored again. */
@@ -743,10 +787,12 @@ extern "C" void app_main(void)
 
     bsp_display_cfg_t cfg = {};
     cfg.lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+#if CONFIG_IDF_TARGET_ESP32P4
     // CSI and PPA share DW-GDMA's private interrupt group. Allocate/start
     // their channels on the same core in UI, capture and USB maintenance.
     cfg.lvgl_port_cfg.task_affinity = 0;
-    cfg.buffer_size = 1024 * 240;
+#endif
+    cfg.buffer_size = BSP_LCD_H_RES * 240;
     /* The vendor BSP's BSP_LCD_DRAW_BUFF_DOUBLE is misleadingly defined as
      * (0), so asking for it explicitly still selects single buffering; the
      * double_buffer flag below is what actually enables the second buffer. */

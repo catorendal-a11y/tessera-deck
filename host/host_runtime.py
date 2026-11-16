@@ -5,7 +5,11 @@ import os
 from pathlib import Path
 import threading
 
-ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4
+ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4 and of the native-USB S3 board
+CH340_VID = 0x1A86  # the UART bridge of the ESP32-8048S070 board
+PANEL_VIDS = (ESPRESSIF_VID, CH340_VID)
+UART_BAUD = 921600  # firmware UART speed on the CH340 board; USB Serial/JTAG ignores the baud rate
+DEFAULT_BAUD = 115200
 
 
 class SuspendableRLock:
@@ -127,11 +131,20 @@ def _installed_ports():
 
 def _espressif_ports():
     from serial.tools import list_ports
-    return [port.device for port in list_ports.comports() if port.vid == ESPRESSIF_VID]
+    return [port.device for port in list_ports.comports() if port.vid in PANEL_VIDS]
+
+
+def port_baud(port):
+    try:
+        from serial.tools import list_ports
+        uart = any(item.device == port and item.vid == CH340_VID for item in list_ports.comports())
+    except Exception:  # no pyserial tools, or a driver that cannot be listed: the USB default works for the P4
+        uart = False
+    return UART_BAUD if uart else DEFAULT_BAUD
 
 
 def candidate_ports(requested, state_path, installed=None, espressif=None):
-    """Ports to try, best first: the remembered/requested port, then other Espressif USB devices.
+    """Ports to try, best first: the remembered/requested port, then other Espressif and CH340 USB devices.
 
     Every candidate is verified with a handshake before it is configured, so a second ESP32 is never touched.
     """
@@ -143,12 +156,16 @@ def candidate_ports(requested, state_path, installed=None, espressif=None):
     return [first] + [device for device in sorted(others) if device != first]
 
 
-def remembered_serial(state_path):
+def _remembered(state_path, key):
     try:
-        value = json.loads(Path(state_path).read_text(encoding='utf-8')).get('serial')
+        value = json.loads(Path(state_path).read_text(encoding='utf-8')).get(key)
     except (OSError, ValueError, AttributeError):
         return None
     return value if isinstance(value, str) and value else None
+
+
+def remembered_serial(state_path):
+    return _remembered(state_path, 'serial')
 
 
 def resolve_port(requested, state_path, installed=None):
@@ -158,28 +175,40 @@ def resolve_port(requested, state_path, installed=None):
     Other boards (for example a second ESP32 on another port) are never touched.
     """
     serial = remembered_serial(state_path)
-    if not serial:
+    named = _remembered(state_path, 'port')  # a CH340 bridge often has no serial number: its port name is remembered
+    if not serial and not named:
         return requested
     try:
         ports = installed if installed is not None else _installed_ports()
     except (ImportError, OSError):
         return requested
+    if not serial:
+        return named if named in ports else requested
     if ports.get(requested) == serial:
         return requested
     return next((device for device, number in sorted(ports.items()) if number == serial), requested)
 
 
 def remember_port(port, state_path, installed=None):
-    """Store the serial number of the port we connected to; no-op if unknown."""
+    """Store the serial number of the port we connected to, or the port name when it has none."""
     try:
-        serial = (installed if installed is not None else _installed_ports()).get(port)
+        ports = installed if installed is not None else _installed_ports()
     except (ImportError, OSError):
         return
-    if not serial or serial == remembered_serial(state_path):
+    if port not in ports:
         return
+    serial = ports[port]
+    if serial:
+        if serial == remembered_serial(state_path):
+            return
+        state = {'serial': serial}
+    else:
+        if port == _remembered(state_path, 'port') and not remembered_serial(state_path):
+            return
+        state = {'port': port}
     temporary = Path(state_path).with_suffix('.tmp')
     try:
-        temporary.write_text(json.dumps({'serial': serial}), encoding='utf-8')
+        temporary.write_text(json.dumps(state), encoding='utf-8')
         os.replace(temporary, state_path)
     except OSError:
         pass

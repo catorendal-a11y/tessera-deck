@@ -1,0 +1,12 @@
+# ESP32-S3 boards (16 MB flash, 8 MB octal PSRAM). IDF reads this after sdkconfig.defaults when the target is
+# esp32s3; the board itself comes from boards/<board id>.defaults.
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+# The RGB panel is fed from the frame buffers in PSRAM: a bigger data cache leaves it more bandwidth.
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
+# The panel keeps scanning while flash is written (layout, images, updates), and a frame that PSRAM delivered
+# late is restarted at the next vsync instead of leaving the picture shifted.
+CONFIG_LCD_RGB_ISR_IRAM_SAFE=y
+CONFIG_LCD_RGB_RESTART_IN_VSYNC=y

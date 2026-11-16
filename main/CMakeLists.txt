@@ -1,3 +1,10 @@
+idf_build_get_property(target IDF_TARGET)
+if(target STREQUAL "esp32s3")
+    set(board tessera_s3_board esp_driver_uart)  # UART for the boards without native USB
+else()
+    set(board espressif__esp32_p4_function_ev_board)
+endif()
+
 idf_component_register(
     SRCS
         "main.cpp"
@@ -20,7 +27,7 @@ idf_component_register(
         "compat"
         "../managed_components/lvgl__lvgl"
     REQUIRES
-        espressif__esp32_p4_function_ev_board
+        ${board}
         lvgl__lvgl
         espressif__cjson
         esp_timer

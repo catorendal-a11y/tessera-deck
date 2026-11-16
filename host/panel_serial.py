@@ -11,11 +11,12 @@ try:
 except ImportError:
     serial = None
 
-BOARD_ID = 'tessera-p4'
+BOARD_IDS = ('tessera-p4', 'tessera-s3-ws7', 'tessera-s3-8048s070')
 # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status)
 SUPPORTED_PROTOCOLS = (1, 2, 3, 4)
 HANDSHAKE_SECONDS = 2.5
-PANEL_CACHE_BYTES = 8 * 1024 * 1024  # decoded images the panel keeps; CacheLimit in main/deck_images.cpp
+PANEL_CACHE_BYTES = 8 * 1024 * 1024  # what firmware without "imgCache" in get_info keeps; CacheLimit in main/deck_images.cpp
+PANEL_SIZE = (1024, 600)  # what firmware without "w"/"h" in get_info has
 OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
 OTA_CHUNK = 512  # image bytes per AD_OTA_DATA line; OTA_CHUNK in main/main.cpp
 OTA_WINDOW = 2048  # the panel acknowledges every OTA_WINDOW bytes; OTA_ACK_BYTES in main/main.cpp
@@ -49,14 +50,15 @@ class DeviceRejected(ValueError):
     """The port answers, but it is not a compatible Tessera panel."""
     kind = 'other'  # 'silent' (no answer), 'board' (another device) or 'protocol' (incompatible firmware)
 
-    def __init__(self, message, kind='other'):
+    def __init__(self, message, kind='other', info=None):
         super().__init__(message)
         self.kind = kind
+        self.info = info  # the panel's get_info answer when it was a Tessera panel with another protocol
 
 
 class PanelSerial:
     """Serialized writes and byte-based framing retain split UTF-8 and newlines."""
-    def __init__(self, port, log):
+    def __init__(self, port, log, baud=None):
         if serial is None:
             raise RuntimeError('Install host/requirements.txt first')
         self.log = log
@@ -68,9 +70,12 @@ class PanelSerial:
         self.asset_reply = ''
         self.assets_sent = OrderedDict()  # name -> decoded bytes on the panel, oldest first
         self.ser = serial.Serial()
-        self.ser.port, self.ser.baudrate = port, 115200
+        if baud is None:
+            from host_runtime import port_baud
+            baud = port_baud(port)
+        self.ser.port, self.ser.baudrate = port, baud
         self.ser.timeout, self.ser.write_timeout = 0.1, 2
-        self.ser.dtr = self.ser.rts = False
+        self.ser.dtr = self.ser.rts = False  # on the UART boards these lines drive EN and IO0
         self.ser.open()
         self.info = {}
         try:
@@ -99,13 +104,23 @@ class PanelSerial:
         raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel', 'silent')
 
     def accept(self, info):
-        if info.get('boardId') != BOARD_ID:
+        if info.get('boardId') not in BOARD_IDS:
             raise DeviceRejected(f'{self.ser.port} is a different device (board {info.get("boardId")!r})', 'board')
         protocol = info.get('protocol', 1)
         if type(protocol) is not int or protocol not in SUPPORTED_PROTOCOLS:
             raise DeviceRejected(f'Firmware protocol {protocol!r} is not supported (this host speaks '
-                                 f'{SUPPORTED_PROTOCOLS[0]}-{SUPPORTED_PROTOCOLS[-1]}); update the firmware or the host', 'protocol')
+                                 f'{SUPPORTED_PROTOCOLS[0]}-{SUPPORTED_PROTOCOLS[-1]}); update the firmware or the host', 'protocol', info)
         self.info = dict(info, protocol=protocol)
+
+    @property
+    def cache_bytes(self):
+        value = self.info.get('imgCache')
+        return value if type(value) is int and value > 0 else PANEL_CACHE_BYTES
+
+    @property
+    def screen_size(self):
+        w, h = self.info.get('w'), self.info.get('h')
+        return (w, h) if type(w) is int and type(h) is int and w > 0 and h > 0 else PANEL_SIZE
 
     def close(self):
         self.ser.close()
@@ -238,9 +253,9 @@ class PanelSerial:
                 self.send_line('AD_IMG_END')
                 self._image_answer('AD_IMG_END OK ' + name, 'the image')
                 self.assets_sent[name] = raw[4] * raw[5] * 4 * raw[6]  # width x height x RGBA x frames
-            # The panel keeps PANEL_CACHE_BYTES of decoded images and drops the oldest ones no key shows; forget
+            # The panel keeps cache_bytes of decoded images and drops the oldest ones no key shows; forget
             # those here too, so they are sent again when a page needs them.
-            while sum(self.assets_sent.values()) > PANEL_CACHE_BYTES:
+            while sum(self.assets_sent.values()) > self.cache_bytes:
                 oldest = next((key for key in self.assets_sent if key not in shown), None)
                 if oldest is None:
                     break
