@@ -48,7 +48,7 @@ Tessera is a macro deck for Windows that you build from one 7-inch touchscreen b
   <img src="docs/images/editor-widgets.png" alt="The editor: the rail, the keys with their page tabs, the selected key's settings and the action list" width="900">
 </p>
 
-<sub>The animation and the panel images are drawn by the firmware UI itself in a native build (`tools/make_demo_gif.py`). The agents and mixer screens show sample data. The editor scenes are screenshots of the real editor.</sub>
+<sub>The panel images are drawn by the firmware UI itself in a native build (`tools/render_screens.py` and `test_ui`). The agents and mixer screens show sample data. The editor images are screenshots of the real editor.</sub>
 
 ## Quick start
 

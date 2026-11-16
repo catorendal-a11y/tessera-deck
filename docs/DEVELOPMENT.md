@@ -55,7 +55,7 @@ host/            Windows host
 plugins/         Plugins (example-uptime is the working reference, see PLUGINS.md)
 docs/            User guides, features, protocol, plugin guide, release process, roadmap, images
 tests/           Host tests, native LVGL tests, editor smoke test, hardware smoke test
-tools/           Packaging, screen rendering, demo GIF, icon and sensor tooling
+tools/           Packaging, screen rendering, icon and sensor tooling
 vendor/          Lucide icon pack (ISC)
 hardware/        The printable desk console
 ```
@@ -122,14 +122,13 @@ build\native\test_ui.exe build\previews
 
 `test_ui` asserts on the model and the UI: image cache limits, key colors, the ambient screen, hold events, the rail, the agents, mixer and status screens, wide keys and text contrast. It writes 1024 x 600 frames as `.ppm` files to the folder you give.
 
-Two Python tools build on the native build:
+One Python tool builds on the native build:
 
 | Tool | What it does | Command |
 |---|---|---|
 | `tools/render_screens.py` | Draws every page of every profile with the real UI as PNG files, plus `all-screens.png`. It only reads the profile file and sends nothing to the panel. | `host\.venv\Scripts\python.exe tools\render_screens.py host\profiles.json build\screens build\native\render_screens.exe` |
-| `tools/make_demo_gif.py` | Builds `docs/images/demo.gif` from those screens, the `test_ui` frames and the editor images in `docs/images/`. | `host\.venv\Scripts\python.exe tools\make_demo_gif.py build\screens build\previews docs\images\demo.gif` |
 
-Run `render_screens.py` and `test_ui` before the GIF tool. Both tools use the folders in the commands above when you leave the arguments out (`host/profiles.json` is the profile default).
+It uses the folders in the command above when you leave the arguments out (`host/profiles.json` is the profile default).
 
 The brand assets have their own generators, which need no native build: `tools/make_logo.py` writes `logo-mark.svg`, `logo.svg` and `logo.png` in `docs/images`, and `tools/make_icon.py` writes `host/tessera.ico` from the tray mark. Run them with `host\.venv\Scripts\python.exe` after a change to the logo.
 
