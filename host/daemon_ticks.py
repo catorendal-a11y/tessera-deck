@@ -73,21 +73,24 @@ class BackgroundMixin:
                         value = today if due else ''
                 elif due and before != today:
                     value, fire = today, True
-                if value == today and runs.get(key) != today:
-                    self.save_daily_run(key, today)
             elif kind == 'file':
                 try:
                     value = os.stat(spec['path']).st_mtime_ns
+                except FileNotFoundError:
+                    value = 0 if before is None else before  # 0: missing at start, so the file appearing fires
                 except (OSError, ValueError):
                     continue
                 fire = before is not None and before != value
             elif kind == 'variable':
                 value = self.custom_vars.get(spec['name'])
-                fire = value is not None and before != value
+                # with a value: only when the variable becomes that value, not on every change
+                fire = value is not None and before != value and ('value' not in spec or str(value) == spec['value'])
+            # Each trigger fires once; triggers of the same type are independent.
+            if fire and not self.enqueue(('actions', trigger.get('actions', []))) and kind == 'daily':
+                value = before  # a full queue dropped today's run: try again next second, and do not save it as done
             self.trigger_state[index] = value
-            if fire:
-                # Each trigger fires once; triggers of the same type are independent.
-                self.enqueue(('actions', trigger.get('actions', [])))
+            if kind == 'daily' and value == today and runs.get(key) != today:
+                self.save_daily_run(key, today)
 
     def agent_tick(self, now):
         if now < self.agent_scan_at:
@@ -128,16 +131,23 @@ class BackgroundMixin:
     def uses_cockpit(self):
         return (self.device_info.get('protocol') or 1) >= cockpit.PROTOCOL
 
-    def agent_action(self, agent_id, action):
-        """A lane button on the agents screen.
+    def agent_touch(self, agent_id, action):
+        """A lane button on the agents screen, as the reader loop gets it.
 
-        Allow and Deny answer the permission prompt the panel is showing (see permission.py). Without an open
-        prompt a button brings the tool's window to the front. Plugins are told either way.
+        Allow and Deny answer the permission prompt the panel is showing (see permission.py) at the touch. Queued
+        behind a slow key, the touch could reach a later prompt the user never saw. Without an open prompt the
+        button goes to the queue and brings the tool's window to the front. Plugins are told either way.
         """
-        self.events.add('agent', agent=agent_id, action=action)
         if self.permissions.answer(agent_id, action):
+            self.last_activity = time.monotonic()
+            self.events.add('agent', agent=agent_id, action=action)
             self.log(f'Agent {agent_id}: {action}, answered from the panel')
-            return
+        else:
+            self.enqueue(('agent', agent_id, action))
+
+    def agent_action(self, agent_id, action):
+        """A lane button that answered no prompt: bring the tool's window to the front."""
+        self.events.add('agent', agent=agent_id, action=action)
         exe = cockpit.agent_exe(agent_id)
         shown = bool(exe) and focus_existing_process(exe)
         self.log(f'Agent {agent_id}: {action}' + ('' if shown else ' (its window was not found)'))
@@ -298,15 +308,25 @@ class BackgroundMixin:
         self.profile_stamp = stamp
         try:
             config = self.load_profiles(self.args.profiles)
-        except (ValueError, OSError) as exc:
+        except OSError as exc:
+            self.profile_stamp = None  # locked for a moment, for example by a virus scanner: read it again next second
+            self.log(f'The configuration could not be read; trying again: {exc}')
+            return
+        except ValueError as exc:
             self.log(f'The configuration was rejected; keeping the previous one: {exc}')
             return
         with self.state_lock:
             # A trigger that did not change keeps its state, so saving the configuration does not
             # run today's daily triggers (or an unchanged variable trigger) a second time.
-            before = self.config.get('triggers', [])
-            kept = {index: self.trigger_state[index] for index, trigger in enumerate(config.get('triggers', []))
-                    if index in self.trigger_state and index < len(before) and before[index].get('when') == trigger.get('when')}
+            # Matched by when, not by place: moving or removing a rule in the editor does not rerun the others.
+            unused = [(index, trigger.get('when')) for index, trigger in enumerate(self.config.get('triggers', []))
+                      if index in self.trigger_state]
+            kept = {}
+            for index, trigger in enumerate(config.get('triggers', [])):
+                match = next((item for item in unused if item[1] == trigger.get('when')), None)
+                if match:
+                    unused.remove(match)
+                    kept[index] = self.trigger_state[match[0]]
             # The host and the tray save the file themselves (brightness slider, notifications switch): when
             # the keys did not change, toggle states and the open folder stay, and a dimmed panel stays dim.
             same_keys = config['profiles'] == self.config.get('profiles')

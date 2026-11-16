@@ -48,7 +48,7 @@ installer is on the [roadmap](ROADMAP.md)), so the warning says nothing about th
 5. For the fourth step, click an action in the action list on the right. It makes a new key. Fill it in on the **Look** and **Actions** tabs.
 6. Press the key on the panel. The editor says "It works" and lights up the key.
 
-Nothing runs in the editor. Keys run only when you press them on the panel. **Test** on a key and then *Run now on this PC* is the one exception.
+The editor does not run keys; they run only when you press them on the panel. The one exception is **Test** on a key and then *Run now on this PC*.
 
 ## First run
 
@@ -93,10 +93,10 @@ protocol before it writes anything, stops the host while it writes and starts it
 | *Full install (new or blank panel)* | A new or blank board, and the first install of firmware with A/B slots. It writes the bootloader, the partition table and the app. |
 | *Update (keeps settings)* | Every later update. It writes only the app, over the panel's own USB connection. |
 
-- **New board:** a board without Tessera firmware does not answer. The dialog then chooses *Full install* and shows *Install anyway*. Tick it. The chip type is still checked.
-- **Where packages come from:** the release zip includes one. *Check for updates* asks GitHub for the latest release and can download the package; it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder and choose it in the dialog.
-- **Rollback:** the flash has two 6 MB app slots. If a new firmware never reaches the host, the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
-- **Old single-slot firmware:** the first update to A/B firmware must be a *Full install*. The installer says so.
+- A new board without Tessera firmware does not answer. The dialog then chooses *Full install* and shows *Install anyway*. Tick it. The chip type is still checked.
+- The release zip includes a firmware package. *Check for updates* asks GitHub for the latest release and can download the package; it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder and choose it in the dialog.
+- The flash has two 6 MB app slots for rollback. If a new firmware never reaches the host, the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
+- On a panel with old single-slot firmware, the first update to A/B firmware must be a *Full install*. The installer says so.
 
 ### Update the panel firmware
 

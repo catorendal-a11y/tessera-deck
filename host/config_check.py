@@ -366,6 +366,8 @@ def _check_trigger(trigger, pages, profiles):
     target = spec.get('path' if kind == 'file' else 'name')
     if kind in ('file', 'variable') and (not isinstance(target, str) or not target.strip() or chr(0) in target):
         raise ValueError('Trigger is missing a path or variable name')
+    if kind == 'variable' and 'value' in spec and (not isinstance(spec['value'], str) or chr(0) in spec['value']):
+        raise ValueError('A variable trigger value must be text')
     _check_actions(trigger.get('actions', []), pages, profiles)
 
 

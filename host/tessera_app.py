@@ -410,6 +410,10 @@ class Editor:
                 save_profiles(previous['config'], backup)
             elif raw:
                 backup.write_bytes(raw)  # the unreadable file, kept byte for byte
+            if self._raw() not in (raw, b''):
+                # The tray, the host or the terminal saved during the checks above (the lock only holds this
+                # program back), so this save starts over against their file and keeps or refuses their change.
+                return self.save(data, force_backup)
             save_profiles(config, self.path)
             return self.read()
 
@@ -602,7 +606,11 @@ class Editor:
         return {'path': str(path), 'message': f'Downloaded and verified {path.name}. Choose it in the firmware list.'}
 
     def export_diagnostics(self):
-        target = diagnostics.build(ROOT / 'diagnostics', self.read()['config'], self.status(), self.version(),
+        try:
+            config = self.read()['config']
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            config = None  # a broken profile file is when the bundle is needed most
+        target = diagnostics.build(ROOT / 'diagnostics', config, self.status(), self.version(),
                                    ROOT / 'host/deck.local.log')
         if os.name == 'nt':
             os.startfile(target.parent)

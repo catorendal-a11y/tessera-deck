@@ -1,6 +1,8 @@
 """Checks that keep the docs, CI and native test stubs in step with the code."""
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -30,6 +32,12 @@ class RepoHygieneTests(unittest.TestCase):
         command = re.search(r'ruff check [^\n]+', read('.github/workflows/ci.yml')).group(0)
         self.assertIn(command, read('CONTRIBUTING.md'))
         self.assertIn(command, read('docs/DEVELOPMENT.md'))
+
+    @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'needs a git checkout')
+    def test_gitignore_covers_the_temp_files_of_atomic_writes(self):
+        for name in ('host/profiles.json.k3j2.tmp', 'host/deck-runtime.local.tmp'):
+            result = subprocess.run(['git', 'check-ignore', '-q', name], cwd=ROOT)
+            self.assertEqual(result.returncode, 0, f'{name} is not ignored')
 
     def test_relative_links_in_the_docs_point_at_files(self):
         pages = [ROOT / name for name in ('README.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'VERIFICATION.md')]

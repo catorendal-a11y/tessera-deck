@@ -13,7 +13,7 @@ The editor and the control API are two small web servers inside the host. Neithe
 
 - The tokens live in `host/deck-api.local.json` and in the editor's record file. Only your Windows account can read them. They change every time the host starts.
 - Plugins get their own token with only the routes they declared, and only variable names that start with `<plugin id>.`. See [Plugins](docs/PLUGINS.md).
-- Every call that changes something through the control API is written to the host log (**More → Host log …**) with the caller's name, the method, the path and the answer code. The log never holds request bodies, and it leaves out successful variable updates.
+- Every call that changes something through the control API is written to the host log (**More → Host log …**) with the caller's name, the method, the path and the answer code. The log never holds request bodies, and it leaves out successful bulk variable updates (`/v1/vars`). Single updates (`/v1/var`) are logged.
 - The panel itself has no network. It only speaks to the host over USB, see [Protocol](docs/PROTOCOL.md).
 
 ## Imported profiles
@@ -21,7 +21,7 @@ The editor and the control API are two small web servers inside the host. Neithe
 Treat an imported profile like a program. A profile can hold shell commands, web requests, program launches, plugin commands and rules that run by themselves.
 
 - Import lists every shell command, web request (with the host it goes to), program launch outside web links and documents, plugin command and automatic rule, and asks before keeping them. You can import without them.
-- An imported file cannot turn plugins on or change their settings.
+- Import also lists the plugins a file turns on, and importing without the listed actions drops the file's plugins. A file that leaves a plugin off can still carry settings for it, and *Replace the configuration* keeps them, so check the plugin settings after a Replace import.
 - Variable values in shell commands are refused when they contain anything other than letters, digits, spaces and `. , : / - _`. In web addresses they are percent-encoded.
 - Read a shared profile before you import it, even when you know the author.
 
@@ -51,7 +51,7 @@ Tessera makes these connections, each only after you ask for it:
 | Your own HTTP actions, the calendar address you enter for the *Next meeting* widget | When a key or widget uses them. |
 | What the plugins you turn on contact | The bundled plugins only reach your own Home Assistant and OBS. |
 
-Setup installs Python packages from PyPI, pinned by SHA-256 hash in `host/requirements.lock`. `tools\setup_sensors.ps1` downloads Libre Hardware Monitor and checks its SHA-256. The copy that runs with administrator rights (`Tessera.cmd --sensors` and the start at the end of setup) is downloaded and checked again into `%ProgramFiles%\Tessera\LibreHardwareMonitor`, where only administrators can write, never started from the Tessera folder. A firewall rule blocks its port 8085 from the network; Tessera reads it on 127.0.0.1. Releases carry a build attestation and `SHA256SUMS`; [Install](docs/INSTALL.md) shows how to check a download.
+Setup installs Python packages from PyPI, pinned by SHA-256 hash in `host/requirements.lock`. `tools\setup_sensors.ps1` downloads Libre Hardware Monitor and checks its SHA-256. The copy that runs with administrator rights (`Tessera.cmd --sensors` and the start at the end of setup) is downloaded and checked again into `%ProgramFiles%\Tessera\LibreHardwareMonitor`, where only administrators can write. It is never started from the Tessera folder. A firewall rule blocks its port 8085 from the network; Tessera reads it on 127.0.0.1. Releases carry a build attestation and `SHA256SUMS`; [Install](docs/INSTALL.md) shows how to check a download.
 
 ## Claude Code's permission questions
 

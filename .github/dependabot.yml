@@ -8,7 +8,7 @@ updates:
     groups:
       actions:
         patterns: ['*']
-  # Reads host/requirements.txt; after merging, run pip-compile again so host/requirements.lock follows (CONTRIBUTING.md).
+  # Reads host/requirements.txt; CI fails until pip-compile is run again so host/requirements.lock follows (CONTRIBUTING.md).
   - package-ecosystem: pip
     directory: /host
     schedule:

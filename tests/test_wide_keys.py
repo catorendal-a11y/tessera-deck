@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 from datetime import datetime
@@ -47,6 +48,16 @@ class ContentTests(HostCase):
         entry = daemon.current_buttons()[0]
         self.assertEqual(entry['label'], 'No music')
         self.assertNotIn('progress', entry)
+
+    def test_a_live_label_with_a_tab_is_shown_and_pressed_with_a_space(self):
+        """A calendar SUMMARY or a media title may hold a tab: the press reports the label the panel showed."""
+        daemon = self.daemon(page({'id': 1, 'span': 3, 'live': 'media', 'icon': 'play'}))
+        daemon.profile, daemon.page = 'main', 'wide'
+        daemon.pc._values.update(title='Team\tsync', artist='M83', status='PLAYING', duration=0.0)
+        self.assertEqual(daemon.current_buttons()[0]['label'], 'Team sync')
+        daemon.start_press = Mock()
+        daemon.handle_job(('press', 1, 'Team sync'))
+        daemon.start_press.assert_called_once_with(1, hold=False)
 
     def test_a_timer_key_shows_the_time_left_as_a_ring(self):
         daemon = self.daemon(page({'id': 1, 'span': 2, 'live': 'timer:pomodoro'}))

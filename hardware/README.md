@@ -165,4 +165,4 @@ This writes `tessera-console.blend` and `renders/hero.png` to `renders/detail.pn
 | `--color` | `2d3034` | Colour of the printed shell (sRGB hex) |
 | `--no-render` | | Only build and save the `.blend` |
 
-The panel sizes are the manufacturer's: picture 155.01 × 86.72 mm, so a pixel is a little wider than it is tall, as on the real panel. The panel and the cable do not touch the shell; the build was checked for this.
+The panel sizes are the manufacturer's: picture 155.01 × 86.72 mm, so a pixel is a little wider than it is tall, as on the real panel. The build was checked to make sure the panel and the cable do not touch the shell.

@@ -2,7 +2,49 @@
 
 ## Unreleased
 
+- Editor: **More → Automatic actions …** lists, adds and orders the rules in `triggers` (at startup, every so often, every day at a time, when a file or a variable changes). Each copies its steps from a key.
+- Automatic actions: a variable rule can have a `value`, so it runs only when the variable becomes that value (`"claude"` becomes `waiting`), not on every change.
+- Automatic actions: moving or removing a rule no longer makes the variable rules after it run once at the next save. Each rule keeps its state by what it watches, not by its place in the list.
+- Automatic actions: a rule set to run when the host starts now runs even when no panel is connected, instead of waiting for the panel. A daily rule that could not be queued because the host was busy now runs as soon as there is room, instead of being skipped for the day, and a *file changes* rule runs the first time its file is created, not only from the second write.
+- Automatic actions: steps copied from a key that is not finished yet are refused when you save, instead of making every later save fail.
+- Editor: *Color follows a variable* on a key's **Live** tab sets `status`, a color per value, and the tile shows the color for the current value.
 - Panel: the agents screen shows each tool's icon, since when it has worked or waited (*working since 14:12*), its project behind a folder icon, *Open* beside *Stop* while it works, and a clearer screen when no agent runs. The host sends the start time as `at` in `AD_AGENTS`.
+- Editor: a page over 8 KB now says it is too big to send to the panel, and that the panel keeps the last layout that fit.
+- CI: a failing host test now turns the main CI check red, and a release is only published when the full CI run (host tests, lint, firmware static analysis, firmware build and native tests) passes on the tagged commit.
+- Firmware: the comment on `CONFIG_LWIP_TCP_MSS` in `sdkconfig.defaults` now says that 400 is below lwIP's minimum of 536 and is ignored, and that the build uses 1440.
+- Calendar: alarms inside an event no longer change its title, length or moved instances. Weekly or daily UTC events keep the right local time after the clocks change, and moved or cancelled instances match again.
+- Control API: the host disconnects clients that send a request too slowly, limits open connections and no longer lets unauthenticated requests flood the log.
+- Shell commands: a variable value with spaces stays one argument. A value that starts with `-` or `/` where an argument begins is refused, so a variable cannot add options to the command. Such a value is allowed inside a double-quoted string when it does not start the argument (`"Now playing: $(t)"`).
+- A web link ending in `.exe`, `.bat` or `.cmd` now opens in the browser and not a local program with the same name.
+- Export now replaces every header named like a credential (`Private-Token`, `X-Access-Token` and similar) and address fields such as `?token=` or `?api_key=` with `$(env:...)` references. Exporting a profile works even when an image file is missing; that image is left out.
+- SECURITY.md now says that single variable updates are logged and only bulk updates are left out, and that Replace-mode imports can carry plugin settings.
+- Docs: the plugin docs now give the real restart schedule (1, 2, 4 and 8 seconds, then the plugin gives up after the fifth crash), and the website no longer claims that keys run only when pressed on the panel.
+- Panel: an Allow or Deny tap on the agents screen now answers only the request shown when you tapped, never a later one that appeared while the host was busy.
+- Panel: a tap that lands just as the PC switches pages no longer runs the key that the new page has in that spot.
+- Panel: a key's live value (label, color or gauge) that changes while the keys are being redrawn now shows straight away, instead of waiting for the next change.
+- Panel: an image that arrives while you hold a key no longer redraws the keys under your finger. The hold or the confirm ring finishes, and the image appears when you lift.
+- Panel: feedback a plugin sends to a dimmed panel only flashes the key; the panel stays dim and the next tap runs its action.
+- Panel: pressing a wide calendar or media key whose title contains a tab now runs its action instead of being rejected as a different key.
+- Plugins: logs are rotated at 1 MB while the plugin runs, not only when it starts. A running plugin whose log passes 1 MB is restarted, so the log is rotated with `os.replace` instead of being truncated while the plugin still has it open.
+- Plugins: settings that show a default, such as the Home Assistant address, are now saved, so the plugin gets them when you only fill in the token.
+- Host: a configuration save that the host could not read for a moment, for example while a scanner held the file, is now read again instead of being ignored until the next save.
+- Saving no longer fails with "Access is denied" when the host happens to be reading the profile file at that moment; Tessera tries again for up to a second.
+- A brightness or notification change from the tray while the editor is saving is no longer overwritten. Any other change saved elsewhere at that moment shows up as a conflict instead of being lost.
+- Backups: if Tessera has to restore a backup over a broken profile file a second time, the earlier broken copy is kept as profiles-unreadable-1.local.json instead of being overwritten.
+- Host: a plugin or script that sends a variable with a broken emoji no longer stops the host or freezes the status the editor shows.
+- Host: a virus scanner that has the editor's or tray's *Show on panel* command file open no longer stops the host, and a second command sent right after the first is no longer lost.
+- Host: a profile chosen with `deckctl page` or the control API stays on the panel instead of being switched back by the focus rules within a second.
+- Host: when sending a new page to the panel fails, the host goes back to the page and folder it had and still reports the error; the page event is logged only after a successful send.
+- Host: a program icon that could not be read at start is tried again after a minute instead of staying the default icon until restart.
+- Diagnostics: *Save diagnostics* now works when profiles.json cannot be read, from the tray, the editor and `Tessera.cmd --diagnostics`.
+- Uninstall with `--purge` now also deletes the previous and unreadable copies of your profiles. If it cannot delete a file, it names the file and exits with code 1 instead of reporting success.
+- Dry run no longer calls working keys broken: it accepts URI links such as `spotify:...` and program names such as `winword`, and it reports a bad delay or key combination on that step instead of failing the whole check.
+- Terminal UI: a page rename or import that cannot be saved says so and leaves everything as it was; before, the terminal closed or showed "Imported".
+- Terminal UI: changes saved in the editor while the terminal UI is open are kept. The terminal UI loads them and asks you to make your change again.
+- Terminal UI: renaming a page keeps the page in its place and keeps press, hold and double-press actions and rail shortcuts pointing at it.
+- Terminal UI: importing a file lists its commands, web requests, plugins and automatic rules, and leaves them out unless you choose to keep them, as the editor does. Export leaves out the calendar address and plugin secrets, and writes credentials in web requests as `$(env:NAME)` references, as the editor's export does.
+- Terminal UI: *Stop host* keeps the host stopped while the tray runs, and the tray no longer reports it as a crash.
+- Editor: undo and redo no longer bring back old settings after the editor merged a change saved elsewhere, such as the tray's brightness.
 
 ## 0.9.0
 
@@ -58,7 +100,7 @@
 - Editor: *Panel screens …* is gone from the Panel menu; choose what the agents, mixer and status screens show on those screens in the rail, as the Rail dialog now says.
 - Editor: the Page menu has *New page*, and the Page and Profile menus each have *Delete this page* / *Delete this profile* with Undo in the toast. The settings dialogs no longer have a delete checkbox.
 - Editor: the More menu starts with *Getting started* and no longer repeats *Keyboard shortcuts* (the app bar has it).
-- Editor: one sentence for safe editing everywhere: "Nothing runs in the editor. Keys run only when you press them on the panel." *Run now* in Test stays the one exception.
+- Editor: every place that talks about safe editing uses the same sentence: "Nothing runs in the editor. Keys run only when you press them on the panel." *Run now* in Test stays the one exception.
 - Editor: the action list hint and the Getting started step say what a click does (a new key on the selected empty slot or the first free one) and that a drop on a key adds a step.
 - Docs: USING.md and INSTALL.md use the editor's names (Profile, Page, Panel and More menus, Look, Actions and Live tabs, the action list on the right, Program settings, Panel firmware and updates). INSTALL.md has a *First 5 minutes* section and no fixed COM port; USING.md troubleshooting starts at More → Host log.
 
@@ -164,7 +206,7 @@
 - A damaged image, or a toggle state with a non-text label, gives a clear error instead of stopping the upload or the host.
 - Docs: the native build's tools, which commands the panel answers, the weather city search host, flashing steps.
 - Editor: Enter saves a dialog (it cancelled); keyboard focus stays where it was after a change; messages show above an open dialog; arrow keys step over a wide key; recorded hotkeys use names the host knows (punctuation, digits, media keys); Ctrl+C copies text in the host log; deck shortcuts no longer fire in other screens and dialogs; a plugin switch no longer flips back; renaming or deleting a page or profile also updates long-press and double-press steps and rail shortcuts; after a save conflict the editor says *Not saved · press Reload*; only a failed save marks the configuration *Not saved*.
-- Editor: one name for one thing: a deck position is a *key* everywhere; key colors and quick icons are under *Look*; *Show on device* is gone (*Mirror on panel* does it).
+- Editor: a deck position is called a *key* everywhere; key colors and quick icons are under *Look*; *Show on device* is gone (*Mirror on panel* does it).
 - Firmware install: the dialog says the host started again only when it did, and a stalled esptool is stopped after five minutes.
 - Panel (new firmware): long titles end in dots instead of running into the line below; the fader knob stays inside its track; a fader you touched follows the PC again afterwards (also after 25 days of uptime); picture keys appear once the images arrive after a panel restart; the corner marks sit in the corner of a wide key; without the PC the agents and status screens say *PC not connected* and Allow and Deny do nothing; a full settings partition is reset instead of disabling stored settings.
 - Host: the reason a host could not start reaches the editor; start with Windows and the file picker work with æ, ø or å in the path; the tray shows why the panel is not connected and follows brightness and profile changes; the editor's token file is private to your account; a damaged firmware zip no longer breaks the firmware list, which is sorted by version; a timer restarted without seconds keeps its notice and actions; a key that presses a slow key runs on the slow lane; a dropped press flashes red at once; the log gets one line per page instead of one per refresh; validation errors name the page and the key; widget titles fit a two-slot key.
@@ -205,7 +247,7 @@
 - Editor: a rail on the left with the panel's four screens. Keys is the editor you know; Agents, Mixer and Status show what the panel shows right now and let you choose what goes on them, with the Claude Code connection on the Agents screen.
 - Wide keys: a key can cover 2 or 3 slots (Width in the key's settings) and show the music that plays (title, artist, progress bar) or a timer (time left in a ring). Needs the new firmware.
 - The editor now looks like the panel: the same dark colors, flat rounded cards, mint/cyan/purple accents and a green accent line, instead of the grey Stream Deck look.
-- The panel's rail is yours to choose: **Rail …** (⋯ menu) turns Agents, Mixer and Status on or off and adds up to three shortcuts to a page of any profile. The editor's rail follows the same choice. Needs the new firmware (at most seven buttons).
+- You choose the panel's rail: **Rail …** (⋯ menu) turns Agents, Mixer and Status on or off and adds up to three shortcuts to a page of any profile. The editor's rail follows the same choice. Needs the new firmware (at most seven buttons).
 - Editor layout tidied: the title, the deck, the pages, the sync bar and the key's settings share one column and scroll together; the three settings sections stack instead of floating; the action library uses one icon family and no mismatched glyphs.
 - The rail dialog is rebuilt: a live preview of the rail beside the screens (switch on or off, move up or down) and the shortcuts (page from a grouped list, icon picker), with a count of the seven buttons the panel fits. The editor's rail follows the chosen order.
 - Fixed: Cancel in a dialog with a required field (new page, new profile, page settings) did nothing, because the empty field blocked it.

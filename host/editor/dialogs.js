@@ -374,6 +374,51 @@ $('#log-open').onclick = () => openLog().catch(showError);
 $('#log-close').onclick = () => $('#log-dialog').close();
 $('#log-dialog').addEventListener('close', () => clearInterval(logTimer));
 
+/* Live tab: the key color follows a variable (status), which a script sets with deckctl var or the agent hooks set. */
+function renderStatusColor(panel, base) {
+  const status = base.status;
+  let relabel = () => {};  // names a renamed variable in the rows below, which a rename does not redraw
+  // A valid name is saved as it is typed. An empty field turns it off only when it is left empty: emptying it on
+  // the way to another name keeps the colors.
+  const variable = element('input', {type: 'text', maxlength: '64', placeholder: 'Off · for example claude',
+    oninput: () => {
+      const name = variable.value.trim();
+      if (!name || !VARIABLE_NAME.test(name) || name === base.status?.var) return;
+      mutate(() => { base.status = {...base.status, var: name, colors: base.status?.colors || {}}; }, !base.status, editKey('status-var'));
+      relabel();
+    },
+    onchange: () => {
+      const name = variable.value.trim();
+      if (!name) { if (base.status) mutate(() => { delete base.status; }); }
+      else if (!VARIABLE_NAME.test(name)) { variable.value = base.status?.var || ''; toast('A variable name has letters, digits, dots, dashes or underscores.'); }
+    }});
+  variable.value = status?.var || '';
+  panel.append(element('label', {}, text('span', 'Color follows a variable'), variable));
+  if (!status) return;
+  const colors = status.colors || {}, swatches = [];
+  for (const [value, color] of Object.entries(colors)) {
+    const swatch = element('input', {type: 'color', value: color});
+    swatches.push([swatch, value]);
+    swatch.addEventListener('input', () => mutate(() => { base.status.colors[value] = swatch.value.toUpperCase(); }, false, editKey('status-color', value)));
+    panel.append(element('div', {class: 'status-color'}, text('span', value || '(empty)'), swatch,
+      element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': `Remove the color for ${value}`, onclick: () => mutate(() => { delete base.status.colors[value]; })}, '✕')));
+  }
+  panel.append(button('＋ Value …', async () => {
+    const value = (await promptDialog('Color for a value', `The value of ${base.status?.var} that gives this key a color, for example waiting`) ?? '').trim();
+    if (!value || current() !== base || !base.status) return;
+    if (Object.hasOwn(colors, value)) { toast(`${value} has a color already.`); return; }
+    mutate(() => { base.status.colors = {...base.status.colors, [value]: '#FFB74D'}; });
+  }, 'prop-field'));
+  const hint = text('p', '', 'hint');
+  relabel = () => {
+    const name = base.status?.var, now = dashboard?.vars?.[name];
+    for (const [swatch, value] of swatches) swatch.setAttribute('aria-label', `Color while ${name} is ${value}`);
+    hint.textContent = `${name} is ${now === undefined ? 'not set yet' : `“${now}” now`}. Other values keep the key color.`;
+  };
+  relabel();
+  panel.append(hint);
+}
+
 /* Plugins: turn integrations on and off and set their options; the host starts and stops them. */
 async function openPlugins() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
@@ -393,7 +438,7 @@ async function renderPlugins() {
     check.checked = plugin.enabled;
     check.onchange = async () => {
       if (check.checked && !await pluginConsent(plugin)) { check.checked = false; return; }
-      setPlugin(plugin.id, {enabled: check.checked}); save().then(renderPlugins).catch(showError);  // the list shows the host's state, so save first
+      setPlugin(plugin, {enabled: check.checked}); save().then(renderPlugins).catch(showError);  // the list shows the host's state, so save first
     };
     box.append(toggle);
     if (plugin.error) box.append(text('p', plugin.error, 'error'));
@@ -403,12 +448,12 @@ async function renderPlugins() {
         const option = element('label', {class: 'check-option'}, element('input', {type: 'checkbox'}), element('span', {}, text('strong', spec.label || key)));
         const input = option.querySelector('input');
         input.checked = !!value;
-        input.onchange = () => setPlugin(plugin.id, {settings: {[key]: input.checked}});
+        input.onchange = () => setPlugin(plugin, {settings: {[key]: input.checked}});
         box.append(option);
       } else {
         // a secret comes back encrypted from the host: hide it, and typing a new one replaces it
         const type = spec.type === 'number' ? 'number' : SECRET_SETTING.test(key) ? 'password' : 'text';
-        box.append(field(spec.label || key, String(value), v => setPlugin(plugin.id, {settings: {[key]: spec.type === 'number' ? Number(v) : v}}), {type}));
+        box.append(field(spec.label || key, String(value), v => setPlugin(plugin, {settings: {[key]: spec.type === 'number' ? Number(v) : v}}), {type}));
       }
     }
     list.append(box);
@@ -432,12 +477,14 @@ async function pluginConsent(plugin) {
   try { localStorage.setItem('tessera-plugin-consent', JSON.stringify({...given, [plugin.id]: seal})); } catch {}
   return true;
 }
-function setPlugin(id, change) {
+function setPlugin(plugin, change) {
   mutate(() => {
     config.plugins ??= {};
-    const entry = config.plugins[id] ??= {enabled: false, settings: {}};
+    const entry = config.plugins[plugin.id] ??= {enabled: false, settings: {}};
     if ('enabled' in change) entry.enabled = change.enabled;
-    if (change.settings) entry.settings = {...entry.settings, ...change.settings};
+    // the fields show the manifest defaults, and the plugin gets only what is stored, so the defaults are stored too
+    const defaults = Object.entries(plugin.settings || {}).filter(([, spec]) => spec.default !== undefined).map(([key, spec]) => [key, spec.default]);
+    entry.settings = {...Object.fromEntries(defaults), ...entry.settings, ...change.settings};
   }, false);
 }
 $('#plugins-open').onclick = () => openPlugins().catch(showError);
@@ -791,4 +838,75 @@ $('#rail-apply').onclick = () => {
   renderRail();
   $('#rail-dialog').close();
   toast('The rail was updated.');
+};
+
+/* Automatic actions: config.triggers, which the host runs by itself in every profile. As for a rail shortcut, the
+ * steps are copied from a key, so the key editor stays the one place where steps are built. */
+const AUTO_KINDS = [['startup', 'When the host starts'], ['interval', 'Every …'], ['daily', 'Every day at …'], ['file', 'When a file changes'], ['variable', 'When a variable changes']];
+const AUTO_DEFAULTS = {startup: {}, interval: {seconds: 300}, daily: {at: '08:00'}, file: {path: ''}, variable: {name: ''}};
+const VARIABLE_NAME = /^[A-Za-z0-9_.-]{1,64}$/;  // as the host checks a variable name
+let autoDraft = [];
+function autoSettings() {
+  document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
+  autoDraft = clone(config.triggers || []);
+  drawAuto();
+  $('#auto-dialog').showModal();
+}
+// focus: the data-auto name of the control to focus after the redraw, so a keyboard user keeps their place
+function drawAuto(focus = document.activeElement?.dataset?.auto) {
+  // a key's pressed steps
+  const sources = Object.entries(config.profiles).flatMap(([profileName, item]) => Object.entries(item.pages).flatMap(([pageName, keys]) =>
+    keys.filter(key => key.actions?.length)
+      .map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
+  $('#auto-list').replaceChildren(...autoDraft.map((rule, index) => {
+    const when = rule.when, number = index + 1, name = what => `Automatic action ${number}: ${what}`;
+    const kind = element('select', {'aria-label': name('when it runs'), class: 'rail-kind', 'data-auto': `${index}-kind`, onchange: event => {
+      rule.when = {type: event.target.value, ...AUTO_DEFAULTS[event.target.value]}; drawAuto(); }}, ...AUTO_KINDS.map(([value, label]) => element('option', {value}, label)));
+    kind.value = when.type;
+    // read on change, which also fires when the focus moves to Save
+    const input = (attributes, apply) => element('input', {type: 'text', ...attributes, onchange: event => apply(event.target.value.trim(), event.target)});
+    const fields = {
+      interval: () => [input({value: secondsToClock(when.seconds), placeholder: 'mm:ss or h:mm:ss', 'aria-label': name('how often, as mm:ss or h:mm:ss')}, (value, node) => {
+        const seconds = clockToSeconds(value);
+        if (Number.isInteger(seconds) && seconds <= 604800) when.seconds = seconds;
+        else { node.value = secondsToClock(when.seconds); toast('Write how often as mm:ss or h:mm:ss, at most a week.'); } })],
+      daily: () => [input({type: 'time', value: when.at, required: true, 'aria-label': name('time of day')}, value => { if (/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) when.at = value; })],
+      file: () => [input({value: when.path || '', placeholder: 'The file to watch, for example C:\\Notes\\todo.txt', 'aria-label': name('file to watch')}, value => { when.path = value; })],
+      variable: () => [input({value: when.name || '', maxlength: '64', placeholder: 'Variable, for example claude', 'aria-label': name('variable')}, value => { when.name = value; }),
+        input({value: when.value ?? '', placeholder: 'Only when it becomes … (empty: on every change)', 'aria-label': name('only when the variable becomes this value')}, value => { if (value) when.value = value; else delete when.value; })]
+    }[when.type]?.() || [];
+    const copy = element('select', {'aria-label': name('copy the steps of a key'), 'data-auto': `${index}-copy`, onchange: event => {
+      const found = sources.find(([value]) => value === event.target.value);
+      if (found) rule.actions = clone(found[2].actions);
+      drawAuto(); }}, element('option', {value: ''}, 'Copy the steps of a key …'), ...sources.map(([value, label]) => element('option', {value}, label)));
+    const shift = (delta, label, way = delta < 0 ? 'up' : 'down') => element('button', {class: 'rail-move', type: 'button', title: label, 'aria-label': `${label}: automatic action ${number}`, 'data-auto': `${index}-${way}`,
+      disabled: index + delta < 0 || index + delta >= autoDraft.length,
+      onclick: () => { [autoDraft[index], autoDraft[index + delta]] = [autoDraft[index + delta], autoDraft[index]]; drawAuto(`${index + delta}-${way}`); }}, delta < 0 ? '▲' : '▼');
+    return element('div', {class: 'rail-short'}, element('div', {class: 'rail-short-top'}, element('span', {class: 'rail-short-number'}, String(number)), kind, shift(-1, 'Move up'), shift(1, 'Move down'),
+      element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': `Remove automatic action ${number}`, 'data-auto': `${index}-remove`,
+        onclick: () => { autoDraft.splice(index, 1); drawAuto(index < autoDraft.length ? `${index}-remove` : 'add'); }}, '✕')),
+      ...(fields.length ? [element('div', {class: 'auto-when'}, ...fields)] : []),
+      element('div', {class: 'rail-steps'}, copy, text('small', rule.actions?.length ? stepSummary(rule.actions) : 'No steps yet: copy them from a key', 'hint')));
+  }), element('button', {class: 'rail-add-short', type: 'button', 'data-auto': 'add', onclick: () => { autoDraft.push({when: {type: 'startup'}, actions: []}); drawAuto(`${autoDraft.length - 1}-kind`); }}, '+ Add an automatic action'),
+  ...(autoDraft.length ? [] : [text('p', 'No automatic actions yet.', 'hint')]));
+  if (!focus) return;
+  const node = $(`#auto-list [data-auto="${focus}"]`);  // a moved row's arrow is disabled at the top or the bottom: then its kind
+  (node && !node.disabled ? node : $(`#auto-list [data-auto="${focus.split('-')[0]}-kind"]`) || $('#auto-list [data-auto="add"]'))?.focus();
+}
+$('#auto-open').onclick = autoSettings;
+$('#auto-close').onclick = $('#auto-cancel').onclick = () => $('#auto-dialog').close();
+$('#auto-apply').onclick = () => {
+  const problem = autoDraft.map((rule, index) => {
+    const when = rule.when, at = `Automatic action ${index + 1}`;
+    if (!rule.actions?.length) return `${at} needs steps: copy them from a key.`;
+    const step = rule.actions.map(stepProblem).find(Boolean);
+    if (step) return `${at} has a step that is not finished (${step}): finish it on the key and copy the steps again.`;
+    if (when.type === 'file' && !when.path) return `${at} needs the file to watch.`;
+    if (when.type === 'variable' && !VARIABLE_NAME.test(when.name || '')) return `${at} needs a variable name of letters, digits, dots, dashes or underscores.`;
+    return '';
+  }).find(Boolean);
+  if (problem) { toast(problem); return; }
+  mutate(() => { if (autoDraft.length) config.triggers = clone(autoDraft); else delete config.triggers; });
+  $('#auto-dialog').close();
+  toast(autoDraft.length ? 'The automatic actions were saved. The host runs them while it runs.' : 'The automatic actions were removed.');
 };

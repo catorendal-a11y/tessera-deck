@@ -3,6 +3,8 @@ import copy
 from http.cookiejar import CookieJar
 import json
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -16,6 +18,39 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tessera_app
 from tessera_app import Editor, make_server
+
+# The three editor scripts run in node with a stand-in for the page, so a test calls the editor's own functions.
+# The test script (stdin) is the body of an async function; what it returns is printed as JSON.
+EDITOR_HARNESS = r'''
+const vm = require('vm'), fs = require('fs'), path = require('path');
+const stub = (store = new Map()) => new Proxy(function () {}, {
+  get: (target, key) => store.has(key) ? store.get(key) : key === 'then' ? undefined : key === Symbol.toPrimitive ? () => ''
+    : key === Symbol.iterator ? function* () {} : stub(),
+  set: (target, key, value) => { store.set(key, value); return true; },
+  apply: () => stub(), construct: () => stub()});
+const storage = () => { const items = new Map(); return {getItem: key => items.has(key) ? items.get(key) : null, setItem: (key, value) => items.set(key, String(value))}; };
+const nodes = new Map(), find = selector => nodes.get(selector) || nodes.set(selector, stub()).get(selector);
+const document = stub();
+Object.assign(document, {querySelector: find, getElementById: id => find('#' + id), querySelectorAll: () => []});
+const context = vm.createContext({document, window: stub(), HTMLDialogElement: stub(), localStorage: storage(), sessionStorage: storage(),
+  navigator: stub(), location: stub(), fetch: () => new Promise(() => {}), setTimeout: () => 0, clearTimeout: () => {},
+  setInterval: () => 0, clearInterval: () => {}, requestAnimationFrame: () => 0, matchMedia: () => stub(), getComputedStyle: () => stub(),
+  structuredClone, TextEncoder, console, settle: () => new Promise(done => setImmediate(done))});
+for (const name of ['core', 'app', 'dialogs'])
+  vm.runInContext(fs.readFileSync(path.join(process.argv[1], 'host/editor', name + '.js'), 'utf8'), context, {filename: name + '.js'});
+vm.runInContext('(async () => {' + fs.readFileSync(0, 'utf8') + '\n})()', context).then(
+  value => console.log(JSON.stringify(value)), error => { console.error(error.stack || error); process.exit(1); });
+'''
+
+
+def run_editor(test, script):
+    node = shutil.which('node')
+    if not node:
+        test.skipTest('node is not installed')
+    result = subprocess.run([node, '-e', EDITOR_HARNESS, str(ROOT)], input=script, capture_output=True,
+                            text=True, encoding='utf-8', timeout=60)
+    test.assertEqual(result.returncode, 0, result.stderr)
+    return json.loads(result.stdout.strip().splitlines()[-1])
 
 
 class EditorTests(unittest.TestCase):
@@ -349,6 +384,7 @@ class MarkupTests(unittest.TestCase):
         more = menu('more-menu')
         self.assertNotIn('shortcuts-open', more, 'the app bar has the shortcuts')
         self.assertLess(more.index('id="welcome-open"'), more.index('id="claude-open"'))
+        self.assertIn('id="auto-open"', more, 'automatic actions run in every profile, so they sit in More')
         self.assertIn('Nothing runs in the editor. Keys run only when you press them on the panel.', html)
 
     def test_the_layout_makes_room_instead_of_shrinking_the_text(self):
@@ -385,18 +421,141 @@ class MarkupTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7)
 
+
+class EditorScriptTests(unittest.TestCase):
+    """The editor's own functions, run in node (run_editor)."""
+
     def test_editor_edits_never_leave_a_value_the_host_refuses(self):
-        editor = ROOT / 'host/editor'
-        app, core, dialogs = ((editor / name).read_text(encoding='utf-8') for name in ('app.js', 'core.js', 'dialogs.js'))
-        self.assertIn('delete base.states;delete base.bind;', app, 'a normal key keeps no bind: the host needs two states for one')
-        self.assertIn('return await save();', core, 'the merge retry is awaited, so finally cannot clear its saveInFlight')
-        self.assertIn("savedBase = clone(state.config)", dialogs, 'a restored backup is the base of the next merge')
-        self.assertEqual(app.count('maxLength:100'), 4, 'profile and page names stay inside the host limit of 100')
-        self.assertIn('base=String(base).slice(0,90)', core)
-        self.assertIn('if(shared)for(const t of config.triggers', app, 'triggers follow a page rename in any profile')
-        span = app[app.index('function setSpan'):app.index('function wideRows')]
-        self.assertIn('freeOnAllPages(base.id, span, [base])', span, 'a wide pinned key must be free on every page')
-        self.assertIn('[plugin.version, plugin.permissions, plugin.command', dialogs, 'a changed manifest asks again')
+        found = run_editor(self, r'''
+const fresh = () => ({default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [], Second: []}}}});
+const result = {};
+config = fresh(); profile = 'Main'; page = 'First'; selected = 1; editState = 0;
+config.profiles.Main.pages.First.push({id: 1, label: 'Mic', icon: 'ok', actions: [], bind: 'mic',
+  states: [{label: 'Mic', actions: []}, {label: 'Mic on', actions: []}]});
+const handlers = {}, realField = field;
+field = (label, value, handler, options) => { handlers[label] = handler; return realField(label, value, handler, options); };
+renderInspector();
+field = realField;
+handlers['Key type']('Normal key');
+const key = config.profiles.Main.pages.First[0];
+result.normal = {states: 'states' in key, bind: 'bind' in key};
+
+config = fresh(); savedBase = clone(config); revision = 'r1'; dirty = true; conflicted = false;
+let release = null;
+const revisions = [];
+api = async (path, data) => {
+  if (!data) return {config: {...fresh(), display: {brightness: 40}}, revision: 'r2'};
+  revisions.push(data.revision);
+  if (revisions.length === 1) throw Object.assign(new Error('Changed elsewhere'), {status: 409});
+  await new Promise(done => { release = done; });
+  return {revision: 'r3'};
+};
+const saving = save();
+await settle();
+result.retry = {inFlight: saveInFlight !== null, revisions: [...revisions]};
+release(); await saving;
+result.retry.after = {inFlight: saveInFlight, revision, dirty};
+
+const restored = {...fresh(), display: {brightness: 70}};
+askDialog = async () => true;
+api = async () => ({config: clone(restored), revision: 'r9'});
+await restoreBackup({name: 'backup.json', saved: 'today'});
+result.restore = {base: JSON.stringify(savedBase) === JSON.stringify(restored), separate: savedBase !== config};
+
+config = fresh(); profile = 'Main'; page = 'First';
+const limits = [], realDialog = dialog;
+dialog = (title, fields) => { for (const item of fields) if (item.name === 'name') limits.push([title, item.maxLength]); };
+api = async () => ({names: []});
+newPage(); pageSettings(); await profileSettings();
+dialog = realDialog;
+result.limits = limits;
+result.copy = uniqueName('x'.repeat(100), ['x'.repeat(90) + ' copy']).length;
+
+config = fresh(); profile = 'Main'; page = 'Second';
+config.triggers = [{when: {type: 'startup'}, actions: [{type: 'page', page: 'Second'}]}];
+changePage('Later');
+result.trigger = config.triggers[0].actions[0].page;
+
+config = fresh(); profile = 'Main'; page = 'First';
+const pinned = {id: 1, label: 'Pinned', icon: 'ok', actions: []};
+config.profiles.Main.pinned = [pinned];
+config.profiles.Main.pages.Second.push({id: 2, label: 'Other', icon: 'ok', actions: []});
+const toasts = [];
+toast = message => toasts.push(message);
+setSpan(pinned, 2);
+result.span = {span: pinned.span ?? null, told: toasts.length};
+
+let asked = 0;
+askDialog = async () => { asked++; return true; };
+const plugin = {id: 'demo', name: 'Demo', version: '1.0.0', permissions: ['vars'], command: ['python', 'main.py']};
+result.consent = [];
+for (const variant of [plugin, plugin, {...plugin, command: ['python', 'other.py']}, {...plugin, permissions: ['vars', 'press']}, {...plugin, version: '1.0.1'}]) {
+  await pluginConsent(variant);
+  result.consent.push(asked);
+}
+return result;
+''')
+        self.assertEqual(found['normal'], {'states': False, 'bind': False}, 'a normal key keeps no bind: the host needs two states for one')
+        self.assertEqual(found['retry'], {'inFlight': True, 'revisions': ['r1', 'r2'],
+                                          'after': {'inFlight': None, 'revision': 'r3', 'dirty': False}},
+                         'the merge retry is awaited, so finally cannot clear its saveInFlight')
+        self.assertEqual(found['restore'], {'base': True, 'separate': True}, 'a restored backup is the base of the next merge')
+        self.assertEqual([limit for _, limit in found['limits']], [100, 100, 100], 'profile and page names stay inside the host limit of 100')
+        self.assertLessEqual(found['copy'], 100, 'a copy of a long name stays inside the host limit')
+        self.assertEqual(found['trigger'], 'Later', 'triggers follow a page rename')
+        self.assertEqual(found['span'], {'span': None, 'told': 1}, 'a wide pinned key must be free on every page')
+        self.assertEqual(found['consent'], [1, 1, 2, 3, 4], 'a changed command, permission or version asks again')
+
+    def test_an_undo_after_a_merge_keeps_what_another_program_saved(self):
+        sent = run_editor(self, r'''
+const base = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [{id: 1, label: 'Copy', icon: 'ok', actions: []}]}}}};
+config = clone(base); savedBase = clone(base); revision = 'r1'; profile = 'Main'; page = 'First'; selected = 1;
+mutate(() => { config.profiles.Main.pages.First[0].label = 'Edited'; });
+const sent = [];
+api = async (path, data) => {
+  if (!data) return {config: {...clone(base), display: {brightness: 40}}, revision: 'r2'};  // the tray changed the brightness
+  sent.push(clone(data.config));
+  if (sent.length === 1) throw Object.assign(new Error('Changed elsewhere'), {status: 409});
+  return {revision: 'r' + (sent.length + 1)};
+};
+await save();
+undo(); await save();
+undo(true); await save();
+return sent.slice(1).map(item => [item.profiles.Main.pages.First[0].label, item.display ?? null]);
+''')
+        self.assertEqual(sent, [['Edited', {'brightness': 40}], ['Copy', {'brightness': 40}], ['Edited', {'brightness': 40}]])
+
+    def test_automatic_actions_keep_unfinished_steps_out(self):
+        found = run_editor(self, r'''
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: []}}}}; profile = 'Main'; page = 'First';
+const toasts = [];
+toast = message => toasts.push(message);
+autoDraft = [{when: {type: 'startup'}, actions: [{type: 'open', target: ''}]}];
+document.querySelector('#auto-apply').onclick();
+const refused = {triggers: config.triggers ?? null, toasts: [...toasts]};
+autoDraft = [{when: {type: 'startup'}, actions: [{type: 'open', target: 'notepad.exe'}]}];
+document.querySelector('#auto-apply').onclick();
+return {refused, saved: config.triggers};
+''')
+        self.assertIsNone(found['refused']['triggers'])
+        self.assertIn('not finished', found['refused']['toasts'][0])
+        self.assertEqual(found['saved'], [{'when': {'type': 'startup'}, 'actions': [{'type': 'open', 'target': 'notepad.exe'}]}])
+
+    def test_plugin_settings_store_the_defaults_the_fields_show(self):
+        manifest = json.loads((ROOT / 'plugins/home-assistant/plugin.json').read_text(encoding='utf-8'))
+        found = run_editor(self, f'''
+config = {{default_profile: 'Main', profiles: {{Main: {{match: [], pages: {{First: []}}}}}}}}; profile = 'Main'; page = 'First';
+const plugin ={{...{json.dumps(manifest)}, values: {{}}}};
+setPlugin(plugin, {{settings: {{token: 'abc'}}}});
+setPlugin(plugin, {{enabled: true}});
+const first = clone(config.plugins[plugin.id]);
+config.plugins[plugin.id].settings.url = 'http://ha.lan:8123';
+setPlugin(plugin, {{enabled: false}});
+return {{first, kept: config.plugins[plugin.id].settings.url}};
+''')
+        self.assertEqual(found['first'], {'enabled': True, 'settings': {
+            'url': 'http://homeassistant.local:8123', 'token': 'abc', 'entities': '', 'interval': 10}})
+        self.assertEqual(found['kept'], 'http://ha.lan:8123', 'a stored value wins over the default')
 
 if __name__ == '__main__':
     unittest.main()

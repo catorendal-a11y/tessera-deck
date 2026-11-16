@@ -101,6 +101,13 @@ class LayoutAcknowledgeTests(unittest.TestCase):
             panel.push_buttons([{'id': 1, 'label': 'A'}])
         self.assertEqual(panel.attempts, 2)
 
+    def test_a_late_reply_from_an_earlier_push_is_forgotten(self):
+        panel = self.panel(answers_after=99)
+        panel.cfg_reply = 'AD_CFG_END OK 1'  # page A's answer, arriving after its timeout
+        with self.assertRaises(TimeoutError):
+            panel.push_payload('[]')
+        self.assertEqual(panel.cfg_reply, '')
+
     def test_a_refusal_is_not_retried(self):
         panel = self.panel(answers_after=1)
         send = panel.send_line

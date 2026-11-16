@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 
 from program_locator import locate
@@ -9,6 +10,7 @@ from win_input import parse_hotkey
 from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
 
 MAX_TEXT = 90
+URI_SCHEME = re.compile(r'(?i)[a-z][a-z0-9+.-]+:')  # two or more letters, so a drive letter is not a scheme
 
 
 def _clip(text: str) -> str:
@@ -39,10 +41,12 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, f'Type "{_clip(substitute(action["text"], variables))}"{slow}'
     if kind == 'open':
         target = os.path.expandvars(substitute(action['target'], variables))
-        if '://' in target or target.lower().startswith(('mailto:', 'ms-settings:', 'shell:')):
+        if URI_SCHEME.match(target):
             return True, f'Open {_clip(target)}'
-        # os.startfile also finds a bare name (notepad, mmsys.cpl, code) through PATH
+        # os.startfile also finds a bare name (notepad, mmsys.cpl, code) through PATH and App Paths (winword)
         found = target if os.path.exists(target) or shutil.which(target, mode=os.F_OK) else locator(target)
+        if found is None and not os.path.splitext(target)[1]:
+            found = locator(target + '.exe')
         if found is None:
             return False, f'Open {_clip(target)}: the program or file was not found on this PC'
         return True, f'Open {_clip(found)}' + ('' if found == target else ' (found in a different place)')
@@ -137,9 +141,9 @@ def preview(actions: list[dict], variables: dict[str, str], environment=None, lo
     for index, action in enumerate(actions, 1):
         try:
             ok, text = _step(action, variables, environment, locator)
-        except (ValueError, KeyError, TypeError) as exc:
+        except (ValueError, KeyError, TypeError, AttributeError) as exc:
             ok, text = False, f'Cannot run this step: {exc}'
-        if isinstance(action, dict) and action.get('type') == 'delay':
+        if ok and action.get('type') == 'delay':
             waited += action.get('ms', 100) / 1000
         steps.append({'index': index, 'type': action.get('type') if isinstance(action, dict) else None,
                       'ok': ok, 'text': text})

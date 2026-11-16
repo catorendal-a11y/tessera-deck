@@ -32,6 +32,11 @@ RATE_PER_SECOND = 20
 RATE_BURST = 40
 # A client that sends its headers or body slowly may hold a thread only this long (seconds).
 REQUEST_TIMEOUT = 10
+# The whole request (headers and body) must arrive within this many seconds, however slowly the bytes trickle in.
+REQUEST_DEADLINE = 15
+MAX_CONNECTIONS = 64
+# Calls without a valid token are logged at most this often, so a flood of them cannot push the audit trail out.
+UNKNOWN_LOG_SECONDS = 10
 MAX_NONCE = 128
 
 
@@ -92,6 +97,19 @@ class ExclusiveServer(ThreadingHTTPServer):
     # http.server turns SO_REUSEADDR on, and on Windows that lets a second socket bind a port that is in use.
     # Port 0 never needs it; exclusive use keeps another process from taking the port over while the host runs.
     allow_reuse_address = False
+    connections = threading.BoundedSemaphore(MAX_CONNECTIONS)
+
+    def process_request(self, request, client_address):
+        if not self.connections.acquire(blocking=False):  # every thread is busy: refuse instead of piling up threads
+            self.shutdown_request(request)
+            return
+        super().process_request(request, client_address)
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.connections.release()
 
     def server_bind(self):
         if hasattr(socket, 'SO_EXCLUSIVEADDRUSE'):
@@ -109,6 +127,7 @@ class ControlServer:
         self.server: ThreadingHTTPServer | None = None
         self.buckets: dict[str, tuple[float, float]] = {}  # token -> (calls left, when counted)
         self.clock = time.monotonic
+        self.unknown_logged, self.unknown_skipped = float('-inf'), 0
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display,
                        'permission': self.ask_permission}
@@ -149,8 +168,19 @@ class ControlServer:
         # Who changed what, never the body: values and texts can hold private data. Successful variable
         # updates are skipped: the AI adapters send them every few seconds and would bury everything else.
         log = getattr(self.daemon, 'log', None)
-        if callable(log) and not (path == '/v1/vars' and code < 400):
-            log(f'API {who} {method} {path} -> {code}')
+        if not callable(log) or (path == '/v1/vars' and code < 400):
+            return
+        suffix = ''
+        if who == 'unknown':
+            now = self.clock()
+            with self.grant_lock:
+                if now - self.unknown_logged < UNKNOWN_LOG_SECONDS:
+                    self.unknown_skipped += 1
+                    return
+                self.unknown_logged = now
+                if self.unknown_skipped:
+                    suffix, self.unknown_skipped = f' (and {self.unknown_skipped} more like it)', 0
+        log(f'API {who} {method} {path} -> {code}{suffix}')
 
     @staticmethod
     def check_scope(grant, route, data):
@@ -250,6 +280,22 @@ class ControlServer:
             def log_message(self, *_):
                 pass
 
+            def setup(self):
+                super().setup()
+                self.expiry = threading.Timer(REQUEST_DEADLINE, self.expire)
+                self.expiry.daemon = True
+                self.expiry.start()
+
+            def expire(self):  # the timeout above counts each read: a client that trickles bytes in is cut off here
+                try:
+                    self.connection.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
+
+            def finish(self):
+                self.expiry.cancel()
+                super().finish()
+
             def reply(self, code, payload):
                 if self.command != 'GET':
                     api.audit(getattr(self, 'caller', 'unknown'), self.command, urlparse(self.path).path[:64], code)
@@ -281,6 +327,7 @@ class ControlServer:
                 return grant
 
             def do_GET(self):
+                self.expiry.cancel()  # the request has arrived: a long wait for events is the server's doing
                 grant = self.authorized()
                 if grant is None:
                     return
@@ -308,7 +355,9 @@ class ControlServer:
                     length = int(self.headers.get('Content-Length', 0))
                     if not 0 <= length <= MAX_BODY:
                         return self.reply(413, {'error': 'Request too large'})
-                    data = json.loads(self.rfile.read(length) or b'{}')
+                    body = self.rfile.read(length)
+                    self.expiry.cancel()
+                    data = json.loads(body or b'{}')
                     if not isinstance(data, dict):
                         raise ApiError('The body must be a JSON object')
                     api.check_scope(grant, route, data)

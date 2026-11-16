@@ -160,6 +160,7 @@ function renderInspector() {
   const bindStart=panel.children.length;
   renderGauge(panel,base);
   renderBind(panel,base);
+  renderStatusColor(panel,base);
   const actionsStart=panel.children.length;
   panel.append(renderTriggers(base));
   panel.append(text('div',(activeActions()?.length>1?'MULTI-ACTION · ':'ACTIONS · ')+(activeActions()?.length||0)+(activeActions()?.length===1?' STEP':' STEPS'),'section-label'));
@@ -510,12 +511,12 @@ function renderStatus() {
   const context=[dashboard.device?.profile,dashboard.device?.page].filter(Boolean).join(' / ');
   $('#connection').textContent=connected?[dashboard.device.port,context].filter(Boolean).join(' · '):dashboard.running?(dashboard.connection||'Waiting for the panel'):'The host has stopped';
   const layoutBytes=dashboard.device?.layout_bytes||0,offlineLimit=8192;
-  $('#connection').title=dashboard.device?.error||(connected&&dashboard.device?.sensor_hint?dashboard.device.sensor_hint:connected&&layoutBytes>offlineLimit?`This page is ${layoutBytes} bytes. The panel keeps at most ${offlineLimit} for use without the PC, so it will show the older saved layout offline.`:'');
-  if(connected&&layoutBytes>offlineLimit)$('#connection').textContent+=' · too big to keep offline';
+  $('#connection').title=dashboard.device?.error||(connected&&dashboard.device?.sensor_hint?dashboard.device.sensor_hint:connected&&layoutBytes>offlineLimit?`This page is ${layoutBytes} bytes. One push to the panel carries at most ${offlineLimit}, so the panel keeps the last layout that fit.`:'');
+  if(connected&&layoutBytes>offlineLimit)$('#connection').textContent+=' · too big for the panel';
   const memory=$('#memory');
   memory.hidden=!(connected&&layoutBytes);
   if(connected&&layoutBytes){const share=Math.min(100,Math.round(layoutBytes/offlineLimit*100));$('#memory-fill').style.width=share+'%';memory.classList.toggle('full',layoutBytes>offlineLimit);
-    $('#memory-text').textContent=layoutBytes>offlineLimit?`This page is ${layoutBytes} of ${offlineLimit} bytes: too big to keep for use without the PC`:`${layoutBytes} of ${offlineLimit} bytes kept for use without the PC`;}
+    $('#memory-text').textContent=layoutBytes>offlineLimit?`This page is ${layoutBytes} of ${offlineLimit} bytes: too big to send to the panel`:`${layoutBytes} of ${offlineLimit} bytes kept for use without the PC`;}
   const firmware=dashboard.device?.firmware,hostVersion=dashboard.host_version;
   if(connected&&firmware)$('#connection').textContent+=` · firmware ${firmware}${versionOlder(firmware,hostVersion)?' (update available)':''}`;
   $('#host-toggle').hidden=!!dashboard.running;if(dashboard.running)hostStartError='';

@@ -114,8 +114,8 @@ Output (stdout and stderr) goes to `host/plugins/<id>.log`. The log is kept as `
 ## Lifecycle
 
 - Tessera revokes a plugin's token when the plugin stops.
-- A plugin that stops is started again after 1, 2, 4, 8, 16, 32 and then 60 seconds.
-- After five crashes in a row it gives up and the editor shows the error. Turn the plugin off and on again, or change its settings, to start it again. A plugin that runs for 60 seconds counts as stable and its crash count starts from zero.
+- A plugin that stops is started again after 1, 2, 4 and 8 seconds.
+- After the fifth crash in a row it gives up and the editor shows the error. Turn the plugin off and on again, or change its settings, to start it again. A plugin that runs for 60 seconds counts as stable and its crash count starts from zero.
 - Turning a plugin off stops it.
 
 ## The API

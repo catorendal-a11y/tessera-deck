@@ -110,11 +110,41 @@ class BackupTests(unittest.TestCase):
         save_profiles(config('one'), self.path)
         save_profiles(config('two'), self.path)
         self.assertEqual(json.loads(self.path.read_text(encoding='utf-8')), config('two'))
-        with patch('config_store.os.replace', side_effect=PermissionError('locked')):
+        with patch('config_store.os.replace', side_effect=PermissionError('locked')), patch('config_store.time.sleep'):
             with self.assertRaises(PermissionError):
                 config_store.write_atomic(self.path, b'{}')
         self.assertEqual([file.name for file in self.path.parent.iterdir()], ['profiles.json'])
         self.assertEqual(json.loads(self.path.read_text(encoding='utf-8')), config('two'))
+
+    def test_write_atomic_waits_while_another_program_reads_the_file(self):
+        from unittest.mock import patch
+        replace = os.replace
+        calls = []
+
+        def busy_twice(source, target):  # Windows: the host has the file open for its reload
+            calls.append(target)
+            if len(calls) <= 2:
+                raise PermissionError(13, 'Access is denied')
+            replace(source, target)
+        self.path.write_bytes(b'old')
+        with patch('config_store.os.replace', side_effect=busy_twice), patch('config_store.time.sleep') as sleep:
+            config_store.write_atomic(self.path, b'new')
+        self.assertEqual(self.path.read_bytes(), b'new')
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sleep.call_count, 2)
+        self.assertEqual([file.name for file in self.path.parent.iterdir()], ['profiles.json'])
+
+    def test_a_second_recovery_keeps_the_first_broken_file(self):
+        self.write('good')
+        self.backup(force=True)
+        for number, broken in enumerate((b'{"first": ', b'{"second": '), 1):
+            self.path.write_bytes(broken)
+            self.assertIsNotNone(config_store.recover(self.path), number)
+        self.assertEqual(self.path.with_name('profiles-unreadable.local.json').read_bytes(), b'{"second": ')
+        self.assertEqual(self.path.with_name('profiles-unreadable-1.local.json').read_bytes(), b'{"first": ')
+        self.path.write_bytes(b'{"second": ')  # the same broken file again is not kept twice
+        config_store.recover(self.path)
+        self.assertFalse(self.path.with_name('profiles-unreadable-2.local.json').exists())
 
     def test_newest_and_pruning_follow_the_time_written_not_the_name(self):
         folder = config_store.backups_dir(self.path)
@@ -217,6 +247,46 @@ class EditorTests(unittest.TestCase):
         self.path.write_text(json.dumps(on_disk), encoding='utf-8')  # any other change still conflicts
         with self.assertRaises(Conflict):
             self.editor.save({'config': changed, 'revision': saved['revision']})
+
+    def test_diagnostics_are_saved_when_the_profile_file_is_broken(self):
+        from unittest.mock import patch
+        self.path.write_bytes(b'{"profiles": ')
+        with patch('diagnostics.build', return_value=Path(self.temp.name) / 'bundle.zip') as build, \
+                patch('tessera_app.os.startfile', create=True):
+            self.assertEqual(self.editor.export_diagnostics()['path'], str(Path(self.temp.name) / 'bundle.zip'))
+        self.assertIsNone(build.call_args.args[1])
+
+    def test_a_tray_save_during_the_editor_save_is_kept_or_refused(self):
+        from unittest.mock import patch
+        from tessera_app import Conflict
+        from tessera_tray import set_brightness
+        backup = config_store.backup
+
+        def tray_writes_once(change):
+            def run(*args, **kwargs):  # another program saves while the editor checks and backs up
+                if change:
+                    change.pop()()
+                return backup(*args, **kwargs)
+            return run
+        state = self.editor.read()
+        changed = json.loads(json.dumps(state['config']))
+        changed['profiles']['Main']['pages']['First'][0]['label'] = 'changed'
+        with patch('config_store.backup', side_effect=tray_writes_once([lambda: set_brightness(30, self.path)])):
+            saved = self.editor.save({'config': changed, 'revision': state['revision']})
+        self.assertEqual(saved['config']['profiles']['Main']['pages']['First'][0]['label'], 'changed')
+        self.assertEqual(saved['config']['display']['brightness'], 30, 'the tray level is not overwritten')
+
+        def other_edit():
+            on_disk = json.loads(self.path.read_text(encoding='utf-8'))
+            on_disk['profiles']['Main']['pages']['First'][0]['label'] = 'elsewhere'
+            self.path.write_text(json.dumps(on_disk), encoding='utf-8')
+        again = json.loads(json.dumps(saved['config']))
+        again['profiles']['Main']['pages']['First'][0]['label'] = 'mine'
+        with patch('config_store.backup', side_effect=tray_writes_once([other_edit])):
+            with self.assertRaises(Conflict):
+                self.editor.save({'config': again, 'revision': saved['revision']})
+        on_disk = json.loads(self.path.read_text(encoding='utf-8'))
+        self.assertEqual(on_disk['profiles']['Main']['pages']['First'][0]['label'], 'elsewhere')
 
     def test_a_backup_can_be_restored_over_a_broken_file_which_is_kept(self):
         state = self.editor.read()

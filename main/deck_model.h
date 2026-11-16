@@ -89,6 +89,9 @@ uint32_t deck_model_context_version(void);
 /* Press events */
 uint32_t deck_model_record_press(int button_id); /* returns new event id, 0 if unknown button */
 uint32_t deck_model_record_hold(int button_id);  /* same, flagged as a long press */
+/* A tap on a key grid built from deck_model_buttons_version() == layout. 0 when the layout changed since: the
+ * key under the finger may be another page's now. */
+uint32_t deck_model_record_touch(int button_id, bool hold, uint32_t layout);
 int deck_model_events_since(int since_id, deck_event_t *out, int max_out);
 int deck_model_last_event_id(void);
 

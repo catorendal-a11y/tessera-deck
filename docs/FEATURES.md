@@ -22,7 +22,7 @@ This page lists what Tessera does, including the changes under *Unreleased* in t
 |---|---|
 | <img src="images/panel-status.png" alt="Status page drawn by the panel firmware UI"> |  |
 
-<sub>The editor images show the real editor with this PC's sensor values. The panel images are drawn by the real firmware UI (LVGL) in a native build, not photographed: the key pages with `tools/render_screens.py`, the agents and mixer screens by the native UI test with sample data.</sub>
+<sub>The editor images show the real editor with this PC's sensor values. The panel images are rendered by the real firmware UI (LVGL) in a native build, not photographed: the key pages with `tools/render_screens.py`, the agents and mixer screens by the native UI test with sample data.</sub>
 
 ## On the panel
 
@@ -140,17 +140,17 @@ Deleting a page or a profile asks no question. A toast offers Undo.
 
 ## Actions and automation
 
-- **Smart profiles** switch by the foreground program, process or window title and return to the earlier profile when the program loses focus. A *Lock profile* key keeps the current profile.
-- **Scriptable:** a local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages, for example a Claude Code status light. Each token is limited to 20 calls a second.
-- **Integrations:** plugins with their own limited API tokens ([PLUGINS.md](PLUGINS.md)), with Home Assistant and OBS Studio included, and adapters that turn Claude Code hooks and Codex notifications into key states. The editor asks before a plugin first runs and lists what it may do.
+- Smart profiles switch by the foreground program, process or window title and return to the earlier profile when the program loses focus. A *Lock profile* key keeps the current profile.
+- A local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages, for example a Claude Code status light. Each token is limited to 20 calls a second.
+- Plugins get their own limited API tokens ([PLUGINS.md](PLUGINS.md)), and plugins for Home Assistant and OBS Studio are included. Adapters turn Claude Code hooks and Codex notifications into key states. The editor asks before a plugin first runs and lists what it may do.
 
 ## Sensors, safety and upkeep
 
-- **Free sensors:** Windows performance counters out of the box. The graphics driver adds GPU temperature, power, fan speed and clock without administrator rights (AMD through ADL, NVIDIA through `nvidia-smi`). [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) adds CPU temperature and power. `Tessera.cmd --sensors` starts it at every sign-in (one Windows prompt) and `--sensors-off` undoes it.
-- **Quiet when you want:** Windows notifications (panel connected or gone, an agent waiting, a timer that ends) can be switched off in Program settings or the tray menu.
-- **Safe by default:** verified device identity, a bounded action queue, long commands that never block other keys, and a review before an import. An export leaves out the calendar address, plugin passwords and web request credentials. Plugin secrets are stored encrypted for your Windows account.
-- **Backups:** rotating backups with restore. A broken `profiles.json` is never backed up, and the newest good backup is restored at start.
-- **Tray app and autostart:** start with Windows and control the host from the tray. A host that dies starts again by itself.
-- **Upkeep:** `Tessera.cmd --setup`, `--uninstall` and `--diagnostics`, and a host log kept under 5 MB with three older logs.
+- The sensors come from free sources. Windows performance counters work out of the box. The graphics driver adds GPU temperature, power, fan speed and clock without administrator rights (AMD through ADL, NVIDIA through `nvidia-smi`). [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) adds CPU temperature and power. `Tessera.cmd --sensors` starts it at every sign-in (one Windows prompt) and `--sensors-off` undoes it.
+- Windows notifications (panel connected or gone, an agent waiting, a timer that ends) can be switched off in Program settings or the tray menu.
+- By default Tessera verifies the device identity, keeps the action queue bounded, runs long commands without blocking other keys and shows a review before an import. An export leaves out the calendar address, plugin passwords and web request credentials. Plugin secrets are stored encrypted for your Windows account.
+- Tessera keeps rotating backups that you can restore. A broken `profiles.json` is never backed up, and the newest good backup is restored at start.
+- From the tray app you can start Tessera with Windows and control the host. A host that dies starts again by itself.
+- For upkeep there are `Tessera.cmd --setup`, `--uninstall` and `--diagnostics`. The host log is kept under 5 MB with three older logs.
 
 Missing features are listed in the [roadmap](ROADMAP.md).

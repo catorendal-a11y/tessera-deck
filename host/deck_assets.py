@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import struct
+import time
 import warnings
 
 from config_store import write_atomic
@@ -15,6 +16,7 @@ SIZE = 72
 MAX_FRAMES = 12
 AUTO_ICON = 'app'
 ID = re.compile(r'im:[0-9a-f]{12}\Z')
+RETRY_SECONDS = 60  # a program icon that could not be read is tried again after this long
 
 
 SHELL_ICON_SIZE = 256
@@ -261,9 +263,11 @@ class Assets:
         if icon != AUTO_ICON and not missing:
             return icon
         key = (icon, json.dumps(button.get('actions', []), sort_keys=True))
-        if key not in self._resolved:
-            self._resolved[key] = self.rebuild_from_actions(button) or 'ok'
-        return self._resolved[key]
+        cached = self._resolved.get(key)
+        if cached is None or cached[1] < time.monotonic():
+            found = self.rebuild_from_actions(button)
+            cached = self._resolved[key] = (found or 'ok', float('inf') if found else time.monotonic() + RETRY_SECONDS)
+        return cached[0]
 
     def heal(self, config):
         """Copy of config with every 'app' or missing im: icon resolved via icon_for."""
@@ -360,4 +364,10 @@ class Assets:
                 for item in value:
                     visit(item)
         visit(config)
-        return {name: base64.b64encode(self.preview(name)).decode() for name in names}
+        images = {}
+        for name in names:
+            try:
+                images[name] = base64.b64encode(self.preview(name)).decode()
+            except OSError:  # no file for this id: the rest of the profile still exports
+                pass
+        return images

@@ -438,3 +438,11 @@ html body #inspector .prop-value .color-swatch{background:var(--swatch) !importa
 /* The colours a key is given (or its theme) show on its tile: they come in as variables because the tile rule above wins over inline styles. */
 html body #deck-grid .deck-key{background:var(--key-bg,var(--card)) !important}
 html body #deck-grid .deck-key.key-outlined{border:3px solid var(--key-border) !important}
+/* Automatic actions: the same rows as the rail shortcuts, with the when fields in a row of their own. */
+#auto-dialog{width:min(760px,94vw);padding:22px 24px}
+.auto-list{max-height:62vh;overflow:auto;margin:14px 0}
+.auto-when{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}.auto-when input{flex:1 1 180px;height:34px}
+/* Color follows a variable: one row per value, its color and a remove button. */
+.status-color{display:flex;align-items:center;gap:8px;margin:0 0 6px}.status-color span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status-color input[type=color]{width:44px;height:30px;padding:0;border:0;background:transparent}
+/* Rows of 34-36 px leave no room for the 10 px padding above and below the text, which clipped it: pad only the sides. */
+.rail-short select,.rail-short input:not([type=color]){padding-top:0;padding-bottom:0}

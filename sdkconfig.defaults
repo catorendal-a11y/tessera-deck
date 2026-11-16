@@ -63,8 +63,10 @@ CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 
 CONFIG_EH_HOST_PORT_DMA_PREFER_SPIRAM=y
 
-# Keep every panel->client segment small: the phone's return path drops
-# anything much above ~500 B (white-page signature: headers pass, body dies)
+# Meant to keep panel->client segments small: the phone's return path drops
+# anything much above ~500 B (white-page signature: headers pass, body dies).
+# 400 is below the lwIP Kconfig minimum (536), so it is ignored and the build uses 1440.
+# A smaller MSS needs a value of 536 or more and a test on the hardware.
 CONFIG_LWIP_TCP_MSS=400
 
 # Stream Deck look: big key icons

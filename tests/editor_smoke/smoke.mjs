@@ -55,6 +55,8 @@ try {
   await dialogRoundTrip('Program settings', () => page.click('#app-settings'), '#form-dialog', () => page.click('#form-dialog [value=cancel]'), 'app-settings');
   await dialogRoundTrip('Page settings from the Page menu', async () => { await page.click('#page-menu-toggle'); await page.click('#page-options'); },
     '#form-dialog', () => page.keyboard.press('Escape'), 'page-menu-toggle');
+  await dialogRoundTrip('Automatic actions from the More menu', async () => { await page.click('#more-toggle'); await page.click('#auto-open'); },
+    '#auto-dialog', () => page.keyboard.press('Escape'), 'more-toggle');
 
   // The action tabs are one Tab stop; the right arrow opens and focuses the next tab.
   const tabs = page.locator('#library-tabs [role=tab]');

@@ -40,6 +40,14 @@ class DimmedFeedbackTests(unittest.TestCase):
         daemon.panel.feedback.assert_called_once_with(1, True, wake=False)
         self.assertTrue(daemon.dimmed)
 
+    def test_api_feedback_on_a_dimmed_panel_leaves_it_dim(self):
+        """/v1/feedback from a plugin: a lit panel the host thinks is dim would stay lit and eat the next tap."""
+        daemon = make_daemon()
+        daemon.dimmed = True
+        daemon.handle_job(('feedback', 3, True))
+        daemon.panel.feedback.assert_called_once_with(3, True, wake=False)
+        self.assertTrue(daemon.dimmed)
+
     def test_an_awake_panel_still_gets_the_wake_with_its_feedback(self):
         daemon = make_daemon()
         daemon.give_feedback(3, True)

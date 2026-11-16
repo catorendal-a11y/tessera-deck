@@ -59,7 +59,7 @@ Commit both files. CI installs from the lock file on Python 3.11 and 3.14, so a 
 - The smallest change that solves the problem. Reuse what exists before you add a dependency.
 - User-facing text is plain English and says what to do next.
 - A line in `CHANGELOG.md` under `## Unreleased`, and updated docs if behavior changed.
-- Nothing that sends data off the PC unless the user asks for it. Tessera runs locally.
+- Nothing that sends data off the PC unless the user asks for it, since Tessera runs locally.
 - The pull request template's test list filled in. Say which firmware you tried it on, or that you did not try it on a panel.
 
 ## Port to another board

@@ -166,7 +166,7 @@ footer a{color:var(--muted)}
 <section class="hero wrap">
   <div class="eyebrow">Open-source <b>DIY Stream Deck</b> for Windows</div>
   <h1><span class="quiet">One 7-inch touchscreen.</span> A deck you build yourself.</h1>
-  <p class="lead">Tessera turns the GUITION JC1060P470C ESP32-P4 board into a macro deck: 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, a sound mixer and a screen that answers your AI agent. No soldering, no account, no cloud.</p>
+  <p class="lead">Tessera turns the GUITION JC1060P470C ESP32-P4 board into a macro deck: 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, a sound mixer and a screen that answers your AI agent. It works without soldering, an account or the cloud.</p>
   <div class="btns">
     <a class="btn primary" href="https://github.com/catorendal-a11y/tessera-deck/releases/latest">Download Tessera</a>
     <a class="btn" href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/INSTALL.md">Read the install guide</a>
@@ -182,7 +182,7 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="panel">
   <div class="eyebrow">The panel</div>
-  <h2>Your apps, hotkeys and macros under one finger.</h2>
+  <h2>Your apps, hotkeys and macros on a 7-inch touchscreen.</h2>
   <p class="lead">The panel shows a 6 × 3 grid of keys on a 1024 × 600 touchscreen. A key can cover two or three slots and show a widget. It talks to a small Windows host over one USB cable and keeps the last layout for when the PC is off.</p>
   <div class="stage"><img src="images/console-desk.jpg" width="1920" height="1080" fetchpriority="high" alt="The Tessera panel in its printed desk console on a desk, with the main page of app keys on the screen and a monitor out of focus behind it"></div>
   <div class="stats">
@@ -196,7 +196,7 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="screens">
   <div class="eyebrow">Screens</div>
-  <h2><span class="quiet">Drawn by the real firmware.</span> Not mock-ups.</h2>
+  <h2><span class="quiet">The panel's screens,</span> drawn by its own firmware.</h2>
   <p class="lead">The animation and the stills come from the panel's own LVGL interface in a native build at 1024 × 600. The agents and mixer screens show sample data.</p>
   <div class="stage demo"><img src="images/demo.gif" width="800" height="520" loading="lazy" alt="Tessera in motion: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor"></div>
   <div class="screens">
@@ -213,13 +213,13 @@ footer a{color:var(--muted)}
   <div class="cards">
     <div class="card"><div class="n">01</div><h3>Unpack and start</h3><p>Unpack the host zip from the latest release and double-click <code>Tessera.cmd</code>. The first start installs Python if it is missing, puts a shortcut on the Desktop and opens the editor.</p></div>
     <div class="card"><div class="n">02</div><h3>Flash the panel</h3><p>Connect the board with USB. In the editor, <em>Panel → Panel firmware and updates</em> installs the firmware that comes in the zip. A new board needs <em>Full install</em> once.</p></div>
-    <div class="card"><div class="n">03</div><h3>Add a key, press it</h3><p>Click an action in the list and it becomes a key. Press it on the panel and the editor says "It works". Keys run only when you press them on the panel.</p></div>
+    <div class="card"><div class="n">03</div><h3>Add a key, press it</h3><p>Click an action in the list and it becomes a key. Press it on the panel and the editor says "It works".</p></div>
   </div>
 </section>
 
 <section class="block wrap" id="editor">
   <div class="eyebrow">The editor</div>
-  <h2><span class="quiet">Drag, drop, done.</span> Saved as you go.</h2>
+  <h2><span class="quiet">Drag keys into place.</span> The editor saves as you go.</h2>
   <div class="two">
     <div>
       <p class="lead" style="margin-top:0">Set up keys, pages and profiles in a drag-and-drop editor on your PC. Start from ready-made actions and profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode, and give each key a real app icon or one of the bundled icons.</p>
@@ -236,7 +236,7 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="console">
   <div class="eyebrow">Desk console · print it yourself</div>
-  <h2><span class="quiet">A stand you print.</span> No supports, no glue.</h2>
+  <h2><span class="quiet">A stand you print.</span> The console needs no supports.</h2>
   <div class="two flip">
     <div class="stage"><img src="images/console-hero.jpg" width="1920" height="1080" loading="lazy" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back"></div>
     <div>
@@ -257,10 +257,10 @@ footer a{color:var(--muted)}
 
 <section class="block wrap" id="features">
   <div class="eyebrow">Features</div>
-  <h2><span class="quiet">Built for the desk.</span> Open to the last line.</h2>
+  <h2><span class="quiet">Built for the desk.</span> Open source under the MIT licence.</h2>
   <div class="features">
     <div><div class="n">01</div><h3>It answers your AI agent</h3><p>When Claude Code asks for permission, the question shows on the panel. Touch <em>Allow</em> or <em>Deny</em>. The agents screen shows what Claude Code, Codex and ZCode are doing, since when and in which project.</p></div>
-    <div><div class="n">02</div><h3>Stays on your PC</h3><p>No account, no cloud, no subscription. The panel has no network and speaks only to the host over USB. The editor and the control API listen on 127.0.0.1 only.</p></div>
+    <div><div class="n">02</div><h3>Stays on your PC</h3><p>Tessera needs no account, cloud or subscription. The panel has no network and speaks only to the host over USB. The editor and the control API listen on 127.0.0.1 only.</p></div>
     <div><div class="n">03</div><h3>Pages follow the app in front</h3><p>Profiles switch with the program you use, and a lock key keeps the one you are on. Wide keys show the clock, CPU, GPU, memory, network, volume, the music that plays, your next meeting or a timer.</p></div>
     <div><div class="n">04</div><h3>Macros with more than a tap</h3><p>Multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers. Microphone, speaker and media keys show the real Windows state.</p></div>
     <div><div class="n">05</div><h3>Live gauges</h3><p>CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan speed and FPS, in the gauge's colour with amber and red at the thresholds.</p></div>
@@ -300,9 +300,9 @@ idf.py -B build/idf6 -p COMx flash</pre>
   <div class="eyebrow">Questions</div>
   <h2>Before you build one.</h2>
   <div class="faq">
-    <details><summary>What do I need?</summary><p>The GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C (1024 × 600, about $35 to $42 on AliExpress), a USB cable to its USB Serial/JTAG port and a Windows 10 or 11 PC. The host needs Python 3.11 or newer; the first start installs it with winget if it is missing. No Wi-Fi and no soldering.</p></details>
+    <details><summary>What do I need?</summary><p>The GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C (1024 × 600, about $35 to $42 on AliExpress), a USB cable to its USB Serial/JTAG port and a Windows 10 or 11 PC. The host needs Python 3.11 or newer; the first start installs it with winget if it is missing. You need no Wi-Fi and no soldering.</p></details>
     <details><summary>Does it run on another board, or on macOS or Linux?</summary><p>Not yet. The pin setup and the screen layout are written for this board, so another board needs a port, and the host runs on Windows only. CONTRIBUTING.md says what a port takes; open an issue with the board's name and resolution.</p></details>
-    <details><summary>How does it compare with a Stream Deck?</summary><p>A Stream Deck MK.2 lists at $149.99 with 15 physical keys, the XL at $249.99 with 32. Tessera costs the board and gives 18 keys per page, keys up to three slots wide, and widgets, a mixer, PC status and the AI agents built in, under the MIT licence. What you give up is the feel of a real key: Tessera is glass. Prices are US list prices from November 2026.</p></details>
+    <details><summary>How does it compare with a Stream Deck?</summary><p>A Stream Deck MK.2 lists at $149.99 with 15 physical keys, the XL at $249.99 with 32. Tessera costs the board and gives 18 keys per page, keys up to three slots wide, and widgets, a mixer, PC status and the AI agents built in, under the MIT licence. You do give up the feel of real keys, since Tessera is a glass touchscreen. Prices are US list prices from November 2026.</p></details>
     <details><summary>Does it send anything to the internet?</summary><p>Only what you ask for: the update check on GitHub, the clock's weather from Open-Meteo, online icons from Iconify, your own HTTP actions and calendar, and the plugins you turn on. The bundled plugins only reach your own Home Assistant and OBS. Setup also downloads Python packages from PyPI, pinned by hash, and Libre Hardware Monitor if you turn on the optional sensors. SECURITY.md lists every connection.</p></details>
     <details><summary>What happens when the PC is off?</summary><p>The panel keeps the last layout and shows it, so it is never blank. Actions run on the PC, so keys need the host. A hung screen or USB loop restarts the panel by itself.</p></details>
     <details><summary>Does it work with Home Assistant?</summary><p>Through the PC, yes: the bundled plugin runs Home Assistant actions from keys. On the esphome-beta branch the panel can also join your Wi-Fi and show up through the ESPHome integration, with keys that work while the PC is off. That beta is not in the release yet.</p></details>

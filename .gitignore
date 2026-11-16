@@ -8,6 +8,8 @@ __pycache__/
 *.local.json
 *.local.lock
 *.local.log*
+# Left behind when an atomic write of the profile or the runtime state is cut short
+*.tmp
 host/.venv/
 host/.webview-data/
 host/profiles.json

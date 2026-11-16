@@ -168,6 +168,7 @@ class PanelSerial:
     def push_payload(self, payload):
         with self.write_lock:
             self.cfg_done.clear()
+            self.cfg_reply = ''
             self.send_line('AD_CFG_BEGIN')
             for i in range(0, len(payload), 380):
                 self.send_line('AD_CFG_DATA ' + payload[i:i+380])

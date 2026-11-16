@@ -21,9 +21,10 @@ REQUIREMENTS = ROOT / 'host/requirements.txt'
 LOCK = ROOT / 'host/requirements.lock'
 MODULE_PROBE = 'import serial, psutil, PIL, webview, win32pdh, pystray, comtypes, esptool'
 MINIMUM_PYTHON = (3, 11)
+# Glob patterns. profiles-*.local.json are the previous and the unreadable copies, profiles.json.*.tmp a save cut short.
 USER_DATA = ('host/profiles.json', 'host/assets', 'host/backups', 'host/state.local.json', 'host/editor.local.json',
-             'host/icon-library.local.json', 'host/profiles-previous.local.json', 'host/deck-device.local.json',
-             'host/profiles.backup.local.json', 'diagnostics', 'firmware', 'dist')
+             'host/icon-library.local.json', 'host/profiles-*.local.json', 'host/profiles.json.*.tmp',
+             'host/deck-device.local.json', 'host/profiles.backup.local.json', 'diagnostics', 'firmware', 'dist')
 
 
 def requirements_hash(path: Path = REQUIREMENTS) -> str:
@@ -106,8 +107,11 @@ def create_shortcut(target: Path = ROOT / 'Tessera.cmd', link: Path | None = Non
 def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: Callable[[str], None] = print,
               root: Path = ROOT, link: Path | None = None,
               autostart: Callable[[bool], object] | None = None) -> list[str]:
-    """Remove what Tessera put outside its folder (autostart entry, Desktop shortcut). User data stays unless `purge`."""
-    removed = []
+    """Remove what Tessera put outside its folder (autostart entry, Desktop shortcut). User data stays unless `purge`.
+
+    Raises OSError after the report when a purge could not delete everything.
+    """
+    removed, failed = [], []
     if autostart is None:
         sys.path.insert(0, str(root / 'host'))
         from deck_control import set_autostart as autostart
@@ -124,18 +128,27 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
         answer = confirm('This permanently deletes your profiles, icons, backups, counters and downloads. '
                          'Type YES to continue: ').strip()
         if answer == 'YES':
-            for relative in USER_DATA:
-                target = root / relative
-                if target.is_dir():
-                    shutil.rmtree(target, ignore_errors=True)
-                elif target.exists():
-                    target.unlink()
-            removed.append('your data')
+            for pattern in USER_DATA:
+                for target in sorted(root.glob(pattern)):
+                    try:
+                        if target.is_dir():
+                            shutil.rmtree(target)
+                        else:
+                            target.unlink()
+                    except OSError as exc:
+                        failed.append(f'{target.relative_to(root)} ({exc.strerror or exc})')
+            if failed:
+                emit('Could not delete ' + ', '.join(failed) + '. Close Tessera (the tray icon, the host and the '
+                     'editor) and run the uninstall again.')
+            else:
+                removed.append('your data')
         else:
             emit('Your profiles, icons and backups were kept.')
     else:
         emit('Your profiles, icons and backups were kept. Run again with --purge to delete them too.')
     emit('Removed: ' + (', '.join(removed) or 'nothing'))
+    if failed:
+        raise OSError('The uninstall is not complete')
     return removed
 
 
@@ -144,7 +157,10 @@ def diagnostics() -> Path:
     import diagnostics as bundle
     from deck_control import Controller
     from tesserad import Daemon
-    config = Daemon.load_profiles(ROOT / 'host/profiles.json')
+    try:
+        config = Daemon.load_profiles(ROOT / 'host/profiles.json')
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+        config = None  # a broken profile file is when the bundle is needed most
     version = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
     return bundle.build(ROOT / 'diagnostics', config, Controller().status(), version, ROOT / 'host/deck.local.log')
 
@@ -167,7 +183,11 @@ def main(argv: list[str] | None = None) -> int:
         print('Setup is done. Start Tessera from the shortcut or with Tessera.cmd.')
         return 0
     if args.command == 'uninstall':
-        uninstall(args.purge)
+        try:
+            uninstall(args.purge)
+        except OSError as exc:
+            print(exc)
+            return 1
         return 0
     print(f'Wrote {diagnostics()}')
     return 0
