@@ -587,6 +587,7 @@ static void usb_console_task(void *)
                 cJSON_AddNumberToObject(reply,"uptime",esp_timer_get_time()/1000000);cJSON_AddNumberToObject(reply,"heap",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
+                cJSON_AddNumberToObject(reply,"imgAck",1);  /* "AD_IMG_BEGIN <id> <bytes> <crc> ack", see deck_images.cpp */
                 wifi_svc_status_t wifi;wifi_service_status(&wifi);cJSON_AddStringToObject(reply,"wifi",wifi_service_state_name(wifi.state));
                 cJSON_AddNumberToObject(reply,"api",1);
                 cJSON_AddNumberToObject(reply,"ha",1);  /* stage C: the layout's "ha"/"hs" key fields */

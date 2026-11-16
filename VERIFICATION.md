@@ -39,8 +39,10 @@ Other automatic checks:
 | A key that opens a running program brings its window to the front | 0.6.0 | Passed |
 | First full install of the A/B layout (0.7.0, esptool 5.4 and again with 5.6) | 0.7.0, 13 November 2026 | Passed |
 | Update over USB into the idle slot: 0.7.0 to 0.7.0, 0.7.0 to 0.8.0, then 0.8.0 to 0.8.0 four times | 0.8.0, 13 November 2026 | Passed, with two failures (below) |
+| `hardware_smoke.py` (protocol 5, 21 presses, brightness, UTF-8, stable boot id) | 0.8.0, 16 November 2026 | Passed |
+| Image upload with acknowledgements (`"imgAck":1`): four 12-frame and four still icons sent with the host's own upload code, then again with the old paced upload | 0.8.0, 16 November 2026 | Passed. 0.65 s per 12-frame icon (2.78 s paced), 86 ms per still icon (0.22 s paced) |
 
-Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA* on a panel that had run 0.7.0 for about four hours; it kept its old firmware, and the next tries worked. The cause is not found. Since 0.8.0 the host aborts and starts such an upload once more by itself. `hardware_smoke.py` has not been run on 0.7.0 or 0.8.0.
+Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA* on a panel that had run 0.7.0 for about four hours; it kept its old firmware, and the next tries worked. The cause is not found. Since 0.8.0 the host aborts and starts such an upload once more by itself. `hardware_smoke.py` has not been run on 0.7.0.
 
 The editor was also walked through against a copy of a real configuration: every page, the three key tabs on every key, all dialogs, pages and profiles created, renamed and deleted, drag and drop with synthetic events, undo and redo. That was before the latest editor redesign. The editor smoke test covers the new layout only in part.
 

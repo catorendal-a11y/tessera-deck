@@ -661,9 +661,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                     if line.startswith('AD_CFG_END '):
                         panel.cfg_reply = line
                         panel.cfg_done.set()
-                    if line.startswith('AD_IMG_END '):
+                    if line.startswith(('AD_IMG_DATA ', 'AD_IMG_END ')):
                         panel.asset_reply = line
                         panel.asset_done.set()
+                        if line.startswith('AD_IMG_DATA OK '):
+                            continue  # one every 2 KB of an upload, too many for the verbose log
                     if line.startswith(('AD_WIFI_SET ', 'AD_WIFI_CLEAR ')):
                         panel.wifi_reply = line
                         panel.wifi_done.set()

@@ -6,6 +6,8 @@
 // paint_us is PC time, "missing" the layout's images the cache lacks (one per blank key), "evicted" the stored
 // images the cache has dropped since the last report. "BENCH_TAP <id>" taps that key through the LVGL touch path
 // and prints the press as the panel sends it, then BENCH {"tap":<id>}.
+// Its get_info answer has "imgAck":1, so the host waits for image acknowledgements; --old-firmware leaves it out and
+// the host paces image lines as it does for firmware without them.
 #include <lvgl.h>
 #include <chrono>
 #include <cstdint>
@@ -126,7 +128,8 @@ static void tap(int id) {
     say("BENCH {\"tap\":" + std::to_string(id) + "}");
 }
 
-int main() {
+int main(int argc, char** argv) {
+    const bool old_firmware = argc > 1 && !strcmp(argv[1], "--old-firmware");
     lv_init();
     lv_tick_set_cb(millis);
     auto* display = lv_display_create(1024, 600);
@@ -155,7 +158,7 @@ int main() {
             if (!reply.empty()) say(reply);
         } else if (line == "{\"cmd\":\"get_info\"}") {
             say("{\"type\":\"info\",\"boardId\":\"tessera-p4\",\"firmwareVersion\":\"cache-bench\",\"protocol\":" +
-                std::to_string(TESSERA_PROTOCOL) + ",\"bootId\":1}");
+                std::to_string(TESSERA_PROTOCOL) + ",\"bootId\":1" + (old_firmware ? "}" : ",\"imgAck\":1}"));
         } else if (line == "AD_CFG_BEGIN") {
             cfg_active = true;
             cfg.clear();

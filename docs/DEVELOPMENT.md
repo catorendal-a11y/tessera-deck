@@ -139,30 +139,31 @@ The brand assets have their own generators, which need no native build: `tools/m
 
 By default there are 4 pages of 18 keys. Every page shows the same 2 icons and 15 of its own, key 18 goes to the next page, and keys 15 to 17 follow a variable (two labels, and a gauge without an image). The icons are gradient pictures about the size of an imported program icon. One scenario uses still icons, the other 12-frame animations of the same pictures. A first lap through the pages fills the cache and is not timed. After it the next tap comes 1.5 s after the host sent the last page, and a live value changes every 0.5 s. A change that comes during a switch waits until the switch is done.
 
-USB time is virtual: the bytes the host writes divided by `--link-rate` (500 kB/s by default, a guess until someone measures a panel), plus the host's 10 ms pause after every 4 image lines. Paint time is measured on the PC, so it shows how much work the UI does and says nothing about how long the P4 takes. Tap-to-paint is the USB time from the tap until the panel accepts the new layout, the wait for the panel's next 40 ms UI tick, and the paint time. It leaves out the 0-20 ms the panel takes to send a press. A tap that waits behind earlier work keeps its time stamp, so the host drops it after 5 s as it would with a real panel.
+USB time is virtual: the bytes the host writes divided by `--link-rate` (500 kB/s by default, a guess), plus `--ack-ms` for every answer the host waits for (2 ms by default, also a guess: one USB frame each way). `cache_bench` reports `"imgAck":1` as the firmware does, so the host sends images in lines of 512 bytes and waits for the panel's answer every 2 KB. With `--old-firmware` it answers as older firmware, and the host sends lines of 160 bytes with a 10 ms pause after every 4. Paint time is measured on the PC, so it shows how much work the UI does and says nothing about how long the P4 takes. Tap-to-paint is the USB time from the tap until the panel accepts the new layout, the wait for the panel's next 40 ms UI tick, and the paint time. It leaves out the 0-20 ms the panel takes to send a press. A tap that waits behind earlier work keeps its time stamp, so the host drops it after 5 s as it would with a real panel.
 
 ```powershell
 cmake --build build/native --target cache_bench
 host\.venv\Scripts\python.exe tests\cache_bench.py --exe build\native\cache_bench.exe
+host\.venv\Scripts\python.exe tests\cache_bench.py --exe build\native\cache_bench.exe --old-firmware
 ```
 
 `--json` prints the numbers of every switch and live update. `--check` exits with 1 when a key is still blank after a switch, the host's record of the panel's images differs from the panel's cache, the host reports an error, or no switch was measured because every tap was dropped. `--help` lists the options for pages, shared icons, live keys, frames, timing and link rate.
 
-A run on the development PC (Release build) gave:
+Runs on the development PC (Release build) gave:
 
-| | Still icons | 12 frames |
-|---|---|---|
-| Image size (ADI1) | 11 kB | 133 kB |
-| Hit rate | 100 % | 12 % |
-| Evictions per switch, host and panel | 0 and 0 | 15 and 15 |
-| USB per switch | 1.7 kB, 10 lines | 4.2 MB, 12,537 lines |
-| Tap-to-paint, median | 23 ms | 40 s |
-| Paint time on the PC, median | 0.8 ms | 1.0 ms |
-| Taps dropped, of 12 | 0 | 0 |
-| Live changes in the run | 36 | 908 |
-| Blank keys, re-requests, disagreements | 0 | 0 |
+| | Still icons | 12 frames, old firmware | 12 frames |
+|---|---|---|---|
+| Image size (ADI1) | 11 kB | 133 kB | 133 kB |
+| Hit rate | 100 % | 12 % | 12 % |
+| Evictions per switch, host and panel | 0 and 0 | 15 and 15 | 15 and 15 |
+| USB per switch | 1.7 kB, 10 lines | 4.2 MB, 12,537 lines | 4.1 MB, 3,951 lines |
+| Tap-to-paint, median | 22 ms | 40 s | 10 s |
+| Paint time on the PC, median | 0.8 ms | 0.9 ms | 0.9 ms |
+| Taps dropped, of 12 | 0 | 0 | 0 |
+| Live changes in the run | 36 | 908 | 259 |
+| Blank keys, re-requests, disagreements | 0 | 0 | 0 |
 
-The still icons of all four pages fit in the 8 MiB cache. A 12-frame icon takes 249 kB once decoded, so the cache holds 33 of them. A page shows 17, so two pages fit and four need 62. The pages come round in turn, and by the time a page comes back its own icons are gone: every switch sends 15 images and evicts 15. The 10 ms pauses account for 31 of the 40 s. That run is longer, so it has more live changes, and the ones that come during a switch wait for it. With `--pages 2 --frames 12` both pages stay in the cache and a switch costs 1.7 kB, as with still icons. With `--pages 3 --frames 12` the hit rate is 18 % and a switch takes 37 s.
+Still icons cost the same with old firmware, within 2 ms. They fit in the 8 MiB cache on all four pages. A 12-frame icon takes 249 kB once decoded, so the cache holds 33 of them. A page shows 17, so two pages fit and four need 62. The pages come round in turn, and by the time a page comes back its own icons are gone: every switch sends 15 images and evicts 15, with old firmware or new. The acknowledgements only make sending them cheaper. With old firmware the 10 ms pauses account for 31 of the 40 s. With acknowledgements the host sends a third of the lines and never pauses, and a switch takes 10 s: about 8 s for the bytes at 500 kB/s and 2 s for some 1,000 answers at 2 ms each. Both parts rest on the guessed link rate and round trip. On a panel over USB on Windows, the host's own upload code sent a 12-frame icon in 0.65 s with acknowledgements and 2.78 s with the old paced upload, where these guesses give about 0.67 s and 2.6 s, so the 10 s and 40 s are close. The panel's paint time on a switch was not measured. A longer run has more live changes, and the ones that come during a switch wait for it. With `--pages 2 --frames 12` both pages stay in the cache and a switch costs 1.7 kB, as with still icons. With `--pages 3 --frames 12` the hit rate is 18 % and a switch takes 9.5 s, or 37 s with old firmware.
 
 ## CI
 

@@ -5,6 +5,7 @@
  * 4 = adds the cockpit screens,
  * 5 = adds Wi-Fi (AD_WIFI_SET, AD_WIFI_CLEAR, AD_WIFI_STATUS, {"type":"wifi"}) and the "wifi" field in get_info.
  * Later additions are capability fields in get_info, not new versions:
- * "reset" (why the panel last started), "ota":1 (AD_OTA_* over-USB update) and "layoutSaved";
+ * "reset" (why the panel last started), "ota":1 (AD_OTA_* over-USB update), "layoutSaved" and
+ * "imgAck":1 (AD_IMG_BEGIN takes "ack" and the panel then acknowledges image data);
  * stages B and C of docs/design/esphome.md add "api":1, "ha":1 and "cpOta":1 the same way. */
 #define TESSERA_PROTOCOL 5

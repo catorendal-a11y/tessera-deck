@@ -7,9 +7,9 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 ## Framing
 
 - Each message is one UTF-8 line ending in `\n`.
-- The panel reads lines of up to 1,099 bytes and ignores a longer one without an answer. The host therefore sends a layout in chunks of 380 characters, an image in chunks of 160 bytes and a firmware image in chunks of 512 bytes (both hex-encoded).
+- The panel reads lines of up to 1,099 bytes and ignores a longer one without an answer. The host therefore sends a layout in chunks of 380 characters, an image in chunks of 160 bytes (512 to a panel with `"imgAck":1`) and a firmware image in chunks of 512 bytes (both hex-encoded).
 - The host sends commands as `AD_…` text lines (the prefix is historical and stays for compatibility) or as one JSON object, `{"cmd":"get_info"}`.
-- The panel answers every command except the ones marked *no answer* below. A layout, an image and a firmware update are answered once, at their `…_END` line.
+- The panel answers every command except the ones marked *no answer* below. A layout, an image and a firmware update are answered at their `…_END` line. A firmware update, and an image begun with `ack`, are also answered every 2 KB of data.
 - The panel sends its own events as JSON lines. The host ignores any line it does not know.
 - Any complete line from the host counts as a sign of life. `AD_PING` has no other job.
 
@@ -21,7 +21,7 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 | `AD_PING` | none | Heartbeat every second. The rail shows *NO PC* after 3.5 s without any line from the host. |
 | `AD_TIME YYYY-MM-DDTHH:MM:SS [12h\|24h]` | `AD_TIME OK` or `INVALID` | The PC's local time, sent every 10 minutes and when the clock format changes. The panel has no network clock. The optional format sets 12- or 24-hour clocks; older firmware ignores it. |
 | `AD_CFG_BEGIN`, `AD_CFG_DATA <chunk>`, `AD_CFG_END` | `AD_CFG_BEGIN OK`, none, then `AD_CFG_END OK <keys>`, `INVALID` or `TOO_BIG 8192` | Pushes the key layout (JSON, chunked). See [Layout](#layout). |
-| `AD_IMG_BEGIN <id> <bytes> <crc32>`, `AD_IMG_DATA <offset> <hex>`, `AD_IMG_END` | only at the end: `AD_IMG_END OK <id>`, `INVALID` or `FULL` | Uploads a key image. `FULL` means the 8 MiB image cache cannot hold it. |
+| `AD_IMG_BEGIN <id> <bytes> <crc32> [ack]`, `AD_IMG_DATA <offset> <hex>`, `AD_IMG_END` | `AD_IMG_END OK <id>`, `INVALID` or `FULL`; with `ack` also `AD_IMG_DATA OK <bytes received>` or `AD_IMG_DATA INVALID` | Uploads a key image. `FULL` means the 8 MiB image cache cannot hold it. See [Image upload](#image-upload). |
 | `AD_CONTEXT {"profile":"…","page":"…","canBack":true}` | `AD_CONTEXT OK` or `INVALID` | Profile, page and back state for the header. |
 | `AD_FEEDBACK ok <id>` or `AD_FEEDBACK alert <id>` | `AD_FEEDBACK OK` or `INVALID` | Ends the pressed highlight with a green or red flash. |
 | `AD_BRIGHTNESS <1-100>` | `AD_BRIGHTNESS OK <level>`, `FAILED <level>` or `INVALID` | Sets the backlight and stores the level on the panel. |
@@ -110,12 +110,19 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `heap`, `psramFree` | Free internal and external memory in bytes. |
 | `reset` | Why the panel last started: `poweron`, `sw`, `panic`, `int_wdt`, `task_wdt`, `wdt`, `brownout`, `deepsleep`, `ext` or `unknown`. The host warns about `panic`, `int_wdt`, `task_wdt`, `wdt` and `brownout`. |
 | `ota` | `1` when the panel accepts `AD_OTA_*`. Missing on older firmware. |
+| `imgAck` | `1` when `AD_IMG_BEGIN` takes `ack` and the panel then acknowledges image data. Missing on older firmware: the host sends 160-byte lines and pauses 10 ms after every 4. |
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
 | `wifi` | `off`, `connecting`, `connected` or `failed` (protocol 5). With the protocol number it tells the host that `AD_WIFI_*` exists. |
 | `api` | `1` when the panel has the Home Assistant API and accepts `AD_API_*`. Missing on older firmware. |
 | `ha` | `1` when the panel reads the layout's `ha` and `hs` key fields and runs Home Assistant steps itself. Missing on older firmware: the host strips those fields and runs no Home Assistant step. |
 
 A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once. A key with Home Assistant steps for that trigger follows Home Assistant instead (see [Home Assistant keys](#home-assistant-keys)).
+
+## Image upload
+
+`AD_IMG_BEGIN <id> <bytes> <crc32>` starts an upload of an ADI1 image of at most 320,000 bytes. `AD_IMG_DATA <offset> <hex>` lines follow in order, and `AD_IMG_END` stores the image and is the only line answered.
+
+A panel with `"imgAck":1` also takes `AD_IMG_BEGIN <id> <bytes> <crc32> ack`. Data lines may then carry 512 bytes, and the panel answers `AD_IMG_DATA OK <bytes received>` every 2 KB and when all bytes are in, as for a firmware update. The host waits for each answer before it sends more, so it never fills the panel's 8 KB receive buffer. The first line the panel refuses (a wrong offset, too much data or a bad hex digit) is answered `AD_IMG_DATA INVALID`, the rest stay silent and `AD_IMG_END` answers `INVALID`. Without `ack` a data line carries at most 380 bytes and the panel answers nothing before `AD_IMG_END`. Any other fourth word is refused.
 
 ## Firmware update
 
