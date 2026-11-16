@@ -29,10 +29,6 @@ Tessera is a macro deck for Windows that you build from one 7-inch touchscreen b
 > [!IMPORTANT]
 > You need the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. Other boards need porting, and the host runs on Windows only.
 
-<p align="center">
-  <img src="docs/images/demo.gif" alt="Tessera, a DIY Stream Deck on an ESP32-P4 touchscreen: app keys, folders, window and meeting keys, pages that follow the app in front, widgets, answering Claude Code, the sound mixer, live PC gauges, the idle clock and the editor" width="760">
-</p>
-
 ## In short
 
 - When Claude Code asks for permission, the question shows on the panel and you touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
