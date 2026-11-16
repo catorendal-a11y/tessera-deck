@@ -21,7 +21,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/console-desk.jpg" alt="A render of the Tessera panel in its printed desk console, close up on a desk, with the main page of app keys on the screen and a monitor out of focus behind it" width="900">
+  <img src="docs/images/promo.gif" alt="A short loop: the Tessera logo, the Windows app and the panel joined by one USB cable, a render of the panel in its printed console with the agents screen, the editor putting a Timer key on the panel, and what you need to build one" width="900">
 </p>
 
 Tessera is a macro deck for Windows that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. It needs no soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
