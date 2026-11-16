@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Firmware: *Update* on a panel with the Wi-Fi beta firmware now says to use *Full install* because this version cannot talk to the beta. Before, the message blamed the A/B flash layout.
+
 ## 0.10.1
 
 - A profile file saved by the Wi-Fi beta now loads on this version. Before, the host replaced it with an older backup when it started. Its Wi-Fi and Home Assistant settings and steps stay in the file, and a key skips its Home Assistant steps and runs the rest.

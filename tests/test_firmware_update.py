@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import firmware_update as fw
 from tessera_app import Editor
+from panel_serial import DeviceRejected
 
 SUPPORTED = (1, 2)
 
@@ -222,6 +223,18 @@ class InstallTests(unittest.TestCase):
         runner.assert_called_once()
         ota.assert_not_called()
 
+    def test_a_panel_with_a_protocol_this_host_does_not_speak_gets_only_the_full_install(self):
+        runner, ota = Mock(return_value=(0, '')), Mock()
+        unknown = lambda port: {'boardId': fw.BOARD_ID, 'firmwareVersion': None, 'protocolUnknown': True}  # noqa: E731
+        with self.assertRaises(fw.InstallError) as raised:
+            fw.install(self.ab_package(), 'COM4', unknown, runner=runner, ota=ota)
+        self.assertIn('Wi-Fi beta', str(raised.exception))
+        self.assertNotIn('A/B', str(raised.exception))
+        runner.assert_not_called()
+        fw.install(self.ab_package(), 'COM4', unknown, mode='full', runner=runner, ota=ota)
+        runner.assert_called_once()
+        ota.assert_not_called()
+
     def test_esptool_progress_lines_are_parsed(self):
         self.assertEqual(fw.PROGRESS.findall('Writing at 0x0002bf4c [=====>   ]  42.5% 16.00kB/1.42MB'), ['42.5'])
         self.assertEqual(fw.PROGRESS.findall('Writing at 0x00036d07 > 3.3% 48.00kB'), ['3.3'])
@@ -304,6 +317,12 @@ class EditorFirmwareTests(unittest.TestCase):
             listing = self.editor.command('firmware-list', {})
         self.assertEqual(listing['device'], {'firmware': '1.0.0', 'protocol': 2, 'connected': True})
         self.assertEqual([item['version'] for item in listing['packages']], ['1.2.3'])
+
+    def test_a_panel_on_a_protocol_the_host_does_not_speak_is_marked_for_the_full_install(self):
+        rejected = DeviceRejected('Firmware protocol 5 is not supported', 'protocol')
+        with patch('tessera_app.PanelSerial', side_effect=rejected):
+            info = Editor.identify_panel('COM4')
+        self.assertEqual(info, {'boardId': fw.BOARD_ID, 'firmwareVersion': None, 'protocolUnknown': True})
 
     def test_installing_stops_the_host_flashes_and_always_restarts_it(self):
         calls = []

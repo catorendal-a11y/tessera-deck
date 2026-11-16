@@ -226,6 +226,8 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
     firmware: allowed only with force=True after the chip check done by esptool) and raises
     PackageError for a device that is clearly not a Tessera panel. In 'app' mode a panel that reports
     "ota":1 is updated over its USB connection with `ota` (serial_ota by default) instead of esptool.
+    A Tessera panel whose protocol this host does not speak comes back as {"protocolUnknown": True}
+    and can only get the full install.
     """
     progress('checking', 0)
     info = identify(port)
@@ -235,6 +237,9 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
                            'The chip type is still verified before writing.')
     previous = (info or {}).get('firmwareVersion')
     has_slots = (info or {}).get('ota') == 1
+    if mode == 'app' and (info or {}).get('protocolUnknown'):
+        raise InstallError('The panel runs firmware this version of Tessera cannot talk to, such as the Wi-Fi beta '
+                           'or a newer release. To install this one, choose "Full install".')
     if mode == 'app' and package.needs_full and not has_slots:
         raise InstallError("This firmware changes how the panel's flash is divided (A/B slots for updates over USB). "
                            'Install it once with "Full install"; later updates can use "Update" again.')

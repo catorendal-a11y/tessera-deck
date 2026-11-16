@@ -495,8 +495,8 @@ class Editor:
         except DeviceRejected as exc:
             if exc.kind == 'silent':
                 return None
-            if exc.kind == 'protocol':
-                return {'boardId': firmware_update.BOARD_ID, 'firmwareVersion': None}
+            if exc.kind == 'protocol':  # for example the Wi-Fi beta: only a full install replaces it
+                return {'boardId': firmware_update.BOARD_ID, 'firmwareVersion': None, 'protocolUnknown': True}
             raise firmware_update.PackageError(str(exc)) from exc
         except OSError as exc:
             raise firmware_update.InstallError(f'{port} could not be opened: {exc}') from exc

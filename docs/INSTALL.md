@@ -97,6 +97,7 @@ protocol before it writes anything, stops the host while it writes and starts it
 - The release zip includes a firmware package. *Check for updates* asks GitHub for the latest release and can download the package; it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder and choose it in the dialog.
 - The flash has two 6 MB app slots for rollback. If a new firmware never reaches the host, the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
 - On a panel with old single-slot firmware, the first update to A/B firmware must be a *Full install*. The installer says so.
+- A panel with firmware this host cannot talk to, such as the Wi-Fi beta, also needs a *Full install*. The installer says so.
 
 ### Update the panel firmware
 
