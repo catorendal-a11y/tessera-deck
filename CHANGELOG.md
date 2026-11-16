@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.1
 
 - A profile file saved by the Wi-Fi beta now loads on this version. Before, the host replaced it with an older backup when it started. Its Wi-Fi and Home Assistant settings and steps stay in the file, and a key skips its Home Assistant steps and runs the rest.
 - Export leaves out a code or password in the data of a Home Assistant step, as the beta does.
