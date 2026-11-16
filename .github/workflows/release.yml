@@ -8,6 +8,10 @@ permissions:
   contents: read
 
 jobs:
+  ci:
+    name: CI checks
+    uses: ./.github/workflows/ci.yml
+
   release:
     name: Build the release files
     runs-on: ubuntu-latest
@@ -71,7 +75,7 @@ jobs:
   # container failed the 0.6.1 release twice when the Ubuntu archive could not be reached.
   publish:
     name: Publish the release
-    needs: [release, host-tests]
+    needs: [release, host-tests, ci]
     runs-on: ubuntu-latest
     permissions:
       contents: write

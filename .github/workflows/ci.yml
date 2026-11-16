@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:  # release.yml runs the same checks before it publishes
 
 permissions:
   contents: read
@@ -34,6 +35,7 @@ jobs:
       - name: Unit, editor, protocol and reliability tests (host coverage must stay at 73 %)
         run: |
           python -m coverage run --source=host --omit="host/.venv/*,host/tessera_terminal.py" -m unittest discover -s tests -v
+          if ($LASTEXITCODE) { exit 1 }  # PowerShell keeps going; only the last command sets the step's result
           python -m coverage report --fail-under=73
       - name: Editor syntax check (node --check reads only its first file, so one call per file)
         run: Get-ChildItem host/editor/*.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE) { exit 1 } }

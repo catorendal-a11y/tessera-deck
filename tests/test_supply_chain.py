@@ -96,6 +96,37 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('pip install --require-hashes -r host/requirements.lock', smoke)
         self.assertNotIn('-r host/requirements.txt', smoke)
 
+    def test_a_failed_test_run_fails_the_main_host_job(self):
+        # The run block is PowerShell: only the last command sets the result, so coverage report would hide a red run.
+        ci = read('.github/workflows/ci.yml')
+        self.assertRegex(ci, r'-m unittest discover -s tests -v\n\s+if \(\$LASTEXITCODE\) \{ exit 1 \}')
+
+    def test_the_release_waits_for_the_ci_checks(self):
+        self.assertIn('workflow_call:', read('.github/workflows/ci.yml'))
+        release = read('.github/workflows/release.yml')
+        self.assertRegex(release, r'(?m)^  ci:\n    name: [^\n]+\n    uses: \./\.github/workflows/ci\.yml$')
+        self.assertRegex(release, r'needs: \[[^\]]*\bci\b[^\]]*\]')
+
+    def test_the_lock_file_follows_requirements_txt(self):
+        """Dependabot edits only requirements.txt; a stale lock would ship the old version in the release zip."""
+        def parts(version):
+            return tuple(int(n) for n in re.findall(r'\d+', version))
+
+        def key(name):
+            return re.sub(r'[-_.]+', '-', name).lower()
+
+        lock = {key(m.group(1)): m.group(2) for m in
+                re.finditer(r'(?m)^([A-Za-z0-9._-]+)==([\w.]+)', read('host/requirements.lock'))}
+        for line in read('host/requirements.txt').splitlines():
+            found = re.match(r'([A-Za-z0-9._-]+)\s*([^;\s]*)', line)
+            if not found:
+                continue
+            name, spec = key(found.group(1)), found.group(2)
+            self.assertIn(name, lock, f'{name} is in requirements.txt but not in the lock: run pip-compile')
+            have = parts(lock[name])
+            for op, version in re.findall(r'(==|>=|<)(\d[\w.]*)', spec):
+                ok = {'==': have == parts(version), '>=': have >= parts(version), '<': have < parts(version)}[op]
+                self.assertTrue(ok, f'{name}: the lock pins {lock[name]}, requirements.txt wants {op}{version}: run pip-compile')
 
 if __name__ == '__main__':
     unittest.main()
