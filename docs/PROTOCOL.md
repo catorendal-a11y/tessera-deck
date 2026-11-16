@@ -26,7 +26,7 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 | `AD_FEEDBACK ok <id>` or `AD_FEEDBACK alert <id>` | `AD_FEEDBACK OK` or `INVALID` | Ends the pressed highlight with a green or red flash. |
 | `AD_BRIGHTNESS <1-100>` | `AD_BRIGHTNESS OK <level>`, `FAILED <level>` or `INVALID` | Sets the backlight and stores the level on the panel. |
 | `AD_DISPLAY_DIM <0-100>` | `AD_DISPLAY_DIM OK <level>`, `FAILED <level>` or `INVALID` | Dims the backlight without changing the stored level. |
-| `AD_DISPLAY_WAKE` | `AD_DISPLAY_WAKE <esp error name> QUEUED` or `NO_REDRAW` | Restores the stored backlight and redraws. |
+| `AD_DISPLAY_WAKE` | `AD_DISPLAY_WAKE <esp error name> QUEUED` or `NO_REDRAW` | Restores the stored backlight. Redraws the screen only when the panel was dimmed (`QUEUED`). |
 | `AD_PANEL_LOCK 1` or `AD_PANEL_LOCK 0` | `AD_PANEL_LOCK OK <1 or 0>` | Locks or unlocks the touch screen. See [Panel lock](#panel-lock). |
 | `AD_SCREEN deck` or `AD_SCREEN ambient` | `{"type":"screen","queued":true}` | Shows the keys or the ambient clock (protocol 3). |
 | `AD_AMBIENT <text>` | `AD_AMBIENT OK` | The line under the ambient clock, for example the weather (protocol 3). |

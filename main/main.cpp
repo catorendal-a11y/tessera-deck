@@ -662,10 +662,13 @@ static void usb_console_task(void *)
             fflush(stdout);
         }
         if (!overflow && strcmp(line, "AD_DISPLAY_WAKE") == 0) {
+            /* The host sends this with every page and every key's feedback. Only a dimmed panel needs the full
+             * redraw: on an awake one it drew the whole screen twice more on each page change. */
+            const bool was_dimmed = deck_model_dimmed();
             esp_err_t result = bsp_display_brightness_set(s_brightness);
             deck_model_set_dimmed(false);
             bool queued = false;
-            if (result == ESP_OK && bsp_display_lock(200)) {
+            if (result == ESP_OK && was_dimmed && bsp_display_lock(200)) {
                 queued = lv_async_call([](void *) {
                     if (lv_screen_active()) lv_obj_invalidate(lv_screen_active());
                 }, nullptr) == LV_RESULT_OK;

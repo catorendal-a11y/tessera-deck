@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Firmware: *Update* on a panel with the Wi-Fi beta firmware now says to use *Full install* because this version cannot talk to the beta. Before, the message blamed the A/B flash layout.
+- Firmware: a page change draws the screen once. Before, the panel drew the whole screen again for every wake the host sends with a page and with a key's feedback, so going to a page and back showed it redrawn three or four times in a row.
 
 ## 0.10.1
 
