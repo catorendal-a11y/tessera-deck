@@ -4,7 +4,7 @@
 
 ## Versions
 
-`VERSION` holds one number (for example `0.10.1`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
+`VERSION` holds one number (for example `1.0.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
 
 The firmware's USB protocol has its own number in `main/protocol_version.h`. The host accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. It refuses a panel outside that range with a message that says which side to update.
 
@@ -21,7 +21,7 @@ The configuration file has its own `version` (currently 2). Opening an older fil
 
 ## Make a release
 
-1. Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`, for example `## 0.8.1`. Put a fresh `## Unreleased` above it if you want one.
+1. Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`, for example `## 1.0.0`. Put a fresh `## Unreleased` above it if you want one.
 2. Set `VERSION` to the same number.
 3. Run the checks from [CONTRIBUTING.md](../CONTRIBUTING.md) and the native UI test.
 4. Commit and push, then tag and push the tag:
@@ -47,7 +47,7 @@ The workflow stops early when the tag does not match `VERSION` or the changelog 
 Anyone can check that a download came from this workflow:
 
 ```powershell
-gh attestation verify tessera-host-v0.10.1.zip --repo catorendal-a11y/tessera-deck
+gh attestation verify tessera-host-v1.0.0.zip --repo catorendal-a11y/tessera-deck
 ```
 
 [INSTALL.md](INSTALL.md) also explains how to compare a download with `SHA256SUMS`.
@@ -81,7 +81,7 @@ A panel that reports `"ota":1` takes *Update* over its own USB connection (`AD_O
 
 If the panel does not answer, esptool through the ROM bootloader still works. Unplug the panel, plug it in and install again. An esptool *Update* writes the app to `ota_0` and resets `otadata` so that slot boots.
 
-Rollback is written and tested in simulation. It has not been tried on the panel; see [VERIFICATION.md](../VERIFICATION.md).
+Rollback was tried on a panel on 16 November 2026. A test build that never confirmed itself restarted, and the bootloader started the previous firmware again. [VERIFICATION.md](../VERIFICATION.md) has the details.
 
 ### The first A/B install needs a full install
 

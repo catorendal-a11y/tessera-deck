@@ -28,11 +28,11 @@
 2. Compare the zip's SHA-256 with its line in `SHA256SUMS`. The two hashes must match (letter case does not matter).
 
    ```powershell
-   Get-FileHash .\tessera-host-v0.10.1.zip -Algorithm SHA256
+   Get-FileHash .\tessera-host-v1.0.0.zip -Algorithm SHA256
    Get-Content .\SHA256SUMS
    ```
 
-3. Optional, with the GitHub CLI: `gh attestation verify tessera-host-v0.10.1.zip --repo catorendal-a11y/tessera-deck` checks that the release workflow built the zip.
+3. Optional, with the GitHub CLI: `gh attestation verify tessera-host-v1.0.0.zip --repo catorendal-a11y/tessera-deck` checks that the release workflow built the zip.
 4. Unpack the zip. It holds the host, the editor and the firmware package in `firmware/`.
 
 Windows SmartScreen may warn about the download. Tessera is not signed with a paid code-signing certificate (a signed
@@ -95,7 +95,7 @@ protocol before it writes anything, stops the host while it writes and starts it
 
 - A new board without Tessera firmware does not answer. The dialog then chooses *Full install* and shows *Install anyway*. Tick it. The chip type is still checked.
 - The release zip includes a firmware package. *Check for updates* asks GitHub for the latest release and can download the package; it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder and choose it in the dialog.
-- The flash has two 6 MB app slots for rollback. If a new firmware never reaches the host, the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
+- The flash has two 6 MB app slots for rollback. If a new firmware crashes or hangs before its first handshake with the host (or before it has run for 60 s), the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
 - On a panel with old single-slot firmware, the first update to A/B firmware must be a *Full install*. The installer says so.
 - A panel with firmware this host cannot talk to, such as the Wi-Fi beta, also needs a *Full install*. The installer says so.
 

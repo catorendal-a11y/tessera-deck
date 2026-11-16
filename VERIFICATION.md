@@ -43,6 +43,7 @@ Other automatic checks:
 | Offline layout: the panel reset with the host stopped | 0.10.1, 16 November 2026 | Passed. 1.4 s after the reset it showed the 18 keys of the saved layout, not the 12 built-in ones |
 | Watchdog: a test build hangs the screen task, then the USB loop | 0.10.1, 16 November 2026 | Passed. The panel restarted after 6.4 s (screen) and 7.2 s (USB) and reported `task_wdt` as the reason |
 | Rollback: a test build that never confirms itself and restarts 15 s after boot, installed with *Update* | 0.10.1, 16 November 2026 | Passed. After its first restart the bootloader started the previous firmware again, which kept running |
+| `hardware_smoke.py` after installing 1.0.0 with *Update* | 1.0.0, 16 November 2026 | Passed |
 
 The watchdog and rollback tests used two builds made only for that and never published. One adds a command that hangs the screen task or the USB loop. The other skips the confirmation and restarts while the new firmware is still unconfirmed. The host turns a `task_wdt` reason into a log line and a notice; that part is covered by unit tests, not by these runs. The panel runs the normal 0.10.1 build again.
 

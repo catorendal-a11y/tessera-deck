@@ -13,6 +13,8 @@ The editor and the control API are two small web servers inside the host. Neithe
 
 - The tokens live in `host/deck-api.local.json` and in the editor's record file. Only your Windows account can read them. They change every time the host starts.
 - Plugins get their own token with only the routes they declared, and only variable names that start with `<plugin id>.`. See [Plugins](docs/PLUGINS.md).
+- An HTTP action does not follow a redirect from https to http. A redirect to another host goes there without the action's headers, so an `Authorization` header is not passed on.
+- An *Open* step with an address does not fill in `%NAME%` from the PC's environment, so the address cannot leak it. Paths still do.
 - Every call that changes something through the control API is written to the host log (**More → Host log …**) with the caller's name, the method, the path and the answer code. The log never holds request bodies, and it leaves out successful bulk variable updates (`/v1/vars`). Single updates (`/v1/var`) are logged.
 - The panel itself has no network. It only speaks to the host over USB, see [Protocol](docs/PROTOCOL.md).
 - Any program that can open the panel's COM port can write firmware to it, as esptool does. Secure boot is off, so the panel runs that firmware without checking who built it.

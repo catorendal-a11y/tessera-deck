@@ -108,7 +108,7 @@ idf.py -B build/idf6 build
 python tools/package_firmware.py build/idf6 dist    # writes dist/tessera-firmware-<version>.zip
 ```
 
-The first build downloads LVGL and the other components into `managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
+The first build downloads LVGL and the other components into `managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). The screen is drawn by one thread (`CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1` in `sdkconfig.defaults`); two threads garbled text and icons, see [VERIFICATION.md](../VERIFICATION.md#screen-speed). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
 
 ## Native LVGL tests and render tools
 

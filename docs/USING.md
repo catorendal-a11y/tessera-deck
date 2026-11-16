@@ -31,7 +31,7 @@ Nothing runs in the editor: keys run only when you press them on the panel, or w
 | **Profile** | New profile, *Profile from a template …*, Duplicate, *Profile settings …*, *Delete this profile* |
 | **Page** | New page, *Page from a template …*, Duplicate, *Page settings …*, *Delete this page* |
 | **Panel** | *Display …*, *Panel firmware and updates …*, *Rail …*, *Key colors …* |
-| **More** | *Getting started*, *Connect Claude Code …*, *Plugins …*, *Export to a file*, *Import from a file …*, *Restore a backup …*, *Host log …*, *Save diagnostics* |
+| **More** | *Getting started*, *Connect Claude Code …*, *Plugins …*, *Automatic actions …*, *Export to a file*, *Import from a file …*, *Restore a backup …*, *Host log …*, *Save diagnostics* |
 
 **Program settings** in the top bar holds only what the PC does: starting the host at sign-in, Windows notifications, switching profiles by program, and the calendar for the Next meeting widget.
 
@@ -91,7 +91,7 @@ A widget does nothing when pressed until you give it steps on the **Actions** ta
 A key runs its steps in order.
 
 1. Select the key and open the **Actions** tab.
-2. Pick **Pressed**, **Held** or **Double-press** for when the steps run. A held key runs after about half a second.
+2. Pick **Pressed**, **Held** or **Double-press** for when the steps run. A held key runs after about 0.4 seconds.
 3. Add steps with **＋ Step …**, or drop an action from the list on the key.
 4. Drag a step to reorder it, or use its ↑ and ↓ buttons. A step's type is a menu in its title.
 5. Put **Wait** steps between steps that need time.
@@ -214,7 +214,7 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 |---|---|---|
 | Hotkey | `hotkey` | Press a key combination or media key |
 | Type text | `text` | Type text |
-| Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program |
+| Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program. `%NAME%` is filled in from the environment in paths, not in addresses |
 | Run command, HTTP request | `shell`, `http` | Run a command or call an address; an error status (4xx, 5xx) fails the action, and so does a redirect from https to http. A redirect to another host goes there without the step's headers |
 | Wait | `delay` | Wait between steps |
 | Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate |

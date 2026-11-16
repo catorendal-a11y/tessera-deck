@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
+
+A panel with 0.7.0 or later takes this version with *Update*. An older panel, or one with the Wi-Fi beta firmware, needs *Full install* once.
 
 - Firmware: *Update* on a panel with the Wi-Fi beta firmware now says to use *Full install* because this version cannot talk to the beta. Before, the message blamed the A/B flash layout.
 - Firmware: a page change draws the screen once. Before, the panel drew the whole screen again for every wake the host sends with a page and with a key's feedback, so going to a page and back showed it redrawn three or four times in a row.
@@ -12,6 +14,7 @@
 - Host: an *Open* step with an address no longer fills in `%NAME%` from the PC's environment. Paths still do.
 - Import: a web request that sends `$(env:NAME)` in its address, headers or body is marked high risk and names the variable. Before, it was medium.
 - Docs: the README links [VERIFICATION.md](VERIFICATION.md). The watchdog, the rollback and the offline layout were tried on a panel, and VERIFICATION.md has the results.
+- Docs: the panel images and the demo animation are drawn again with the current firmware UI, from a demo profile built on the default one.
 
 ## 0.10.1
 

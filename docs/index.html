@@ -171,7 +171,7 @@ footer a{color:var(--muted)}
     <a class="btn" href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/INSTALL.md">Read the install guide</a>
   </div>
   <div class="chips">
-    <span class="chip">v0.10.1</span>
+    <span class="chip">v1.0.0</span>
     <span class="chip">MIT licence</span>
     <span class="chip">ESP32-P4 · LVGL 9.6</span>
     <span class="chip">Windows 10 / 11</span>
@@ -275,7 +275,7 @@ footer a{color:var(--muted)}
     <div class="code">
       <header><span>Release · Windows</span><button type="button" data-copy="rel">Copy</button></header>
 <pre id="rel"><span class="c"># from the latest release</span>
-tessera-host-v0.10.1.zip
+tessera-host-v1.0.0.zip
 <span class="c"># unpack, then double-click</span>
 Tessera.cmd</pre>
     </div>
@@ -303,14 +303,14 @@ idf.py -B build/idf6 -p COMx flash</pre>
     <details><summary>Does it run on another board, or on macOS or Linux?</summary><p>Not yet. The pin setup and the screen layout are written for this board, so another board needs a port, and the host runs on Windows only. CONTRIBUTING.md says what a port takes; open an issue with the board's name and resolution.</p></details>
     <details><summary>How does it compare with a Stream Deck?</summary><p>A Stream Deck MK.2 lists at $149.99 with 15 physical keys, the XL at $249.99 with 32. Tessera costs the board and gives 18 keys per page, keys up to three slots wide, and widgets, a mixer, PC status and the AI agents built in, under the MIT licence. You do give up the feel of real keys, since Tessera is a glass touchscreen. Prices are US list prices from November 2026.</p></details>
     <details><summary>Does it send anything to the internet?</summary><p>Only what you ask for: the update check on GitHub, the clock's weather from Open-Meteo, online icons from Iconify, your own HTTP actions and calendar, and the plugins you turn on. The bundled plugins only reach your own Home Assistant and OBS. Setup also downloads Python packages from PyPI, pinned by hash, and Libre Hardware Monitor if you turn on the optional sensors. SECURITY.md lists every connection.</p></details>
-    <details><summary>What happens when the PC is off?</summary><p>The panel keeps the last layout and shows it while the PC is off. Actions run on the PC, so keys need the host. A watchdog restarts the panel when the screen or USB loop hangs, and the bootloader rolls back an update that never reaches the host. All three were tried on a panel; VERIFICATION.md in the repository has the results.</p></details>
+    <details><summary>What happens when the PC is off?</summary><p>The panel keeps the last layout and shows it while the PC is off. Actions run on the PC, so keys need the host. A watchdog restarts the panel when the screen or USB loop hangs, and the bootloader rolls back an update that crashes or hangs before it confirms itself. All three were tried on a panel; VERIFICATION.md in the repository has the results.</p></details>
     <details><summary>Does it work with Home Assistant?</summary><p>Through the PC, yes: the bundled plugin runs Home Assistant actions from keys. On the esphome-beta branch the panel can also join your Wi-Fi and show up through the ESPHome integration, with keys that work while the PC is off. That beta is not in the release yet.</p></details>
     <details><summary>Licence and contributing?</summary><p>MIT. ESP-IDF, LVGL, cJSON, the Lucide icons (ISC), the DejaVu fonts and the optional Libre Hardware Monitor (MPL-2.0) keep their own licences. Bug reports, ideas, ports and pull requests are welcome.</p></details>
   </div>
 </section>
 
 <div class="wrap">
-  <p class="status"><b>Beta.</b> Home Assistant over Wi-Fi lives on the <a href="https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta">esphome-beta</a> branch and is not in v0.10.1. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses for ESPHome devices, but it has not been tried in a full Home Assistant install yet. Reports in issues are welcome.</p>
+  <p class="status">Home Assistant over Wi-Fi is a beta. It lives on the <a href="https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta">esphome-beta</a> branch and is not in v1.0.0. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses for ESPHome devices, but it has not been tried in a full Home Assistant install yet. Reports in issues are welcome.</p>
 </div>
 </main>
 

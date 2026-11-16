@@ -54,7 +54,7 @@ The console measures 191.0 × 124.4 × 103.8 mm and holds 144 cm³ of plastic. R
 3. To fasten it, hold the panel in and lay the console face down on a cloth.
 4. Behind each corner post of the panel there is a tab with a 2.6 mm hole. Put a screw through each tab into the brass insert of the post. Reach the two bottom screws from the open underside and the two top screws through the two 8 mm holes in the back. Tighten gently: the screws only pull the panel against the rim.
 
-Screws: 4 pieces, 6 mm long, with a washer. **The thread is not stated in the manufacturer's files.** The hole in the insert is drawn as 2.00 mm, which points to M2. Try an M2 screw first and do not force an M2.5.
+Screws: 4 pieces, 6 mm long, with a washer. The thread is not stated in the manufacturer's files. The hole in the insert is drawn as 2.00 mm, which points to M2. Try an M2 screw first and do not force an M2.5.
 
 The pocket is 183.0 × 114.9 mm and 8.6 mm deep (0.6 mm clearance all round). The lip covers 3.5 mm at the bottom of the glass, and the picture starts 13.5 mm in.
 

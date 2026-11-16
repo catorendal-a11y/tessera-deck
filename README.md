@@ -118,7 +118,7 @@ Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are 
 |---|---|---|
 | <img src="docs/images/console-user.jpg" alt="The console seen from the front at eye height, with the panel's main page"> | <img src="docs/images/console-back.jpg" alt="The back of the console: air openings, two screwdriver holes and the cable arch"> | <img src="docs/images/console-detail.jpg" alt="Close-up of the tile mark in the chin, with the printed layer lines"> |
 
-The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. Both print without supports. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened.
+The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. The console prints without supports; the dock should too. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened.
 
 <sub>The pictures are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
 
