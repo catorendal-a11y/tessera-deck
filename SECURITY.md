@@ -67,5 +67,5 @@ Tessera never allows anything on its own. Claude Code falls back to its own dial
 
 Do not open a public issue.
 
-1. Open **Security → Report a vulnerability** on the repository page, where GitHub offers it. Otherwise contact [@catorendal-a11y](https://github.com/catorendal-a11y) privately on GitHub.
+1. Open **Security → Report a vulnerability** on the repository page. The report is only visible to the maintainer.
 2. Say which version you run (the `VERSION` file holds it) and how to reproduce the problem.
