@@ -57,13 +57,13 @@ Measured on 16 November 2026 with firmware 0.10.1 and the panel connected to the
 | What happens | Screen updates | Slowest update |
 |---|---|---|
 | Nothing changes for 1.5 s | 0 | |
-| A key that opens another page (pressed with `AD_PRESS`) | 1 or 2: the pressed key, then the new page | 43 to 45 ms |
-| A rail button to the mixer, or back to the keys | 1 | 32 to 42 ms |
-| Opening the agents screen | 1 | 47 ms |
-| A working agent's text changes | 1 | 1.2 to 1.6 ms |
-| Waking the dimmed panel, which draws the whole screen | 1 | 44 to 45 ms |
+| A key that opens another page (pressed with `AD_PRESS`) | 1 or 2: the pressed key, then the new page | 49 to 52 ms |
+| A rail button to the mixer, or back to the keys | 1 | 37 to 49 ms |
+| Opening the agents screen | 1 | 55 ms |
+| A working agent's text changes | 1 | 1.4 to 1.6 ms |
+| Waking the dimmed panel, which draws the whole screen | 1 | 55 to 56 ms |
 
-The screen is drawn by two threads, one per core. With one thread, as in 0.10.1 and earlier, a full screen took 56 ms. The touch controller is read every 15 ms. A key shows its pressed look when the finger lands and runs its action when the finger lifts, and the key flashes green or red when the host answers.
+The screen is drawn by one thread. A test with two threads, one per core, drew a full screen in 45 ms but garbled text and icons on the panel: LVGL unpacks the compressed glyphs of every font, the icon font too, through one shared state. The touch controller is read every 15 ms. A key shows its pressed look when the finger lands and runs its action when the finger lifts, and the key flashes green or red when the host answers.
 
 ## Not verified on the panel
 

@@ -31,8 +31,9 @@ CONFIG_LV_USE_CLIB_STRING=y
 CONFIG_LV_USE_CLIB_SPRINTF=y
 CONFIG_LV_DEF_REFR_PERIOD=15
 CONFIG_LV_OS_FREERTOS=y
-# Two draw threads, one per core: a full screen takes about 45 ms instead of 56 ms on the panel
-CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2
+# One draw thread. LVGL unpacks compressed font glyphs (all fonts here, the icons too) through one
+# shared state, so a second thread garbles text and icons on the panel.
+CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1
 # CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM is not set
 CONFIG_LV_BUILD_EXAMPLES=n
 CONFIG_LV_BUILD_DEMOS=n

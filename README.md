@@ -72,7 +72,7 @@ Nothing runs in the editor. Keys run only when you press them on the panel.
 | Live widgets, mixer, PC status, AI agents | built in | through plugins | through plugins |
 | Source code | MIT | closed | closed |
 
-You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. Tessera is glass, so you give up the feel of a real key. A key shows it is pressed as soon as your finger lands and runs its action when you lift it. Drawing the whole screen takes about 45 ms; [Verification](VERIFICATION.md#screen-speed) has the measurements. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026, so they may have changed.
+You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. Tessera is glass, so you give up the feel of a real key. A key shows it is pressed as soon as your finger lands and runs its action when you lift it. Drawing the whole screen takes about 55 ms; [Verification](VERIFICATION.md#screen-speed) has the measurements. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026, so they may have changed.
 
 ## What it does
 
