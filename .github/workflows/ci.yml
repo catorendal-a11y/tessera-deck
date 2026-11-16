@@ -101,3 +101,10 @@ jobs:
           cmake -S tests/native -B build/native -DCMAKE_BUILD_TYPE=Release
           cmake --build build/native --parallel
           build/native/test_ui build/native/out
+      - name: Image cache benchmark
+        shell: bash
+        run: |
+          python3 -m venv /tmp/bench
+          /tmp/bench/bin/pip install --quiet pyserial==3.5 psutil==7.2.2 Pillow==13.0.0  # the versions in host/requirements.lock
+          /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --check
+          /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --old-firmware --check

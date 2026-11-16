@@ -48,6 +48,7 @@
 - Tests: `tests/cache_bench.py` switches between pages that share almost no icons while live keys change, and reports hit rate, evictions, USB traffic and tap-to-paint time. It runs the real host against the panel's image cache and UI built for the PC (docs/DEVELOPMENT.md).
 - Images (firmware and host): a panel that reports `"imgAck":1` answers every 2 KB of an image upload, as it does for a firmware update, and the host waits for that answer and sends 512 bytes a line instead of 160 bytes with a 10 ms pause after every 4. On a panel a 12-frame icon now takes 0.65 s to send instead of 2.8 s, and a still icon 86 ms instead of 0.22 s. In the benchmark a page switch that sends fifteen 12-frame icons drops from 40 s to 10 s. Older firmware and older hosts keep the paced upload.
 - Tests: `tests/cache_bench.py --old-firmware` measures the paced upload, and `--ack-ms` sets the round trip counted for each answer the host waits for.
+- CI: the firmware job runs `tests/cache_bench.py --check` with and without `--old-firmware`. A key left blank after a page switch, or a host and panel that disagree about which images the panel has, now turns CI red.
 
 ## 0.9.0
 
