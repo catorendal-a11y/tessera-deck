@@ -2,41 +2,87 @@
 
 ## Unreleased
 
+- Editor: **More → Automatic actions …** lists, adds and orders the rules in `triggers` (at startup, every so often, every day at a time, when a file or a variable changes). Each copies its steps from a key.
+- Automatic actions: a variable rule can have a `value`, so it runs only when the variable becomes that value (`"claude"` becomes `waiting`), not on every change.
+- Automatic actions: moving or removing a rule no longer makes the variable rules after it run once at the next save. Each rule keeps its state by what it watches, not by its place in the list.
+- Automatic actions: a rule set to run when the host starts now runs even when no panel is connected, instead of waiting for the panel. A daily rule that could not be queued because the host was busy now runs as soon as there is room, instead of being skipped for the day, and a *file changes* rule runs the first time its file is created, not only from the second write.
+- Automatic actions: steps copied from a key that is not finished yet are refused when you save, instead of making every later save fail.
+- Editor: *Color follows a variable* on a key's **Live** tab sets `status`, a color per value, and the tile shows the color for the current value.
 - Panel: the agents screen shows each tool's icon, since when it has worked or waited (*working since 14:12*), its project behind a folder icon, *Open* beside *Stop* while it works, and a clearer screen when no agent runs. The host sends the start time as `at` in `AD_AGENTS`.
 - Home Assistant keys (host and editor, needs panel firmware that reports `"ha":1`): a **Home Assistant** action (`{"type":"homeassistant","action":"light.toggle","entity_id":"light.kitchen","data":{…}}`) and the key option **Follow a Home Assistant entity** (`ha_state`: entity, attribute, color, value or both, on states, unit). The panel runs and follows them itself over its API, also with the PC off; the host checks them (`domain.service`, entity ids, at most 4 data values of text, numbers or true/false, 2 steps per trigger, 24 steps and 18 followed entities per page), sends them in the layout as `ha`/`hs` only to panels with `"ha":1`, never runs a Home Assistant step itself, and sends no feedback for a press that only has such steps. On older firmware the editor says to update and such a press fails. The import review lists Home Assistant actions as reaching the network, and a safe import removes them. `tools/esphome_check.py --ha-sim` acts as Home Assistant to test them without one.
 - Home Assistant (host side, needs panel firmware that reports `"api":1`): the **Wi-Fi and Home Assistant** dialog gets a Home Assistant section with an on switch, device name, friendly name and area (`panel.homeassistant`, sent to the panel with `AD_API_SET` when it differs), the pairing state, the panel's address and port 6053, the encryption key behind *Show key* with *Copy* and *Make new key*, and the steps to add it in Home Assistant. The key is read from the panel over USB (`AD_API_KEY`) through the owner-only control API route `POST /v1/api`, and is never stored or written to logs, the runtime file, diagnostics or exports. The host sends the profile and page names (`AD_API_OPTIONS`) and switches when Home Assistant picks one (`{"type":"ha_select"}`, unknown names are ignored). `tools/esphome_check.py` checks the API from the PC with `aioesphomeapi` in a separate venv.
+- Home Assistant: the editor warns when a page's Home Assistant steps and followed entities are too big for the panel (4,096 bytes), before the PC refuses the configuration. Changing only a key's Home Assistant action or followed entity now also updates the layout the panel keeps for use without the PC.
+- Home Assistant: with many long profile and page names, the profile and page selectors in Home Assistant are now filled with as many names as the panel can take, instead of staying empty.
+- Home Assistant: pressing *Show key* in the editor when the panel's settings storage failed at boot now gives a storage error instead of restarting the panel.
+- Panel: a Home Assistant state that arrives while the keys are being redrawn now shows straight away, instead of waiting for the next change. A long Home Assistant value on a wide key is cut before a character instead of in the middle of one, so no stray symbol shows at the end.
+- Home Assistant: turning the panel's light off and straight back on no longer leaves the screen dark.
+- Editor: a page over 8 KB now says it is too big to send to the panel, and that the panel keeps the last layout that fit.
 
 - Wi-Fi (host side, needs panel firmware with protocol 5): **Panel → Wi-Fi and Home Assistant …** sends a network name and password to the panel over USB, shows the live state, address and signal, and can forget the network. The password is never stored on the PC; only `panel.wifi.ssid` is saved. The control API gets `POST /v1/wifi` for the owner token only (never for plugins), and diagnostics hide the network name, address and MAC. Older firmware is told to update and gets nothing sent. `tests/hardware_smoke.py --wifi` checks it on a real panel, asking for the password with `getpass`.
+- Wi-Fi: a network name containing hidden control characters is now refused with a clear message instead of a generic panel error. When the Wi-Fi chip takes more than 15 seconds to start but does come up, the panel now shows Wi-Fi as connecting instead of failed with no coprocessor.
 - Import: *Without commands* also removes text typed after a hotkey (Win+R, a command and Enter runs it), and the review lists such keys.
 - Images: a dropped image is only read as PNG, JPEG, GIF or WebP, so Pillow's other decoders never see it.
 - CI: every GitHub Action is pinned to a commit SHA, and a test keeps it that way.
+- CI: a failing host test now turns the main CI check red, and a release is only published when the full CI run (host tests, lint, firmware static analysis, API tests) passes on the tagged commit.
+- Firmware: the comment on `CONFIG_LWIP_TCP_MSS` in `sdkconfig.defaults` now says that 400 is below lwIP's minimum of 536 and is ignored, and that the build uses 1440.
 - Sensors: Libre Hardware Monitor now runs with administrator rights only from a verified copy in `%ProgramFiles%\Tessera`, which other programs cannot change, and a firewall rule keeps its port 8085 off the network. Run `Tessera.cmd --sensors` again to move the sign-in task there.
 - Panel: a brightness change is saved to the panel's flash at most once a minute (it still applies at once), and the panel refuses JSON nested more than 16 levels deep, so a bad message can no longer crash it or make it restart in a loop.
 - Security: a key whose program is on a network share (`\\server\…`) or a web address no longer reads its *app* icon from there, which sent your Windows sign-in to that server without a key press. The key shows the default icon.
 - Security: a calendar with hostile repeat rules can no longer keep the host busy for minutes; an old monthly or yearly meeting now also shows up.
+- Calendar: alarms inside an event no longer change its title, length or moved instances. Weekly or daily UTC events keep the right local time after the clocks change, and moved or cancelled instances match again.
 
 - Security: the Claude Code permission hook and deckctl only talk to a running Tessera host. A program that answers on the port of a host that crashed can no longer approve a tool call or receive the token, and the editor and control API drop a connection that stalls for 10 seconds.
 - Security: the editor's address holds a one-time code instead of its session key, so a copy in the browser's history no longer opens the editor, and the session key no longer travels in a cookie that other programs on 127.0.0.1 could receive. A second editor tab opened from an old address asks you to start Tessera again.
+- Security: a device on your network that opens connections to the panel without the encryption key can no longer use up every Home Assistant connection and keep Home Assistant out.
+- Control API: the host disconnects clients that send a request too slowly, limits open connections and no longer lets unauthenticated requests flood the log.
+- Shell commands: a variable value with spaces stays one argument. A value that starts with `-` or `/` where an argument begins is refused, so a variable cannot add options to the command. Such a value is allowed inside a double-quoted string when it does not start the argument (`"Now playing: $(t)"`).
+- A web link ending in `.exe`, `.bat` or `.cmd` now opens in the browser and not a local program with the same name.
+- Export now replaces every header named like a credential (`Private-Token`, `X-Access-Token` and similar) and address fields such as `?token=` or `?api_key=` with `$(env:...)` references. Exporting a profile works even when an image file is missing; that image is left out.
+- SECURITY.md now says that the panel listens on TCP port 6053 when Wi-Fi and Home Assistant are on, and that the Wi-Fi password and key are stored unencrypted in its flash. It also says that single variable updates are logged and only bulk updates are left out, and that Replace-mode imports can carry plugin settings.
+- Docs: the plugin docs now give the real restart schedule (1, 2, 4 and 8 seconds, then the plugin gives up after the fifth crash), and the website no longer claims that keys run only when pressed on the panel.
 - Panel: the idle clock is bigger, in deeper colors, with a larger date and weather line, and an icon for the weather (sun, or a moon after sunset at the place, cloud, fog, drizzle, rain, snow or thunder).
 - Panel: a 12-hour clock with AM/PM. *Clock format* in Panel → Display is *Same as Windows* by default, or 24-hour or 12-hour.
 - Windows notifications can be switched off: *Show Windows notifications* in Program settings, or *Show notifications* in the tray menu. Answers to a tray click still show, and switching it in the tray while the editor is open no longer makes the next save conflict.
 - Panel: a locked panel also ignores Allow, Deny, Stop and Open on the agents screen and the faders and mute on the mixer. A question still shows.
 - Panel: Allow, Deny and Stop answer the agent the lane showed, and do nothing if that agent's state changed before the screen caught up.
+- Panel: an Allow or Deny tap on the agents screen now answers only the request shown when you tapped, never a later one that appeared while the host was busy.
 - Panel: gauge keys draw a ring filled to the percentage, and the badge icon in the corner.
 - Panel: a key's confirmation no longer flashes the key that took its place after a page change.
+- Panel: a tap that lands just as the PC switches pages no longer runs the key that the new page has in that spot.
+- Panel: an image that arrives while you hold a key no longer redraws the keys under your finger. The hold or the confirm ring finishes, and the image appears when you lift.
+- Panel: feedback a plugin sends to a dimmed panel only flashes the key; the panel stays dim and the next tap runs its action.
+- Panel: pressing a wide calendar or media key whose title contains a tab now runs its action instead of being rejected as a different key.
 - Panel: the idle screen's line is no longer missed when it changes at the moment it is drawn.
 - Panel firmware: when the display fails to start, the panel restarts instead of going silent on USB, so an unconfirmed update rolls back.
 - Host: moving the panel's brightness slider (or any save that leaves the keys as they were) no longer resets toggle keys, leaves the open folder or wakes a dimmed panel.
 - Host: a plugin whose log file cannot be opened is marked as failed and backs off instead of retrying every few seconds.
+- Plugins: logs are rotated at 1 MB while the plugin runs, not only when it starts. A running plugin whose log passes 1 MB is restarted, so the log is rotated with `os.replace` instead of being truncated while the plugin still has it open.
+- Plugins: settings that show a default, such as the Home Assistant address, are now saved, so the plugin gets them when you only fill in the token.
 - Host: a weather place name can no longer break the idle clock line, and a long non-English name is cut on a whole character.
 - Host: a wide pinned key that would cover a page key (or the reverse) is rejected when the configuration is checked.
 - Host: a profiles.json that is briefly locked at start (antivirus, an editor saving) is no longer replaced by an older backup.
+- Host: a configuration save that the host could not read for a moment, for example while a scanner held the file, is now read again instead of being ignored until the next save.
+- Saving no longer fails with "Access is denied" when the host happens to be reading the profile file at that moment; Tessera tries again for up to a second.
+- A brightness or notification change from the tray while the editor is saving is no longer overwritten. Any other change saved elsewhere at that moment shows up as a conflict instead of being lost.
+- Backups: if Tessera has to restore a backup over a broken profile file a second time, the earlier broken copy is kept as profiles-unreadable-1.local.json instead of being overwritten.
 - Host: the panel's audio and media state keeps updating after an unexpected error from the audio or media library.
 - Host: the control API answers 401 to a token with non-ASCII characters instead of dropping the connection.
+- Host: a plugin or script that sends a variable with a broken emoji no longer stops the host or freezes the status the editor shows.
+- Host: a virus scanner that has the editor's or tray's *Show on panel* command file open no longer stops the host, and a second command sent right after the first is no longer lost.
+- Host: a profile chosen with `deckctl page` or the control API stays on the panel instead of being switched back by the focus rules within a second.
+- Host: when sending a new page to the panel fails, the host goes back to the page and folder it had and still reports the error; the page event is logged only after a successful send.
+- Host: a program icon that could not be read at start is tried again after a minute instead of staying the default icon until restart.
 - Firmware update: the message for a single-slot package names *Full install*, the option the editor has.
 - Diagnostics: the support bundle masks key labels in the log ("Button 3: <label>"), as the editor promises. The live host log on your PC still shows them.
+- Diagnostics: *Save diagnostics* now works when profiles.json cannot be read, from the tray, the editor and `Tessera.cmd --diagnostics`.
+- Uninstall with `--purge` now also deletes the previous and unreadable copies of your profiles. If it cannot delete a file, it names the file and exits with code 1 instead of reporting success.
+- Dry run no longer calls working keys broken: it accepts URI links such as `spotify:...` and program names such as `winword`, and it reports a bad delay or key combination on that step instead of failing the whole check.
 - Home Assistant plugin: a refused key command shows "HA error 404" (or the code it got) instead of "not reachable".
-- Terminal UI: a new profile, page or template that cannot be saved shows "Not saved" and no longer closes the app.
+- Terminal UI: a new profile, page or template that cannot be saved shows "Not saved" and no longer closes the app. A page rename or import that cannot be saved also says so and leaves everything as it was; before, the terminal closed or showed "Imported".
+- Terminal UI: changes saved in the editor while the terminal UI is open are kept. The terminal UI loads them and asks you to make your change again.
+- Terminal UI: renaming a page keeps the page in its place and keeps press, hold and double-press actions and rail shortcuts pointing at it.
+- Terminal UI: importing a file lists its commands, web requests, plugins and automatic rules, and leaves them out unless you choose to keep them, as the editor does. Export leaves out the calendar address, Home Assistant codes and plugin secrets, and writes credentials in web requests as `$(env:NAME)` references, as the editor's export does.
+- Terminal UI: *Stop host* keeps the host stopped while the tray runs, and the tray no longer reports it as a crash.
 - Editor: a step the host would refuse (key number outside 1-18, an unfinished hotkey like `ctrl+`, an address without http://, a counter, timer or variable name with spaces, Lowest above Highest, a wait over 60000 ms) stays a draft with a *Finish key* link, so the other keys still save.
 - Editor: switching a toggle key back to a normal key clears *Follow PC state*; before, every later save was refused.
 - Editor: renaming or deleting a page fixes triggers in every profile, and leaves triggers alone while another profile still has a page with that name.
@@ -45,6 +91,7 @@
 - Editor: a plugin asks again when its command or permissions change, even under the same version.
 - Editor: a failed online icon search shows the error in the results instead of *Searching …*; Ctrl+C with text selected copies the text, not the key.
 - Editor: no false "changed in another window" after restoring a backup, and no second save with an old revision while a merge retry is running.
+- Editor: undo and redo no longer bring back old settings after the editor merged a change saved elsewhere, such as the tray's brightness.
 - Host: a *Set variable* step needs a name of letters, digits, `_ . -` (the only names `$(var:…)` can read) and a value of at most 1000 characters.
 
 ## 0.8.0
@@ -54,7 +101,7 @@
 - Editor: *Panel screens …* is gone from the Panel menu; choose what the agents, mixer and status screens show on those screens in the rail, as the Rail dialog now says.
 - Editor: the Page menu has *New page*, and the Page and Profile menus each have *Delete this page* / *Delete this profile* with Undo in the toast. The settings dialogs no longer have a delete checkbox.
 - Editor: the More menu starts with *Getting started* and no longer repeats *Keyboard shortcuts* (the app bar has it).
-- Editor: one sentence for safe editing everywhere: "Nothing runs in the editor. Keys run only when you press them on the panel." *Run now* in Test stays the one exception.
+- Editor: every place that talks about safe editing uses the same sentence: "Nothing runs in the editor. Keys run only when you press them on the panel." *Run now* in Test stays the one exception.
 - Editor: the action list hint and the Getting started step say what a click does (a new key on the selected empty slot or the first free one) and that a drop on a key adds a step.
 - Docs: USING.md and INSTALL.md use the editor's names (Profile, Page, Panel and More menus, Look, Actions and Live tabs, the action list on the right, Program settings, Panel firmware and updates). INSTALL.md has a *First 5 minutes* section and no fixed COM port; USING.md troubleshooting starts at More → Host log.
 
@@ -160,7 +207,7 @@
 - A damaged image, or a toggle state with a non-text label, gives a clear error instead of stopping the upload or the host.
 - Docs: the native build's tools, which commands the panel answers, the weather city search host, flashing steps.
 - Editor: Enter saves a dialog (it cancelled); keyboard focus stays where it was after a change; messages show above an open dialog; arrow keys step over a wide key; recorded hotkeys use names the host knows (punctuation, digits, media keys); Ctrl+C copies text in the host log; deck shortcuts no longer fire in other screens and dialogs; a plugin switch no longer flips back; renaming or deleting a page or profile also updates long-press and double-press steps and rail shortcuts; after a save conflict the editor says *Not saved · press Reload*; only a failed save marks the configuration *Not saved*.
-- Editor: one name for one thing: a deck position is a *key* everywhere; key colors and quick icons are under *Look*; *Show on device* is gone (*Mirror on panel* does it).
+- Editor: a deck position is called a *key* everywhere; key colors and quick icons are under *Look*; *Show on device* is gone (*Mirror on panel* does it).
 - Firmware install: the dialog says the host started again only when it did, and a stalled esptool is stopped after five minutes.
 - Panel (new firmware): long titles end in dots instead of running into the line below; the fader knob stays inside its track; a fader you touched follows the PC again afterwards (also after 25 days of uptime); picture keys appear once the images arrive after a panel restart; the corner marks sit in the corner of a wide key; without the PC the agents and status screens say *PC not connected* and Allow and Deny do nothing; a full settings partition is reset instead of disabling stored settings.
 - Host: the reason a host could not start reaches the editor; start with Windows and the file picker work with æ, ø or å in the path; the tray shows why the panel is not connected and follows brightness and profile changes; the editor's token file is private to your account; a damaged firmware zip no longer breaks the firmware list, which is sorted by version; a timer restarted without seconds keeps its notice and actions; a key that presses a slow key runs on the slow lane; a dropped press flashes red at once; the log gets one line per page instead of one per refresh; validation errors name the page and the key; widget titles fit a two-slot key.
@@ -201,7 +248,7 @@
 - Editor: a rail on the left with the panel's four screens. Keys is the editor you know; Agents, Mixer and Status show what the panel shows right now and let you choose what goes on them, with the Claude Code connection on the Agents screen.
 - Wide keys: a key can cover 2 or 3 slots (Width in the key's settings) and show the music that plays (title, artist, progress bar) or a timer (time left in a ring). Needs the new firmware.
 - The editor now looks like the panel: the same dark colors, flat rounded cards, mint/cyan/purple accents and a green accent line, instead of the grey Stream Deck look.
-- The panel's rail is yours to choose: **Rail …** (⋯ menu) turns Agents, Mixer and Status on or off and adds up to three shortcuts to a page of any profile. The editor's rail follows the same choice. Needs the new firmware (at most seven buttons).
+- You choose the panel's rail: **Rail …** (⋯ menu) turns Agents, Mixer and Status on or off and adds up to three shortcuts to a page of any profile. The editor's rail follows the same choice. Needs the new firmware (at most seven buttons).
 - Editor layout tidied: the title, the deck, the pages, the sync bar and the key's settings share one column and scroll together; the three settings sections stack instead of floating; the action library uses one icon family and no mismatched glyphs.
 - The rail dialog is rebuilt: a live preview of the rail beside the screens (switch on or off, move up or down) and the shortcuts (page from a grouped list, icon picker), with a count of the seven buttons the panel fits. The editor's rail follows the chosen order.
 - Fixed: Cancel in a dialog with a required field (new page, new profile, page settings) did nothing, because the empty field blocked it.

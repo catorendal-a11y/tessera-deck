@@ -24,7 +24,7 @@ Key settings have three tabs, with **Test**, **Copy**, **Paste**, **Clear** and 
 | **Actions** | *Key type* (Normal key or Toggle key), the steps for **Pressed**, **Held** and **Double-press**, **＋ Step …** and *Hold to confirm* |
 | **Live** | *Live gauge* and *Follow PC state* |
 
-Nothing runs in the editor. Keys run only when you press them on the panel. The one exception is **Test** on a key and then *Run now on this PC*.
+Nothing runs in the editor: keys run only when you press them on the panel, or when you choose **Test** on a key and then *Run now on this PC*.
 
 | Menu | What it holds |
 |---|---|
@@ -35,7 +35,7 @@ Nothing runs in the editor. Keys run only when you press them on the panel. The 
 
 **Program settings** in the top bar holds only what the PC does: starting the host at sign-in, Windows notifications, switching profiles by program, and the calendar for the Next meeting widget.
 
-A profile holds pages. A page holds up to 18 keys, and slot 18 is the pinned **Home** key. Changes save by themselves; the line under the deck says when the panel has them. The editor keeps your edits as you make them, and Undo (Ctrl+Z) takes back the last one, including a deleted page or profile.
+A profile holds pages. A page holds up to 18 keys, and slot 18 is the pinned **Home** key. Changes save by themselves as you make them; the line under the deck says when the panel has them. Undo (Ctrl+Z) takes back the last change, including a deleted page or profile.
 
 ## Tasks
 
@@ -127,9 +127,9 @@ Rules look like `chrome.exe`, `process:claude.exe` or `title:codex`. Turn the wh
 
 The rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**.
 
-- **Which screens and shortcuts:** open **Panel → Rail …** (or **+** in the editor's rail). Turn the agents, mixer and status screens on or off, put them in order and add up to three shortcuts. The panel has room for seven places; the preview shows which are free. Press *Apply*.
-- **A shortcut** opens a page of any profile, or runs steps like a key without leaving the screen you are on (copy the steps from one of your keys and give it a name). It can use any icon from the library. After a page shortcut, a tap on Keys takes you back. Step shortcuts need panel firmware 0.6.3 or later.
-- **What a screen shows:** click that screen in the editor's rail.
+- To choose the screens and shortcuts, open **Panel → Rail …** (or **+** in the editor's rail). Turn the agents, mixer and status screens on or off, put them in order and add up to three shortcuts. The panel has room for seven places; the preview shows which are free. Press *Apply*.
+- A shortcut opens a page of any profile, or runs steps like a key without leaving the screen you are on (copy the steps from one of your keys and give it a name). It can use any icon from the library. After a page shortcut, a tap on Keys takes you back. Step shortcuts need panel firmware 0.6.3 or later.
+- To set what a screen shows, click that screen in the editor's rail.
 
 ### The mixer
 
@@ -182,7 +182,7 @@ Windows notifications (panel connected or disconnected, a host that stopped, an 
 
 ### Wi-Fi and Home Assistant
 
-The panel can join your Wi-Fi so Home Assistant finds it as an ESPHome device. It needs panel firmware with Wi-Fi (protocol 5); on older firmware the dialog says so and offers **Panel firmware …**. USB to the PC keeps working exactly as before, and Wi-Fi stays off until you set it up.
+The panel can join your Wi-Fi so Home Assistant finds it as an ESPHome device. It needs panel firmware with Wi-Fi (protocol 5); on older firmware the dialog says so and offers **Panel firmware …**. USB to the PC keeps working as before, and Wi-Fi stays off until you set it up.
 
 1. Connect the panel over USB and start the host.
 2. Open **Panel → Wi-Fi and Home Assistant …**, type the network name and password (or tick *Open network*), and choose **Connect**.
@@ -215,9 +215,9 @@ To check the API from the PC without Home Assistant, `tools/esphome_check.py` co
 
 ### Back up, export and import
 
-- **Automatic backups:** Tessera keeps the latest 30 while you edit. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.
-- **Export:** **More → Export to a file** writes your profiles and keys. It leaves out secrets: the calendar address, plugin passwords and web request credentials.
-- **Import:** **More → Import from a file …** first shows the file's profiles, pages and keys and the risky actions in it, including the host each web request goes to and every automatic rule. Then choose *Add as new profiles* (your profiles stay; rules, rail and settings in the file are not used) or *Replace the configuration*. You can undo an import.
+- Tessera keeps the latest 30 automatic backups while you edit. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.
+- **More → Export to a file** writes your profiles and keys. It leaves out secrets: the calendar address, plugin passwords and web request credentials.
+- **More → Import from a file …** first shows the file's profiles, pages and keys and the risky actions in it, including the host each web request goes to and every automatic rule. Then choose *Add as new profiles* (your profiles stay; rules, rail and settings in the file are not used) or *Replace the configuration*. You can undo an import.
 
 If `host/profiles.json` is broken at start, Tessera restores the newest good backup and the tray says so.
 
@@ -270,9 +270,11 @@ A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page
 
 In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`). Tessera refuses values with shell metacharacters; spaces are allowed.
 
-A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key.
+A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key. In the editor: the key's **Live** tab, *Color follows a variable*, then **＋ Value …** for each value that gets a color. Other values keep the key color.
 
 ### Automatic actions
+
+In the editor: **More → Automatic actions …**. Each one runs the steps it copies from a key. They run in every profile, while the host runs.
 
 `triggers` at the top of `profiles.json` is a list of `{"when": {...}, "actions": [...]}`. `when` is one of:
 
@@ -283,6 +285,7 @@ A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "me
 | `{"type": "daily", "at": "08:30"}` | Every day at that time |
 | `{"type": "file", "path": "..."}` | When the file changes |
 | `{"type": "variable", "name": "claude"}` | When the variable changes |
+| `{"type": "variable", "name": "claude", "value": "waiting"}` | When the variable becomes `waiting` |
 
 Import shows every automatic rule before it can run.
 

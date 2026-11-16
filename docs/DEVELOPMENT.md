@@ -71,7 +71,7 @@ Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`.
 | Terminal UI self-check | `host\.venv\Scripts\python.exe host\tessera_terminal.py --check` |
 | Lint | `host\.venv\Scripts\python.exe -m ruff check host tests tools plugins hardware --select E9,F,B --exclude host/.venv` |
 | Coverage | `host\.venv\Scripts\python.exe -m coverage run --source=host --omit="host/.venv/*,host/tessera_terminal.py" -m unittest discover -s tests`, then `-m coverage report --fail-under=73` |
-| JavaScript syntax | `node --check host/editor/core.js host/editor/app.js host/editor/dialogs.js` |
+| JavaScript syntax | `foreach ($f in 'core','app','dialogs') { node --check host/editor/$f.js }` in PowerShell (`node --check` reads only its first file) |
 
 Ruff and coverage are not in `requirements.txt`. Install them with `pip install ruff==0.17.2 coverage==7.17.0`. [CONTRIBUTING.md](../CONTRIBUTING.md) has the exact CI commands.
 

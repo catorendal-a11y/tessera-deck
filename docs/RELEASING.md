@@ -14,6 +14,7 @@ The firmware's USB protocol has its own number in `main/protocol_version.h`. The
 | 2 | `protocol` field in `get_info`, long-press (`hold`) events |
 | 3 | Per-key colors, the ambient screen (`AD_SCREEN ambient`, `AD_AMBIENT`), the offline layout |
 | 4 | The cockpit: a rail of four screens (keys, agents, mixer, status) with `AD_AGENTS`, `AD_MIXER`, `AD_STATS`, `AD_VIEW`, `AD_RAIL`, wide keys, touch lines back |
+| 5 | Wi-Fi: `AD_WIFI_SET`, `AD_WIFI_CLEAR`, `AD_WIFI_STATUS`, the `wifi` line and the `wifi` field in `get_info` |
 
 The A/B update fields (`"ota":1`, `AD_OTA_*`) came with firmware 0.7.0 and did not change the protocol number. Older hosts ignore the new handshake fields.
 
