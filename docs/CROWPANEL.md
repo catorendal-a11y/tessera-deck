@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It has been flashed to a real board: it boots, the screen lights up and the host handshake reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the releases have its package from 1.2.0 on.
+The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It works on the contributor's board: the colours look right, touch works, and most of the hotkeys and actions they tried work. The panel reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the releases have its package from 1.2.0 on.
 
 To build it yourself, from the repository root, with ESP-IDF 6.1:
 
@@ -17,4 +17,4 @@ The panel reports the board id `tessera-p4-crowpanel7`; the GUITION build is unc
 
 Differences from the GUITION board: backlight on GPIO31 (30 kHz), touch on I2C SDA 45 / SCL 46 with RST 40 and INT 42, LDO4 (3.3 V) switched on next to LDO3, DIO flash and PSRAM at 80 MHz as in Elecrow's examples, and the host link on UART0 (GPIO37/38, 921600 baud) through the board's USB-UART bridge, not native USB. The MIPI DSI lanes run at 750 Mbit/s, as on the GUITION board; Elecrow's code uses 900. The code is behind `CONFIG_TESSERA_BOARD_P4_CROWPANEL7` in `components/espressif__esp32_p4_function_ev_board`.
 
-Not checked on hardware yet: colour byte order, touch input and orientation, and the memory speeds.
+Flash and PSRAM run at Elecrow's 80 MHz; faster speeds have not been tried.

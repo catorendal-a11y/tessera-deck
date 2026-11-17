@@ -51,7 +51,7 @@ Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA*
 
 The editor was also walked through against a copy of a real configuration: every page, the three key tabs on every key, all dialogs, pages and profiles created, renamed and deleted, drag and drop with synthetic events, undo and redo. That was before the latest editor redesign. The editor smoke test covers the new layout only in part.
 
-Every check in this section was made on the GUITION board. The contributor of the CrowPanel Advance 7.0 build flashed it to a real board: it boots, the screen lights up and the host handshake reported `tessera-p4-crowpanel7`, 1024 x 600 and protocol 4. The color byte order, touch input and orientation, the memory speeds and an install from the editor's firmware dialog have not been checked on that board ([docs/CROWPANEL.md](docs/CROWPANEL.md)). Nothing has run on the ESP32-S3 boards yet ([docs/S3.md](docs/S3.md)).
+Every check in this section was made on the GUITION board. The contributor of the CrowPanel Advance 7.0 build reports it working on their board: the colors look right, touch works, and most of the hotkeys and actions they tried work. An install from the editor's firmware dialog has not been tried on that board ([docs/CROWPANEL.md](docs/CROWPANEL.md)). One tester runs the Waveshare ESP32-S3 build at a 12 MHz pixel clock; the Sunton build has not run on a board ([docs/S3.md](docs/S3.md)).
 
 ## Screen speed
 
