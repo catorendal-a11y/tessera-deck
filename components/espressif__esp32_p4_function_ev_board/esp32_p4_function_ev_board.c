@@ -503,6 +503,17 @@ esp_err_t bsp_display_backlight_on(void)
 
 #if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
 static esp_ldo_channel_handle_t io_pwr_chan = NULL;
+
+/* Give the 3.3 V IO rail back: on every failure after it was taken, and when the display is deleted. */
+static void bsp_release_io_power(void)
+{
+    if (io_pwr_chan) {
+        esp_ldo_release_channel(io_pwr_chan);
+        io_pwr_chan = NULL;
+    }
+}
+#else
+static inline void bsp_release_io_power(void) {}
 #endif
 
 static esp_err_t bsp_enable_dsi_phy_power(void)
@@ -518,7 +529,12 @@ static esp_err_t bsp_enable_dsi_phy_power(void)
         .chan_id = BSP_MIPI_DSI_PHY_PWR_LDO_CHAN,
         .voltage_mv = BSP_MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV,
     };
-    ESP_RETURN_ON_ERROR(esp_ldo_acquire_channel(&ldo_cfg, &disp_phy_pwr_chan), TAG, "Acquire LDO channel for DPHY failed");
+    esp_err_t phy_err = esp_ldo_acquire_channel(&ldo_cfg, &disp_phy_pwr_chan);
+    if (phy_err != ESP_OK) {
+        ESP_LOGE(TAG, "Acquire LDO channel for DPHY failed");
+        bsp_release_io_power();  // LDO4 was taken above: do not leave it on
+        return phy_err;
+    }
     ESP_LOGI(TAG, "MIPI DSI PHY Powered on");
 #endif // BSP_MIPI_DSI_PHY_PWR_LDO_CHAN > 0
 
@@ -619,7 +635,12 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
         .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
         .lane_bit_rate_mbps = 750,
     };
-    ESP_RETURN_ON_ERROR(esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus), TAG, "New DSI bus init failed");
+    esp_err_t bus_err = esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
+    if (bus_err != ESP_OK) {
+        ESP_LOGE(TAG, "New DSI bus init failed");
+        bsp_release_io_power();
+        return bus_err;
+    }
 
     ESP_LOGI(TAG, "Install MIPI DSI LCD control panel");
     // we use DBI interface to send LCD commands and parameters
@@ -778,6 +799,7 @@ err:
     if (mipi_dsi_bus) {
         esp_lcd_del_dsi_bus(mipi_dsi_bus);
     }
+    bsp_release_io_power();
     return ret;
 }
 void bsp_display_delete(void)
@@ -809,6 +831,7 @@ void bsp_display_delete(void)
         esp_ldo_release_channel(disp_phy_pwr_chan);
         disp_phy_pwr_chan = NULL;
     }
+    bsp_release_io_power();
 
     bsp_display_brightness_deinit();
 }
@@ -842,6 +865,7 @@ esp_err_t bsp_touch_new(const bsp_touch_config_t *config, esp_lcd_touch_handle_t
     esp_err_t touch_ret = esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, ret_touch);
     if (touch_ret != ESP_OK) {
         esp_lcd_panel_io_del(tp_io_handle);
+        tp_io_handle = NULL;  // deleted: a failed re-create below must not leave a dangling pointer for bsp_touch_delete
         tp_io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
         ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(i2c_handle, &tp_io_config, &tp_io_handle), TAG, "");
         touch_ret = esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, ret_touch);
