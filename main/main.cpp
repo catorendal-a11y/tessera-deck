@@ -551,6 +551,7 @@ static void usb_console_task(void *)
                 cJSON_AddNumberToObject(reply,"imgCache",static_cast<double>(deck_image_cache_limit()));
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
                 cJSON_AddNumberToObject(reply,"imgAck",1);  /* "AD_IMG_BEGIN <id> <bytes> <crc> ack", see deck_images.cpp */
+                cJSON_AddNumberToObject(reply,"notify",1);  /* shows AD_NOTIFY as a banner; older firmware gets a Windows notification */
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
                 cJSON_AddNumberToObject(reply,"draws",s_draws.exchange(0));
                 cJSON_AddNumberToObject(reply,"drawMaxMs",s_draw_max_us.exchange(0)/1000.0);
@@ -689,6 +690,11 @@ static void usb_console_task(void *)
         if (!overflow && (!strcmp(line,"AD_SCREEN deck") || !strcmp(line,"AD_SCREEN ambient"))) {
             deck_model_request_screen(line[10] == 'd' ? DECK_SCREEN_DECK : DECK_SCREEN_AMBIENT);
             printf("{\"type\":\"screen\",\"queued\":true}\n");
+            fflush(stdout);
+        }
+        if (!overflow && strncmp(line, "AD_NOTIFY ", 10) == 0) {
+            /* "AD_NOTIFY <level> <seconds> <text>": the UI shows it on its own timer. The text is never echoed. */
+            printf("AD_NOTIFY %s\n", deck_model_notice_from_line(line + 10) ? "OK" : "INVALID");
             fflush(stdout);
         }
         if (!overflow && strncmp(line, "AD_AMBIENT", 10) == 0 && (line[10] == '\0' || line[10] == ' ')) {

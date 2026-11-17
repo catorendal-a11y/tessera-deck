@@ -202,6 +202,15 @@ int deck_model_take_view_request(void); /* -1 when nothing is pending */
 void deck_model_queue_line(const char *line);
 bool deck_model_take_line(char *out, size_t size);
 
+/* A short message from the host (AD_NOTIFY <level> <seconds> <text>), shown as a banner over any screen. The text is
+ * the host's, so it is cut to DECK_NOTICE_MAX bytes and only ever drawn, never formatted. */
+#define DECK_NOTICE_MAX 400 /* bytes: the host sends at most 100 characters */
+#define DECK_NOTICE_SECONDS_MAX 30
+typedef enum { DECK_NOTICE_INFO = 0, DECK_NOTICE_OK, DECK_NOTICE_WARN, DECK_NOTICE_ERROR } deck_notice_level_t;
+bool deck_model_notice_from_line(const char *args); /* "<info|ok|warn|error> <1-30> <text>"; false leaves it unchanged */
+/* The newest message not yet shown; a newer one replaces one the UI has not taken. */
+bool deck_model_take_notice(char *text, size_t size, int *level, int *seconds);
+
 /* Parser for the layout the host pushes over the USB console.
  * Accepts {"buttons":[...]} text; returns false (count untouched) on any
  * invalid entry. */

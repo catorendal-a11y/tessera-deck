@@ -567,6 +567,54 @@ static void test_boot_screen(){
     assert(!visible("v9.8.7")&&visible("Tue 20 Oct 2026"));
     tap(width/2,height/2);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return()&&visible("14:32"));
 }
+/* The banner on the top layer whose label reads `text`, or nullptr. */
+static lv_obj_t* banner_of(const char* text){auto* found=find(lv_layer_top(),text);return found?lv_obj_get_parent(found):nullptr;}
+static int banners(){return static_cast<int>(lv_obj_get_child_count(lv_layer_top()));}
+static void tap_center(lv_obj_t* object){lv_area_t area;lv_obj_get_coords(object,&area);tap((area.x1+area.x2)/2,(area.y1+area.y2)/2);}
+static void test_notice_banner(){
+    /* AD_NOTIFY <level> <seconds> <text>: anything else is refused and changes nothing. */
+    for(const char* bad:{"loud 5 x","okay 5 x","o 5 x","ok 0 x","ok 31 x","ok 5","ok 5 ","ok +5 x","ok -5 x","ok 5x y","ok 99999999999 x"," ok 5 x",""})
+        assert(!deck_model_notice_from_line(bad));
+    assert(!deck_model_notice_from_line(nullptr));
+    keep_host(1000);while(!taken().empty()){}updates();assert(!banners());
+    /* A banner over the keys: the keys beside it still take taps, a tap on it closes it and presses nothing. */
+    assert(deck_model_notice_from_line("ok 5 Build passed"));updates();
+    auto* card=banner_of("Build passed");assert(card&&banners()==1);
+    lv_area_t area;lv_obj_get_coords(card,&area);assert(area.x1>rail_w&&area.x2<width&&area.y1>0&&area.y2<top+head_h);  /* one line leaves the keys clear */
+    capture("notice.ppm");
+    const int before=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1&&banner_of("Build passed"));
+    deck_model_request_feedback(1,DECK_FEEDBACK_OK);keep_host(1000);while(!taken().empty()){}
+    tap_center(card);assert(!banners()&&deck_model_last_event_id()==before+1&&taken().empty());
+    /* A long message wraps to two lines and ends in dots inside the banner; text from the host is never a format. */
+    std::string longest="error 30 %s%n%d ";for(int i=0;i<30;++i)longest+="WWWW ";
+    assert(deck_model_notice_from_line(longest.c_str()));updates();assert(banners()==1);
+    card=lv_obj_get_child(lv_layer_top(),0);lv_obj_t* words=nullptr;
+    for(uint32_t i=0;i<lv_obj_get_child_count(card);++i)if(lv_obj_check_type(lv_obj_get_child(card,i),&lv_label_class))words=lv_obj_get_child(card,i);
+    assert(words&&!strncmp(lv_label_get_text(words),"%s%n%d WWWW",11)&&strstr(lv_label_get_text(words),"..."));
+    const int line=lv_font_get_line_height(lv_obj_get_style_text_font(words,LV_PART_MAIN));
+    lv_area_t text;lv_obj_get_coords(words,&text);lv_obj_get_coords(card,&area);
+    assert(lv_area_get_height(&text)==2*line&&text.x1>area.x1&&text.x2<area.x2&&text.y1>area.y1&&text.y2<area.y2);
+    capture("notice_long.ppm");
+    /* The two-line banner reaches over key 1: a tap on its lower edge closes it and does not press the key. */
+    {const int events=deck_model_last_event_id();tap(key_x(1),area.y2-2);assert(!banners()&&deck_model_last_event_id()==events&&taken().empty());}
+    assert(deck_model_notice_from_line("warn 3 Disk almost full"));updates();
+    /* A new message replaces the one on show, and each goes after its own seconds. */
+    assert(deck_model_notice_from_line("warn 3 Disk almost full"));updates();assert(banner_of("Disk almost full")&&banners()==1);
+    keep_host(2000);assert(banner_of("Disk almost full"));keep_host(2000);assert(!banners());
+    /* Over the clock as well: a tap on the banner closes it and leaves the clock showing. */
+    deck_model_request_screen(DECK_SCREEN_AMBIENT);updates();assert(deck_model_screen()==DECK_SCREEN_AMBIENT);
+    assert(deck_model_notice_from_line("info 5 Meeting in 5 minutes"));updates();assert(banner_of("Meeting in 5 minutes"));
+    capture("notice_ambient.ppm");
+    tap_center(banner_of("Meeting in 5 minutes"));
+    assert(!banners()&&deck_model_screen()==DECK_SCREEN_AMBIENT&&!deck_model_take_touch_return());
+    tap(width/2,height/2);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return());
+    /* During the boot screen a message waits, then shows over the keys, which still take taps. */
+    ui_boot_start();step();assert(deck_model_notice_from_line("ok 5 Panel ready"));
+    for(int t=0;t<800;t+=40)step();assert(!banners()&&visible("v9.8.7"));
+    for(int t=0;t<1000;t+=40)step();assert(banner_of("Panel ready")&&visible("14:32"));
+    const int ready=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==ready+1);
+    deck_model_request_feedback(1,DECK_FEEDBACK_OK);keep_host(6000);assert(!banners());while(!taken().empty()){}
+}
 int main(int argc,char** argv){
     output=argc>1?argv[1]:".";std::filesystem::create_directories(output);
     alignas(64)static uint32_t buffer[1024*600];
@@ -591,7 +639,7 @@ int main(int argc,char** argv){
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"image upload with acknowledgements",test_image_upload_ack},{"key styling",test_key_styling},
      {"tap after a layout swap",test_tap_after_layout_swap},{"image fills its key",test_image_fills_its_key},
-     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack},{"boot screen",test_boot_screen}};
+     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack},{"boot screen",test_boot_screen},{"notice banner",test_notice_banner}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
     capture("deck.ppm");puts("Standalone Deck model, context and render checks passed.");
 }

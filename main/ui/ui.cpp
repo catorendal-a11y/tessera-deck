@@ -993,6 +993,36 @@ void boot_done(lv_anim_t *) {
     lv_screen_load(deck_model_screen()==DECK_SCREEN_AMBIENT?ambient:screen);lv_obj_delete_async(old);
 }
 
+/* ---- Notice: a short message from the host (AD_NOTIFY) on the top layer, over whichever screen shows. Only the banner
+ * takes touches, and a tap on it closes it. A new message replaces the one on show; one that arrives while the boot
+ * screen plays waits for it to end. ---- */
+constexpr uint32_t NoticeColors[]={Cyan,Accent,Amber,Red};  /* info, ok, warn, error */
+lv_obj_t *notice=nullptr;uint32_t notice_until=0;
+void close_notice() {if(notice)lv_obj_delete(notice);notice=nullptr;}
+void notice_tapped(lv_event_t *) {if(notice)lv_obj_delete_async(notice);notice=nullptr;}  /* not inside its own event */
+void show_notice(const char *text,int level,int seconds) {
+    close_notice();
+    /* inset: above and below the text, so one line stays over the header and leaves the keys clear */
+    const int width=sc(680),inset=sc(14),side=sc(18),border=2,mark=sc(6),text_x=side+mark+sc(16),text_w=width-2*border-text_x-side;
+    const lv_font_t *font=fit(&fq_font_dejavu_24);const int line=lv_font_get_line_height(font);
+    notice=box(lv_layer_top(),(W-width)/2,sc(8),width,line,sc(16),Card);lv_obj_set_clickable(notice,true);
+    lv_obj_set_style_border_width(notice,border,0);lv_obj_set_style_border_color(notice,lv_color_hex(Line),0);
+    /* The text is the host's: set as it is, never formatted. One or two lines; a longer one ends in dots. */
+    auto *words=label(notice,text,text_x,inset,text_w,font,Text);
+    lv_label_set_long_mode(words,LV_LABEL_LONG_WRAP);lv_obj_set_height(words,LV_SIZE_CONTENT);lv_obj_update_layout(words);
+    const int text_h=LV_MIN(lv_obj_get_height(words),2*line);
+    if(lv_obj_get_height(words)>text_h){lv_label_set_long_mode(words,LV_LABEL_LONG_DOT);lv_obj_set_height(words,text_h);}
+    lv_obj_set_height(notice,text_h+2*inset+2*border);
+    box(notice,side,inset,mark,text_h,mark/2,NoticeColors[level>=0&&level<4?level:0]);  /* the level's colored edge */
+    lv_obj_add_event_cb(notice,notice_tapped,LV_EVENT_CLICKED,nullptr);
+    notice_until=millis()+static_cast<uint32_t>(seconds)*1000;
+}
+void update_notice() {
+    if(notice&&static_cast<int32_t>(millis()-notice_until)>=0)close_notice();
+    char text[DECK_NOTICE_MAX+1];int level=0,seconds=0;
+    if(!boot&&deck_model_take_notice(text,sizeof(text),&level,&seconds))show_notice(text,level,seconds);
+}
+
 int view_before_question=-1;  /* the screen a permission question took the panel away from */
 bool question_waiting() {
     deck_agent_t list[DECK_AGENTS_MAX];const int count=deck_model_agents(list,DECK_AGENTS_MAX);
@@ -1035,6 +1065,7 @@ void update(lv_timer_t*) {
     update_link();
     update_lock();
     update_ambient();
+    update_notice();
     /* Runs every 40 ms: only touch the label when the minute changed. */
     const char *clock_now=time_service_time_text();
     if(strcmp(lv_label_get_text(clock_label),clock_now))lv_label_set_text(clock_label,clock_now);
