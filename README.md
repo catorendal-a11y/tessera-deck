@@ -7,10 +7,6 @@
 </p>
 
 <p align="center">
-  The Elecrow CrowPanel Advance 7.0 (ESP32-P4) has a build that boots on a contributor's board. You build it yourself, and touch and colors are not checked yet: <a href="docs/CROWPANEL.md">CrowPanel Advance 7.0</a>. Two 7-inch ESP32-S3 boards have an experimental build that has not been tested on S3 hardware yet: <a href="docs/S3.md">ESP32-S3 boards</a>. If you have one, <a href="https://github.com/catorendal-a11y/tessera-deck/discussions/6">tell me how it goes</a>.
-</p>
-
-<p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/host-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
@@ -27,11 +23,22 @@
 Tessera is a macro deck for Windows that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. It needs no soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
-> You need the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. The [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) has a build that you make yourself, and [two ESP32-S3 boards](docs/S3.md) have an experimental build that is not tested on hardware. Other boards need porting, and the host runs on Windows only.
+> You need one of the [supported boards](#supported-boards), a USB cable and a Windows 10/11 PC. Other boards need porting, and the host runs on Windows only.
 
 <p align="center">
   <img src="docs/images/promo.gif" alt="A short loop: the Tessera logo, the Windows app and the panel joined by one USB cable, a tap on Allow on the agents screen, the editor putting a Timer key on the panel, and what you need to build one" width="760">
 </p>
+
+## Supported boards
+
+| Board | Chip and screen | State |
+|---|---|---|
+| [GUITION JC1060P470C](https://www.aliexpress.com/item/1005010022828767.html) | ESP32-P4, 7-inch, 1024 × 600 | The main board, about $35 to $42. Tested on hardware, with firmware in every release. |
+| [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Boots on a contributor's board. Not in the releases yet, so you build it yourself. Touch and colors are not checked yet. |
+| [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
+| [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
+
+If you have one of the S3 boards, [tell me how it goes](https://github.com/catorendal-a11y/tessera-deck/discussions/6). [Contributing](CONTRIBUTING.md#port-to-another-board) says what a port to another board needs.
 
 ## In short
 
