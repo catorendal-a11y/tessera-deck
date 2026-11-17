@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It has been flashed to a real board: it boots, the screen lights up and the host handshake reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. The release packages do not include this build yet, so you build it yourself.
+The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It has been flashed to a real board: it boots, the screen lights up and the host handshake reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the next release has its package. Until then you build it yourself.
 
 From the repository root, with ESP-IDF 6.1:
 
@@ -11,7 +11,7 @@ idf.py -B build/crowpanel -DSDKCONFIG=build/crowpanel/sdkconfig -DSDKCONFIG_DEFA
 python tools/package_firmware.py build/crowpanel dist --board tessera-p4-crowpanel7
 ```
 
-`idf.py -B build/crowpanel -p COM5 flash` writes the build straight to the board (use your board's port). The package lands in `dist/` as `tessera-firmware-tessera-p4-crowpanel7-<version>.zip`; installing it from the editor's firmware dialog has not been tried on this board yet. A board that still runs Elecrow's own firmware does not answer the host, so the dialog offers a full install with Install anyway. Before you start it, check that the chosen package says `for tessera-p4-crowpanel7`: both boards use the same chip, so nothing else stops the GUITION package from being written to this board.
+`idf.py -B build/crowpanel -p COM5 flash` writes the build straight to the board (use your board's port). The package lands in `dist/` as `tessera-firmware-tessera-p4-crowpanel7-<version>.zip`; installing it from the editor's firmware dialog has not been tried on this board yet. A board that still runs Elecrow's own firmware does not answer the host, so the dialog offers a full install with Install anyway and leaves the package for you to choose. Pick the one that says `for tessera-p4-crowpanel7`: both boards use the same chip, so nothing else stops the GUITION package from being written to this board.
 
 The panel reports the board id `tessera-p4-crowpanel7`; the GUITION build is unchanged and keeps `tessera-p4`.
 

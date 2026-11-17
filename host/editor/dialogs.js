@@ -54,13 +54,19 @@ async function refreshFirmware() {
   for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} for ${p.board || 'tessera-p4'} · ${Math.round(p.bytes / 1024)} KiB`}));
   for (const p of info.packages.filter(item => item.error)) select.append(element('option', {value: '', disabled: 'true', text: `${p.path.split(/[\\/]/).pop()} · ${p.error}`}));
   if (!info.packages.length) select.append(element('option', {value: '', text: 'No package found in dist/ or firmware/'}));
-  const device = info.device, newest = good[0];
+  const device = info.device, boards = new Set(good.map(p => p.board || 'tessera-p4'));
+  // The release has one package per board: preselect the connected board's. A panel that does not say which board it is
+  // gets no guess, because both P4 boards have the same chip and nothing refuses the other board's package.
+  const newest = boards.size === 1 ? good[0] : good.find(p => (p.board || 'tessera-p4') === device.board);
+  if (good.length && !newest) select.prepend(element('option', {value: '', text: 'Choose the package for your board'}));
+  select.value = newest ? newest.path : '';
+  select.onchange = () => { $('#firmware-install').disabled = !select.value; };
   // The protocol number only matters to the user when it differs from the newest package's.
   const protocol = newest && device.protocol != null && newest.protocol !== device.protocol ? ` · protocol ${device.protocol}, package needs ${newest.protocol}` : '';
   $('#firmware-device').textContent = device.connected
     ? `Panel connected · firmware ${device.firmware || 'unknown'}${protocol} · Tessera ${info.host || '?'}`
     : `The panel is not connected · Tessera ${info.host || '?'}`;
-  $('#firmware-install').disabled = !good.length;
+  $('#firmware-install').disabled = !select.value;
   if (info.job.state === 'running') pollFirmware();
 }
 async function installFirmware() {
@@ -92,7 +98,7 @@ async function pollFirmware() {
     $('.firmware-force').hidden = !silent;
     if (silent) $('#firmware-mode').value = 'full';  // a panel that does not answer needs everything written
   }
-  $('#firmware-install').disabled = job.state === 'running';
+  $('#firmware-install').disabled = job.state === 'running' || !$('#firmware-package').value;
 }
 $('#firmware-open').onclick = openFirmware;
 $('#firmware-close').onclick = () => $('#firmware-dialog').close();

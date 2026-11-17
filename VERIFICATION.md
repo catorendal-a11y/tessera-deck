@@ -21,7 +21,7 @@ CI and `python -m unittest discover -s tests` run several hundred tests on Windo
 Other automatic checks:
 
 - The native LVGL tests (`tests/native`) build the real firmware UI and model for the PC. They render 1024 x 600 frames, drive touch input and check the image cache limit, key colors, the ambient screen, hold events, the rail, the agents, mixer and status screens, wide keys and text contrast. The firmware's own touch handling for hold, lock and swipe runs there only against simulated touches.
-- CI compiles the GUITION and ESP32-S3 firmware with ESP-IDF 6.1 and runs `cppcheck` on the sources. The CrowPanel build is not in CI.
+- CI compiles the firmware for all four boards with ESP-IDF 6.1 and runs `cppcheck` on the sources.
 - The editor smoke test opens the editor in a real browser and checks the deck, dialogs, focus and axe accessibility rules (CI only, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)).
 - `ruff` finds syntax errors, undefined names, unused imports and bug-prone patterns. `pip-audit` checks the host's packages.
 - `python host/tessera_terminal.py --check` checks the terminal UI.

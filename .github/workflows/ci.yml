@@ -109,22 +109,25 @@ jobs:
           /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --check
           /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --old-firmware --check
 
-  firmware-s3:
+  firmware-boards:
     name: Firmware build for ${{ matrix.board }}
     runs-on: ubuntu-latest
     container: espressif/idf:v6.1
     strategy:
       fail-fast: false
-      matrix:
-        board: [tessera-s3-ws7, tessera-s3-8048s070]
+      matrix:  # the boards with a board file; the GUITION P4 build is the firmware job above
+        include:
+          - {board: tessera-s3-ws7, target: esp32s3, defaults: boards/tessera-s3-ws7.defaults}
+          - {board: tessera-s3-8048s070, target: esp32s3, defaults: boards/tessera-s3-8048s070.defaults}
+          - {board: tessera-p4-crowpanel7, target: esp32p4, defaults: boards/crowpanel-p4-7.defaults}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build firmware
         shell: bash
         run: |
           . $IDF_PATH/export.sh
-          idf.py -B build/${{ matrix.board }} -DSDKCONFIG=build/${{ matrix.board }}/sdkconfig -DIDF_TARGET=esp32s3 \
-            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/${{ matrix.board }}.defaults" build
+          idf.py -B build/${{ matrix.board }} -DSDKCONFIG=build/${{ matrix.board }}/sdkconfig -DIDF_TARGET=${{ matrix.target }} \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;${{ matrix.defaults }}" build
           ls -l build/${{ matrix.board }}/tessera.bin
       - name: Package firmware
         shell: bash

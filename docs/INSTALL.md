@@ -6,7 +6,7 @@
 > Tessera is made for one board: the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
 > capacitive touch screen), bought from [this AliExpress listing](https://www.aliexpress.com/item/1005010022828767.html).
 > The firmware runs on Espressif's ESP32-P4 Function EV Board support package, and the pin setup and screen layout
-> are written for this kit. Other ESP32 boards or displays need a port. The Elecrow CrowPanel Advance 7.0 (ESP32-P4) has a build that you make yourself, described in [CrowPanel Advance 7.0](CROWPANEL.md). An experimental port to two ESP32-S3 boards is described in [ESP32-S3 boards](S3.md).
+> are written for this kit. Other ESP32 boards or displays need a port. The Elecrow CrowPanel Advance 7.0 (ESP32-P4) has its own build, described in [CrowPanel Advance 7.0](CROWPANEL.md). An experimental port to two ESP32-S3 boards is described in [ESP32-S3 boards](S3.md).
 
 <p align="center">
   <img src="images/board.jpg" alt="The GUITION 7-inch ESP32-P4 display dev board Tessera is made for" width="420"><br>
