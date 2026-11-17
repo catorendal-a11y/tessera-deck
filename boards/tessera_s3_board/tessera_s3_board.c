@@ -145,13 +145,14 @@ static esp_lcd_panel_handle_t panel_start(void)
         .flags.fb_in_psram = 1,
     };
 #if CONFIG_TESSERA_BOARD_S3_WS7
-    /* Pins and timings from Waveshare's 09_lvgl_v9_demo. */
+    /* Pins and porches from Waveshare's 09_lvgl_v9_demo. The demo clocks the panel at 16 MHz; 12 MHz (29 Hz instead
+     * of 39) ran stable on a real board, and 16 has made the picture jump on this board while PSRAM was busy. */
     static const gpio_num_t data[16] = {14, 38, 18, 17, 10, 39, 0, 45, 48, 47, 21, 1, 2, 42, 41, 40};
     cfg.hsync_gpio_num = GPIO_NUM_46;
     cfg.vsync_gpio_num = GPIO_NUM_3;
     cfg.de_gpio_num = GPIO_NUM_5;
     cfg.pclk_gpio_num = GPIO_NUM_7;
-    cfg.timings.pclk_hz = 16 * 1000 * 1000;
+    cfg.timings.pclk_hz = 12 * 1000 * 1000;
     cfg.timings.hsync_pulse_width = 4;
     cfg.timings.hsync_back_porch = 8;
     cfg.timings.hsync_front_porch = 8;
