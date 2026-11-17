@@ -62,6 +62,7 @@ REFUSALS = {501: 'Replay buffer is not running', 502: 'Recording is already paus
             506: 'Studio mode is off in OBS'}
 refused_since = None  # the last event refuse_keys answered; None once OBS answers keys itself
 scene_now = ''  # the current program scene, for source keys that name no scene
+recording_now = None  # whether OBS records; None until it says. OBS 33 answers a pause without a recording with success
 volume_wait = {}  # input name -> (dB change gathered while its GetInputVolume is in flight, deadline)
 toggle_wait = {}  # (scene, source) -> deadline while a toggle of that source is in flight
 # OBS messages are a few kB. Whatever answers on the port (OBS closed, another program on it) cannot make
@@ -243,6 +244,9 @@ def run(obs, command, args, key=None):
         obs.request('SetCurrentProgramScene', {'sceneName': args['name']}, done, key=key)
     elif command == 'mute' and name_of(args, 'input'):
         obs.request('ToggleInputMute', {'inputName': args['input']}, done, key=key)
+    elif command == 'pause' and args.get('mode', 'toggle') in ('toggle', 'on') and recording_now is False:
+        show(error='Recording is not running')
+        warn('Recording is not running', [key])
     elif command == 'pause' and args.get('mode', 'toggle') in ('toggle', 'on', 'off'):
         obs.request({'toggle': 'ToggleRecordPause', 'on': 'PauseRecord', 'off': 'ResumeRecord'}[args.get('mode', 'toggle')],
                     then=done, key=key)
@@ -367,7 +371,7 @@ def handle(obs, message):
         elif kind == 'GetCurrentProgramScene':
             show_scene(answer.get('currentProgramSceneName', ''))
         elif kind == 'GetRecordStatus':
-            show(recording=on_off(answer.get('outputActive')), paused=on_off(answer.get('outputPaused')))
+            show_record(answer.get('outputActive'), answer.get('outputPaused'))
         elif kind == 'GetStreamStatus':
             show(streaming=on_off(answer.get('outputActive')))
     elif message.get('op') == 5:
@@ -376,11 +380,17 @@ def handle(obs, message):
             show_scene(values.get('sceneName', ''))
         elif event == 'RecordStateChanged':  # OBS sends outputActive false while paused, but it still records
             paused = values.get('outputState') == 'OBS_WEBSOCKET_OUTPUT_PAUSED'
-            show(recording=on_off(values.get('outputActive') or paused), paused=on_off(paused))
+            show_record(values.get('outputActive') or paused, paused)
         elif event == 'StreamStateChanged':
             show(streaming=on_off(values.get('outputActive')))
         elif event == 'InputMuteStateChanged' and values.get('inputName') in INPUTS:
             show_mute(values['inputName'], values.get('inputMuted'))
+
+
+def show_record(active, paused):
+    global recording_now
+    recording_now = bool(active)
+    show(recording=on_off(active), paused=on_off(paused))
 
 
 def show_scene(name):
@@ -390,12 +400,13 @@ def show_scene(name):
 
 
 def session():
-    global refused_since
+    global refused_since, recording_now
     obs = Obs(PORT)
     obs.identify()
     refused_since = None  # keys from now on go to OBS; after this session, only newer ones get the warning
     volume_wait.clear()
     toggle_wait.clear()
+    recording_now = None
     show(connected='yes')
     for kind in ('GetCurrentProgramScene', 'GetRecordStatus', 'GetStreamStatus'):
         obs.request(kind)

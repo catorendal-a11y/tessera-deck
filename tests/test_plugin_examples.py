@@ -376,6 +376,17 @@ class ObsKeyTests(unittest.TestCase):
         self.assertEqual(self.shown, [{'mute.Mic_Aux': 'ON'}, {'mute.Desktop': 'OFF'},
                                       {'recording': 'ON', 'paused': 'ON'}, {'recording': 'ON', 'paused': 'OFF'}])
 
+    def test_pause_without_a_recording_warns_instead_of_asking_obs(self):
+        self.module.run(self.obs, 'pause', {}, 4)  # the record state is not known yet: OBS is asked
+        self.module.show_record(False, False)
+        self.module.run(self.obs, 'pause', {}, 4)
+        self.module.run(self.obs, 'pause', {'mode': 'on'}, 4)
+        self.module.run(self.obs, 'pause', {'mode': 'off'}, 4)  # OBS refuses a resume by itself
+        self.module.show_record(True, False)
+        self.module.run(self.obs, 'pause', {}, 4)
+        self.assertEqual([kind for kind, _ in self.requests()], ['ToggleRecordPause', 'ResumeRecord', 'ToggleRecordPause'])
+        self.assertEqual(self.warned, [('Recording is not running', [4])] * 2)
+
     def test_the_record_status_poll_sets_paused(self):
         self.module.handle(self.obs, {'op': 7, 'd': {'requestType': 'GetRecordStatus', 'requestId': '9',
                                                      'requestStatus': {'result': True, 'code': 100},
