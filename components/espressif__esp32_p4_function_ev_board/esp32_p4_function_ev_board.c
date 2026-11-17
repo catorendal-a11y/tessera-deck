@@ -696,10 +696,10 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     ESP_GOTO_ON_ERROR(esp_lcd_panel_init(disp_panel), err, TAG, "LCD panel init failed");
     ESP_GOTO_ON_ERROR(esp_lcd_dpi_panel_enable_dma2d(disp_panel), err, TAG, "LCD DMA2D init failed");
     /* No esp_lcd_panel_disp_on_off here: the EK79007 driver does not support it and returns ESP_ERR_NOT_SUPPORTED.
-     * Its init sequence already switches the display on. */
+     * Its init ends with Sleep Out and the panel shows video without Display On, as in Elecrow's code. */
 #elif CONFIG_BSP_LCD_TYPE_1024_600
     // create JD9165 control panel
-    ESP_LOGI(TAG, "Install EK79007 LCD control panel");
+    ESP_LOGI(TAG, "Install JD9165 LCD control panel");
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 52,

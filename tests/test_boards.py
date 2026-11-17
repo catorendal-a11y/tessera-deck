@@ -157,6 +157,14 @@ class PackageBoardTests(unittest.TestCase):
         self.assertTrue(package_firmware.has_ota_slots(table((1, 2, 0x6000), (1, 0, 0x2000))))
         self.assertFalse(package_firmware.has_ota_slots(table((1, 2, 0x6000), (0, 0x10, 0x1000))))
 
+    def test_package_firmware_refuses_a_board_that_does_not_match_the_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            build = Path(directory)
+            (build / 'config').mkdir()
+            (build / 'config/sdkconfig.json').write_text(json.dumps({'TESSERA_BOARD_ID': 'tessera-p4-crowpanel7'}))
+            with patch.object(sys, 'argv', ['package_firmware.py', str(build), str(build / 'dist')]),                     self.assertRaisesRegex(SystemExit, 'pass --board tessera-p4-crowpanel7'):
+                package_firmware.main()
+
 
 class ReleaseAssetTests(unittest.TestCase):
     ASSETS = [{'name': name, 'size': 1, 'url': 'https://github.com/r/' + name} for name in (

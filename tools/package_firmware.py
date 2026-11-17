@@ -28,6 +28,10 @@ def main():
         target = json.loads(description.read_text(encoding='utf-8')).get('target')
         if target and target != chip:
             sys.exit(f'The build is for {target}, but {args.board} needs {chip}')
+    config = args.build_dir / 'config' / 'sdkconfig.json'
+    built = json.loads(config.read_text(encoding='utf-8')).get('TESSERA_BOARD_ID') if config.is_file() else None
+    if built and built != args.board:
+        sys.exit(f'The build is for {built}; pass --board {built}')
     version = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
     header = (ROOT / 'main' / 'protocol_version.h').read_text(encoding='utf-8')
     protocol = int(re.search(r'#define\s+TESSERA_PROTOCOL\s+(\d+)', header).group(1))

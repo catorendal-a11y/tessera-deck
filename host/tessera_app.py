@@ -595,7 +595,7 @@ class Editor:
 
     def check_updates(self):
         try:
-            self.last_release = updates.check(self.version(), board=self.status().get('board'))
+            self.last_release = updates.check(self.version(), board=self.status().get('device', {}).get('board'))
         except OSError as exc:
             raise ValueError('GitHub could not be reached. Check your internet connection.') from exc
         return self.last_release

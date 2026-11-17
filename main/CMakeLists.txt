@@ -1,6 +1,6 @@
 idf_build_get_property(target IDF_TARGET)
 if(target STREQUAL "esp32s3")
-    set(board tessera_s3_board esp_driver_uart)  # UART for the boards without native USB
+    set(board tessera_s3_board)
 else()
     set(board espressif__esp32_p4_function_ev_board)
 endif()

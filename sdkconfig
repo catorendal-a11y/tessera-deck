@@ -1256,6 +1256,17 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# Tessera board
+#
+# default:
+CONFIG_TESSERA_BOARD_P4_GUITION=y
+# default:
+# CONFIG_TESSERA_BOARD_P4_CROWPANEL7 is not set
+# default:
+CONFIG_TESSERA_BOARD_ID="tessera-p4"
+# end of Tessera board
+
+#
 # Compiler options
 #
 # CONFIG_COMPILER_OPTIMIZATION_DEBUG is not set

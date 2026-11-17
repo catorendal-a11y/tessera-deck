@@ -312,6 +312,12 @@ class EditorFirmwareTests(unittest.TestCase):
             time.sleep(0.02)
         self.fail('the installation did not finish')
 
+    def test_the_update_check_asks_for_the_package_of_the_connected_board(self):
+        self.editor.dashboard = lambda: {'device': {'board': 'tessera-p4-crowpanel7'}}
+        with patch('tessera_app.updates.check', return_value={'latest': '9.9.9'}) as check:
+            self.editor.check_updates()
+        self.assertEqual(check.call_args.kwargs['board'], 'tessera-p4-crowpanel7')
+
     def test_the_editor_lists_packages_and_the_device_firmware(self):
         with patch.object(self.editor, 'firmware_folders', return_value=[self.package_path.parent]):
             listing = self.editor.command('firmware-list', {})

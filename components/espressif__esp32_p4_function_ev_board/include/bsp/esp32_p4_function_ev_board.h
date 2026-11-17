@@ -92,7 +92,7 @@
  *  @{
  */
 #if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
-/* Elecrow CrowPanel Advance 7.0 (ESP32-P4, EK79007): PWM backlight on IO31, no LCD reset line, touch on IO40/IO42. */
+/* Elecrow CrowPanel Advance 7.0 (ESP32-P4, EK79007): PWM backlight on IO31, LCD reset on IO41 left unused as in Elecrow's code, touch on IO40/IO42. */
 #define BSP_LCD_BACKLIGHT     (GPIO_NUM_31)
 #define BSP_LCD_RST           (GPIO_NUM_NC)
 #define BSP_LCD_TOUCH_RST     (GPIO_NUM_40)

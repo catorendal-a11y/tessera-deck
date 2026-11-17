@@ -51,7 +51,7 @@ async function refreshFirmware() {
   const info = await api('command/firmware-list', {});
   const select = $('#firmware-package'), good = info.packages.filter(p => !p.error);
   select.replaceChildren();
-  for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} · ${Math.round(p.bytes / 1024)} KiB`}));
+  for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} for ${p.board || 'tessera-p4'} · ${Math.round(p.bytes / 1024)} KiB`}));
   for (const p of info.packages.filter(item => item.error)) select.append(element('option', {value: '', disabled: 'true', text: `${p.path.split(/[\\/]/).pop()} · ${p.error}`}));
   if (!info.packages.length) select.append(element('option', {value: '', text: 'No package found in dist/ or firmware/'}));
   const device = info.device, newest = good[0];

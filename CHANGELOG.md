@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Firmware: a build for the Elecrow CrowPanel Advance 7.0 (ESP32-P4), contributed by joern-h. The panel reports the board id `tessera-p4-crowpanel7`, which the host now accepts. It is not in the release packages yet; [CROWPANEL.md](docs/CROWPANEL.md) has the build and install steps.
+- The update check offers the firmware package for the connected board. The board id never reached it before, so an S3 or CrowPanel panel was offered the GUITION P4 package. The editor's package list now names the board of each package, and `tools/package_firmware.py` refuses a `--board` that does not match the build.
 - Firmware: the panel opens with a boot screen. The logo builds itself tile by tile and the wordmark switches on column by column, then the logo fades out and the keys appear, 1.4 s in all. The backlight now comes on with the first boot frame, so the panel no longer flashes grey at power-on.
 - Ready-made keys for Shut down, Restart, Sleep and Sign out, which ask you to hold to confirm, and for Game Bar, New folder, Rename, System info and new or private browser windows.
 - Shuffle and repeat keys for players that offer them in the Windows media session, and $(pc:shuffle) and $(pc:repeat) for labels. Without a player, or with one that does not offer it, the key flashes red and the panel says why.
