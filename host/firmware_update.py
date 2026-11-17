@@ -29,7 +29,7 @@ from typing import Callable
 FORMAT = 1
 BOARD_ID = 'tessera-p4'  # the default board of build_package
 CHIP = 'esp32p4'
-BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3'}
+BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3'}
 MANIFEST = 'manifest.json'
 APP_OFFSET = 0x10000
 OTADATA_NAME = 'ota_data_initial.bin'  # written with the app by esptool so the bootloader starts ota_0 again

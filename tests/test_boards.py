@@ -23,6 +23,18 @@ from test_handshake import info, panel
 S3_BOARDS = ('tessera-s3-ws7', 'tessera-s3-8048s070')
 
 
+P4_BOARDS = ('tessera-p4', 'tessera-p4-crowpanel7')
+
+
+class P4BoardTests(unittest.TestCase):
+    def test_the_crowpanel_is_a_known_p4_board_with_its_own_package_name(self):
+        for board in P4_BOARDS:
+            self.assertIn(board, panel_serial.BOARD_IDS)
+            self.assertEqual(fw.BOARD_CHIPS[board], 'esp32p4')
+        self.assertEqual(fw.package_name('tessera-p4', '1.0.0'), 'tessera-firmware-1.0.0.zip')
+        self.assertEqual(fw.package_name('tessera-p4-crowpanel7', '1.0.0'), 'tessera-firmware-tessera-p4-crowpanel7-1.0.0.zip')
+
+
 def table(*entries):
     """A binary partition table: (type, subtype, size) per entry."""
     return b''.join(b'\xaa\x50' + bytes([kind, sub]) + struct.pack('<III', 0x10000, size, 0) + bytes(16)

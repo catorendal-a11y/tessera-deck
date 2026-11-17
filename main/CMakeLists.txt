@@ -38,5 +38,6 @@ idf_component_register(
         app_update
         spiffs
         esp_driver_usb_serial_jtag
+        esp_driver_uart
 )
 
