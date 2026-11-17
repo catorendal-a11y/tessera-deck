@@ -223,6 +223,7 @@ class NoticeTests(unittest.TestCase):
         daemon = Daemon.__new__(Daemon)
         daemon.panel, daemon.device_info, daemon.notices, daemon.logged = panel, info or {}, [], []
         daemon.connection_failed = threading.Event()
+        daemon.dimmed = daemon.locked = daemon.ambient_active = daemon.ambient_requested = False
         if failed:
             daemon.connection_failed.set()
         daemon.log = daemon.logged.append
@@ -252,6 +253,19 @@ class NoticeTests(unittest.TestCase):
         daemon.show_notice('Build passed', 'warn', 5)
         self.assertEqual([n['message'] for n in daemon.notices], ['Build passed'])
         self.assertEqual(len(daemon.logged), 1)
+
+    def test_a_warning_wakes_a_dimmed_panel_unless_windows_is_locked(self):
+        for level, locked, wakes in (('warn', False, True), ('error', False, True), ('ok', False, False),
+                                     ('info', False, False), ('error', True, False)):
+            with self.subTest(level=level, locked=locked):
+                panel = Mock()
+                daemon = self.daemon(panel, {'notify': 1})
+                daemon.dimmed, daemon.locked = True, locked
+                daemon.show_notice('Build failed', level, 5)
+                lines = [call.args[0] for call in panel.send_line.call_args_list]
+                self.assertEqual(lines, (['AD_SCREEN deck', 'AD_DISPLAY_WAKE'] if wakes else [])
+                                 + [f'AD_NOTIFY {level} 5 Build failed'])
+                self.assertEqual(daemon.dimmed, not wakes)
 
     def test_the_line_never_carries_a_newline(self):
         panel = Mock()

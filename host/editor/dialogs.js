@@ -144,7 +144,7 @@ async function testButton(id = selected) {
 }
 /* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */
 async function runKey(id, actions) {
-  const risky = {shell: 'runs a command', script: 'runs a script', http: 'sends a web request', text: 'types text'};
+  const risky = {shell: 'runs a command', script: 'runs a script', http: 'sends a web request', plugin: 'sends a plugin command', text: 'types text'};
   const effects = [...new Set(actions.map(a => risky[a.type]).filter(Boolean))];
   if (effects.length && !await confirmDialog('Run this key now?', `This key ${effects.join(', ')} on this PC.`, {ok: 'Run now'})) return;
   await save();  // the host runs what is saved

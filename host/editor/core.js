@@ -293,7 +293,7 @@ function valueProblem(a) {
   if(a.type==='delay'&&!whole(a.ms,0,60000))return 'use a wait of 0 to 60000 milliseconds';
   if(a.type==='hotkey'&&String(a.keys).split('+').some(part=>!part.trim()))return 'finish the key combination';
   if(a.type==='script'){
-    const path=String(a.path).trim();
+    const path=String(a.path).trim().replace(/^"+|"+$/g,'').trim();  // as the host reads it: Explorer's Copy as path adds quotes
     if(!/\.(py|pyw|ps1|bat|cmd|ahk|js)$/i.test(path))return 'use a .py, .pyw, .ps1, .bat, .cmd, .ahk or .js file';
     if(!/^([A-Za-z]:[\\/]|\\\\|%[^%\s]+%)/.test(path))return 'use the full path of the script file';
     if(/\.(bat|cmd)$/i.test(path)&&/%/.test(path.replace(/^%[^%\s]+%/,'')))return 'leave the % sign out of the path of a .bat or .cmd file';

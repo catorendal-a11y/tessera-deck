@@ -65,8 +65,11 @@ def run_command(command, timeout: float, stop: threading.Event, shell: bool = Tr
 
 def script_path(script: str) -> str:
     """The full path of a script step's file, with %NAME% expanded; ValueError says what is wrong with it."""
-    from program_locator import SCRIPT_SUFFIXES
-    expanded = os.path.expandvars(script.strip())
+    from program_locator import SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text
+    expanded = SCRIPT_VARIABLE.sub(lambda name: os.environ.get(name[1], name[0]), script_text(script))
+    unset = SCRIPT_VARIABLE.match(expanded)
+    if unset:
+        raise ValueError(f'{unset[0]} is not set on this PC')
     if not os.path.isabs(expanded):
         raise ValueError('Use the full path of the script file')
     if not expanded.lower().endswith(SCRIPT_SUFFIXES):

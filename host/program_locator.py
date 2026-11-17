@@ -106,8 +106,14 @@ def locate(target: str, environment=None, registry=_app_paths) -> str | None:
 
 SCRIPT_SUFFIXES = ('.py', '.pyw', '.ps1', '.bat', '.cmd', '.ahk', '.js')
 BATCH_SUFFIXES = ('.bat', '.cmd')
+SCRIPT_VARIABLE = re.compile(r'%([^%\s]+)%')  # %NAME% only: $NAME is a legal folder name, so expandvars is not used
 AUTOHOTKEY_NAMES = ('AutoHotkey64.exe', 'AutoHotkey32.exe', 'AutoHotkey.exe', 'AutoHotkeyU64.exe')
 COMMAND_TOKEN = re.compile(r'"([^"]*)"|(\S+)')
+
+
+def script_text(path: str) -> str:
+    """A script step's path as typed: without the spaces around it and the quotes of Explorer's Copy as path."""
+    return path.strip().strip('"').strip()
 
 
 def _association(suffix: str) -> str | None:

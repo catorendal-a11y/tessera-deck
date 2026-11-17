@@ -418,11 +418,12 @@ class MarkupTests(unittest.TestCase):
                  {'type': 'counter', 'name': 'laps', 'min': 1, 'max': 5}, {'type': 'set', 'variable': 'mode.1', 'value': 'x'},
                  {'type': 'script', 'path': 'C:\\scripts\\backup'}, {'type': 'script', 'path': 'scripts\\a.ps1'},
                  {'type': 'script', 'path': 'C:\\100%\\a.cmd'},
-                 {'type': 'script', 'path': 'C:\\scripts\\a.ps1'}, {'type': 'script', 'path': '%USERPROFILE%\\a.cmd'}]
+                 {'type': 'script', 'path': 'C:\\scripts\\a.ps1'}, {'type': 'script', 'path': '%USERPROFILE%\\a.cmd'},
+                 {'type': 'script', 'path': ' "C:\\scripts\\a.ps1" '}]
         script = kinds + rules + f'console.log(JSON.stringify({json.dumps(steps)}.map(s=>!!stepProblem(s))));'
         result = subprocess.run([node, '-e', script], capture_output=True, text=True, encoding='utf-8', timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7 + [True] * 3 + [False] * 2)
+        self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7 + [True] * 3 + [False] * 3)
 
 
 class EditorScriptTests(unittest.TestCase):

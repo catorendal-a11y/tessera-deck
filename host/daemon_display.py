@@ -122,7 +122,13 @@ class DisplayMixin:
 
     def show_notice(self, text, level, seconds):
         """A short message (deckctl say, POST /v1/notify) on the panel's banner, or as a Windows notification through
-        the tray when the panel cannot show it."""
+        the tray when the panel cannot show it. A warning or an error wakes a dimmed panel, as a touch would; while
+        Windows is locked the panel stays dim."""
+        if level in ('warn', 'error') and self.panel is not None and self.dimmed and not self.locked:
+            try:
+                self.wake_display()
+            except OSError:
+                pass  # panel_notice reports a panel that is gone
         if not self.panel_notice(text, level, seconds):
             self.notify('Tessera', text)
 

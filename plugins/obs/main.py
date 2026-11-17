@@ -264,14 +264,16 @@ def set_source(obs, scene, source, mode, key=None):
     if mode == 'toggle':  # a second toggle while one is in flight would read the old state and undo nothing
         if toggle_wait.get(busy, 0) > time.monotonic():
             return
-        toggle_wait[busy] = time.monotonic() + ANSWER_SECONDS
+        deadline = toggle_wait[busy] = time.monotonic() + ANSWER_SECONDS
 
-        def release():
-            toggle_wait.pop(busy, None)
+        def release():  # its own wait only: a late answer must not end the wait of a newer press
+            if toggle_wait.get(busy) == deadline:
+                del toggle_wait[busy]
 
     def set_enabled(item, enabled):
         def finished(answer):
-            toggle_wait.pop(busy, None)
+            if release:
+                release()
             done(answer)
         obs.request('SetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item, 'sceneItemEnabled': enabled}, finished,
                     key=key, refused=release)
@@ -296,17 +298,21 @@ def change_volume(obs, name, change, key=None):
     if waiting and waiting[1] > time.monotonic():  # a read is in flight: this press adds to its step
         volume_wait[name] = (waiting[0] + change, waiting[1])
         return
-    volume_wait[name] = (change, time.monotonic() + ANSWER_SECONDS)
+    deadline = time.monotonic() + ANSWER_SECONDS
+    volume_wait[name] = (change, deadline)
+
+    def gathered():  # the step for this read; a late answer leaves the wait of a newer press alone
+        return volume_wait.pop(name)[0] if volume_wait.get(name, (0, 0))[1] == deadline else change
 
     def got(answer):
-        total = volume_wait.pop(name, (change, 0))[0]
+        total = gathered()
         db = answer.get('inputVolumeDb')
         if isinstance(db, bool) or not isinstance(db, (int, float)):
             return
         low, high = VOLUME_RANGE
         obs.request('SetInputVolume', {'inputName': name, 'inputVolumeDb': round(min(high, max(low, db + total)), 2)}, done,
                     key=key)
-    obs.request('GetInputVolume', {'inputName': name}, got, key=key, refused=lambda: volume_wait.pop(name, None))
+    obs.request('GetInputVolume', {'inputName': name}, got, key=key, refused=gathered)
 
 
 def safe_name(name):

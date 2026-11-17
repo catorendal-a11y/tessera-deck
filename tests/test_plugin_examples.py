@@ -328,6 +328,26 @@ class ObsKeyTests(unittest.TestCase):
             self.assertEqual(len(self.sent), before + 1, refused_at)
             self.answer(ok=False, code=600)
 
+    def test_a_late_answer_leaves_the_wait_of_a_newer_press_alone(self):
+        args, clock = {'source': 'Webcam', 'scene': 'Gaming'}, [100.0]
+        with patch.object(self.module.time, 'monotonic', lambda: clock[0]):
+            self.module.run(self.obs, 'source', args)
+            clock[0] += 4
+            self.answer({'sceneItemId': 3})  # the first press now waits for GetSceneItemEnabled
+            clock[0] += 2  # its wait has run out
+            self.module.run(self.obs, 'source', args)
+            self.answer(ok=False, code=600, index=1)  # OBS refuses the first press late
+            before = len(self.sent)
+            self.module.run(self.obs, 'source', args)  # the second press is still in flight
+            self.assertEqual(len(self.sent), before)
+            self.module.run(self.obs, 'volume-up', {'input': 'Mic/Aux', 'step': 3})
+            clock[0] += 6
+            self.module.run(self.obs, 'volume-up', {'input': 'Mic/Aux', 'step': 3})
+            volume = [i for i, m in enumerate(self.sent) if m['d']['requestType'] == 'GetInputVolume']
+            self.answer(ok=False, code=600, index=volume[0])
+            self.answer({'inputVolumeDb': -10.0}, index=volume[1])
+            self.assertEqual(self.requests()[-1][1]['inputVolumeDb'], -7.0)
+
     def test_a_refusal_is_said_on_the_panel_and_flashes_the_key_that_sent_it(self):
         self.module.run(self.obs, 'transition', None, 6)
         self.answer(ok=False, code=506)  # OBS sends this one without a comment

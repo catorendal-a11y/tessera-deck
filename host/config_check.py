@@ -11,7 +11,7 @@ from live_state import NAME as LIVE_NAME, check_counter, check_timer
 import widgets
 from pc_state import FLAG_SOURCES, check_audio, check_media
 from plugins import PLUGIN_ID, check_plugin_config
-from program_locator import BATCH_SUFFIXES, SCRIPT_SUFFIXES
+from program_locator import BATCH_SUFFIXES, SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text
 from substitution import check_web_url
 from win_input import MOUSE_OPERATIONS, WINDOW_OPERATIONS, parse_hotkey
 
@@ -164,17 +164,16 @@ def _check_shell(action, pages, profiles):
 
 
 def _check_script(action, pages, profiles):
+    """The editor's rules (valueProblem in core.js). Nothing here reads this PC's variables: a %NAME% that is not
+    set fails when the key runs, not the whole configuration when the host loads it."""
     _check_timeout(action)
-    path = action['path']
-    if not path.strip() or len(path) > 1024 or '\0' in path or not path.lower().endswith(SCRIPT_SUFFIXES):
+    path = script_text(action['path'])
+    if not path or len(action['path']) > 1024 or '\0' in path or not path.lower().endswith(SCRIPT_SUFFIXES):
         raise ValueError(f'script: path must be a file ending in {", ".join(SCRIPT_SUFFIXES)}')
-    expanded = os.path.expandvars(path.strip())
-    if not os.path.isabs(expanded) and not re.match(r'%[^%\s]+%', path.strip()):
+    if not os.path.isabs(path) and not SCRIPT_VARIABLE.match(path):
         raise ValueError('script: use the full path of the script file')
-    if expanded.lower().endswith(BATCH_SUFFIXES) and '%' in expanded:
-        unset = re.match(r'%[^%\s]+%', expanded)  # the editor allows a leading %NAME%, so say why this one fails
-        if unset:
-            raise ValueError(f'script: {unset.group()} is not set on this PC')
+    lead = SCRIPT_VARIABLE.match(path)  # a leading %NAME% is fine: it is replaced before cmd sees the path
+    if path.lower().endswith(BATCH_SUFFIXES) and '%' in path[lead.end() if lead else 0:]:
         raise ValueError('script: the path of a .bat or .cmd file cannot contain a % sign')
 
 

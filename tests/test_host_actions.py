@@ -184,9 +184,23 @@ class ScriptStepTests(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 check(bad)
         check({'type': 'script', 'path': '%USERPROFILE%\\a.py'})
-        with patch.dict(os.environ), self.assertRaisesRegex(ValueError, '%TESSERA_UNSET% is not set on this PC'):
+        check({'type': 'script', 'path': ' "C:\\tools\\a.ps1" '})  # as pasted from Explorer's Copy as path
+        with self.assertRaises(ValueError):
+            check({'type': 'script', 'path': 'C:\\%NAME%\\a.cmd'})
+
+    def test_a_variable_that_is_not_set_fails_the_key_and_not_the_configuration(self):
+        from action_runner import script_path
+        with patch.dict(os.environ, {'TESSERA_SET': self.folder.name}):
             os.environ.pop('TESSERA_UNSET', None)
-            check({'type': 'script', 'path': '%TESSERA_UNSET%\\a.bat'})
+            for name in ('a.bat', 'a.py'):  # the same configuration loads on a PC without the variable
+                check({'type': 'script', 'path': f'%TESSERA_UNSET%\\{name}'})
+                with self.assertRaisesRegex(ValueError, '%TESSERA_UNSET% is not set on this PC'):
+                    script_path(f'%TESSERA_UNSET%\\{name}')
+            found = self.make('a.py', '')
+            self.assertEqual(script_path(' "%TESSERA_SET%\\a.py" '), found)
+            # only %NAME% is a variable: a folder may be named $TESSERA_SET
+            with self.assertRaisesRegex(ValueError, r'not found: C:\\\$TESSERA_SET\\a\.py'):
+                script_path('C:\\$TESSERA_SET\\a.py')
 
     def test_a_script_step_waits_on_the_slow_lane(self):
         self.assertTrue(make_daemon().waits([{'type': 'script', 'path': 'C:\\a.py'}]))

@@ -152,7 +152,7 @@ Every request needs `X-Deck-Token`. The host answers only to the `Host` header `
 | `press` | `POST /v1/press` with `{"button": 1-18}` presses a key. |
 | `feedback` | `POST /v1/feedback` with `{"button": 1-18, "ok": true}` flashes a key green, or red with `false`. |
 | `state` | `POST /v1/state` with `{"button": 1-18, "state": "next" or 0-7}` sets a toggle key's state. |
-| `notify` | `POST /v1/notify` with `{"text": "Build passed", "level": "ok", "seconds": 6}` shows a short message on the panel. `text` is 1 to 100 characters on one line, `level` is `info` (default), `ok`, `warn` or `error`, and `seconds` is 1 to 30 (default 6). Without a panel that can show the banner (none connected, or older firmware), the message becomes a tray notification that follows the Show Windows notifications setting, and is otherwise dropped. |
+| `notify` | `POST /v1/notify` with `{"text": "Build passed", "level": "ok", "seconds": 6}` shows a short message on the panel. `text` is 1 to 100 characters on one line, `level` is `info` (default), `ok`, `warn` or `error`, and `seconds` is 1 to 30 (default 6). A `warn` or `error` message wakes a dimmed panel, except while Windows is locked. Without a panel that can show the banner (none connected, or older firmware), the message becomes a tray notification that follows the Show Windows notifications setting, and is otherwise dropped. |
 | `events` | `GET /v1/events` reads key presses, page changes and commands. |
 | `read` | `GET /v1/state` reads the host state: profile, page, connection, variables, agents and queue sizes. |
 

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- OBS plugin: a volume or source key that OBS refused kept waiting for an answer, so the next press did nothing for five seconds. A refusal now ends the wait, and a late answer to an older press no longer ends the wait of a newer one.
+- Run script: quotes around the path (as from Explorer's *Copy as path*) and spaces around it are ignored. Only `%NAME%` is read as a variable, so a folder named `$NAME` works. A variable that is not set fails the key and names the variable; before, a `.bat` path with one made the whole configuration invalid.
+- The editor's firmware dialog preselects a package only for the connected board. With packages for one board and a panel that does not say which board it is, it used to preselect that package.
+- A `warn` or `error` message from `deckctl say` or a plugin wakes a dimmed panel, except while Windows is locked.
+- Run now in the editor asks first when the key sends a plugin command.
+
 ## 1.2.0
 
 A panel with 0.7.0 or later takes this version with *Update*. An older panel, or one with the Wi-Fi beta firmware, needs *Full install* once, and so does a CrowPanel the first time. *Update* from 1.1.0 has not been tried on the S3 boards.
