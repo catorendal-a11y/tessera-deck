@@ -34,8 +34,8 @@ Tessera is a macro deck for Windows that you build from one 7-inch touchscreen b
 | Board | Chip and screen | State |
 |---|---|---|
 | [GUITION JC1060P470C](https://www.aliexpress.com/item/1005010022828767.html) | ESP32-P4, 7-inch, 1024 × 600 | The main board, about $35 to $42. Tested on hardware, with firmware in every release. |
-| [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Boots on a contributor's board. Touch and colors are not checked yet. The next release has its firmware; until then you build it yourself. |
-| [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
+| [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Boots on a contributor's board. Touch and colors are not checked yet. The firmware is in the releases from 1.2.0. |
+| [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. One tester has the display, touch, keys and PC actions working over native USB. |
 | [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
 
 If you have one of the S3 boards, [tell me how it goes](https://github.com/catorendal-a11y/tessera-deck/discussions/6). [Contributing](CONTRIBUTING.md#port-to-another-board) says what a port to another board needs.
@@ -163,7 +163,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
 | [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what nobody has tried yet |
-| [ESP32-S3 boards](docs/S3.md) | The experimental port to two 800 x 480 S3 boards, not tested on S3 hardware yet |
+| [ESP32-S3 boards](docs/S3.md) | The experimental port to two 800 x 480 S3 boards and what is still untested |
 | [CrowPanel Advance 7.0](docs/CROWPANEL.md) | The Elecrow CrowPanel Advance 7.0 (ESP32-P4): building, flashing and what is not checked yet |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 

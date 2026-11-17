@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.2.0
+
+A panel with 0.7.0 or later takes this version with *Update*. An older panel, or one with the Wi-Fi beta firmware, needs *Full install* once, and so does a CrowPanel the first time. *Update* from 1.1.0 has not been tried on the S3 boards.
+
+- Firmware, Waveshare ESP32-S3-Touch-LCD-7: the pixel clock is 12 MHz instead of 16, so the screen refreshes 29 times a second instead of 39. The first test on a real board ran at 12 MHz and was stable; on this board 16 MHz has made the picture jump in other projects while PSRAM was busy. The same test found the display, touch, keys, PC actions and the native USB link working.
 - Firmware: a build for the Elecrow CrowPanel Advance 7.0 (ESP32-P4), contributed by joern-h. The panel reports the board id `tessera-p4-crowpanel7`, which the host now accepts. CI builds it, and the release has its package, `tessera-firmware-tessera-p4-crowpanel7-<version>.zip`. Touch and colors are not checked on the board yet; [CROWPANEL.md](docs/CROWPANEL.md) has the details.
 - The update check offers the firmware package for the connected board. The board id never reached it before, so an S3 or CrowPanel panel was offered the GUITION P4 package. The editor's firmware dialog names the board of each package and preselects the one for the connected board. When the panel does not say which board it is, you choose, since nothing refuses the GUITION package on a CrowPanel. `tools/package_firmware.py` refuses a `--board` that does not match the build.
 - Firmware: the panel opens with a boot screen. The logo builds itself tile by tile and the wordmark switches on column by column, then the logo fades out and the keys appear, 1.4 s in all. The backlight now comes on with the first boot frame, so the panel no longer flashes grey at power-on.

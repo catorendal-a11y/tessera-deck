@@ -2,9 +2,9 @@
 
 [Back to the README](../README.md)
 
-The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It has been flashed to a real board: it boots, the screen lights up and the host handshake reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the next release has its package. Until then you build it yourself.
+The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It has been flashed to a real board: it boots, the screen lights up and the host handshake reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the releases have its package from 1.2.0 on.
 
-From the repository root, with ESP-IDF 6.1:
+To build it yourself, from the repository root, with ESP-IDF 6.1:
 
 ```
 idf.py -B build/crowpanel -DSDKCONFIG=build/crowpanel/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/crowpanel-p4-7.defaults" build
