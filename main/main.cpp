@@ -5,6 +5,7 @@
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
@@ -88,6 +89,8 @@ static int host_link_read(uint8_t *buffer, size_t size)
  * and kept in NVS so the panel boots at the chosen level, not at full power. */
 static int s_brightness = 100;
 static const char *SETTINGS_NAMESPACE = "tessera";
+/* Set once the boot screen's first frame is on the glass; the backlight waits for it. */
+static std::atomic<bool> s_boot_drawn{false};
 
 static void load_brightness(void)
 {
@@ -823,6 +826,9 @@ extern "C" void app_main(void)
         // app_main retains its small housekeeping stack and never builds widgets.
         const lv_result_t queued = lv_async_call([](void *) {
             ui_init();
+            ui_boot_start();
+            lv_refr_now(nullptr);
+            s_boot_drawn = true;
             lv_timer_create(lvgl_watchdog, 1000, nullptr);
             lv_display_add_event_cb(lv_display_get_default(), draw_timing, LV_EVENT_RENDER_START, nullptr);
             lv_display_add_event_cb(lv_display_get_default(), draw_timing, LV_EVENT_RENDER_READY, nullptr);
@@ -842,6 +848,8 @@ extern "C" void app_main(void)
     /* The BSP intentionally initializes PWM at 0% and requires applications
      * to enable the backlight. Touch and USB can otherwise keep working while
      * the physical panel looks completely black. */
+    /* Lit any sooner, the panel flashes LVGL's default screen: wait for the boot screen's first frame, 2 s at most. */
+    for (int wait = 0; ui_loaded && wait < 200 && !s_boot_drawn; ++wait) vTaskDelay(pdMS_TO_TICKS(10));
     ESP_ERROR_CHECK(bsp_display_brightness_set(s_brightness));
 
     ESP_LOGI(TAG, "Tessera UI running");

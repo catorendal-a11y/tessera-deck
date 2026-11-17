@@ -7,6 +7,8 @@ extern "C" {
 #endif
 
 void ui_init(void);
+/* Plays the boot screen over the deck, then shows the keys; call once, after ui_init. */
+void ui_boot_start(void);
 /* The firmware version the about sheet shows; call before ui_init. */
 void ui_set_firmware_version(const char *version);
 /* Shows one of the four screens: 0 keys, 1 agents, 2 mixer, 3 status. */

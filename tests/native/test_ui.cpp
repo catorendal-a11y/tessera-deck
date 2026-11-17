@@ -36,7 +36,9 @@ static void flush(lv_display_t* display,const lv_area_t* area,uint8_t* data){++f
 static void step(uint32_t ms=40){lv_timer_handler();tick+=ms;lv_tick_inc(ms);}
 static void updates(){for(int i=0;i<6;++i)step();lv_refr_now(nullptr);}
 static std::filesystem::path output;
-static void capture(const char* name){updates();std::ofstream out(output/name,std::ios::binary);out<<"P6\n"<<width<<" "<<height<<"\n255\n";assert(flushes);assert(*std::max_element(pixels.begin(),pixels.end())>128);for(size_t i=0;i<pixels.size();i+=3){out.put(pixels[i+2]);out.put(pixels[i+1]);out.put(pixels[i]);}}
+/* Writes the frame as it is now, for animations that capture()'s quarter second of updates would skip past. */
+static void save(const char* name){lv_refr_now(nullptr);std::ofstream out(output/name,std::ios::binary);out<<"P6\n"<<width<<" "<<height<<"\n255\n";assert(flushes);assert(*std::max_element(pixels.begin(),pixels.end())>128);for(size_t i=0;i<pixels.size();i+=3){out.put(pixels[i+2]);out.put(pixels[i+1]);out.put(pixels[i]);}}
+static void capture(const char* name){for(int i=0;i<6;++i)step();save(name);}
 static bool touching=false;static lv_point_t touch_at{};
 static void touch_read(lv_indev_t*,lv_indev_data_t* data){data->point=touch_at;data->state=touching?LV_INDEV_STATE_PRESSED:LV_INDEV_STATE_RELEASED;}
 static void tap(int x,int y){touch_at={x,y};touching=true;updates();touching=false;updates();}
@@ -542,6 +544,29 @@ static void test_icon_pack(){
     assert(resolved==DECK_LUCIDE_COUNT&&deck_lucide_glyph("lc:e10b",glyph));  /* the lock badge's glyph */
 }
 
+static bool boot_deleted=false;
+static void test_boot_screen(){
+    /* The boot screen covers the deck while the logo builds, then the keys replace it and it is deleted. */
+    ui_boot_start();lv_obj_add_event_cb(lv_screen_active(),[](lv_event_t*){boot_deleted=true;},LV_EVENT_DELETE,nullptr);
+    step();lv_refr_now(nullptr);
+    assert(visible("v9.8.7")&&!visible("14:32"));
+    for(int t=40;t<1100;t+=40)step();save("boot.ppm");
+    assert(visible("v9.8.7")&&!visible("14:32"));
+    for(int t=0;t<1000;t+=40)step();
+    assert(!visible("v9.8.7")&&visible("14:32")&&deck_model_screen()==DECK_SCREEN_DECK&&boot_deleted);
+    /* A finger down since boot presses nothing when it lifts over a key: LVGL presses no widget it was dragged onto. */
+    const int before=deck_model_last_event_id();
+    ui_boot_start();touch_at={key_x(4),key_y(4)};touching=true;for(int t=0;t<1560;t+=40)step();
+    assert(visible("14:32"));touching=false;updates();assert(deck_model_last_event_id()==before&&taken().empty());
+    tap(key_x(4),key_y(4));assert(deck_model_last_event_id()==before+1);
+    /* An ambient request meanwhile waits for the boot screen, then wins; a touch brings the deck back. */
+    ui_boot_start();for(int t=0;t<500;t+=40)step();
+    deck_model_request_screen(DECK_SCREEN_AMBIENT);for(int t=0;t<400;t+=40)step();
+    assert(visible("v9.8.7")&&deck_model_screen()==DECK_SCREEN_AMBIENT);
+    for(int t=0;t<1000;t+=40)step();
+    assert(!visible("v9.8.7")&&visible("Tue 20 Oct 2026"));
+    tap(width/2,height/2);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return()&&visible("14:32"));
+}
 int main(int argc,char** argv){
     output=argc>1?argv[1]:".";std::filesystem::create_directories(output);
     alignas(64)static uint32_t buffer[1024*600];
@@ -566,7 +591,7 @@ int main(int argc,char** argv){
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"image upload with acknowledgements",test_image_upload_ack},{"key styling",test_key_styling},
      {"tap after a layout swap",test_tap_after_layout_swap},{"image fills its key",test_image_fills_its_key},
-     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack}};
+     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack},{"boot screen",test_boot_screen}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
     capture("deck.ppm");puts("Standalone Deck model, context and render checks passed.");
 }

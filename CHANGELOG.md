@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Firmware: the panel opens with a boot screen. The logo builds itself tile by tile and the wordmark switches on column by column, then the logo fades out and the keys appear, 1.4 s in all. The backlight now comes on with the first boot frame, so the panel no longer flashes grey at power-on.
+
 ## 1.1.0
 
 A panel with 0.7.0 or later takes this version with *Update*. An older panel, or one with the Wi-Fi beta firmware, needs *Full install* once. The two ESP32-S3 boards need *Full install* the first time, and their firmware has not been tested on S3 hardware.

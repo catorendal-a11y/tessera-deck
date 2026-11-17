@@ -898,11 +898,12 @@ void draw_big_clock(const char *text,const char *meridiem) {
     tiles(shift,true);
     lv_obj_set_pos(ambient_meridiem,right+shift+Gap,lv_obj_get_y(ambient_clock)+7*Pitch-(Pitch-Dot)-ascent(ambient_meridiem)-sc(9));  /* on the digits' baseline */
 }
+lv_obj_t *boot=nullptr;  /* the boot screen, while it plays */
 void show_ambient(bool on) {
     if(!ambient||on==(deck_model_screen()==DECK_SCREEN_AMBIENT))return;
     deck_model_set_screen(on?DECK_SCREEN_AMBIENT:DECK_SCREEN_DECK);
     if(on){ambient_time[0]='\0';ambient_seen=0;}
-    lv_screen_load(on?ambient:screen);
+    if(!boot)lv_screen_load(on?ambient:screen);  /* the boot screen loads the one asked for when it ends */
 }
 void ambient_touched(lv_event_t *) {
     if(deck_model_screen()!=DECK_SCREEN_AMBIENT)return;
@@ -932,6 +933,64 @@ void update_ambient() {
     /* One version read before the copy: a line that lands after it bumps the version again and is drawn next tick. */
     const uint32_t version=deck_model_ambient_version();
     if(ambient_seen!=version){char line[DECK_AMBIENT_MAX+1];deck_model_ambient(line,sizeof(line));lv_label_set_text(ambient_line,line);show_weather_icon(line);ambient_seen=version;}
+}
+
+/* ---- Boot: the mark builds itself and its amber tile breaks loose, the wordmark switches on column by column, then
+ * the logo fades out and the keys replace it. One object draws the logo, so each frame redraws only that strip. ---- */
+const char *const WordGlyphs[7][7]={  /* TESSERA on the clock's 5 x 7 grid, as in docs/images/logo.svg */
+    {"11111","00100","00100","00100","00100","00100","00100"},{"11111","10000","10000","11110","10000","10000","11111"},
+    {"01111","10000","10000","01110","00001","00001","11110"},{"01111","10000","10000","01110","00001","00001","11110"},
+    {"11111","10000","10000","11110","10000","10000","11111"},{"11110","10001","10001","11110","10100","10010","10001"},
+    {"01110","10001","10001","11111","10001","10001","10001"}};
+constexpr int32_t BootWordMs=700,BootOutMs=1250,BootEndMs=1400;
+constexpr int BootMargin=6;  /* around the logo's box, for the tiles' overshoot */
+constexpr uint32_t BootFoot=0x465258;  /* the version line: there if you look, quieter than any real text */
+lv_obj_t *boot_version=nullptr;int32_t boot_ms=0;
+float progress(int32_t t,int32_t from,int32_t to) {return t<=from?0:t>=to?1:static_cast<float>(t-from)/(to-from);}
+float ease_out(float t) {return 1-(1-t)*(1-t)*(1-t);}
+float ease_in_out(float t) {return t<.5f?4*t*t*t:1-std::pow(2-2*t,3.f)/2;}
+float back_out(float t) {t-=1;return 1+2.6f*t*t*t+1.6f*t*t;}  /* overshoots by about 9% before it settles */
+void boot_draw(lv_event_t *event) {
+    const int32_t t=boot_ms;const float shown=1-ease_in_out(progress(t,BootOutMs,BootEndMs));  /* fades to the background */
+    if(shown<=0)return;
+    lv_layer_t *layer=lv_event_get_layer(event);lv_area_t area;lv_obj_get_coords(lv_event_get_current_target_obj(event),&area);
+    /* The logo's 308 x 60 box at two pixels a unit, laid on whole pixels like the clock: every dot the same size and gap. */
+    const float u=2*scale;const int left=area.x1+sc(BootMargin),top=area.y1+sc(BootMargin);
+    auto px=[&](float units){return static_cast<int>(std::lround(units*u));};
+    lv_draw_rect_dsc_t dsc;lv_draw_rect_dsc_init(&dsc);
+    auto square=[&](float cx,float cy,float size,float radius,uint32_t color) {  /* `size` pixels wide, centred on (cx, cy) */
+        if(size<1)return;
+        const auto x1=static_cast<int32_t>(std::lround(cx-size/2)),y1=static_cast<int32_t>(std::lround(cy-size/2)),side=static_cast<int32_t>(std::lround(size));
+        const lv_area_t at={x1,y1,x1+side-1,y1+side-1};
+        dsc.bg_color=lv_color_hex(mix(Bg,color,shown));dsc.radius=static_cast<int32_t>(std::lround(LV_MIN(radius,size/2)));
+        lv_draw_rect(layer,&dsc,&at);
+    };
+    /* The mark: eight tiles pop in one after another, then the amber one pops into the grid and breaks loose. */
+    const int pitch=px(16),tile=pitch-px(3);
+    for(int i=0;i<8;++i) {
+        const int cell=i<2?i:i+1,row=cell/3,col=cell%3;const float k=back_out(progress(t,50+i*40,350+i*40));
+        square(left+px(4)+col*pitch+tile/2.f,top+px(8)+row*pitch+tile/2.f,tile*k,px(4)*k,sweep((row+col)/4.f));
+    }
+    const float k=back_out(progress(t,370,670)),loose=ease_out(progress(t,720,870)),amber=px(12);
+    square(left+px(36+2*loose)+amber/2,top+px(8-4*loose)+amber/2,amber*k,px(4)*k,Amber);
+    /* The wordmark: its columns switch on left to right while the amber tile settles. */
+    const int step=px(6),dot=step-px(1),letter_step=5*step+px(2);
+    for(int letter=0;letter<7;++letter)for(int col=0;col<5;++col) {
+        const float along=(32*letter+6*col)/216.f;
+        if(t<BootWordMs+static_cast<int32_t>(along*350))continue;
+        const float x=left+px(82)+letter*letter_step+col*step+dot/2.f;
+        for(int row=0;row<7;++row)if(WordGlyphs[letter][row][col]=='1')square(x,top+px(9)+row*step+dot/2.f,dot,px(2),sweep(along));
+    }
+}
+void boot_frame(void *logo,int32_t ms) {
+    boot_ms=ms;lv_obj_invalidate(static_cast<lv_obj_t*>(logo));
+    if(boot_version)set_color(boot_version,LV_STYLE_TEXT_COLOR,mix(Bg,BootFoot,progress(ms,BootWordMs,BootWordMs+200)*(1-ease_in_out(progress(ms,BootOutMs,BootEndMs)))));
+}
+void boot_done(lv_anim_t *) {
+    /* The logo has faded to the background, so the keys simply replace it: a fade would redraw the whole screen twice a
+     * step, four or five visible jumps on the panel. The ambient clock wins if the host asked for it meanwhile. */
+    lv_obj_t *old=boot;boot=boot_version=nullptr;
+    lv_screen_load(deck_model_screen()==DECK_SCREEN_AMBIENT?ambient:screen);lv_obj_delete_async(old);
 }
 
 int view_before_question=-1;  /* the screen a permission question took the panel away from */
@@ -1050,6 +1109,22 @@ extern "C" int ui_debug_visible_text(char *out,size_t size) {
 }
 extern "C" void ui_set_firmware_version(const char *version) {
     if(version)snprintf(firmware_version,sizeof(firmware_version),"%s",version);
+}
+extern "C" void ui_boot_start(void) {
+    if(!screen||boot)return;
+    boot=lv_obj_create(nullptr);flat(boot,Bg);
+    const int margin=sc(BootMargin),w=static_cast<int>(std::lround(616*scale)),h=static_cast<int>(std::lround(120*scale));
+    auto *logo=clear_box(boot,(W-w)/2-margin,(H-h)/2-sc(4)-margin,w+2*margin,h+2*margin);
+    lv_obj_add_event_cb(logo,boot_draw,LV_EVENT_DRAW_MAIN,nullptr);
+    if(isdigit(static_cast<unsigned char>(firmware_version[0]))) {  /* "unknown" is not worth a line */
+        char text[40];snprintf(text,sizeof(text),"v%s",firmware_version);
+        boot_version=label(boot,text,0,0,W,&fq_font_dejavu_16,Bg);lv_obj_set_style_text_align(boot_version,LV_TEXT_ALIGN_CENTER,0);
+        lv_obj_set_y(boot_version,H-sc(32)-ascent(boot_version));
+    }
+    lv_screen_load(boot);
+    lv_anim_t anim;lv_anim_init(&anim);lv_anim_set_var(&anim,logo);lv_anim_set_exec_cb(&anim,boot_frame);
+    lv_anim_set_values(&anim,0,BootEndMs);lv_anim_set_duration(&anim,BootEndMs);lv_anim_set_completed_cb(&anim,boot_done);
+    lv_anim_start(&anim);
 }
 /* Shows one of the four screens (keys, agents, mixer, status); used by the tests. */
 extern "C" void ui_show_view(int index) {if(screen)set_view(index);}
