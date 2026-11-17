@@ -129,6 +129,8 @@ Replace the program folder with the new `tessera-host` zip, or run `git pull` in
 over first: from `host/`, copy `profiles.json`, `assets/`, `backups/` and the `*.local.json` files (counters, timers,
 your icon library and the panel you used last). [Releasing](RELEASING.md) lists them by name. Then check **Panel → Panel firmware and updates …** for newer firmware. The tray menu has **Help → Check for updates**.
 
+If you unpacked the new version to a new folder and Start with Windows was on, start the new copy once with `Tessera.cmd`. When the panel connects, its tray asks whether Start with Windows should start the new copy instead.
+
 ## Autostart
 
 Choose **Start with Windows** in the tray menu, or tick *Start the USB host automatically when I sign in* in **Program settings** in the editor. After the panel first connects, the tray asks once whether to start with Windows.

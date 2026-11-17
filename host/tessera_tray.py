@@ -16,7 +16,8 @@ from pathlib import Path
 import pystray
 from PIL import Image, ImageDraw
 
-from deck_control import ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart
+from deck_control import (ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart,
+                          startup_script_path)
 from host_runtime import InstanceLock
 
 log = logging.getLogger(__name__)
@@ -275,16 +276,29 @@ class TrayApp:
         self.background(work)
 
     def ask_about_autostart(self):
-        """Once, at the first panel connection: the panel does nothing after a restart until Tessera runs, so ask."""
-        if FIRST_RUN_PATH.exists() or os.name != 'nt':
+        """Once per folder, at the first panel connection: the panel does nothing after a restart until Tessera runs, so
+        ask. A record copied over with the *.local.json files from the folder before an update does not count while
+        Start with Windows still starts that folder."""
+        if os.name != 'nt':
             return
-        write_command({'asked': 'autostart'}, FIRST_RUN_PATH)
+        try:
+            elsewhere = startup_script_path().is_file() and not autostart_enabled()
+            asked = json.loads(FIRST_RUN_PATH.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            asked = None
+        if asked is not None and not (elsewhere and (not isinstance(asked, dict) or asked.get('root') != str(ROOT))):
+            return
+        write_command({'asked': 'autostart', 'root': str(ROOT)}, FIRST_RUN_PATH)
         if autostart_enabled():
             return
+        if elsewhere:  # left by a copy in another folder, such as the version before an update
+            question = f'Start with Windows starts Tessera from another folder. Start this copy instead?\n\n{ROOT}'
+        else:
+            question = 'Start Tessera when you sign in to Windows?\n\nThe panel then works after every restart.'
         import ctypes
         answer = ctypes.windll.user32.MessageBoxW(
-            None, 'Start Tessera when you sign in to Windows?\n\nThe panel then works after every restart. '
-                  'You can change this later in the tray menu: Start with Windows.', 'Tessera', 0x4 | 0x20 | 0x10000 | 0x40000)
+            None, question + '\n\nYou can change this later in the tray menu: Start with Windows.', 'Tessera',
+            0x4 | 0x20 | 0x10000 | 0x40000)
         if answer == 6:  # IDYES
             set_autostart(True)
 

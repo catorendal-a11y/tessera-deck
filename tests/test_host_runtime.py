@@ -638,6 +638,75 @@ class HostRuntimeTests(HostCase):
                 set_autostart(False, directory)
                 self.assertFalse(autostart_enabled(directory))
 
+    def test_start_with_windows_counts_only_a_script_for_this_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old_root, new_root = Path(directory) / 'tessera-1.0', Path(directory) / 'tessera-1.1'
+            for root in (old_root, new_root):
+                (root / 'host/.venv/Scripts').mkdir(parents=True)
+                (root / 'host/.venv/Scripts/pythonw.exe').write_bytes(b'')
+            with patch('deck_control.os.name', 'nt'):
+                with patch('deck_control.ROOT', old_root):
+                    path = set_autostart(True, directory)
+                    self.assertTrue(autostart_enabled(directory))
+                with patch('deck_control.ROOT', new_root):
+                    self.assertFalse(autostart_enabled(directory))  # the tray menu does not tick a script for the old folder
+                    set_autostart(True, directory)
+                    self.assertTrue(autostart_enabled(directory))
+                    self.assertNotIn(str(old_root / 'host'), path.read_text(encoding='utf-16'))
+                    path.write_bytes(b'\x00')  # an unreadable script counts as off
+                    self.assertFalse(autostart_enabled(directory))
+
+    def test_the_tray_asks_before_start_with_windows_moves_from_another_folder(self):
+        try:
+            import tessera_tray
+        except ImportError:
+            self.skipTest('pystray is not installed')
+        from host_support import tray_app
+        with tempfile.TemporaryDirectory() as directory:
+            first_run = Path(directory) / 'tray-first-run.local.json'
+            script = Path(directory) / 'Microsoft/Windows/Start Menu/Programs/Startup/Tessera.vbs'
+            script.parent.mkdir(parents=True)
+            script.write_text('a copy in another folder', encoding='utf-16')
+            box = Mock(return_value=7)  # IDNO
+            app = tray_app(Mock())
+            with patch.object(tessera_tray, 'FIRST_RUN_PATH', first_run), patch('deck_control.os.name', 'nt'), \
+                    patch.dict('os.environ', {'APPDATA': directory}), \
+                    patch('ctypes.windll', Mock(user32=Mock(MessageBoxW=box)), create=True), \
+                    patch.object(tessera_tray, 'set_autostart') as set_autostart:
+                app.ask_about_autostart()
+                app.ask_about_autostart()  # once per folder
+                self.assertEqual(box.call_count, 1)
+                self.assertIn('another folder. Start this copy instead?', box.call_args.args[1])
+                self.assertIn(str(tessera_tray.ROOT), box.call_args.args[1])
+                set_autostart.assert_not_called()
+                self.assertEqual(script.read_text(encoding='utf-16'), 'a copy in another folder')
+                first_run.write_text('{"asked": "autostart"}', encoding='utf-8')  # copied from the folder before
+                app.ask_about_autostart()
+                self.assertEqual(box.call_count, 2)
+                first_run.unlink()
+                box.return_value = 6  # IDYES
+                app.ask_about_autostart()
+                set_autostart.assert_called_once_with(True)
+                first_run.unlink()
+                script.unlink()
+                app.ask_about_autostart()
+                self.assertTrue(box.call_args.args[1].startswith('Start Tessera when you sign in to Windows?'))
+
+    def test_the_tray_start_leaves_start_with_windows_alone(self):
+        try:
+            import tessera_tray
+        except ImportError:
+            self.skipTest('pystray is not installed')
+        from host_support import tray_app
+        app = tray_app(Mock())
+        app.start_host, app.icon = Mock(), Mock()
+        app.stop.set()  # the status poll ends at once
+        with patch.object(tessera_tray, 'set_autostart') as set_autostart:
+            app.run()
+        set_autostart.assert_not_called()
+        app.start_host.assert_called_once_with()
+        app.icon.run.assert_called_once_with()
+
     def test_trigger_targets_must_be_text_so_a_bad_one_cannot_stop_the_host(self):
         config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
         for when in ({'type': 'file', 'path': ['x']}, {'type': 'file', 'path': 5},

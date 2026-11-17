@@ -33,8 +33,20 @@ def startup_script_path(appdata=None):
     return base / 'Microsoft/Windows/Start Menu/Programs/Startup/Tessera.vbs'
 
 
+def startup_line():
+    """The line of Tessera.vbs that starts the tray app of this folder."""
+    command = f'"{ROOT / "host/.venv/Scripts/pythonw.exe"}" "{ROOT / "host/tessera_tray.py"}"'.replace('"', '""')
+    return f'TesseraShell.Run "{command}", 0, False'
+
+
 def autostart_enabled(appdata=None):
-    return os.name == 'nt' and startup_script_path(appdata).is_file()
+    """True when Tessera.vbs starts this folder. A script left by a copy in another folder does not count."""
+    if os.name != 'nt':
+        return False
+    try:
+        return startup_line() in startup_script_path(appdata).read_text(encoding='utf-16')
+    except (OSError, UnicodeError):
+        return False
 
 
 def set_autostart(enabled, appdata=None):
@@ -45,13 +57,9 @@ def set_autostart(enabled, appdata=None):
     if not enabled:
         path.unlink(missing_ok=True)
         return path
-    pythonw = ROOT / 'host/.venv/Scripts/pythonw.exe'
-    if not pythonw.is_file():
+    if not (ROOT / 'host/.venv/Scripts/pythonw.exe').is_file():
         raise OSError('Run Tessera.cmd once before enabling automatic startup')
-    starter = ROOT / 'host/tessera_tray.py'
-    command = f'"{pythonw}" "{starter}"'.replace('"', '""')
-    contents = ('Set TesseraShell = CreateObject("WScript.Shell")\r\n'
-                f'TesseraShell.Run "{command}", 0, False\r\n')
+    contents = f'Set TesseraShell = CreateObject("WScript.Shell")\r\n{startup_line()}\r\n'
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix('.tmp')
     temporary.write_text(contents, encoding='utf-16')  # Script Host reads a non-ASCII path only as UTF-16
