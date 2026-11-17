@@ -21,7 +21,7 @@ CI and `python -m unittest discover -s tests` run several hundred tests on Windo
 Other automatic checks:
 
 - The native LVGL tests (`tests/native`) build the real firmware UI and model for the PC. They render 1024 x 600 frames, drive touch input and check the image cache limit, key colors, the ambient screen, hold events, the rail, the agents, mixer and status screens, wide keys and text contrast. The firmware's own touch handling for hold, lock and swipe runs there only against simulated touches.
-- CI compiles the firmware with ESP-IDF 6.1 and runs `cppcheck` on the sources.
+- CI compiles the GUITION and ESP32-S3 firmware with ESP-IDF 6.1 and runs `cppcheck` on the sources. The CrowPanel build is not in CI.
 - The editor smoke test opens the editor in a real browser and checks the deck, dialogs, focus and axe accessibility rules (CI only, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)).
 - `ruff` finds syntax errors, undefined names, unused imports and bug-prone patterns. `pip-audit` checks the host's packages.
 - `python host/tessera_terminal.py --check` checks the terminal UI.
@@ -50,6 +50,8 @@ The watchdog and rollback tests used two builds made only for that and never pub
 Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA* on a panel that had run 0.7.0 for about four hours; it kept its old firmware, and the next tries worked. The cause is not found. Since 0.8.0 the host aborts and starts such an upload once more by itself. `hardware_smoke.py` has not been run on 0.7.0 or 0.8.0.
 
 The editor was also walked through against a copy of a real configuration: every page, the three key tabs on every key, all dialogs, pages and profiles created, renamed and deleted, drag and drop with synthetic events, undo and redo. That was before the latest editor redesign. The editor smoke test covers the new layout only in part.
+
+Every check in this section was made on the GUITION board. The contributor of the CrowPanel Advance 7.0 build flashed it to a real board: it boots, the screen lights up and the host handshake reported `tessera-p4-crowpanel7`, 1024 x 600 and protocol 4. The color byte order, touch input and orientation, the memory speeds and an install from the editor's firmware dialog have not been checked on that board ([docs/CROWPANEL.md](docs/CROWPANEL.md)). Nothing has run on the ESP32-S3 boards yet ([docs/S3.md](docs/S3.md)).
 
 ## Screen speed
 

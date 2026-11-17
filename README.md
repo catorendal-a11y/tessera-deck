@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  Two 7-inch ESP32-S3 boards have an experimental build that has not been tested on S3 hardware yet: <a href="docs/S3.md">ESP32-S3 boards</a>. If you have one, <a href="https://github.com/catorendal-a11y/tessera-deck/discussions/6">tell me how it goes</a>.
+  The Elecrow CrowPanel Advance 7.0 (ESP32-P4) has a build that boots on a contributor's board. You build it yourself, and touch and colors are not checked yet: <a href="docs/CROWPANEL.md">CrowPanel Advance 7.0</a>. Two 7-inch ESP32-S3 boards have an experimental build that has not been tested on S3 hardware yet: <a href="docs/S3.md">ESP32-S3 boards</a>. If you have one, <a href="https://github.com/catorendal-a11y/tessera-deck/discussions/6">tell me how it goes</a>.
 </p>
 
 <p align="center">
@@ -27,7 +27,7 @@
 Tessera is a macro deck for Windows that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. It needs no soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
-> You need the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. Other boards need porting, and the host runs on Windows only.
+> You need the [GUITION 7-inch ESP32-P4 display dev board](https://www.aliexpress.com/item/1005010022828767.html) (model JC1060P470C, 1024 × 600, about $35 to $42), a USB cable and a Windows 10/11 PC. The [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) has a build that you make yourself, and [two ESP32-S3 boards](docs/S3.md) have an experimental build that is not tested on hardware. Other boards need porting, and the host runs on Windows only.
 
 <p align="center">
   <img src="docs/images/promo.gif" alt="A short loop: the Tessera logo, the Windows app and the panel joined by one USB cable, a tap on Allow on the agents screen, the editor putting a Timer key on the panel, and what you need to build one" width="760">
@@ -37,7 +37,7 @@ Tessera is a macro deck for Windows that you build from one 7-inch touchscreen b
 
 - When Claude Code asks for permission, the question shows on the panel and you touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
 - There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on, such as the update check or the weather. [Security](SECURITY.md#what-tessera-contacts) lists every address. The panel talks to a small Windows host over USB.
-- Firmware, host and editor are open source (MIT), with over 600 automated tests, a documented serial protocol and a plugin API.
+- Firmware, host and editor are open source (MIT), with over 800 automated tests, a documented serial protocol and a plugin API.
 - It needs one board, which you flash from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
 
 | Widgets on wide keys | Answer Claude Code from the panel |
@@ -85,10 +85,10 @@ You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk
 - Icons: real app icons from Windows, 1,895 Lucide icons or your own images.
 - Live gauges: CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan and FPS.
 - Profiles that follow the program in front, with a lock key to stay put.
-- Over 120 ready-made actions and 10 profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
+- Over 130 ready-made actions and 10 profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
 - Macros: multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
-- Scripts and AI tools: drive keys from your own scripts with the local API or `deckctl`, or add plugins (one for Home Assistant through the PC and one for OBS Studio are included) and Claude Code hooks.
-- Clock screen, offline layout, auto-dim and a firmware installer.
+- Scripts and AI tools: run a script from a key, drive keys or put a message on the panel from your own scripts with the local API or `deckctl`, or add plugins (one for Home Assistant through the PC and one for OBS Studio are included) and Claude Code hooks.
+- Clock screen, offline layout, auto-dim, a firmware installer and a banner that says why a key failed.
 - Home Assistant over Wi-Fi (beta, not in the release yet): the panel joins your Wi-Fi and shows up in Home Assistant through the ESPHome integration. See [below](#home-assistant-beta).
 
 See [all features](docs/FEATURES.md).
@@ -157,6 +157,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
 | [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what nobody has tried yet |
 | [ESP32-S3 boards](docs/S3.md) | The experimental port to two 800 x 480 S3 boards, not tested on S3 hardware yet |
+| [CrowPanel Advance 7.0](docs/CROWPANEL.md) | The build for the Elecrow CrowPanel Advance 7.0 (ESP32-P4), not in the release packages yet |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 
 ## Credits and license

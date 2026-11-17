@@ -64,6 +64,6 @@ Commit both files. CI installs from the lock file on Python 3.11 and 3.14, so a 
 
 ## Port to another board
 
-Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and new layout constants in `main/ui/ui.cpp` if the resolution differs. Open an issue with the board's name and resolution and we can work out what it takes.
+Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and a board id of its own. The UI scales its 1024 x 600 layout to the screen size at start. The [CrowPanel Advance 7.0 port](docs/CROWPANEL.md) shows what that takes for another ESP32-P4 board. It adds a board choice and its id to `main/Kconfig.projbuild`, puts its pins, power and screen setup behind `CONFIG_TESSERA_BOARD_P4_CROWPANEL7` in `components/espressif__esp32_p4_function_ev_board`, keeps its build settings in `boards/crowpanel-p4-7.defaults` and adds the id to `BOARD_IDS` in `host/panel_serial.py` and `BOARD_CHIPS` in `host/firmware_update.py`. `tests/test_boards.py` checks that the two lists match. Open an issue with the board's name and resolution and we can work out what it takes.
 
 By contributing you agree that your work is released under the [MIT License](LICENSE).

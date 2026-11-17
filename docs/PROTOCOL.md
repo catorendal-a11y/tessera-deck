@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 4; [Releasing](RELEASING.md) lists what each version added.
+The host and the panel talk over USB Serial/JTAG at 115200 baud. On the CrowPanel Advance 7.0 and the Sunton ESP32-8048S070 the link is a UART at 921600 baud through the board's USB-UART bridge. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 4; [Releasing](RELEASING.md) lists what each version added.
 
 ## Framing
 
@@ -76,7 +76,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 
 | Message | When | What the host does |
 |---|---|---|
-| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"layoutSaved":N,"draws":N,"drawMaxMs":N}` | The answer to `get_info` | Accepts only `tessera-p4` and a supported protocol. See [Handshake fields](#handshake-fields). |
+| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"layoutSaved":N,"draws":N,"drawMaxMs":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
 | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed. `hold` is present for a long press. | Runs the key's actions. |
 | `{"type":"wake"}` | A touch woke the dimmed panel. | Resets the idle timer. No key is pressed. |
 | `{"type":"brightness","level":N}` | The brightness slider was released. | Stores the level (1 to 100). |

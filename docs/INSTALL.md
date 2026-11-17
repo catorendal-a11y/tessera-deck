@@ -6,7 +6,7 @@
 > Tessera is made for one board: the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
 > capacitive touch screen), bought from [this AliExpress listing](https://www.aliexpress.com/item/1005010022828767.html).
 > The firmware runs on Espressif's ESP32-P4 Function EV Board support package, and the pin setup and screen layout
-> are written for this kit. Other ESP32 boards or displays need a port. An experimental port to two ESP32-S3 boards is described in [ESP32-S3 boards](S3.md).
+> are written for this kit. Other ESP32 boards or displays need a port. The Elecrow CrowPanel Advance 7.0 (ESP32-P4) has a build that you make yourself, described in [CrowPanel Advance 7.0](CROWPANEL.md). An experimental port to two ESP32-S3 boards is described in [ESP32-S3 boards](S3.md).
 
 <p align="center">
   <img src="images/board.jpg" alt="The GUITION 7-inch ESP32-P4 display dev board Tessera is made for" width="420"><br>
@@ -160,9 +160,9 @@ When something blocks you, a bar at the bottom of the editor names the cause and
 | The USB host has stopped, so the panel does not react to presses. | Press *Start host*, or use the tray. *Show the host log* says why it stopped. Edits are still saved. The tray restarts a host that dies by itself after 5 s, 15 s, 60 s, then every 5 minutes. |
 | The host could not start: … | Press *Show the host log*. |
 | Another program is using the panel's USB port. | Close Arduino IDE, PuTTY, Thonny or any other serial program. The panel connects by itself. Flashing from source also needs the host stopped. |
-| The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port. |
+| The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port. On a CrowPanel, use the USB-C port marked UART. |
 | The panel firmware is too old for this Tessera. | Press *Panel firmware …* and update. |
-| No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
+| No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port, or on a CrowPanel the USB-C port marked UART. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
 | The panel firmware (x) is older than Tessera (y). | Press *Update firmware …*, or *Not now*. |
 
 More symptoms:
