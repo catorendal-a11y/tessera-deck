@@ -1,8 +1,9 @@
 """OBS Studio on the panel: scenes, sources, recording, streaming, replay buffer, virtual camera and audio.
 
 Turn on OBS's WebSocket server (Tools → WebSocket Server Settings) and put its port and password in this plugin's
-settings (editor: More → Plugins … → OBS Studio). OBS must run on the same PC. While it cannot be reached, a key
-flashes red and the panel says why for a few seconds.
+settings (editor: More → Plugins … → OBS Studio). OBS must run on the same PC. When OBS cannot be reached or refuses
+a key (studio mode off, no replay buffer, a scene that does not exist), the key flashes red and the panel says why
+for a few seconds.
 
 Keys:   {"type": "plugin", "plugin": "obs", "command": "scene", "args": {"name": "Gaming"}}
         {"type": "plugin", "plugin": "obs", "command": "record"}          (start or stop)
@@ -55,6 +56,11 @@ DEFAULT_STEP, MAX_STEP = 2.0, 20.0
 ANSWER_SECONDS = 5  # a request OBS has not answered by then is dropped
 RETRY_SECONDS = 5  # between attempts to reach OBS
 WARN_SECONDS = 3  # how long the panel says why a key did nothing
+WARN_CHARS = 100  # the longest banner Tessera takes
+# What OBS means by the refusals it sends without a comment. Of this plugin's requests only SaveReplayBuffer gets 501.
+REFUSALS = {501: 'Replay buffer is not running', 502: 'Recording is already paused', 503: 'Recording is not paused',
+            506: 'Studio mode is off in OBS'}
+refused_since = None  # the last event refuse_keys answered; None once OBS answers keys itself
 scene_now = ''  # the current program scene, for source keys that name no scene
 volume_wait = {}  # input name -> (dB change gathered while its GetInputVolume is in flight, deadline)
 toggle_wait = {}  # (scene, source) -> deadline while a toggle of that source is in flight
@@ -156,16 +162,17 @@ class Obs:
                 if first & 0x80:
                     return json.loads(message)
 
-    def request(self, kind, data=None, then=None, quiet=False):
+    def request(self, kind, data=None, then=None, quiet=False, key=None):
         """Send a request. With `then`, it is called with OBS's answer data once the request succeeds.
-        A failure or a missing answer is reported in obs.error unless the request is `quiet` (the plugin's own polls)."""
+        A failure or a missing answer is reported in obs.error unless the request is `quiet` (the plugin's own polls).
+        A refusal is also shown on the panel, and `key` (the button that sent it) flashes red."""
         with self.ids:
             self.requests += 1
             number = str(self.requests)
             if then:
                 if len(self.pending) >= MAX_PENDING:
                     self.pending.pop(next(iter(self.pending)))
-                self.pending[number] = (then, time.monotonic() + ANSWER_SECONDS, quiet)
+                self.pending[number] = (then, time.monotonic() + ANSWER_SECONDS, quiet, key)
         self.send({'op': 6, 'd': {'requestType': kind, 'requestId': number, 'requestData': data or {}}})
 
     def identify(self):
@@ -192,7 +199,7 @@ def follow_keys(obs, stop):
         for event in reply['events']:
             if event['type'] != 'command':
                 continue
-            run(obs, event.get('command'), event.get('args'))
+            run(obs, event.get('command'), event.get('args'), event.get('button'))
         since = reply['last']
 
 
@@ -224,32 +231,33 @@ def expire(obs):
         show(error='OBS did not answer')
 
 
-def run(obs, command, args):
+def run(obs, command, args, key=None):
     """One key command becomes one or more OBS requests. Bad args are ignored, like unknown commands."""
     expire(obs)
     args = args if isinstance(args, dict) else {}
     simple = {'record': 'ToggleRecord', 'stream': 'ToggleStream', 'replay': 'SaveReplayBuffer',
               'virtualcam': 'ToggleVirtualCam', 'transition': 'TriggerStudioModeTransition'}
     if command in simple:
-        obs.request(simple[command], then=done)
+        obs.request(simple[command], then=done, key=key)
     elif command == 'scene' and name_of(args, 'name'):
-        obs.request('SetCurrentProgramScene', {'sceneName': args['name']}, done)
+        obs.request('SetCurrentProgramScene', {'sceneName': args['name']}, done, key=key)
     elif command == 'mute' and name_of(args, 'input'):
-        obs.request('ToggleInputMute', {'inputName': args['input']}, done)
+        obs.request('ToggleInputMute', {'inputName': args['input']}, done, key=key)
     elif command == 'pause' and args.get('mode', 'toggle') in ('toggle', 'on', 'off'):
         obs.request({'toggle': 'ToggleRecordPause', 'on': 'PauseRecord', 'off': 'ResumeRecord'}[args.get('mode', 'toggle')],
-                    then=done)
+                    then=done, key=key)
     elif command == 'source' and name_of(args, 'source') and args.get('mode', 'toggle') in ('toggle', 'show', 'hide'):
         scene = name_of(args, 'scene') or scene_now
         if scene:
-            set_source(obs, scene, args['source'], args.get('mode', 'toggle'))
+            set_source(obs, scene, args['source'], args.get('mode', 'toggle'), key)
         else:
             show(error='The current scene is not known yet')
+            warn('The current scene is not known yet', [key])
     elif command in ('volume-up', 'volume-down') and name_of(args, 'input') and step_of(args):
-        change_volume(obs, args['input'], step_of(args) * (1 if command == 'volume-up' else -1))
+        change_volume(obs, args['input'], step_of(args) * (1 if command == 'volume-up' else -1), key)
 
 
-def set_source(obs, scene, source, mode):
+def set_source(obs, scene, source, mode, key=None):
     """GetSceneItemId, then (for toggle) GetSceneItemEnabled, then SetSceneItemEnabled."""
     busy = (scene, source)
     if mode == 'toggle':  # a second toggle while one is in flight would read the old state and undo nothing
@@ -261,7 +269,8 @@ def set_source(obs, scene, source, mode):
         def finished(answer):
             toggle_wait.pop(busy, None)
             done(answer)
-        obs.request('SetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item, 'sceneItemEnabled': enabled}, finished)
+        obs.request('SetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item, 'sceneItemEnabled': enabled}, finished,
+                    key=key)
 
     def found(answer):
         item = answer.get('sceneItemId')
@@ -269,13 +278,13 @@ def set_source(obs, scene, source, mode):
             return
         if mode == 'toggle':
             obs.request('GetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item},
-                        lambda state: set_enabled(item, not state.get('sceneItemEnabled')))
+                        lambda state: set_enabled(item, not state.get('sceneItemEnabled')), key=key)
         else:
             set_enabled(item, mode == 'show')
-    obs.request('GetSceneItemId', {'sceneName': scene, 'sourceName': source}, found)
+    obs.request('GetSceneItemId', {'sceneName': scene, 'sourceName': source}, found, key=key)
 
 
-def change_volume(obs, name, change):
+def change_volume(obs, name, change, key=None):
     """GetInputVolume, then SetInputVolume with the new dB value kept inside OBS's range."""
     waiting = volume_wait.get(name)
     if waiting and waiting[1] > time.monotonic():  # a read is in flight: this press adds to its step
@@ -289,8 +298,9 @@ def change_volume(obs, name, change):
         if isinstance(db, bool) or not isinstance(db, (int, float)):
             return
         low, high = VOLUME_RANGE
-        obs.request('SetInputVolume', {'inputName': name, 'inputVolumeDb': round(min(high, max(low, db + total)), 2)}, done)
-    obs.request('GetInputVolume', {'inputName': name}, got)
+        obs.request('SetInputVolume', {'inputName': name, 'inputVolumeDb': round(min(high, max(low, db + total)), 2)}, done,
+                    key=key)
+    obs.request('GetInputVolume', {'inputName': name}, got, key=key)
 
 
 def safe_name(name):
@@ -333,7 +343,9 @@ def handle(obs, message):
         then = entry[0] if entry else None
         if not status.get('result', True):
             if then and not entry[2]:  # a key's request, or a step of one: say what OBS refused
-                show(error=status.get('comment') or f"{data.get('requestType')} failed")
+                reason = status.get('comment') or REFUSALS.get(status.get('code')) or f"{data.get('requestType')} failed"
+                show(error=reason)
+                warn(reason, [entry[3]])
             return
         answer, kind = data.get('responseData') or {}, data.get('requestType')
         if then:
@@ -348,9 +360,9 @@ def handle(obs, message):
         event, values = data.get('eventType'), data.get('eventData') or {}
         if event == 'CurrentProgramSceneChanged':
             show_scene(values.get('sceneName', ''))
-        elif event == 'RecordStateChanged':
-            show(recording=on_off(values.get('outputActive')),
-                 paused=on_off(values.get('outputState') == 'OBS_WEBSOCKET_OUTPUT_PAUSED'))
+        elif event == 'RecordStateChanged':  # OBS sends outputActive false while paused, but it still records
+            paused = values.get('outputState') == 'OBS_WEBSOCKET_OUTPUT_PAUSED'
+            show(recording=on_off(values.get('outputActive') or paused), paused=on_off(paused))
         elif event == 'StreamStateChanged':
             show(streaming=on_off(values.get('outputActive')))
         elif event == 'InputMuteStateChanged' and values.get('inputName') in INPUTS:
@@ -364,8 +376,10 @@ def show_scene(name):
 
 
 def session():
+    global refused_since
     obs = Obs(PORT)
     obs.identify()
+    refused_since = None  # keys from now on go to OBS; after this session, only newer ones get the warning
     volume_wait.clear()
     toggle_wait.clear()
     show(connected='yes')
@@ -394,22 +408,32 @@ def _guarded(work, *args):
         pass  # the main loop notices the closed connection and starts again
 
 
+def warn(reason, buttons):
+    """A short warning on the panel and a red flash on each key that did nothing."""
+    # Tessera refuses a banner with an unprintable character, and then the key would not flash either. OBS repeats the
+    # name from the key, and an emoji in it can hold one (the zero-width joiner).
+    text = ' '.join(''.join(char for char in reason if char.isprintable() or char.isspace()).split())
+    try:
+        tessera('POST', '/v1/notify', {'text': text[:WARN_CHARS], 'level': 'warn', 'seconds': WARN_SECONDS})
+        for button in {button for button in buttons if isinstance(button, int)}:
+            tessera('POST', '/v1/feedback', {'button': button, 'ok': False})
+    except urllib.error.HTTPError as exc:  # refused (an old Tessera, too many at once): the next press tries again
+        print(f'obs: Tessera refused the warning: HTTP {exc.code}', file=sys.stderr)
+
+
 def refuse_keys(reason, seconds):
-    """While OBS cannot be reached, a key gets a short warning on the panel and a red flash instead of doing nothing."""
+    """While OBS cannot be reached, a key gets a short warning on the panel and a red flash instead of doing nothing.
+    It goes on from the last event the previous call saw, so a key pressed while OBS was tried again is answered too."""
+    global refused_since
     deadline = time.monotonic() + seconds
-    since = newest_event()
+    if refused_since is None:
+        refused_since = newest_event()
     while (left := deadline - time.monotonic()) > 0:
-        reply = tessera('GET', f'/v1/events?since={since}&wait={left:.1f}')
+        reply = tessera('GET', f'/v1/events?since={refused_since}&wait={left:.1f}')
         commands = [event for event in reply['events'] if event['type'] == 'command']
-        since = reply['last']
-        if not commands:
-            continue
-        try:  # one banner for a key with several OBS steps, and one flash per key
-            tessera('POST', '/v1/notify', {'text': reason, 'level': 'warn', 'seconds': WARN_SECONDS})
-            for button in {event['button'] for event in commands if isinstance(event.get('button'), int)}:
-                tessera('POST', '/v1/feedback', {'button': button, 'ok': False})
-        except urllib.error.HTTPError as exc:  # refused (an old Tessera, too many at once): the next press tries again
-            print(f'obs: Tessera refused the warning: HTTP {exc.code}', file=sys.stderr)
+        refused_since = reply['last']
+        if commands:  # one banner for a key with several OBS steps, and one flash per key
+            warn(reason, [event.get('button') for event in commands])
 
 
 def main():
@@ -420,7 +444,7 @@ def main():
             reason = ('OBS is not running' if isinstance(exc, (ConnectionRefusedError, TimeoutError, socket.timeout))
                       else str(exc)[:40] or 'OBS cannot be reached')
             try:
-                show(connected=reason, recording='OFF', streaming='OFF', paused='OFF', error='',
+                show(connected=reason, scene='', recording='OFF', streaming='OFF', paused='OFF', error='',
                      **{f'mute.{safe_name(name)}': '' for name in INPUTS})
                 refuse_keys(reason, RETRY_SECONDS)  # OBS may start later: keep trying quietly
             except (urllib.error.URLError, OSError, ValueError):

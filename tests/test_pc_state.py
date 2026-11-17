@@ -231,6 +231,25 @@ class MediaOptionTests(unittest.TestCase):
             self.assertFalse(self.run_option(session, 'repeat'))
             self.assertEqual(session.calls, [])
 
+    def test_a_press_that_changes_nothing_says_why(self):
+        import types
+
+        def control(session, operation):
+            async def request_async():
+                return Mock(get_current_session=lambda: session)
+            manager = types.SimpleNamespace(request_async=request_async)
+            module = types.SimpleNamespace(GlobalSystemMediaTransportControlsSessionManager=manager)
+            with patch.dict(sys.modules, {'winrt.windows.media.control': module}):
+                pc_state.control_media(operation)
+
+        with self.assertRaisesRegex(OSError, 'No player is open'):
+            control(None, 'repeat')
+        with self.assertRaisesRegex(OSError, 'does not offer shuffle'):  # Windows Media Player has no shuffle here
+            control(FakeSession(shuffle_enabled=False), 'shuffle')
+        session = FakeSession(mode=FakeMode(0))
+        control(session, 'repeat')
+        self.assertEqual(session.calls, [('repeat', 2)])
+
     def test_a_missing_repeat_package_is_named_in_the_error(self):
         session = FakeSession()
         type(session.info).auto_repeat_mode = PropertyMock(side_effect=ModuleNotFoundError("No module named 'winrt.windows.media'"))

@@ -219,7 +219,8 @@ async def _change_media_option(session, operation: str) -> bool:
 
 
 def control_media(operation: str) -> None:
-    """Toggle shuffle or cycle repeat in the current media session. A player without it is left alone."""
+    """Toggle shuffle or cycle repeat in the current media session. A player without it is left alone, and the
+    OSError says so: otherwise the key would report success for a press that changed nothing."""
     check_media({'op': operation})
     try:
         import asyncio
@@ -229,8 +230,10 @@ def control_media(operation: str) -> None:
 
     async def work():
         session = (await Manager.request_async()).get_current_session()
-        if session is not None:
-            await _change_media_option(session, operation)
+        if session is None:
+            raise OSError('No player is open in the Windows media controls')
+        if not await _change_media_option(session, operation):
+            raise OSError(f'This player does not offer {operation}')
 
     asyncio.run(work())
 

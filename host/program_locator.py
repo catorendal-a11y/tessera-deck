@@ -135,13 +135,16 @@ def _association_argv(command: str | None, script: str) -> list[str] | None:
     return argv if argv and os.path.isfile(argv[0]) else None
 
 
-def script_command(script: str, which=shutil.which, registry=_app_paths, association=_association) -> list[str] | str:
+def script_command(script: str, which=shutil.which, registry=_app_paths, association=_association,
+                   roots=program_roots) -> list[str] | str:
     """The command that runs a script file, chosen by its extension; ValueError names what is missing.
 
     An argument list, except for .bat and .cmd: that is one quoted command line string.
 
     Python goes through the py launcher (python on PATH if there is no launcher); .ahk uses the program Windows has
-    registered for the type, then App Paths and PATH; PowerShell and cmd come with Windows. The script itself must exist.
+    registered for the type, then App Paths, PATH and the installer's folders (Program Files, or
+    %LOCALAPPDATA%\\Programs for a per-user install, which adds neither App Paths nor PATH); PowerShell and cmd come
+    with Windows. The script itself must exist.
     """
     suffix = os.path.splitext(script)[1].lower()
     if suffix not in SCRIPT_SUFFIXES:
@@ -179,4 +182,9 @@ def script_command(script: str, which=shutil.which, registry=_app_paths, associa
         found = registry(name) or which(name)
         if found:
             return [found, script]
+    for root in roots():
+        for folder in ('AutoHotkey/v2', 'AutoHotkey'):  # v2 first: it is the version the installer sets up now
+            for name in AUTOHOTKEY_NAMES:
+                if (root / folder / name).is_file():
+                    return [str(root / folder / name), script]
     raise ValueError('AutoHotkey was not found on this PC')

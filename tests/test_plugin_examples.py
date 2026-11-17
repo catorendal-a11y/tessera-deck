@@ -12,7 +12,7 @@ import sys
 import threading
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
@@ -188,19 +188,21 @@ class ObsKeyTests(unittest.TestCase):
         self.module = load('obs', {'port': 1, 'inputs': 'Mic/Aux, Desktop'})
         self.obs = object.__new__(self.module.Obs)
         self.obs.requests, self.obs.ids, self.obs.pending = 0, threading.Lock(), {}
-        self.sent, self.shown = [], []
+        self.sent, self.shown, self.warned = [], [], []
         self.obs.send = self.sent.append
-        patcher = patch.object(self.module, 'show', lambda **values: self.shown.append(values))
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for name, fake in (('show', lambda **values: self.shown.append(values)),
+                           ('warn', lambda reason, buttons: self.warned.append((reason, list(buttons))))):
+            patcher = patch.object(self.module, name, fake)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def requests(self):
         return [(m['d']['requestType'], m['d']['requestData']) for m in self.sent]
 
-    def answer(self, data=None, ok=True, comment=None, index=-1):
+    def answer(self, data=None, ok=True, comment=None, index=-1, code=604):
         """Reply to the latest request sent, or to the one at `index`."""
         request = self.sent[index]['d']
-        status = {'result': ok, 'code': 100 if ok else 604}
+        status = {'result': ok, 'code': 100 if ok else code}
         if comment:
             status['comment'] = comment
         self.module.handle(self.obs, {'op': 7, 'd': {'requestType': request['requestType'], 'requestId': request['requestId'],
@@ -235,9 +237,10 @@ class ObsKeyTests(unittest.TestCase):
         self.assertEqual(self.requests()[2], ('SetSceneItemEnabled', {'sceneName': 'Chat', 'sceneItemId': 3, 'sceneItemEnabled': False}))
 
     def test_a_source_key_without_any_scene_sends_nothing(self):
-        self.module.run(self.obs, 'source', {'source': 'Webcam'})
+        self.module.run(self.obs, 'source', {'source': 'Webcam'}, 5)
         self.assertEqual(self.sent, [])
         self.assertEqual(self.shown, [{'error': 'The current scene is not known yet'}])
+        self.assertEqual(self.warned, [('The current scene is not known yet', [5])])
 
     def test_two_quick_volume_presses_move_two_steps(self):
         self.module.run(self.obs, 'volume-up', {'input': 'Mic/Aux', 'step': 3})
@@ -307,6 +310,19 @@ class ObsKeyTests(unittest.TestCase):
         self.assertEqual(len(self.sent), 1)
         self.assertEqual(self.shown, [{'error': 'No source was found'}])
 
+    def test_a_refusal_is_said_on_the_panel_and_flashes_the_key_that_sent_it(self):
+        self.module.run(self.obs, 'transition', None, 6)
+        self.answer(ok=False, code=506)  # OBS sends this one without a comment
+        self.module.run(self.obs, 'source', {'source': 'Cam', 'scene': 'Gaming'}, 4)
+        self.answer({'sceneItemId': 3})
+        self.answer(ok=False, comment='No scene item was found')  # a later step of the same key
+        self.module.run(self.obs, 'replay', None, 7)
+        self.answer(ok=False, code=501)  # OBS 33 when the replay buffer is set up but not started
+        self.assertEqual(self.warned, [('Studio mode is off in OBS', [6]), ('No scene item was found', [4]),
+                                       ('Replay buffer is not running', [7])])
+        self.assertEqual(self.shown, [{'error': 'Studio mode is off in OBS'}, {'error': 'No scene item was found'},
+                                      {'error': 'Replay buffer is not running'}])
+
     def test_mute_and_pause_state_follow_events_and_the_first_poll(self):
         self.module.watch_inputs(self.obs)
         self.assertEqual([data['inputName'] for _, data in self.requests()], ['Mic/Aux', 'Desktop'])
@@ -316,7 +332,7 @@ class ObsKeyTests(unittest.TestCase):
         self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'InputMuteStateChanged',
                                                      'eventData': {'inputName': 'Other', 'inputMuted': True}}})  # not watched
         self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'RecordStateChanged', 'eventData': {
-            'outputActive': True, 'outputState': 'OBS_WEBSOCKET_OUTPUT_PAUSED'}}})
+            'outputActive': False, 'outputState': 'OBS_WEBSOCKET_OUTPUT_PAUSED'}}})  # what OBS 33 sends while paused
         self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'RecordStateChanged', 'eventData': {
             'outputActive': True, 'outputState': 'OBS_WEBSOCKET_OUTPUT_RESUMED'}}})
         self.assertEqual(self.shown, [{'mute.Mic_Aux': 'ON'}, {'mute.Desktop': 'OFF'},
@@ -387,11 +403,9 @@ class ObsAwayTests(unittest.TestCase):
         self.assertEqual([c.args for c in refuse.call_args_list], [('OBS is not running', 5)] * 2)
         self.assertEqual(shown[0]['connected'], 'OBS is not running')
 
-    def test_keys_pressed_before_the_plugin_looked_get_no_warning(self):
+    def log_tessera(self, log):
+        """Tessera's event route over a real EventLog; POSTs are recorded."""
         import urllib.parse
-        log = plugins.EventLog()
-        for index in range(150):  # more than one page of old events, with an OBS key among the newer ones
-            log.add('command', plugin='obs', command='record', button=2) if index == 141 else log.add('press', button=1)
 
         def tessera(method, path, data=None):
             if method == 'POST':
@@ -401,7 +415,46 @@ class ObsAwayTests(unittest.TestCase):
             events, last = log.since(int(query.get('since', ['0'])[0]), 'obs', float(query.get('wait', ['0'])[0]),
                                      with_last=True)
             return {'events': events, 'last': last}
+        return tessera
 
+    def test_a_key_pressed_while_obs_is_tried_again_still_gets_the_warning(self):
+        log = plugins.EventLog()
+        with patch.object(self.module, 'tessera', self.log_tessera(log)):
+            self.module.refuse_keys('OBS is not running', 0.05)
+            log.add('command', plugin='obs', command='record', button=2)  # while the plugin tries to reach OBS
+            self.module.refuse_keys('OBS is not running', 0.05)
+        self.assertEqual(self.posted, [('/v1/notify', {'text': 'OBS is not running', 'level': 'warn', 'seconds': 3}),
+                                       ('/v1/feedback', {'button': 2, 'ok': False})])
+
+    def test_keys_obs_answered_in_a_session_get_no_warning_afterwards(self):
+        self.module.refused_since = 0
+        obs = MagicMock()
+        obs.read.side_effect = ConnectionError('OBS closed the connection')  # connected, then OBS closes
+        with patch.object(self.module, 'Obs', return_value=obs), patch.object(self.module, 'show'), \
+                patch.object(self.module, 'follow_keys'), self.assertRaises(ConnectionError):
+            self.module.session()
+        self.assertIsNone(self.module.refused_since)
+
+    def test_a_warning_is_one_short_line(self):
+        with self.fake_tessera([]):
+            self.module.warn('No source\nwas found ' + 'x' * 200, [3, None, 3])
+        self.assertEqual(self.posted[0][1]['text'], ('No source was found ' + 'x' * 200)[:100])
+        self.assertEqual(self.posted[1:], [('/v1/feedback', {'button': 3, 'ok': False})])
+
+    def test_a_warning_drops_what_tessera_cannot_show(self):
+        # OBS repeats the scene name from the key; the zero-width joiner in an emoji made Tessera refuse the banner
+        with self.fake_tessera([]):
+            self.module.warn('No source was found by the name of `\U0001F468‍\U0001F4BB Live`.', [2])
+        text = self.posted[0][1]['text']
+        self.assertEqual(text, 'No source was found by the name of `\U0001F468\U0001F4BB Live`.')
+        self.assertTrue(text.isprintable())
+        self.assertEqual(self.posted[1:], [('/v1/feedback', {'button': 2, 'ok': False})])
+
+    def test_keys_pressed_before_the_plugin_looked_get_no_warning(self):
+        log = plugins.EventLog()
+        for index in range(150):  # more than one page of old events, with an OBS key among the newer ones
+            log.add('command', plugin='obs', command='record', button=2) if index == 141 else log.add('press', button=1)
+        tessera = self.log_tessera(log)
         for name, function in (('obs', 'tessera'), ('home-assistant', 'tessera'), ('example-uptime', 'call')):
             module = load(name, {})
             with patch.object(module, function, tessera):

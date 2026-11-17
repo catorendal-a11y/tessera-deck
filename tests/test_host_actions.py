@@ -191,7 +191,7 @@ class ScriptStepTests(unittest.TestCase):
         from program_locator import script_command
         which = {'py.exe': 'C:\\py.exe', 'pyw.exe': 'C:\\pyw.exe', 'powershell.exe': 'C:\\ps.exe', 'node.exe': 'C:\\node.exe'}.get
         pick = lambda path, **kw: script_command(path, which=which, registry=lambda name: None,
-                                                 association=lambda suffix: None, **kw)
+                                                 association=lambda suffix: None, roots=lambda: [], **kw)
         self.assertEqual(pick('C:\\s\\a.py'), ['C:\\py.exe', '-3', 'C:\\s\\a.py'])
         self.assertEqual(pick('C:\\s\\a.pyw')[0], 'C:\\pyw.exe')
         self.assertEqual(pick('C:\\s\\a.bat'), '"C:\\s\\a.bat"')
@@ -215,6 +215,16 @@ class ScriptStepTests(unittest.TestCase):
                                       registry=lambda name: exe if name == 'AutoHotkey64.exe' else None,
                                       association=lambda suffix: None)
         self.assertEqual(via_registry, [exe, 'C:\\s\\a.ahk'])
+
+    def test_a_per_user_autohotkey_is_found_without_the_file_association(self):
+        # The per-user installer puts AutoHotkey in %LOCALAPPDATA%\Programs and adds neither App Paths nor PATH
+        from program_locator import script_command
+        programs = Path(self.folder.name)
+        (programs / 'AutoHotkey' / 'v2').mkdir(parents=True)
+        (programs / 'AutoHotkey' / 'v2' / 'AutoHotkey64.exe').write_bytes(b'')
+        found = script_command('C:\\s\\a.ahk', which=lambda name: None, registry=lambda name: None,
+                               association=lambda suffix: None, roots=lambda: [Path('C:\\nowhere'), programs])
+        self.assertEqual(found, [str(programs / 'AutoHotkey' / 'v2' / 'AutoHotkey64.exe'), 'C:\\s\\a.ahk'])
 
     @unittest.skipUnless(sys.platform == 'win32', 'Windows only')
     def test_runs_in_its_own_folder_and_reports_failures(self):

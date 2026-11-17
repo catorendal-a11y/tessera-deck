@@ -34,11 +34,11 @@ In the editor, add a *Plugin command* step, choose OBS Studio and type a command
 | `source` | `source`, optional `scene` (default: the current scene), optional `mode`: `toggle` (default), `show` or `hide` | Enables or disables a source in a scene. |
 | `volume-up`, `volume-down` | `input`, optional `step` in dB (default 2, above 0 up to 20) | Changes the input volume. The result stays between -100 and 26 dB. |
 
-Variables: `obs.scene`, `obs.recording`, `obs.streaming` and `obs.paused` (*ON* or *OFF*), `obs.connected`, and `obs.error`. `obs.error` holds the reason when OBS refuses a command, for example when the replay buffer is not running, and is empty after the next command that works. It also reports a command OBS does not answer within five seconds, and a source key pressed before the current scene is known. Failures of the plugin's own startup requests are not reported there. When OBS disconnects, `obs.error` is cleared and the `obs.mute.*` variables become empty. Two quick volume presses add up, and a second toggle of the same source is ignored until the first has finished.
+Variables: `obs.scene`, `obs.recording`, `obs.streaming` and `obs.paused` (*ON* or *OFF*), `obs.connected`, and `obs.error`. `obs.error` holds the reason when OBS refuses a command, for example when the replay buffer is not running, and is empty after the next command that works. It also reports a command OBS does not answer within five seconds, and a source key pressed before the current scene is known. Failures of the plugin's own startup requests are not reported there. When OBS disconnects, `obs.error` is cleared and `obs.scene` and the `obs.mute.*` variables become empty. Two quick volume presses add up, and a second toggle of the same source is ignored until the first has finished.
 
 To follow mute state, list the inputs in the plugin's *Inputs whose mute state to show* setting, separated by commas (up to 10). Each one gets `obs.mute.<name>`, *ON* when muted, where characters other than letters, digits, dash and underscore in the name become underscores, so `Mic/Aux` is `obs.mute.Mic_Aux`. Use it in a key's `status` to colour a mute key. If two names give the same variable, such as `Mic/Aux` and `Mic_Aux`, the first one is kept and the others are ignored and noted in the plugin's log.
 
-While OBS cannot be reached, a key flashes red and the panel shows why for three seconds, for example *OBS is not running*. The plugin asks for `notify` and `feedback` for this.
+When OBS cannot be reached or refuses a key, the key flashes red and the panel shows why for three seconds, for example *OBS is not running* or *Studio mode is off in OBS*. The plugin asks for `notify` and `feedback` for this.
 
 ## A first plugin
 

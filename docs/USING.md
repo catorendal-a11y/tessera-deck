@@ -223,7 +223,7 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 | Set variable, Toggle variable | `set`, `toggle` | Set a variable, or switch it between two values |
 | Set key state | `state` | Set a toggle key's state (`next` or a state number) |
 | Mute / unmute audio | `audio` | Mute, unmute or set the volume of the speaker, the microphone or one program (`app:NAME.exe`) |
-| Shuffle / repeat | `media` | Toggle shuffle (`"op": "shuffle"`) or cycle repeat off, all, one (`"op": "repeat"`) in the player shown in the Windows media controls. A player that does not support it is left alone |
+| Shuffle / repeat | `media` | Toggle shuffle (`"op": "shuffle"`) or cycle repeat off, all, one (`"op": "repeat"`) in the player shown in the Windows media controls. Without a player, or with one that does not offer it, the key fails and says why |
 | Counter, Timer | `counter`, `timer` | Change a counter; start, pause, resume, stop or toggle a timer |
 | Mouse | `mouse` | Click (left, right, middle or double), scroll, or move the pointer |
 | Switch screen | `screen` | Show the clock, the keys, or switch between them |
