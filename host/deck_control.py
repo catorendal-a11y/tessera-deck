@@ -44,7 +44,8 @@ def autostart_enabled(appdata=None):
     if os.name != 'nt':
         return False
     try:
-        return startup_line() in startup_script_path(appdata).read_text(encoding='utf-16')
+        data = startup_script_path(appdata).read_bytes()
+        return startup_line() in data.decode('utf-16' if data[:2] in (b'\xff\xfe', b'\xfe\xff') else 'utf-8')  # 0.5-0.6.1 wrote UTF-8
     except (OSError, UnicodeError):
         return False
 

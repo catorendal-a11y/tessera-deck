@@ -178,10 +178,13 @@ class MediaReader:
         shuffle, repeat = None, ''
         try:  # a failure here must not cost the title and the playing state
             shuffle = info.is_shuffle_active  # None when the player does not report it
+        except (AttributeError, OSError, ValueError, TypeError):
+            shuffle = None
+        try:  # reading the mode needs winrt-Windows.Media for its enum; without it only repeat is lost
             if info.auto_repeat_mode is not None:
                 repeat = REPEAT_NAMES.get(int(info.auto_repeat_mode), '')
         except (AttributeError, OSError, ValueError, TypeError, ImportError):
-            shuffle, repeat = None, ''
+            repeat = ''
         return {'title': properties.title or '', 'artist': properties.artist or '',
                 'status': {4: 'PLAYING', 5: 'PAUSED', 3: 'STOPPED'}.get(int(status), ''),
                 'position': position, 'duration': duration, 'shuffle': shuffle, 'repeat': repeat}
@@ -205,10 +208,13 @@ async def _change_media_option(session, operation: str) -> bool:
         if info.is_shuffle_active is None or not controls.is_shuffle_enabled:
             return False
         return bool(await session.try_change_shuffle_active_async(not info.is_shuffle_active))
-    mode = info.auto_repeat_mode
+    try:
+        mode = info.auto_repeat_mode
+    except ImportError as exc:  # the value's enum lives in winrt-Windows.Media
+        raise OSError('Repeat needs the winrt-Windows.Media package. Run Tessera.cmd once to install it.') from exc
     if mode is None or not controls.is_repeat_enabled:
         return False
-    # the enum class comes from the value itself, so no extra winrt package is needed
+    # the enum class comes from the value itself, so nothing more is imported here
     return bool(await session.try_change_auto_repeat_mode_async(type(mode)(NEXT_REPEAT[int(mode)])))
 
 

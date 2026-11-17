@@ -17,7 +17,7 @@ import psutil
 import tesserad as deck
 from system_stats import select_hwinfo_metrics
 from deck_assets import Assets
-from deck_control import Controller, autostart_enabled, set_autostart
+from deck_control import Controller, autostart_enabled, set_autostart, startup_line
 from host_support import HostCase, test_daemon
 
 
@@ -655,6 +655,8 @@ class HostRuntimeTests(HostCase):
                     self.assertNotIn(str(old_root / 'host'), path.read_text(encoding='utf-16'))
                     path.write_bytes(b'\x00')  # an unreadable script counts as off
                     self.assertFalse(autostart_enabled(directory))
+                    path.write_text(f'{startup_line()}\r\n', encoding='utf-8')  # as 0.5-0.6.1 wrote it
+                    self.assertTrue(autostart_enabled(directory))
 
     def test_the_tray_asks_before_start_with_windows_moves_from_another_folder(self):
         try:

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import sys
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
@@ -186,15 +186,15 @@ class FakeSession:
 
 
 class MediaReadTests(unittest.TestCase):
-    def test_a_failing_repeat_read_keeps_title_and_playing_state(self):
+    def test_a_failing_repeat_read_keeps_title_playing_state_and_shuffle(self):
         import asyncio
 
-        class BrokenInfo:
+        class BrokenInfo:  # what a real player gives without winrt-Windows.Media installed
             playback_status = 4
 
             @property
             def auto_repeat_mode(self):
-                raise OSError('enum not available')
+                raise ModuleNotFoundError("No module named 'winrt.windows.media'")
             is_shuffle_active = True
 
         async def properties():
@@ -206,7 +206,7 @@ class MediaReadTests(unittest.TestCase):
         reader._manager = manager
         result = asyncio.run(reader._read(None))
         self.assertEqual((result['title'], result['artist'], result['status']), ('Song', 'Band', 'PLAYING'))
-        self.assertEqual((result['shuffle'], result['repeat']), (None, ''))
+        self.assertEqual((result['shuffle'], result['repeat']), (True, ''))
 
 
 class MediaOptionTests(unittest.TestCase):
@@ -230,6 +230,13 @@ class MediaOptionTests(unittest.TestCase):
         for session in (FakeSession(mode=None), FakeSession(mode=FakeMode(0), repeat_enabled=False)):
             self.assertFalse(self.run_option(session, 'repeat'))
             self.assertEqual(session.calls, [])
+
+    def test_a_missing_repeat_package_is_named_in_the_error(self):
+        session = FakeSession()
+        type(session.info).auto_repeat_mode = PropertyMock(side_effect=ModuleNotFoundError("No module named 'winrt.windows.media'"))
+        with self.assertRaisesRegex(OSError, 'winrt-Windows.Media'):
+            self.run_option(session, 'repeat')
+        self.assertEqual(session.calls, [])
 
     def test_variables_and_flags_follow_the_player(self):
         def reading(shuffle, repeat):

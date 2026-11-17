@@ -686,6 +686,7 @@ winrt-runtime==4.1.0 ; sys_platform == "win32" \
     #   -r requirements.txt
     #   winrt-windows-foundation
     #   winrt-windows-foundation-collections
+    #   winrt-windows-media
     #   winrt-windows-media-control
     #   winrt-windows-storage-streams
 winrt-windows-foundation==4!10.0.28000.2957 ; sys_platform == "win32" \
@@ -694,6 +695,7 @@ winrt-windows-foundation==4!10.0.28000.2957 ; sys_platform == "win32" \
     # via
     #   -r requirements.txt
     #   winrt-windows-foundation-collections
+    #   winrt-windows-media
     #   winrt-windows-media-control
     #   winrt-windows-storage-streams
 winrt-windows-foundation-collections==4!10.0.28000.2957 ; sys_platform == "win32" \
@@ -702,8 +704,13 @@ winrt-windows-foundation-collections==4!10.0.28000.2957 ; sys_platform == "win32
     # via
     #   -r requirements.txt
     #   winrt-windows-foundation
+    #   winrt-windows-media
     #   winrt-windows-media-control
     #   winrt-windows-storage-streams
+winrt-windows-media==4!10.0.28000.2957 ; sys_platform == "win32" \
+    --hash=sha256:1ee4d65799cd40d0a1eef18010793789d74cefa4438952a27d8da2bcea39bcbd \
+    --hash=sha256:351dd69b79c728dbc091756aad922d25f5c3b03f9c6d570c434a3ec01096f980
+    # via -r requirements.txt
 winrt-windows-media-control==4!10.0.28000.2957 ; sys_platform == "win32" \
     --hash=sha256:5d010ccf64e39040b0550c7b8f6cf8015e558542bd3887cc424f32096e61410e \
     --hash=sha256:6d2fd258eef4fc87a54094f5690c8964b40866c372e4c2c6f1a9e9bd546e7005
@@ -711,4 +718,6 @@ winrt-windows-media-control==4!10.0.28000.2957 ; sys_platform == "win32" \
 winrt-windows-storage-streams==4!10.0.28000.2957 \
     --hash=sha256:6284341b4b01ab872007def0b8d29bf30d84d46f6922f6e42be1d738d6bf2ff7 \
     --hash=sha256:e113832320f2e7f8b09cedfb400cb7eaf0ac769ad1f2038ddbe88801497916c4
-    # via winrt-windows-media-control
+    # via
+    #   winrt-windows-media
+    #   winrt-windows-media-control
