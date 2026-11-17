@@ -95,6 +95,20 @@ class DisplayMixin:
         elif not locked and self.dimmed:
             self.wake_display()
 
+    def show_notice(self, text, level, seconds):
+        """A short message (deckctl say, POST /v1/notify) on the panel's banner, or as a Windows notification through
+        the tray when no panel is connected or its firmware has no banner ("notify":1 in get_info)."""
+        panel, banner = self.panel, self.device_info.get('notify')
+        if panel is not None and not self.connection_failed.is_set() and type(banner) is int and banner >= 1:
+            # The control API checked the text; a newline would still end the line early, so it never gets through.
+            line = ''.join(char if char.isprintable() else ' ' for char in str(text))
+            try:
+                panel.send_line(f'AD_NOTIFY {level} {int(seconds)} {line}')
+                return
+            except OSError as exc:
+                self.log(f'The panel did not take the message: {exc}')
+        self.notify('Tessera', text)
+
     def question_open(self):
         permissions = getattr(self, 'permissions', None)
         return bool(permissions and permissions.current())

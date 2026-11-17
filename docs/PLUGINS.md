@@ -14,9 +14,29 @@ Turn them on in **More → Plugins …**. All three use only the Python standard
 |---|---|
 | `example-uptime` | The smallest complete plugin: a counter for a key name and a `reset` command. Copy it to start your own. |
 | `home-assistant` | Shows the state of lights and sensors (`$(var:home-assistant.light.kitchen)`), toggles them and runs any service. Needs the address and a long-lived access token. |
-| `obs` | Switches scenes, starts and stops recording and streaming, mutes an input, and shows the scene and *ON* or *OFF* in key names. Needs OBS's WebSocket server (Tools → WebSocket Server Settings). |
+| `obs` | Switches scenes, shows, hides or toggles a source, starts and stops recording and streaming, pauses recording, saves the replay buffer, toggles the virtual camera, triggers the studio mode transition, mutes an input and steps its volume. Shows the scene and *ON* or *OFF* states in key names. Needs OBS's WebSocket server (Tools → WebSocket Server Settings). |
 
 The top of each `main.py` lists the key actions and variable names it offers.
+
+### OBS commands and variables
+
+Each command is a `plugin` action with `"plugin": "obs"`. Names of scenes, sources and inputs must match OBS exactly and are at most 256 characters. A command with missing or invalid arguments does nothing.
+
+| Command | Arguments | Effect |
+|---|---|---|
+| `scene` | `name` | Switches the program scene. |
+| `record`, `stream` | none | Starts or stops recording or streaming. |
+| `pause` | optional `mode`: `toggle` (default), `on` or `off` | Pauses or resumes recording. |
+| `replay` | none | Saves the replay buffer. |
+| `virtualcam` | none | Starts or stops the virtual camera. |
+| `transition` | none | Runs the studio mode transition. |
+| `mute` | `input` | Toggles an input's mute. |
+| `source` | `source`, optional `scene` (default: the current scene), optional `mode`: `toggle` (default), `show` or `hide` | Enables or disables a source in a scene. |
+| `volume-up`, `volume-down` | `input`, optional `step` in dB (default 2, above 0 up to 20) | Changes the input volume. The result stays between -100 and 26 dB. |
+
+Variables: `obs.scene`, `obs.recording`, `obs.streaming` and `obs.paused` (*ON* or *OFF*), `obs.connected`, and `obs.error`. `obs.error` holds the reason when OBS refuses a command, for example when the replay buffer is not running, and is empty after the next command that works. It also reports a command OBS does not answer within five seconds, and a source key pressed before the current scene is known. Failures of the plugin's own startup requests are not reported there. When OBS disconnects, `obs.error` is cleared and the `obs.mute.*` variables become empty. Two quick volume presses add up, and a second toggle of the same source is ignored until the first has finished.
+
+To follow mute state, list the inputs in the plugin's *Inputs whose mute state to show* setting, separated by commas (up to 10). Each one gets `obs.mute.<name>`, *ON* when muted, where characters other than letters, digits, dash and underscore in the name become underscores, so `Mic/Aux` is `obs.mute.Mic_Aux`. Use it in a key's `status` to colour a mute key. If two names give the same variable, such as `Mic/Aux` and `Mic_Aux`, the first one is kept and the others are ignored and noted in the plugin's log.
 
 ## A first plugin
 
@@ -81,7 +101,7 @@ To try it:
 | `name`, `version` | Text of 1 to 60 characters. |
 | `api` | Must be `1`. |
 | `command` | The program and its arguments (1 to 12 words), run without a shell. `python` means Tessera's own interpreter. Anything else must be a file inside the plugin folder. |
-| `permissions` | Any of `vars`, `press`, `feedback`, `state`, `events`, `read`. No duplicates. |
+| `permissions` | Any of `vars`, `press`, `feedback`, `state`, `notify`, `events`, `read`. No duplicates. |
 | `settings` | Up to 20 options. A key is lowercase letters, digits and underscores, starting with a letter (up to 32). `type` is `text`, `number` or `checkbox`; `label` and `default` are optional. The editor shows them in **Plugins …**. |
 
 A folder with a bad manifest is skipped, and the editor shows the reason.
@@ -130,6 +150,7 @@ Every request needs `X-Deck-Token`. The host answers only to the `Host` header `
 | `press` | `POST /v1/press` with `{"button": 1-18}` presses a key. |
 | `feedback` | `POST /v1/feedback` with `{"button": 1-18, "ok": true}` flashes a key green, or red with `false`. |
 | `state` | `POST /v1/state` with `{"button": 1-18, "state": "next" or 0-7}` sets a toggle key's state. |
+| `notify` | `POST /v1/notify` with `{"text": "Build passed", "level": "ok", "seconds": 6}` shows a short message on the panel. `text` is 1 to 100 characters on one line, `level` is `info` (default), `ok`, `warn` or `error`, and `seconds` is 1 to 30 (default 6). Without a panel that can show the banner (none connected, or older firmware), the message becomes a tray notification that follows the Show Windows notifications setting, and is otherwise dropped. |
 | `events` | `GET /v1/events` reads key presses, page changes and commands. |
 | `read` | `GET /v1/state` reads the host state: profile, page, connection, variables, agents and queue sizes. |
 

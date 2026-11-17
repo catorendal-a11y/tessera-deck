@@ -3,6 +3,13 @@
 ## Unreleased
 
 - Firmware: the panel opens with a boot screen. The logo builds itself tile by tile and the wordmark switches on column by column, then the logo fades out and the keys appear, 1.4 s in all. The backlight now comes on with the first boot frame, so the panel no longer flashes grey at power-on.
+- Ready-made keys for Shut down, Restart, Sleep and Sign out, which ask you to hold to confirm, and for Game Bar, New folder, Rename, System info and new or private browser windows.
+- Shuffle and repeat keys for players that offer them in the Windows media session, and $(pc:shuffle) and $(pc:repeat) for labels.
+- Discord, Telegram and ntfy message keys. The webhook address or bot token comes from an environment variable, so it is not stored in the profile.
+- A Run script step for .py, .pyw, .ps1, .bat, .cmd, .ahk and .js files. It runs the script without a window, and the editor has a file picker, an Edit button and a dry run check for it.
+- HTTP requests from keys send Tessera-Deck as the User-Agent unless the key sets its own.
+- OBS plugin: show, hide or toggle a source, pause and resume recording, save the replay buffer, toggle the virtual camera, run the studio mode transition and change input volume in dB steps. New variables follow recording pause, input mute and OBS errors.
+- `deckctl say` and `POST /v1/notify` send a short message, with a new `notify` permission for plugins. Until the panel firmware can show it, the message becomes a tray notification.
 
 ## 1.1.0
 

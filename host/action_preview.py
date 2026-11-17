@@ -5,7 +5,8 @@ import os
 import re
 import shutil
 
-from program_locator import locate
+from action_runner import script_path
+from program_locator import locate, script_command
 from win_input import parse_hotkey
 from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
 
@@ -57,6 +58,17 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         except ValueError as exc:
             return False, str(exc)
         return True, f'Run the command: {_clip(command)} (timeout {action.get("timeout", 30)} s)'
+    if kind == 'script':
+        try:
+            path = script_path(action['path'])
+        except ValueError as exc:
+            return False, f'Run the script {_clip(action["path"])}: {_clip(str(exc))}'
+        try:
+            command = script_command(path)
+            program = 'cmd' if isinstance(command, str) else os.path.basename(command[0])
+        except ValueError as exc:
+            return False, f'Run the script {_clip(path)}: {exc}'
+        return True, f'Run the script {_clip(path)} with {program} (timeout {action.get("timeout", 30)} s)'
     if kind == 'http':
         url = substitute(action['url'], variables, 'url')
         names = sorted({name for part in (url, *action.get('headers', {}).values(), action.get('body', ''))
@@ -100,6 +112,8 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         if op in ('up', 'down'):
             return True, f'Turn the volume of {who} {op} by {action.get("step", 5)}%'
         return True, f'{op.capitalize()} {who}'
+    if kind == 'media':
+        return True, 'Toggle shuffle in the media player' if action['op'] == 'shuffle' else 'Cycle repeat in the media player'
     if kind == 'mouse':
         op = action['op']
         words = {'left': 'Click the left mouse button', 'right': 'Click the right mouse button',

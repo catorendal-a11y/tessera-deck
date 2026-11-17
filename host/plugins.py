@@ -28,7 +28,7 @@ PLUGIN_ID = re.compile(r'[a-z][a-z0-9-]{1,31}')
 SETTING_TYPES = ('text', 'number', 'checkbox')
 # Which control-API routes each permission opens. 'events' and 'read' open the GET routes.
 PERMISSIONS = {'vars': ('var', 'vars'), 'press': ('press',), 'feedback': ('feedback',), 'state': ('state',),
-               'events': (), 'read': ()}
+               'notify': ('notify',), 'events': (), 'read': ()}
 MAX_SETTINGS_BYTES = 8192  # room for encrypted secrets (secrets_store)
 MAX_EVENTS = 200
 MAX_WAIT_SECONDS = 25

@@ -102,3 +102,81 @@ def locate(target: str, environment=None, registry=_app_paths) -> str | None:
             if matches:
                 return matches[0]
     return None
+
+
+SCRIPT_SUFFIXES = ('.py', '.pyw', '.ps1', '.bat', '.cmd', '.ahk', '.js')
+BATCH_SUFFIXES = ('.bat', '.cmd')
+AUTOHOTKEY_NAMES = ('AutoHotkey64.exe', 'AutoHotkey32.exe', 'AutoHotkey.exe', 'AutoHotkeyU64.exe')
+COMMAND_TOKEN = re.compile(r'"([^"]*)"|(\S+)')
+
+
+def _association(suffix: str) -> str | None:
+    """The open command Windows has registered for a file type, such as '"AutoHotkey64.exe" "%1" %*'."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, suffix) as key:
+            progid = winreg.QueryValueEx(key, None)[0]
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, rf'{progid}\shell\open\command') as key:
+            return str(winreg.QueryValueEx(key, None)[0])
+    except (ImportError, OSError):
+        return None
+
+
+def _association_argv(command: str | None, script: str) -> list[str] | None:
+    """The argument list of an open command with %1 replaced by the script, when its program exists."""
+    if not command:
+        return None
+    argv = []
+    for quoted, bare in COMMAND_TOKEN.findall(os.path.expandvars(command)):
+        token = quoted or bare
+        if token == '%*':
+            continue
+        argv.append(token.replace('%1', script).replace('%L', script))
+    return argv if argv and os.path.isfile(argv[0]) else None
+
+
+def script_command(script: str, which=shutil.which, registry=_app_paths, association=_association) -> list[str] | str:
+    """The command that runs a script file, chosen by its extension; ValueError names what is missing.
+
+    An argument list, except for .bat and .cmd: that is one quoted command line string.
+
+    Python goes through the py launcher (python on PATH if there is no launcher); .ahk uses the program Windows has
+    registered for the type, then App Paths and PATH; PowerShell and cmd come with Windows. The script itself must exist.
+    """
+    suffix = os.path.splitext(script)[1].lower()
+    if suffix not in SCRIPT_SUFFIXES:
+        raise ValueError(f'Script type {suffix or "(none)"} is not supported. Use {", ".join(SCRIPT_SUFFIXES)}')
+    if suffix in BATCH_SUFFIXES:
+        if '%' in script:  # cmd expands %NAME% even inside quotes
+            raise ValueError('The path of a .bat or .cmd file cannot contain a % sign')
+        # CreateProcess starts cmd.exe for these itself. The path is a ready command line, always quoted, so cmd
+        # never parses & ^ ( ) in it (a list would be quoted only when it holds a space).
+        return f'"{script}"'
+    if suffix == '.ps1':
+        # -ExecutionPolicy Bypass applies to this one process only; the user's own setting is not changed, and a policy
+        # set by an administrator (Group Policy) still wins. Without it a script saved from the web would not start.
+        shell = which('powershell.exe') or which('pwsh.exe')
+        if not shell:
+            raise ValueError('PowerShell was not found on this PC')
+        return [shell, '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script]
+    if suffix in ('.py', '.pyw'):
+        launcher = which('pyw.exe' if suffix == '.pyw' else 'py.exe')
+        if launcher:
+            return [launcher, '-3', script]
+        fallback = which('pythonw.exe' if suffix == '.pyw' else 'python.exe')
+        if not fallback:
+            raise ValueError('Python was not found on this PC (the py launcher or python on PATH)')
+        return [fallback, script]
+    if suffix == '.js':
+        node = which('node.exe') or which('node')
+        if not node:
+            raise ValueError('Node.js (node) was not found on this PC')
+        return [node, script]
+    argv = _association_argv(association('.ahk'), script)
+    if argv:
+        return argv
+    for name in AUTOHOTKEY_NAMES:
+        found = registry(name) or which(name)
+        if found:
+            return [found, script]
+    raise ValueError('AutoHotkey was not found on this PC')

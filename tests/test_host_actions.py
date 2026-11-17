@@ -163,5 +163,115 @@ class EditorTests(unittest.TestCase):
                     check(action)
 
 
+class ScriptStepTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.folder = tempfile.TemporaryDirectory()
+        self.addCleanup(self.folder.cleanup)
+
+    def make(self, name, text=''):
+        path = Path(self.folder.name) / name
+        path.write_text(text, encoding='utf-8')
+        return str(path)
+
+    def test_validation(self):
+        check({'type': 'script', 'path': 'C:\\tools\\a.ps1', 'timeout': 10})
+        for bad in ({'type': 'script'}, {'type': 'script', 'path': 5}, {'type': 'script', 'path': 'C:\\a.exe'},
+                    {'type': 'script', 'path': ''}, {'type': 'script', 'path': 'a.py', 'timeout': 0},
+                    {'type': 'script', 'path': 'a' * 1100 + '.py'}, {'type': 'script', 'path': 'scripts\\a.py'},
+                    {'type': 'script', 'path': 'C:\\100%done\\a.cmd'}):
+            with self.assertRaises(ValueError, msg=bad):
+                check(bad)
+        check({'type': 'script', 'path': '%USERPROFILE%\\a.py'})
+
+    def test_a_script_step_waits_on_the_slow_lane(self):
+        self.assertTrue(make_daemon().waits([{'type': 'script', 'path': 'C:\\a.py'}]))
+
+    def test_interpreter_choice(self):
+        from program_locator import script_command
+        which = {'py.exe': 'C:\\py.exe', 'pyw.exe': 'C:\\pyw.exe', 'powershell.exe': 'C:\\ps.exe', 'node.exe': 'C:\\node.exe'}.get
+        pick = lambda path, **kw: script_command(path, which=which, registry=lambda name: None,
+                                                 association=lambda suffix: None, **kw)
+        self.assertEqual(pick('C:\\s\\a.py'), ['C:\\py.exe', '-3', 'C:\\s\\a.py'])
+        self.assertEqual(pick('C:\\s\\a.pyw')[0], 'C:\\pyw.exe')
+        self.assertEqual(pick('C:\\s\\a.bat'), '"C:\\s\\a.bat"')
+        with self.assertRaisesRegex(ValueError, '%'):
+            pick('C:\\s\\100%a.bat')
+        self.assertEqual(pick('C:\\s\\a.js'), ['C:\\node.exe', 'C:\\s\\a.js'])
+        ps = pick('C:\\s\\a.ps1')
+        self.assertEqual(ps[:6], ['C:\\ps.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File'])
+        with self.assertRaisesRegex(ValueError, 'AutoHotkey'):
+            pick('C:\\s\\a.ahk')
+        with self.assertRaises(ValueError):
+            pick('C:\\s\\a.vbs')
+
+    def test_autohotkey_uses_the_file_association_then_app_paths(self):
+        from program_locator import script_command
+        exe = self.make('AutoHotkey64.exe')
+        via_association = script_command('C:\\s\\a.ahk', which=lambda name: None, registry=lambda name: None,
+                                        association=lambda suffix: f'"{exe}" "%1" %*')
+        self.assertEqual(via_association, [exe, 'C:\\s\\a.ahk'])
+        via_registry = script_command('C:\\s\\a.ahk', which=lambda name: None,
+                                      registry=lambda name: exe if name == 'AutoHotkey64.exe' else None,
+                                      association=lambda suffix: None)
+        self.assertEqual(via_registry, [exe, 'C:\\s\\a.ahk'])
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows only')
+    def test_runs_in_its_own_folder_and_reports_failures(self):
+        from action_runner import CommandFailed, run_script
+        import threading
+        ok = self.make('ok.cmd', '@echo off\r\ncd > "%~dp0cwd.txt"\r\n')
+        run_script(ok, 10, threading.Event())
+        self.assertEqual((Path(self.folder.name) / 'cwd.txt').read_text().strip().lower(), self.folder.name.lower())
+        for folder in ('a&b', 'caret^x', 'x&mkdir,INJECTED&'):  # cmd must not parse these characters
+            (Path(self.folder.name) / folder).mkdir()
+            run_script(self.make(f'{folder}\\t.cmd', '@echo off\r\ncd > "%~dp0cwd.txt"\r\n'), 10, threading.Event())
+            self.assertTrue((Path(self.folder.name) / folder / 'cwd.txt').exists(), folder)
+        self.assertFalse((Path(self.folder.name) / 'INJECTED').exists())
+        bad = self.make('bad.cmd', '@echo off\r\necho broken 1>&2\r\nexit /b 3\r\n')
+        with self.assertRaisesRegex(CommandFailed, 'code 3.*broken'):
+            run_script(bad, 10, threading.Event())
+        with self.assertRaisesRegex(CommandFailed, 'not found'):
+            run_script(str(Path(self.folder.name) / 'missing.cmd'), 10, threading.Event())
+        with self.assertRaisesRegex(CommandFailed, 'full path'):
+            run_script('relative.cmd', 10, threading.Event())
+
+    def test_daemon_runs_the_step_and_turns_failures_into_errors(self):
+        from action_runner import CommandFailed
+        daemon = make_daemon()
+        with patch.object(deck, 'run_script') as run:
+            daemon.run_action({'type': 'script', 'path': 'C:\\a.py', 'timeout': 7})
+        self.assertEqual(run.call_args.args[:2], ('C:\\a.py', 7))
+        with patch.object(deck, 'run_script', side_effect=CommandFailed('boom')):
+            with self.assertRaisesRegex(RuntimeError, 'boom'):
+                daemon.run_action({'type': 'script', 'path': 'C:\\a.py'})
+
+    def test_dry_run_reports_file_and_interpreter(self):
+        found = self.make('a.js')
+        with patch('action_preview.script_command', return_value=['C:\\node.exe', found]):
+            result = preview([{'type': 'script', 'path': found}], {})
+        self.assertTrue(result['ok'])
+        self.assertIn('node.exe', result['steps'][0]['text'])
+        batch = self.make('t 1.bat')
+        self.assertIn('with cmd (', preview([{'type': 'script', 'path': batch}], {})['steps'][0]['text'])
+        missing = preview([{'type': 'script', 'path': str(Path(self.folder.name) / 'none.js')}], {})
+        self.assertFalse(missing['ok'])
+        self.assertIn('not found', missing['steps'][0]['text'])
+        with patch('action_preview.script_command', side_effect=ValueError('Node.js (node) was not found on this PC')):
+            self.assertFalse(preview([{'type': 'script', 'path': found}], {})['ok'])
+
+    def test_import_review_flags_and_strips_scripts(self):
+        config = {'default_profile': 'P', 'profiles': {'P': {'match': [], 'pages': {'a': [
+            {'id': 1, 'label': 'S', 'actions': [{'type': 'script', 'path': 'C:\\x\\a.ps1'}]}]}}}}
+        found = import_review.review(config)
+        self.assertEqual([(item['kind'], item['risk']) for item in found], [('script', 'high')])
+        stripped = import_review.strip_executable(config)
+        self.assertEqual(stripped['profiles']['P']['pages']['a'][0]['actions'], [])
+
+    def test_editor_has_the_step(self):
+        core = (ROOT / 'host/editor/core.js').read_text(encoding='utf-8')
+        self.assertIn('\n  script:{name:', core)
+
+
 if __name__ == '__main__':
     unittest.main()

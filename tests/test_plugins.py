@@ -57,6 +57,13 @@ class ManifestTests(unittest.TestCase):
         with self.assertRaises(plugins.ManifestError):
             plugins.load_manifest(self.root / 'broken')
 
+    def test_the_notify_permission_grants_only_the_notify_route(self):
+        manifest = plugins.load_manifest(write_plugin(self.root, permissions=['notify']))
+        self.assertEqual((manifest.permissions, manifest.routes()), (frozenset({'notify'}), frozenset({'notify'})))
+        self.assertNotIn('notify', plugins.load_manifest(write_plugin(self.root, 'other')).routes())
+        # The editor names it when it asks for consent, and a new permission asks again.
+        self.assertIn("notify: 'show short messages on the panel'", (ROOT / 'host/editor/dialogs.js').read_text(encoding='utf-8'))
+
     def test_programs_must_live_inside_the_plugin_folder(self):
         folder = write_plugin(self.root, command=['tool.exe', '--x'])
         manifest = plugins.load_manifest(folder)

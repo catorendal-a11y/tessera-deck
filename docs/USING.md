@@ -176,7 +176,7 @@ Open **Panel → Display …** (or the tray's *Brightness* menu).
 
 The first touch on a dimmed panel only wakes it; it does not press a key. A long press on the panel's logo opens an About sheet with a brightness slider. The panel keeps its brightness across restarts.
 
-Windows notifications (panel connected or disconnected, a host that stopped, an agent waiting or done, a timer that ends) can be switched off with *Show Windows notifications* in **Program settings** or *Show notifications* in the tray menu. Answers to what you click in the tray still show.
+Windows notifications (panel connected or disconnected, a host that stopped, an agent waiting or done, a timer that ends, a message from `deckctl say` or a plugin when the panel cannot show it) can be switched off with *Show Windows notifications* in **Program settings** or *Show notifications* in the tray menu. Answers to what you click in the tray still show.
 
 **Panel → Key colors …** sets the default background, text and outline for every key without colors of its own.
 
@@ -216,12 +216,14 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 | Type text | `text` | Type text |
 | Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program. `%NAME%` is filled in from the environment in paths, not in addresses |
 | Run command, HTTP request | `shell`, `http` | Run a command or call an address; an error status (4xx, 5xx) fails the action, and so does a redirect from https to http. A redirect to another host goes there without the step's headers |
+| Run script | `script` | Run a script file without a window, in the script's own folder, with the same timeout and error report as a command. Supported: `.py`, `.pyw` (py launcher), `.ps1` (PowerShell with `-NoProfile`; the execution policy is bypassed for that one process only, and a policy set by an administrator still applies), `.bat`, `.cmd`, `.ahk` (the program Windows has registered for the type, else AutoHotkey from App Paths or PATH) and `.js` (Node.js). The path must be a full path, and a `.bat` or `.cmd` path cannot contain a `%` sign. Batch files on a network path (`\\server\share`) start in the Windows folder, because cmd.exe does not accept a network folder as its working folder. The editor has Choose file and Edit buttons, and the dry run reports whether the file and its interpreter were found. Import review flags it like a command |
 | Wait | `delay` | Wait between steps |
 | Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate |
 | Trigger another key | `press` | Run another key |
 | Set variable, Toggle variable | `set`, `toggle` | Set a variable, or switch it between two values |
 | Set key state | `state` | Set a toggle key's state (`next` or a state number) |
 | Mute / unmute audio | `audio` | Mute, unmute or set the volume of the speaker, the microphone or one program (`app:NAME.exe`) |
+| Shuffle / repeat | `media` | Toggle shuffle (`"op": "shuffle"`) or cycle repeat off, all, one (`"op": "repeat"`) in the player shown in the Windows media controls. A player that does not support it is left alone |
 | Counter, Timer | `counter`, `timer` | Change a counter; start, pause, resume, stop or toggle a timer |
 | Mouse | `mouse` | Click (left, right, middle or double), scroll, or move the pointer |
 | Switch screen | `screen` | Show the clock, the keys, or switch between them |
@@ -232,11 +234,11 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 
 ### Labels and variables
 
-A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`. `$(pc:track)` shows *No music* when nothing plays.
+A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)`, `$(pc:playing)`, `$(pc:shuffle)` (ON or OFF) and `$(pc:repeat)` (OFF, ALL or ONE). `$(pc:track)` shows *No music* when nothing plays. `$(pc:shuffle)` and `$(pc:repeat)` are empty when the player does not report them.
 
 In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`). Tessera refuses values with shell metacharacters; spaces are allowed.
 
-A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key. In the editor: the key's **Live** tab, *Color follows a variable*, then **＋ Value …** for each value that gets a color. Other values keep the key color.
+A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "media_shuffle" | "media_repeat" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key. In the editor: the key's **Live** tab, *Color follows a variable*, then **＋ Value …** for each value that gets a color. Other values keep the key color.
 
 ### Automatic actions
 
@@ -288,8 +290,11 @@ python host\deckctl.py state 3 next           # set a toggle key's state
 python host\deckctl.py page main status       # show a page
 python host\deckctl.py press 5                # press key 5
 python host\deckctl.py ok 5                   # flash key 5 green (alert 5: red)
+python host\deckctl.py say Build passed --level ok   # a short message on the panel
 python host\deckctl.py status                 # also: wake, dim
 ```
+
+`say` takes 1 to 100 characters on one line; longer text or a line break is refused and `deckctl` exits with 1. It shows the text in a banner at the top of the panel for `--seconds` (1 to 30, default 6), with a colored edge for `--level` `info`, `ok`, `warn` or `error`. A tap on the banner closes it. Without a panel that can show it (none connected, or firmware older than the banner), the message becomes a tray notification that follows the *Show Windows notifications* setting, and is otherwise dropped.
 
 Each token is limited to 20 calls a second (bursts of 40, then `429`), and every change is logged with the caller's name.
 

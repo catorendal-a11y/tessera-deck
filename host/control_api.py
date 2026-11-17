@@ -38,6 +38,11 @@ MAX_CONNECTIONS = 64
 # Calls without a valid token are logged at most this often, so a flood of them cannot push the audit trail out.
 UNKNOWN_LOG_SECONDS = 10
 MAX_NONCE = 128
+# A message on the panel: two lines of the banner hold about this many characters; it shows for 1 to 30 seconds.
+NOTIFY_LEVELS = ('info', 'ok', 'warn', 'error')
+NOTIFY_MAX_TEXT = 100
+NOTIFY_SECONDS = (1, 30)
+NOTIFY_DEFAULT_SECONDS = 6
 
 
 def proof(token: str, nonce: str) -> str:
@@ -130,7 +135,7 @@ class ControlServer:
         self.unknown_logged, self.unknown_skipped = float('-inf'), 0
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display,
-                       'permission': self.ask_permission}
+                       'permission': self.ask_permission, 'notify': self.notify}
 
     # --- scoped tokens for plugins -----------------------------------------------------
     def add_grant(self, name, routes, prefix=None, events=False, read=False) -> str:
@@ -253,6 +258,18 @@ class ControlServer:
         if action not in ('wake', 'dim'):
             raise ApiError("action must be 'wake' or 'dim'")
         self.daemon.submit((action,))
+
+    def notify(self, data):
+        # One line of text: a newline would end the panel's command early, and lone surrogates cannot be sent as UTF-8.
+        text, level = data.get('text'), data.get('level', 'info')
+        seconds = data.get('seconds', NOTIFY_DEFAULT_SECONDS)
+        if not isinstance(text, str) or not text.strip() or len(text) > NOTIFY_MAX_TEXT or not text.isprintable():
+            raise ApiError(f'text must be 1 to {NOTIFY_MAX_TEXT} printable characters on one line')
+        if level not in NOTIFY_LEVELS:
+            raise ApiError(f'level must be one of {", ".join(NOTIFY_LEVELS)}')
+        if type(seconds) is not int or not NOTIFY_SECONDS[0] <= seconds <= NOTIFY_SECONDS[1]:
+            raise ApiError(f'seconds must be a whole number from {NOTIFY_SECONDS[0]} to {NOTIFY_SECONDS[1]}')
+        self.daemon.submit(('notify', text.strip(), level, seconds))
 
     def ask_permission(self, data):
         # Unlike the other routes this one waits: the answer is a touch on the panel (or nobody answers).

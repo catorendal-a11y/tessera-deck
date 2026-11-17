@@ -1,24 +1,39 @@
-"""OBS Studio on the panel: switch scenes, start and stop recording and streaming, mute an input.
+"""OBS Studio on the panel: scenes, sources, recording, streaming, replay buffer, virtual camera and audio.
 
 Turn on OBS's WebSocket server (Tools → WebSocket Server Settings) and put its port and password in this plugin's
 settings (editor: More → Plugins … → OBS Studio). OBS must run on the same PC.
 
 Keys:   {"type": "plugin", "plugin": "obs", "command": "scene", "args": {"name": "Gaming"}}
-        {"type": "plugin", "plugin": "obs", "command": "record"}     (start or stop)
-        {"type": "plugin", "plugin": "obs", "command": "stream"}     (start or stop)
+        {"type": "plugin", "plugin": "obs", "command": "record"}          (start or stop)
+        {"type": "plugin", "plugin": "obs", "command": "pause"}           (pause or resume recording)
+        {"type": "plugin", "plugin": "obs", "command": "pause", "args": {"mode": "on"}}   (on, off or toggle)
+        {"type": "plugin", "plugin": "obs", "command": "stream"}          (start or stop)
+        {"type": "plugin", "plugin": "obs", "command": "replay"}          (save the replay buffer)
+        {"type": "plugin", "plugin": "obs", "command": "virtualcam"}      (start or stop)
+        {"type": "plugin", "plugin": "obs", "command": "transition"}      (studio mode: send preview to program)
         {"type": "plugin", "plugin": "obs", "command": "mute", "args": {"input": "Mic/Aux"}}
-Names:  $(var:obs.scene), $(var:obs.recording) and $(var:obs.streaming) (ON or OFF), $(var:obs.connected)
+        {"type": "plugin", "plugin": "obs", "command": "source", "args": {"source": "Webcam", "scene": "Gaming", "mode": "toggle"}}
+        {"type": "plugin", "plugin": "obs", "command": "volume-up", "args": {"input": "Mic/Aux", "step": 2}}
+        {"type": "plugin", "plugin": "obs", "command": "volume-down", "args": {"input": "Mic/Aux", "step": 2}}
+        "mode" for source is show, hide or toggle (default toggle); "scene" defaults to the current scene.
+        "step" is in dB (default 2, up to 20); the volume stays between -100 and 26 dB.
+Names:  $(var:obs.scene), $(var:obs.recording), $(var:obs.streaming) and $(var:obs.paused) (ON or OFF),
+        $(var:obs.connected), $(var:obs.error) (the last refusal from OBS, empty after the next success),
+        $(var:obs.mute.Mic_Aux) (ON when muted) for each input named in the "inputs" setting; characters
+        other than letters, digits, dash and underscore in the input name become underscores.
 Colour: "status": {"var": "obs.recording", "colors": {"ON": "#FF7070"}}
 
 It speaks OBS WebSocket 5 with a small client built on the Python standard library. The password is left out
 when you export your keys.
 """
+import re
 import base64
 import hashlib
 import json
 import os
 import socket
 import struct
+import sys
 import threading
 import time
 import urllib.error
@@ -30,7 +45,16 @@ PLUGIN = os.environ['TESSERA_PLUGIN']
 SETTINGS = json.loads(os.environ.get('TESSERA_SETTINGS') or '{}')
 PORT = int(SETTINGS.get('port') or 4455)
 PASSWORD = str(SETTINGS.get('password') or '')
+INPUTS = [name.strip() for name in str(SETTINGS.get('inputs') or '').split(',') if name.strip()][:10]
 SUBSCRIBE = 1 | 4 | 64 | 8  # general, scenes, outputs and inputs events
+MAX_NAME = 256  # longest scene, source or input name taken from a key
+MAX_PENDING = 100  # requests still waiting for an answer from OBS
+VOLUME_RANGE = (-100.0, 26.0)  # dB, what SetInputVolume accepts
+DEFAULT_STEP, MAX_STEP = 2.0, 20.0
+ANSWER_SECONDS = 5  # a request OBS has not answered by then is dropped
+scene_now = ''  # the current program scene, for source keys that name no scene
+volume_wait = {}  # input name -> (dB change gathered while its GetInputVolume is in flight, deadline)
+toggle_wait = {}  # (scene, source) -> deadline while a toggle of that source is in flight
 # OBS messages are a few kB. Whatever answers on the port (OBS closed, another program on it) cannot make
 # this process buffer without end.
 MAX_MESSAGE = 1024 * 1024
@@ -68,6 +92,8 @@ class Obs:
             raise ConnectionError('OBS refused the connection')
         self.sock.settimeout(None)
         self.requests = 0
+        self.ids = threading.Lock()
+        self.pending = {}
 
     def _receive(self):
         data = self.sock.recv(65536)
@@ -118,9 +144,17 @@ class Obs:
                 if first & 0x80:
                     return json.loads(message)
 
-    def request(self, kind, data=None):
-        self.requests += 1
-        self.send({'op': 6, 'd': {'requestType': kind, 'requestId': str(self.requests), 'requestData': data or {}}})
+    def request(self, kind, data=None, then=None, quiet=False):
+        """Send a request. With `then`, it is called with OBS's answer data once the request succeeds.
+        A failure or a missing answer is reported in obs.error unless the request is `quiet` (the plugin's own polls)."""
+        with self.ids:
+            self.requests += 1
+            number = str(self.requests)
+            if then:
+                if len(self.pending) >= MAX_PENDING:
+                    self.pending.pop(next(iter(self.pending)))
+                self.pending[number] = (then, time.monotonic() + ANSWER_SECONDS, quiet)
+        self.send({'op': 6, 'd': {'requestType': kind, 'requestId': number, 'requestData': data or {}}})
 
     def identify(self):
         hello = self.read()['d']
@@ -146,24 +180,186 @@ def follow_keys(obs, stop):
         for event in reply['events']:
             if event['type'] != 'command':
                 continue
-            command, args = event.get('command'), event.get('args') or {}
-            if command == 'scene' and args.get('name'):
-                obs.request('SetCurrentProgramScene', {'sceneName': str(args['name'])})
-            elif command == 'record':
-                obs.request('ToggleRecord')
-            elif command == 'stream':
-                obs.request('ToggleStream')
-            elif command == 'mute' and args.get('input'):
-                obs.request('ToggleInputMute', {'inputName': str(args['input'])})
+            run(obs, event.get('command'), event.get('args'))
         since = reply['last']
+
+
+def name_of(args, key):
+    """A scene, source or input name from a key's args, or None when it is missing or unreasonable."""
+    value = args.get(key)
+    return value if isinstance(value, str) and 0 < len(value) <= MAX_NAME else None
+
+
+def step_of(args):
+    """The dB step of a volume key: a number above 0 and at most MAX_STEP, else None."""
+    step = args.get('step', DEFAULT_STEP)
+    if isinstance(step, bool) or not isinstance(step, (int, float)) or not 0 < step <= MAX_STEP:
+        return None
+    return float(step)
+
+
+def done(_answer):
+    show(error='')
+
+
+def expire(obs):
+    """Drop requests OBS never answered; one that a key started is reported in obs.error."""
+    now = time.monotonic()
+    with obs.ids:
+        late = [number for number, entry in obs.pending.items() if entry[1] < now]
+        lost = [obs.pending.pop(number) for number in late]
+    if any(not entry[2] for entry in lost):
+        show(error='OBS did not answer')
+
+
+def run(obs, command, args):
+    """One key command becomes one or more OBS requests. Bad args are ignored, like unknown commands."""
+    expire(obs)
+    args = args if isinstance(args, dict) else {}
+    simple = {'record': 'ToggleRecord', 'stream': 'ToggleStream', 'replay': 'SaveReplayBuffer',
+              'virtualcam': 'ToggleVirtualCam', 'transition': 'TriggerStudioModeTransition'}
+    if command in simple:
+        obs.request(simple[command], then=done)
+    elif command == 'scene' and name_of(args, 'name'):
+        obs.request('SetCurrentProgramScene', {'sceneName': args['name']}, done)
+    elif command == 'mute' and name_of(args, 'input'):
+        obs.request('ToggleInputMute', {'inputName': args['input']}, done)
+    elif command == 'pause' and args.get('mode', 'toggle') in ('toggle', 'on', 'off'):
+        obs.request({'toggle': 'ToggleRecordPause', 'on': 'PauseRecord', 'off': 'ResumeRecord'}[args.get('mode', 'toggle')],
+                    then=done)
+    elif command == 'source' and name_of(args, 'source') and args.get('mode', 'toggle') in ('toggle', 'show', 'hide'):
+        scene = name_of(args, 'scene') or scene_now
+        if scene:
+            set_source(obs, scene, args['source'], args.get('mode', 'toggle'))
+        else:
+            show(error='The current scene is not known yet')
+    elif command in ('volume-up', 'volume-down') and name_of(args, 'input') and step_of(args):
+        change_volume(obs, args['input'], step_of(args) * (1 if command == 'volume-up' else -1))
+
+
+def set_source(obs, scene, source, mode):
+    """GetSceneItemId, then (for toggle) GetSceneItemEnabled, then SetSceneItemEnabled."""
+    busy = (scene, source)
+    if mode == 'toggle':  # a second toggle while one is in flight would read the old state and undo nothing
+        if toggle_wait.get(busy, 0) > time.monotonic():
+            return
+        toggle_wait[busy] = time.monotonic() + ANSWER_SECONDS
+
+    def set_enabled(item, enabled):
+        def finished(answer):
+            toggle_wait.pop(busy, None)
+            done(answer)
+        obs.request('SetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item, 'sceneItemEnabled': enabled}, finished)
+
+    def found(answer):
+        item = answer.get('sceneItemId')
+        if not isinstance(item, int) or item < 0:
+            return
+        if mode == 'toggle':
+            obs.request('GetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item},
+                        lambda state: set_enabled(item, not state.get('sceneItemEnabled')))
+        else:
+            set_enabled(item, mode == 'show')
+    obs.request('GetSceneItemId', {'sceneName': scene, 'sourceName': source}, found)
+
+
+def change_volume(obs, name, change):
+    """GetInputVolume, then SetInputVolume with the new dB value kept inside OBS's range."""
+    waiting = volume_wait.get(name)
+    if waiting and waiting[1] > time.monotonic():  # a read is in flight: this press adds to its step
+        volume_wait[name] = (waiting[0] + change, waiting[1])
+        return
+    volume_wait[name] = (change, time.monotonic() + ANSWER_SECONDS)
+
+    def got(answer):
+        total = volume_wait.pop(name, (change, 0))[0]
+        db = answer.get('inputVolumeDb')
+        if isinstance(db, bool) or not isinstance(db, (int, float)):
+            return
+        low, high = VOLUME_RANGE
+        obs.request('SetInputVolume', {'inputName': name, 'inputVolumeDb': round(min(high, max(low, db + total)), 2)}, done)
+    obs.request('GetInputVolume', {'inputName': name}, got)
+
+
+def safe_name(name):
+    return re.sub(r'[^A-Za-z0-9_-]', '_', name)[:40]
+
+
+def unique_inputs(names):
+    """Names that map to a variable no earlier name uses; the others are logged and left out."""
+    kept, used = [], set()
+    for name in names:
+        if safe_name(name) in used:
+            print(f'obs: input "{name}" gives obs.mute.{safe_name(name)} like an earlier one and is ignored', file=sys.stderr)
+        else:
+            used.add(safe_name(name))
+            kept.append(name)
+    return kept
+
+
+INPUTS = unique_inputs(INPUTS)
+
+
+def show_mute(name, muted):
+    show(**{f'mute.{safe_name(name)}': on_off(muted)})
+
+
+def watch_inputs(obs):
+    for name in INPUTS:
+        obs.request('GetInputMute', {'inputName': name}, lambda answer, name=name: show_mute(name, answer.get('inputMuted')),
+                    quiet=True)
+
+
+def handle(obs, message):
+    """An answer to a request, or an event OBS sends by itself."""
+    expire(obs)
+    data = message.get('d', {})
+    if message.get('op') == 7:
+        status = data.get('requestStatus') or {}
+        with obs.ids:
+            entry = obs.pending.pop(data.get('requestId'), None)
+        then = entry[0] if entry else None
+        if not status.get('result', True):
+            if then and not entry[2]:  # a key's request, or a step of one: say what OBS refused
+                show(error=status.get('comment') or f"{data.get('requestType')} failed")
+            return
+        answer, kind = data.get('responseData') or {}, data.get('requestType')
+        if then:
+            then(answer)
+        elif kind == 'GetCurrentProgramScene':
+            show_scene(answer.get('currentProgramSceneName', ''))
+        elif kind == 'GetRecordStatus':
+            show(recording=on_off(answer.get('outputActive')), paused=on_off(answer.get('outputPaused')))
+        elif kind == 'GetStreamStatus':
+            show(streaming=on_off(answer.get('outputActive')))
+    elif message.get('op') == 5:
+        event, values = data.get('eventType'), data.get('eventData') or {}
+        if event == 'CurrentProgramSceneChanged':
+            show_scene(values.get('sceneName', ''))
+        elif event == 'RecordStateChanged':
+            show(recording=on_off(values.get('outputActive')),
+                 paused=on_off(values.get('outputState') == 'OBS_WEBSOCKET_OUTPUT_PAUSED'))
+        elif event == 'StreamStateChanged':
+            show(streaming=on_off(values.get('outputActive')))
+        elif event == 'InputMuteStateChanged' and values.get('inputName') in INPUTS:
+            show_mute(values['inputName'], values.get('inputMuted'))
+
+
+def show_scene(name):
+    global scene_now
+    scene_now = name if isinstance(name, str) else ''
+    show(scene=scene_now)
 
 
 def session():
     obs = Obs(PORT)
     obs.identify()
+    volume_wait.clear()
+    toggle_wait.clear()
     show(connected='yes')
     for kind in ('GetCurrentProgramScene', 'GetRecordStatus', 'GetStreamStatus'):
         obs.request(kind)
+    watch_inputs(obs)
     stop = threading.Event()
 
     def keys_or_reconnect():
@@ -174,24 +370,7 @@ def session():
     keys.start()
     try:
         while True:
-            message = obs.read()
-            data = message.get('d', {})
-            if message.get('op') == 7:  # an answer to one of our requests
-                answer, kind = data.get('responseData') or {}, data.get('requestType')
-                if kind == 'GetCurrentProgramScene':
-                    show(scene=answer.get('currentProgramSceneName', ''))
-                elif kind == 'GetRecordStatus':
-                    show(recording=on_off(answer.get('outputActive')))
-                elif kind == 'GetStreamStatus':
-                    show(streaming=on_off(answer.get('outputActive')))
-            elif message.get('op') == 5:  # an event OBS sends by itself
-                event, values = data.get('eventType'), data.get('eventData') or {}
-                if event == 'CurrentProgramSceneChanged':
-                    show(scene=values.get('sceneName', ''))
-                elif event == 'RecordStateChanged':
-                    show(recording=on_off(values.get('outputActive')))
-                elif event == 'StreamStateChanged':
-                    show(streaming=on_off(values.get('outputActive')))
+            handle(obs, obs.read())
     finally:
         stop.set()
 
@@ -210,7 +389,8 @@ def main():
         except (ConnectionError, OSError, ValueError) as exc:
             try:
                 show(connected='OBS is not running' if isinstance(exc, (ConnectionRefusedError, TimeoutError, socket.timeout))
-                     else str(exc)[:40], recording='OFF', streaming='OFF')
+                     else str(exc)[:40], recording='OFF', streaming='OFF', paused='OFF', error='',
+                     **{f'mute.{safe_name(name)}': '' for name in INPUTS})
             except (urllib.error.URLError, OSError, ValueError):
                 return  # Tessera itself is gone; it starts the plugin again
         time.sleep(5)  # OBS may start later: keep trying quietly

@@ -163,5 +163,108 @@ class DaemonBindingTests(unittest.TestCase):
         deck.validate_config(config)
 
 
+class FakeMode(int):
+    """Stands in for the winrt repeat enum: int-like, built again from a number."""
+
+
+class FakeSession:
+    def __init__(self, shuffle=False, mode=None, shuffle_enabled=True, repeat_enabled=True):
+        self.info = Mock(is_shuffle_active=shuffle, auto_repeat_mode=mode,
+                         controls=Mock(is_shuffle_enabled=shuffle_enabled, is_repeat_enabled=repeat_enabled))
+        self.calls = []
+
+    def get_playback_info(self):
+        return self.info
+
+    async def try_change_shuffle_active_async(self, value):
+        self.calls.append(('shuffle', value))
+        return True
+
+    async def try_change_auto_repeat_mode_async(self, value):
+        self.calls.append(('repeat', int(value)))
+        return True
+
+
+class MediaReadTests(unittest.TestCase):
+    def test_a_failing_repeat_read_keeps_title_and_playing_state(self):
+        import asyncio
+
+        class BrokenInfo:
+            playback_status = 4
+
+            @property
+            def auto_repeat_mode(self):
+                raise OSError('enum not available')
+            is_shuffle_active = True
+
+        async def properties():
+            return Mock(title='Song', artist='Band')
+        session = Mock(try_get_media_properties_async=properties, get_playback_info=lambda: BrokenInfo(),
+                       get_timeline_properties=Mock(side_effect=OSError('no timeline')))
+        manager = Mock(get_current_session=lambda: session)
+        reader = pc_state.MediaReader()
+        reader._manager = manager
+        result = asyncio.run(reader._read(None))
+        self.assertEqual((result['title'], result['artist'], result['status']), ('Song', 'Band', 'PLAYING'))
+        self.assertEqual((result['shuffle'], result['repeat']), (None, ''))
+
+
+class MediaOptionTests(unittest.TestCase):
+    def run_option(self, session, operation):
+        import asyncio
+        return asyncio.run(pc_state._change_media_option(session, operation))
+
+    def test_shuffle_flips_and_repeat_cycles_off_all_one(self):
+        session = FakeSession(shuffle=False)
+        self.assertTrue(self.run_option(session, 'shuffle'))
+        self.assertEqual(session.calls, [('shuffle', True)])
+        for mode, expected in ((0, 2), (2, 1), (1, 0)):
+            session = FakeSession(mode=FakeMode(mode))
+            self.run_option(session, 'repeat')
+            self.assertEqual(session.calls, [('repeat', expected)])
+
+    def test_a_player_without_the_option_is_left_alone(self):
+        for session in (FakeSession(shuffle=None), FakeSession(shuffle_enabled=False)):
+            self.assertFalse(self.run_option(session, 'shuffle'))
+            self.assertEqual(session.calls, [])
+        for session in (FakeSession(mode=None), FakeSession(mode=FakeMode(0), repeat_enabled=False)):
+            self.assertFalse(self.run_option(session, 'repeat'))
+            self.assertEqual(session.calls, [])
+
+    def test_variables_and_flags_follow_the_player(self):
+        def reading(shuffle, repeat):
+            return lambda: {'title': 'Song', 'artist': '', 'status': 'PLAYING', 'shuffle': shuffle, 'repeat': repeat}
+        state = pc_state.PcState(audio(), reading(True, 'list'))
+        state.poll()
+        self.assertEqual((state.variables()['pc:shuffle'], state.variables()['pc:repeat']), ('ON', 'ALL'))
+        self.assertTrue(state.flag('media_shuffle') and state.flag('media_repeat'))
+        state = pc_state.PcState(audio(), reading(False, 'track'))
+        state.poll()
+        self.assertEqual((state.variables()['pc:shuffle'], state.variables()['pc:repeat']), ('OFF', 'ONE'))
+        self.assertFalse(state.flag('media_shuffle'))
+        state = pc_state.PcState(audio(), media('Song', '', 'PLAYING'))  # a player that reports neither
+        state.poll()
+        self.assertEqual((state.variables()['pc:shuffle'], state.variables()['pc:repeat']), ('', ''))
+        self.assertFalse(state.flag('media_repeat'))
+
+    def test_the_action_is_validated_and_bindable(self):
+        config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        page = config['profiles']['main']['pages']['main']
+        page[0]['actions'] = [{'type': 'media', 'op': 'shuffle'}, {'type': 'media', 'op': 'repeat'}]
+        deck.validate_config(config)
+        for bad in ({'type': 'media'}, {'type': 'media', 'op': 'volume'}):
+            page[0]['actions'] = [bad]
+            with self.assertRaises(ValueError):
+                deck.validate_config(config)
+        self.assertIn('media_shuffle', pc_state.FLAG_SOURCES)
+
+    def test_the_daemon_runs_the_action(self):
+        daemon = host_support.test_daemon(port='TEST', no_focus=True)
+        daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
+        with patch.object(deck, 'control_media') as control:
+            daemon.run_action({'type': 'media', 'op': 'repeat'})
+        control.assert_called_once_with('repeat')
+
+
 if __name__ == '__main__':
     unittest.main()

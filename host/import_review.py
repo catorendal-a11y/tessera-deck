@@ -15,7 +15,7 @@ DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
 # A plugin command controls an outside system (a smart home, a stream), so it counts like a web request. So does a
 # Home Assistant step: this version skips it, and the Wi-Fi beta's panel sends it to the smart home.
-EXECUTABLE_KINDS = ('shell', 'http', 'plugin', 'homeassistant')
+EXECUTABLE_KINDS = ('shell', 'script', 'http', 'plugin', 'homeassistant')
 SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
 # The data of a Home Assistant step (kept from the Wi-Fi beta) named like a code or a password, such as an alarm code
@@ -68,6 +68,8 @@ def _classify(action):
     kind = action.get('type')
     if kind == 'shell':
         return 'high', f"runs the command: {str(action.get('command', ''))[:160]}"
+    if kind == 'script':
+        return 'high', f"runs the script: {str(action.get('path', ''))[:160]}"
     if kind == 'http':
         url = str(action.get('url', ''))
         detail = f"{action.get('method', 'GET')} {url[:160]}"

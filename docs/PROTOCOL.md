@@ -30,6 +30,7 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 | `AD_PANEL_LOCK 1` or `AD_PANEL_LOCK 0` | `AD_PANEL_LOCK OK <1 or 0>` | Locks or unlocks the touch screen. See [Panel lock](#panel-lock). |
 | `AD_SCREEN deck` or `AD_SCREEN ambient` | `{"type":"screen","queued":true}` | Shows the keys or the ambient clock (protocol 3). |
 | `AD_AMBIENT <text>` | `AD_AMBIENT OK` | The line under the ambient clock, for example the weather (protocol 3). |
+| `AD_NOTIFY <info\|ok\|warn\|error> <1-30> <text>` | `AD_NOTIFY OK` or `INVALID` | A short message in a banner over whatever screen is open, for that many seconds. A tap on the banner closes it, a new message replaces it, and one that arrives during the boot screen waits for it to end. The text is shortened to two lines. Sent only to a panel with `"notify":1`; without it the host shows a Windows notification. |
 | `AD_AGENTS {"agents":[…]}` | `AD_AGENTS OK` or `INVALID` | The agents screen, up to 3 lanes (protocol 4). |
 | `AD_MIXER {"faders":[…]}` | `AD_MIXER OK` or `INVALID` | The mixer screen, up to 5 faders (protocol 4). |
 | `AD_STATS {"stats":[…]}` | `AD_STATS OK` or `INVALID` | The status screen, up to 8 readings (protocol 4). |
@@ -99,6 +100,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `ota` | `1` when the panel accepts `AD_OTA_*`. Missing on older firmware. |
 | `imgAck` | `1` when `AD_IMG_BEGIN` takes `ack` and the panel then acknowledges image data. Missing on older firmware: the host sends 160-byte lines and pauses 10 ms after every 4. |
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
+| `notify` | `1` when the panel shows `AD_NOTIFY` banners. Missing on older firmware. |
 | `draws`, `drawMaxMs` | Screen updates since the previous `get_info`, and how long the slowest took to draw and send to the panel, in ms. Reading them starts a new count. Missing on older firmware. |
 
 A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once.

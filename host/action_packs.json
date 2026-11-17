@@ -80,6 +80,215 @@
       ]
     },
     {
+      "group": "Windows",
+      "name": "Shut down",
+      "icon": "stop",
+      "color": "#FF7070",
+      "confirm": true,
+      "note": "Hold to confirm",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "shutdown /s /t 0"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Restart",
+      "icon": "refresh",
+      "color": "#FFB74D",
+      "confirm": true,
+      "note": "Hold to confirm",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "shutdown /r /t 0"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Sleep",
+      "icon": "pause",
+      "color": "#7AA2F7",
+      "confirm": true,
+      "note": "Sleeps, never hibernates",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" /min powershell -NoProfile -WindowStyle Hidden -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)\""
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Sign out",
+      "icon": "close",
+      "color": "#FF7070",
+      "confirm": true,
+      "note": "Hold to confirm",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "shutdown /l"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Game Bar",
+      "icon": "play",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+g"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "New folder",
+      "icon": "folder",
+      "note": "In File Explorer",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+n"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Rename",
+      "icon": "edit",
+      "note": "Renames the selected file",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "f2"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "System info",
+      "icon": "list",
+      "actions": [
+        {
+          "type": "open",
+          "target": "msinfo32.exe"
+        }
+      ]
+    },
+    {
+      "group": "Browser",
+      "name": "New window",
+      "icon": "plus",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+n"
+        }
+      ]
+    },
+    {
+      "group": "Browser",
+      "name": "Private window",
+      "icon": "lock",
+      "note": "Chrome and Edge",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+n"
+        }
+      ]
+    },
+    {
+      "group": "Browser",
+      "name": "Private (Firefox)",
+      "icon": "lock",
+      "note": "Firefox",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+p"
+        }
+      ]
+    },
+    {
+      "group": "Media",
+      "name": "Shuffle",
+      "icon": "loop",
+      "note": "Any player in the Windows media controls",
+      "actions": [
+        {
+          "type": "media",
+          "op": "shuffle"
+        }
+      ]
+    },
+    {
+      "group": "Media",
+      "name": "Repeat",
+      "icon": "refresh",
+      "note": "Cycles off, all, one",
+      "actions": [
+        {
+          "type": "media",
+          "op": "repeat"
+        }
+      ]
+    },
+    {
+      "group": "Productivity",
+      "name": "Discord message",
+      "icon": "upload",
+      "note": "Set DISCORD_WEBHOOK_URL in Windows",
+      "actions": [
+        {
+          "type": "http",
+          "method": "POST",
+          "url": "$(env:DISCORD_WEBHOOK_URL)",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\"content\": \"Hello from Tessera Deck\"}"
+        }
+      ]
+    },
+    {
+      "group": "Productivity",
+      "name": "Telegram message",
+      "icon": "upload",
+      "note": "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in Windows",
+      "actions": [
+        {
+          "type": "http",
+          "method": "POST",
+          "url": "https://api.telegram.org/bot$(env:TELEGRAM_BOT_TOKEN)/sendMessage",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\"chat_id\": \"$(env:TELEGRAM_CHAT_ID)\", \"text\": \"Hello from Tessera Deck\"}"
+        }
+      ]
+    },
+    {
+      "group": "Productivity",
+      "name": "ntfy message",
+      "icon": "upload",
+      "note": "Set NTFY_URL in Windows, for example https://ntfy.sh/your-topic",
+      "actions": [
+        {
+          "type": "http",
+          "method": "POST",
+          "url": "$(env:NTFY_URL)",
+          "body": "Hello from Tessera Deck"
+        }
+      ]
+    },
+    {
       "group": "Window management",
       "name": "Always on top",
       "icon": "upload",

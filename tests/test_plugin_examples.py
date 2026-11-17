@@ -180,5 +180,158 @@ class ObsTests(unittest.TestCase):
             obs.read()
 
 
+class ObsKeyTests(unittest.TestCase):
+    """Key commands and OBS answers, with the socket and Tessera replaced by recorders."""
+
+    def setUp(self):
+        self.module = load('obs', {'port': 1, 'inputs': 'Mic/Aux, Desktop'})
+        self.obs = object.__new__(self.module.Obs)
+        self.obs.requests, self.obs.ids, self.obs.pending = 0, threading.Lock(), {}
+        self.sent, self.shown = [], []
+        self.obs.send = self.sent.append
+        patcher = patch.object(self.module, 'show', lambda **values: self.shown.append(values))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def requests(self):
+        return [(m['d']['requestType'], m['d']['requestData']) for m in self.sent]
+
+    def answer(self, data=None, ok=True, comment=None, index=-1):
+        """Reply to the latest request sent, or to the one at `index`."""
+        request = self.sent[index]['d']
+        status = {'result': ok, 'code': 100 if ok else 604}
+        if comment:
+            status['comment'] = comment
+        self.module.handle(self.obs, {'op': 7, 'd': {'requestType': request['requestType'], 'requestId': request['requestId'],
+                                                    'requestStatus': status, 'responseData': data}})
+
+    def test_simple_commands_map_to_obs_requests(self):
+        for command in ('record', 'stream', 'replay', 'virtualcam', 'transition'):
+            self.module.run(self.obs, command, None)
+        self.module.run(self.obs, 'pause', {})
+        self.module.run(self.obs, 'pause', {'mode': 'on'})
+        self.module.run(self.obs, 'pause', {'mode': 'off'})
+        self.module.run(self.obs, 'pause', {'mode': 'bogus'})  # ignored
+        self.assertEqual([kind for kind, _ in self.requests()],
+                         ['ToggleRecord', 'ToggleStream', 'SaveReplayBuffer', 'ToggleVirtualCam', 'TriggerStudioModeTransition',
+                          'ToggleRecordPause', 'PauseRecord', 'ResumeRecord'])
+
+    def test_show_and_hide_a_source_in_a_scene(self):
+        self.module.run(self.obs, 'source', {'source': 'Webcam', 'scene': 'Gaming', 'mode': 'show'})
+        self.assertEqual(self.requests(), [('GetSceneItemId', {'sceneName': 'Gaming', 'sourceName': 'Webcam'})])
+        self.answer({'sceneItemId': 7})
+        self.assertEqual(self.requests()[1], ('SetSceneItemEnabled', {'sceneName': 'Gaming', 'sceneItemId': 7, 'sceneItemEnabled': True}))
+        self.module.run(self.obs, 'source', {'source': 'Webcam', 'scene': 'Gaming', 'mode': 'hide'})
+        self.answer({'sceneItemId': 7})
+        self.assertIs(self.requests()[-1][1]['sceneItemEnabled'], False)
+
+    def test_toggling_a_source_flips_its_state_and_uses_the_current_scene(self):
+        self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'CurrentProgramSceneChanged', 'eventData': {'sceneName': 'Chat'}}})
+        self.module.run(self.obs, 'source', {'source': 'Webcam'})
+        self.answer({'sceneItemId': 3})
+        self.assertEqual(self.requests()[1], ('GetSceneItemEnabled', {'sceneName': 'Chat', 'sceneItemId': 3}))
+        self.answer({'sceneItemEnabled': True})
+        self.assertEqual(self.requests()[2], ('SetSceneItemEnabled', {'sceneName': 'Chat', 'sceneItemId': 3, 'sceneItemEnabled': False}))
+
+    def test_a_source_key_without_any_scene_sends_nothing(self):
+        self.module.run(self.obs, 'source', {'source': 'Webcam'})
+        self.assertEqual(self.sent, [])
+        self.assertEqual(self.shown, [{'error': 'The current scene is not known yet'}])
+
+    def test_two_quick_volume_presses_move_two_steps(self):
+        self.module.run(self.obs, 'volume-up', {'input': 'Mic/Aux', 'step': 3})
+        self.module.run(self.obs, 'volume-up', {'input': 'Mic/Aux', 'step': 3})
+        self.assertEqual(len(self.sent), 1)
+        self.answer({'inputVolumeDb': -10.0})
+        self.assertEqual(self.requests()[1][1]['inputVolumeDb'], -4.0)
+
+    def test_a_second_toggle_of_the_same_source_waits_for_the_first(self):
+        args = {'source': 'Webcam', 'scene': 'Gaming'}
+        self.module.run(self.obs, 'source', args)
+        self.module.run(self.obs, 'source', args)
+        self.assertEqual(len(self.sent), 1)
+        self.answer({'sceneItemId': 3})
+        self.answer({'sceneItemEnabled': True})
+        self.answer()
+        self.module.run(self.obs, 'source', args)
+        self.assertEqual(len(self.sent), 4)
+
+    def test_failures_of_the_plugins_own_polls_are_not_reported(self):
+        self.module.watch_inputs(self.obs)
+        self.answer(ok=False, comment='No input was found', index=0)
+        self.assertEqual(self.shown, [])
+
+    def test_a_request_obs_never_answers_is_dropped_and_reported(self):
+        self.module.run(self.obs, 'record', None)
+        with patch.object(self.module.time, 'monotonic', lambda: 10 ** 9):  # the deadline has long passed
+            self.module.run(self.obs, 'replay', None)
+        self.assertEqual(self.shown, [{'error': 'OBS did not answer'}])
+        self.assertEqual(len(self.obs.pending), 1)
+
+    def test_inputs_that_share_a_variable_name_keep_the_first(self):
+        with patch('sys.stderr'):
+            self.assertEqual(self.module.unique_inputs(['Mic/Aux', 'Mic_Aux', 'Desktop']), ['Mic/Aux', 'Desktop'])
+
+    def test_volume_steps_are_clamped_to_the_range_obs_accepts(self):
+        self.module.run(self.obs, 'volume-up', {'input': 'Mic/Aux', 'step': 3})
+        self.assertEqual(self.requests()[0], ('GetInputVolume', {'inputName': 'Mic/Aux'}))
+        self.answer({'inputVolumeDb': -10.0, 'inputVolumeMul': 0.3})
+        self.assertEqual(self.requests()[1], ('SetInputVolume', {'inputName': 'Mic/Aux', 'inputVolumeDb': -7.0}))
+        self.module.run(self.obs, 'volume-up', {'input': 'Mic/Aux'})  # default step 2
+        self.answer({'inputVolumeDb': 25.0})
+        self.assertEqual(self.requests()[-1][1]['inputVolumeDb'], 26.0)
+        self.module.run(self.obs, 'volume-down', {'input': 'Mic/Aux', 'step': 20})
+        self.answer({'inputVolumeDb': -95.0})
+        self.assertEqual(self.requests()[-1][1]['inputVolumeDb'], -100.0)
+
+    def test_bad_args_are_ignored(self):
+        for command, args in (('volume-up', {'input': 'Mic', 'step': 0}), ('volume-up', {'input': 'Mic', 'step': 999}),
+                              ('volume-down', {'input': 'Mic', 'step': 'loud'}), ('volume-up', {'input': 'Mic', 'step': True}),
+                              ('volume-up', {'step': 2}), ('mute', {'input': 'x' * 300}), ('scene', {'name': 5}),
+                              ('source', {'source': 'a', 'scene': 's', 'mode': 'flip'}), ('record', 'not a dict'), ('nope', {})):
+            self.module.run(self.obs, command, args)
+        self.assertEqual([kind for kind, _ in self.requests()], ['ToggleRecord'])
+
+    def test_a_refusal_from_obs_is_shown_and_the_next_success_clears_it(self):
+        self.module.run(self.obs, 'replay', None)
+        self.answer(ok=False, comment='Replay buffer is not running')
+        self.assertEqual(self.shown, [{'error': 'Replay buffer is not running'}])
+        self.module.run(self.obs, 'replay', None)
+        self.answer()
+        self.assertEqual(self.shown[-1], {'error': ''})
+
+    def test_a_refusal_in_the_middle_of_a_source_key_stops_it(self):
+        self.module.run(self.obs, 'source', {'source': 'Nope', 'scene': 'Gaming'})
+        self.answer(ok=False, comment='No source was found')
+        self.assertEqual(len(self.sent), 1)
+        self.assertEqual(self.shown, [{'error': 'No source was found'}])
+
+    def test_mute_and_pause_state_follow_events_and_the_first_poll(self):
+        self.module.watch_inputs(self.obs)
+        self.assertEqual([data['inputName'] for _, data in self.requests()], ['Mic/Aux', 'Desktop'])
+        self.answer({'inputMuted': True}, index=0)
+        self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'InputMuteStateChanged',
+                                                     'eventData': {'inputName': 'Desktop', 'inputMuted': False}}})
+        self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'InputMuteStateChanged',
+                                                     'eventData': {'inputName': 'Other', 'inputMuted': True}}})  # not watched
+        self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'RecordStateChanged', 'eventData': {
+            'outputActive': True, 'outputState': 'OBS_WEBSOCKET_OUTPUT_PAUSED'}}})
+        self.module.handle(self.obs, {'op': 5, 'd': {'eventType': 'RecordStateChanged', 'eventData': {
+            'outputActive': True, 'outputState': 'OBS_WEBSOCKET_OUTPUT_RESUMED'}}})
+        self.assertEqual(self.shown, [{'mute.Mic_Aux': 'ON'}, {'mute.Desktop': 'OFF'},
+                                      {'recording': 'ON', 'paused': 'ON'}, {'recording': 'ON', 'paused': 'OFF'}])
+
+    def test_the_record_status_poll_sets_paused(self):
+        self.module.handle(self.obs, {'op': 7, 'd': {'requestType': 'GetRecordStatus', 'requestId': '9',
+                                                     'requestStatus': {'result': True, 'code': 100},
+                                                     'responseData': {'outputActive': True, 'outputPaused': True}}})
+        self.assertEqual(self.shown, [{'recording': 'ON', 'paused': 'ON'}])
+
+    def test_unanswered_requests_are_capped(self):
+        for _ in range(self.module.MAX_PENDING + 20):
+            self.module.run(self.obs, 'record', None)
+        self.assertEqual(len(self.obs.pending), self.module.MAX_PENDING)
+
+
 if __name__ == '__main__':
     unittest.main()

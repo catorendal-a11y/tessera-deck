@@ -11,9 +11,9 @@ import threading
 from typing import Callable
 
 POLL_SECONDS = 1.0
-FLAG_SOURCES = ('speaker_muted', 'mic_muted', 'media_playing')
+FLAG_SOURCES = ('speaker_muted', 'mic_muted', 'media_playing', 'media_shuffle', 'media_repeat')
 EMPTY = {'volume': None, 'speaker_muted': False, 'mic_muted': False,
-         'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0}
+         'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0, 'shuffle': None, 'repeat': ''}
 
 
 def _endpoints() -> dict:
@@ -165,18 +165,68 @@ class MediaReader:
             self._manager = await manager_type.request_async()
         session = self._manager.get_current_session()
         if session is None:
-            return {'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0}
+            return {'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0, 'shuffle': None, 'repeat': ''}
         properties = await session.try_get_media_properties_async()
-        status = session.get_playback_info().playback_status
+        info = session.get_playback_info()
+        status = info.playback_status
         position, duration = 0.0, 0.0
         try:  # not every player reports a timeline; the bar is then left out
             timeline = session.get_timeline_properties()
             position, duration = timeline.position.total_seconds(), timeline.end_time.total_seconds() - timeline.start_time.total_seconds()
         except (AttributeError, OSError, ValueError):
             pass
+        shuffle, repeat = None, ''
+        try:  # a failure here must not cost the title and the playing state
+            shuffle = info.is_shuffle_active  # None when the player does not report it
+            if info.auto_repeat_mode is not None:
+                repeat = REPEAT_NAMES.get(int(info.auto_repeat_mode), '')
+        except (AttributeError, OSError, ValueError, TypeError, ImportError):
+            shuffle, repeat = None, ''
         return {'title': properties.title or '', 'artist': properties.artist or '',
                 'status': {4: 'PLAYING', 5: 'PAUSED', 3: 'STOPPED'}.get(int(status), ''),
-                'position': position, 'duration': duration}
+                'position': position, 'duration': duration, 'shuffle': shuffle, 'repeat': repeat}
+
+
+MEDIA_OPERATIONS = ('shuffle', 'repeat')
+REPEAT_NAMES = {0: 'none', 1: 'track', 2: 'list'}  # MediaPlaybackAutoRepeatMode
+NEXT_REPEAT = {0: 2, 2: 1, 1: 0}  # off, all, one, off
+
+
+def check_media(action: dict) -> None:
+    if action.get('op') not in MEDIA_OPERATIONS:
+        raise ValueError(f'media: op must be one of {", ".join(MEDIA_OPERATIONS)}')
+
+
+async def _change_media_option(session, operation: str) -> bool:
+    """Toggle shuffle or cycle repeat on a media session; False when the player cannot do it."""
+    info = session.get_playback_info()
+    controls = info.controls
+    if operation == 'shuffle':
+        if info.is_shuffle_active is None or not controls.is_shuffle_enabled:
+            return False
+        return bool(await session.try_change_shuffle_active_async(not info.is_shuffle_active))
+    mode = info.auto_repeat_mode
+    if mode is None or not controls.is_repeat_enabled:
+        return False
+    # the enum class comes from the value itself, so no extra winrt package is needed
+    return bool(await session.try_change_auto_repeat_mode_async(type(mode)(NEXT_REPEAT[int(mode)])))
+
+
+def control_media(operation: str) -> None:
+    """Toggle shuffle or cycle repeat in the current media session. A player without it is left alone."""
+    check_media({'op': operation})
+    try:
+        import asyncio
+        from winrt.windows.media.control import GlobalSystemMediaTransportControlsSessionManager as Manager
+    except ImportError as exc:
+        raise OSError(f'media control is not installed: {exc}') from exc
+
+    async def work():
+        session = (await Manager.request_async()).get_current_session()
+        if session is not None:
+            await _change_media_option(session, operation)
+
+    asyncio.run(work())
 
 
 class PcState:
@@ -230,6 +280,10 @@ class PcState:
         values = self.snapshot()
         if source == 'media_playing':
             return values['status'] == 'PLAYING'
+        if source == 'media_shuffle':
+            return values['shuffle'] is True
+        if source == 'media_repeat':
+            return values['repeat'] in ('track', 'list')
         return bool(values.get(source, False))
 
     def variables(self) -> dict[str, str]:
@@ -240,4 +294,6 @@ class PcState:
                 'pc:speaker': 'MUTED' if values['speaker_muted'] else 'ON',
                 'pc:mic': 'MUTED' if values['mic_muted'] else 'LIVE',
                 'pc:track': values['title'] or 'No music', 'pc:artist': values['artist'], 'pc:media': track,
-                'pc:playing': values['status']}
+                'pc:playing': values['status'],
+                'pc:shuffle': '' if values['shuffle'] is None else 'ON' if values['shuffle'] else 'OFF',
+                'pc:repeat': {'none': 'OFF', 'list': 'ALL', 'track': 'ONE'}.get(values['repeat'], '')}

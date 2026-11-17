@@ -4,7 +4,7 @@ import json
 import threading
 import time
 
-BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive
+BLOCKING_ACTIONS = ('shell', 'script', 'http', 'delay')  # run on the slow lane so key input stays responsive
 DOUBLE_PRESS_SECONDS = 0.35  # a key with double_actions waits this long for a second tap
 
 
@@ -46,7 +46,7 @@ class PressMixin:
         return self.waits(self.resolved_button(button).get(action_list_name(hold, double), []))
 
     def waits(self, actions, depth=0):
-        """Whether the list waits (shell, HTTP, delay, slow typing), following presses of other keys."""
+        """Whether the list waits (shell, script, HTTP, delay, slow typing), following presses of other keys."""
         for action in actions:
             if action.get('type') in BLOCKING_ACTIONS or (action.get('type') == 'text' and action.get('delay_ms')):
                 return True
@@ -57,7 +57,7 @@ class PressMixin:
         return False
 
     def start_press(self, button_id, hold=False, double=False):
-        """Run a press now, or on the slow lane when it waits (shell, HTTP, delay) so other keys keep working.
+        """Run a press now, or on the slow lane when it waits (shell, script, HTTP, delay) so other keys keep working.
 
         A button that is still running ignores further presses instead of running twice.
         """
@@ -94,7 +94,7 @@ class PressMixin:
             self.slow_slots.release()
 
     def start_actions(self, actions):
-        """Trigger and timer actions: a list that waits (shell, HTTP, delay) runs on the slow lane, like a slow key.
+        """Trigger and timer actions: a list that waits (shell, script, HTTP, delay) runs on the slow lane, like a slow key.
 
         Otherwise one slow trigger would hold up every key press behind it. A list that is still running is skipped.
         """

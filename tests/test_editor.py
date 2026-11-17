@@ -415,15 +415,34 @@ class MarkupTests(unittest.TestCase):
                  {'type': 'counter', 'name': 'laps', 'min': 5, 'max': 1}, {'type': 'timer', 'name': 'tea', 'seconds': 1.5},
                  {'type': 'press', 'id': 18}, {'type': 'delay', 'ms': 0}, {'type': 'hotkey', 'keys': 'ctrl+shift+b'},
                  {'type': 'http', 'url': 'https://example.com'}, {'type': 'http', 'url': '$(var:hook)'},
-                 {'type': 'counter', 'name': 'laps', 'min': 1, 'max': 5}, {'type': 'set', 'variable': 'mode.1', 'value': 'x'}]
+                 {'type': 'counter', 'name': 'laps', 'min': 1, 'max': 5}, {'type': 'set', 'variable': 'mode.1', 'value': 'x'},
+                 {'type': 'script', 'path': 'C:\\scripts\\backup'}, {'type': 'script', 'path': 'scripts\\a.ps1'},
+                 {'type': 'script', 'path': 'C:\\100%\\a.cmd'},
+                 {'type': 'script', 'path': 'C:\\scripts\\a.ps1'}, {'type': 'script', 'path': '%USERPROFILE%\\a.cmd'}]
         script = kinds + rules + f'console.log(JSON.stringify({json.dumps(steps)}.map(s=>!!stepProblem(s))));'
         result = subprocess.run([node, '-e', script], capture_output=True, text=True, encoding='utf-8', timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7)
+        self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7 + [True] * 3 + [False] * 2)
 
 
 class EditorScriptTests(unittest.TestCase):
     """The editor's own functions, run in node (run_editor)."""
+
+    def test_a_power_pack_keeps_its_hold_to_confirm(self):
+        found = run_editor(self, r'''
+const power = {name: 'Shut down', icon: 'power', confirm: true, actions: [{type: 'shell', command: 'shutdown /s /t 0'}]};
+const result = {};
+for (const where of ['new', 'empty', 'hold']) {
+  config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: []}}}}; profile = 'Main'; page = 'First'; selected = 1;
+  actionCatalog.packs = [power];
+  if (where === 'empty') config.profiles.Main.pages.First.push({id: 1, label: '', icon: 'ok', actions: []});
+  if (where === 'hold') config.profiles.Main.pages.First.push({id: 1, label: 'X', icon: 'ok', actions: [], hold_actions: [{type: 'delay', ms: 1}]});
+  addAction('pack:0', where === 'new' ? null : 1);
+  result[where] = config.profiles.Main.pages.First.find(b => b.id === selected).confirm === true;
+}
+return result;
+''')
+        self.assertEqual(found, {'new': True, 'empty': True, 'hold': False})
 
     def test_editor_edits_never_leave_a_value_the_host_refuses(self):
         found = run_editor(self, r'''

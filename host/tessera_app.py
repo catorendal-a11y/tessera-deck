@@ -101,7 +101,10 @@ def action_pack_catalog():
     for index, pack in enumerate(catalog['packs'], 1):
         profile = {'match': [], 'pages': {'main': [{
             'id': 1, 'label': pack.get('name', ''), 'icon': pack.get('icon', 'ok'),
-            'color': pack.get('color', '#35D07F'), 'actions': pack.get('actions', [])}]}}
+            'color': pack.get('color', '#35D07F'), 'actions': pack.get('actions', []),
+            **({'confirm': pack['confirm']} if 'confirm' in pack else {})}]}}
+        if not isinstance(pack.get('note', ''), str):
+            raise ValueError('The action pack note must be text')
         validate_config({'default_profile': 'pakke', 'profiles': {'pakke': profile}})
         pack['id'] = f'pack-{index}'
     for template in catalog['templates']:
@@ -765,7 +768,7 @@ class Editor:
                                 else 'Automatic startup is turned off.')}
         if command == 'pick':
             kind = data.get('kind', 'file')
-            if kind not in ('file', 'program'):
+            if kind not in ('file', 'program', 'script'):
                 raise ValueError('Unknown file picker')
             result = subprocess.run([sys.executable, str(ROOT / 'host/editor_file_picker.py'), kind],
                                     capture_output=True, text=True, encoding='utf-8', timeout=180,
@@ -777,6 +780,10 @@ class Editor:
             if kind == 'program' and path:
                 return self.program_details(path, allowed_only=False)
             return {'path': path}
+        if command == 'edit-script':
+            from action_runner import edit_script
+            edit_script(str(data.get('path', '')))
+            return {'message': 'The script was opened in your editor.'}
         if command == 'program':
             return self.program_details(data.get('target', ''))
         raise ValueError('Unknown command')

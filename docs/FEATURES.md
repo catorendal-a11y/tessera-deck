@@ -116,6 +116,9 @@ Deleting a page or a profile asks no question. A toast offers Undo.
 ### Actions
 
 - Over 120 ready-made actions and 10 profile templates for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
+- The ready-made keys include Shut down, Restart, Sleep and Sign out, which use *Hold to confirm*. Sleep calls `SetSuspendState` with hibernation turned off, so the PC sleeps even when hibernation is enabled (`rundll32 powrprof.dll,SetSuspendState` would hibernate). Private window is Ctrl+Shift+N for Chrome and Edge, and a separate key sends Ctrl+Shift+P for Firefox.
+- Shuffle and repeat keys work with any player in the Windows media controls. `$(pc:shuffle)`, `$(pc:repeat)` and the `media_shuffle` and `media_repeat` bindings follow the player.
+- The Discord, Telegram and ntfy message keys read their address or token from the environment variables `DISCORD_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN` with `TELEGRAM_CHAT_ID`, and `NTFY_URL`, so nothing secret is saved in the profile. Set them in Windows and restart Tessera. Edit the message text in the key's HTTP step.
 - Actions added in 0.7.0: *Copy to clipboard*, *Window* (minimize, maximize, restore, close, always on top, next monitor, bring a program to the front), *Toggle variable* and *Lock panel*.
 - Counters and timers with labels (`$(counter:laps)`, `$(timer:tea)`), a countdown on the key, notifications and end actions. They are saved, and a running timer keeps counting while Tessera is closed.
 - An HTTP action fails with the status code when the answer is 4xx or 5xx. It refuses a redirect from https to http, and a redirect to another host goes there without the step's headers.

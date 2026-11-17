@@ -137,7 +137,7 @@ async function testButton(id = selected) {
 }
 /* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */
 async function runKey(id, actions) {
-  const risky = {shell: 'runs a command', http: 'sends a web request', text: 'types text'};
+  const risky = {shell: 'runs a command', script: 'runs a script', http: 'sends a web request', text: 'types text'};
   const effects = [...new Set(actions.map(a => risky[a.type]).filter(Boolean))];
   if (effects.length && !await confirmDialog('Run this key now?', `This key ${effects.join(', ')} on this PC.`, {ok: 'Run now'})) return;
   await save();  // the host runs what is saved
@@ -462,7 +462,8 @@ async function renderPlugins() {
 }
 const SECRET_SETTING = /token|secret|password|api.?key/i;  // as import_review.py
 const PLUGIN_RIGHTS = {vars: 'set values shown on keys (names starting with the plugin id)', press: 'press keys',
-  feedback: 'flash keys green or red', state: 'change the state of keys', events: 'read key presses, page changes and its commands',
+  feedback: 'flash keys green or red', state: 'change the state of keys', notify: 'show short messages on the panel',
+  events: 'read key presses, page changes and its commands',
   read: 'read the panel state and all values'};
 /* Ask once per plugin id, version, command and permissions before it first runs: a changed manifest may ask for more under the same version. */
 async function pluginConsent(plugin) {

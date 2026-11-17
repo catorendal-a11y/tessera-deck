@@ -16,9 +16,11 @@ const kinds = {
   panel_lock:{name:'Lock panel',icon:'settings',field:null,label:'Lock or unlock the panel against stray taps',group:'Navigation'},
   delay:{name:'Wait',icon:'pause',field:'ms',label:'Delay (milliseconds)',placeholder:'500',group:'More actions'},
   shell:{name:'Run command',icon:'settings',field:'command',label:'Command',placeholder:'The command runs when the key is pressed',group:'Advanced'},
+  script:{name:'Run script',icon:'settings',field:'path',label:'Script file',placeholder:'Full path of a .py, .pyw, .ps1, .bat, .cmd, .ahk or .js file',group:'Advanced'},
   http:{name:'HTTP request',icon:'wifi',field:'url',label:'Address',placeholder:'https://…',group:'Advanced'},
   press:{name:'Trigger another key',icon:'loop',field:'id',label:'Key number (1–18)',group:'Advanced'},
   audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
+  media:{name:'Shuffle / repeat',icon:'loop',field:'op',label:'Media player option',group:'On the computer'},
   counter:{name:'Counter',icon:'plus',field:'name',label:'Counter name',placeholder:'for example laps',group:'On the computer'},
   mouse:{name:'Mouse',icon:'settings',field:'op',label:'Mouse operation',group:'On the computer'},
   screen:{name:'Switch screen',icon:'home',field:'show',label:'Show on the panel',group:'More actions'},
@@ -280,6 +282,12 @@ function valueProblem(a) {
   if((a.type==='press'&&!whole(a.id,1,18))||(a.type==='state'&&!whole(a.button,1,18)))return 'use a key number from 1 to 18';
   if(a.type==='delay'&&!whole(a.ms,0,60000))return 'use a wait of 0 to 60000 milliseconds';
   if(a.type==='hotkey'&&String(a.keys).split('+').some(part=>!part.trim()))return 'finish the key combination';
+  if(a.type==='script'){
+    const path=String(a.path).trim();
+    if(!/\.(py|pyw|ps1|bat|cmd|ahk|js)$/i.test(path))return 'use a .py, .pyw, .ps1, .bat, .cmd, .ahk or .js file';
+    if(!/^([A-Za-z]:[\\/]|\\\\|%[^%\s]+%)/.test(path))return 'use the full path of the script file';
+    if(/\.(bat|cmd)$/i.test(path)&&/%/.test(path.replace(/^%[^%\s]+%/,'')))return 'leave the % sign out of the path of a .bat or .cmd file';
+  }
   if(a.type==='http'&&!String(a.url).startsWith('$(')&&!/^https?:\/\/[^/\s]/i.test(a.url))return 'start the address with http:// or https://';
   if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
@@ -585,11 +593,11 @@ function moveToPage(id,name) {
   toast(`Moved key ${id} to page “${name}”, slot ${slot}.`,true);
 }
 function actionTemplate(key) {
-  if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',actions:clone(pack.actions)};}
+  if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',...(pack.confirm?{confirm:true}:{}),actions:clone(pack.actions)};}
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',clipboard:'',window:'minimize',toggle:'mode'}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',script:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',media:'shuffle',clipboard:'',window:'minimize',toggle:'mode'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
     ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
   // The long list names do not fit on a key (24 bytes).
@@ -609,7 +617,10 @@ function addAction(key,id=null) {
   const item=actionTemplate(key);if(!item)return;
   const made=!visibleButtons().some(b=>b.id===id);
   inspectorTab=made?'look':'actions';
-  mutate(()=>{selected=id;syncEditList();let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
+  mutate(()=>{selected=id;syncEditList();let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];
+    /* A pack that asks for a hold (Shut down, Restart, ...) keeps it on a new or empty key; the host refuses confirm with hold or double steps. */
+    if(item.confirm&&editList==='actions'&&!b.actions.length&&!b.hold_actions?.length&&!b.double_actions?.length)b.confirm=true;
+    activeActions().push(...clone(item.actions));});
   if(made){const title=$('#inspector .prop-row-title input');title?.focus();title?.select();}  // name the new key first
   if(key==='folder')return newPage(true,activeActions().length-1,appearance().label);  // a folder needs its page: make it now
   toast(made?`Added to key ${id}. Drop on a key to add a step.`:'Action added. Steps run from top to bottom.');

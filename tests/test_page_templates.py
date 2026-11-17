@@ -17,6 +17,19 @@ class PageTemplateTests(unittest.TestCase):
         names = [template['name'] for template in tessera_app.action_pack_catalog()['page_templates']]
         self.assertEqual(names, ['Meetings', 'Coding', 'Media', 'Browser'])
 
+    def test_power_keys_hold_to_confirm_and_sleep_does_not_hibernate(self):
+        tessera_app.action_pack_catalog.cache_clear()
+        packs = {pack['name']: pack for pack in tessera_app.action_pack_catalog()['packs']}
+        for name in ('Shut down', 'Restart', 'Sleep', 'Sign out'):
+            self.assertIs(packs[name]['confirm'], True, name)
+        command = packs['Sleep']['actions'][0]['command']
+        self.assertIn("SetSuspendState('Suspend', $false, $false)", command)
+        self.assertNotIn('powrprof', command)  # rundll32 powrprof.dll,SetSuspendState hibernates when hibernation is on
+        for name, keys in (('Game Bar', 'win+g'), ('New folder', 'ctrl+shift+n'), ('Rename', 'f2'),
+                           ('New window', 'ctrl+n'), ('Private window', 'ctrl+shift+n'), ('Private (Firefox)', 'ctrl+shift+p')):
+            self.assertEqual(packs[name]['actions'], [{'type': 'hotkey', 'keys': keys}], name)
+        self.assertEqual(packs['System info']['actions'], [{'type': 'open', 'target': 'msinfo32.exe'}])
+
     def test_every_template_is_a_valid_page_with_unique_keys_and_a_back_key(self):
         for template in CATALOG['page_templates']:
             with self.subTest(template['name']):

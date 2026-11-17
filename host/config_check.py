@@ -1,6 +1,7 @@
 """Validation of profiles.json: every malformed configuration surfaces as ValueError before the engine uses it."""
 import json
 import math
+import os
 import re
 
 from ambient import check_ambient
@@ -8,17 +9,18 @@ import calendar_feed
 from config_store import CONFIG_VERSION, version_of
 from live_state import NAME as LIVE_NAME, check_counter, check_timer
 import widgets
-from pc_state import FLAG_SOURCES, check_audio
+from pc_state import FLAG_SOURCES, check_audio, check_media
 from plugins import PLUGIN_ID, check_plugin_config
+from program_locator import BATCH_SUFFIXES, SCRIPT_SUFFIXES
 from substitution import check_web_url
 from win_input import MOUSE_OPERATIONS, WINDOW_OPERATIONS, parse_hotkey
 
-ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
+ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command', 'script': 'path',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None,
                  'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None,
-                 'homeassistant': 'action'}
+                 'homeassistant': 'action', 'media': 'op'}
 # A Home Assistant step comes from a profile file saved by the Wi-Fi beta, whose panel sends it. This version keeps it
 # in the file and skips it when the key runs. Like the beta, it allows one only in a key's own press, hold and double
 # lists. The beta's limits for one page (24 steps, 4,096 bytes) are not checked here.
@@ -142,6 +144,10 @@ def _check_audio(action, pages, profiles):
     check_audio(action)
 
 
+def _check_media(action, pages, profiles):
+    check_media(action)
+
+
 def _check_delay(action, pages, profiles):
     if type(action.get('ms', 100)) is not int or not 0 <= action.get('ms', 100) <= 60000:
         raise ValueError('delay must be 0..60000 ms')
@@ -157,6 +163,18 @@ def _check_shell(action, pages, profiles):
     _check_timeout(action)
 
 
+def _check_script(action, pages, profiles):
+    _check_timeout(action)
+    path = action['path']
+    if not path.strip() or len(path) > 1024 or '\0' in path or not path.lower().endswith(SCRIPT_SUFFIXES):
+        raise ValueError(f'script: path must be a file ending in {", ".join(SCRIPT_SUFFIXES)}')
+    expanded = os.path.expandvars(path.strip())
+    if not os.path.isabs(expanded) and not re.match(r'%[^%\s]+%', path.strip()):
+        raise ValueError('script: use the full path of the script file')
+    if expanded.lower().endswith(BATCH_SUFFIXES) and '%' in expanded:
+        raise ValueError('script: the path of a .bat or .cmd file cannot contain a % sign')
+
+
 def _check_http_action(action, pages, profiles):
     _check_timeout(action)
     _check_http(action)
@@ -169,8 +187,8 @@ def _check_state_kind(action, pages, profiles):
 ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _check_hotkey, 'open': _check_open,
                  'page': _check_page, 'folder': _check_page, 'profile': _check_profile_action, 'text': _check_text,
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
-                 'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
-                 'shell': _check_shell, 'http': _check_http_action, 'clipboard': _check_clipboard,
+                 'timer': _check_timer_action, 'audio': _check_audio, 'media': _check_media, 'delay': _check_delay,
+                 'shell': _check_shell, 'script': _check_script, 'http': _check_http_action, 'clipboard': _check_clipboard,
                  'window': _check_window, 'toggle': _check_toggle, 'set': _check_set, 'panel_lock': _check_panel_lock}
 
 

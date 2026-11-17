@@ -7,6 +7,7 @@ Examples:
   deckctl page main status       show a page
   deckctl state 3 next           set a toggle button's state (next or 1-8)
   deckctl ok 3 / deckctl alert 3 flash a button green or red
+  deckctl say Build passed --level ok   show a short message on the panel
   deckctl wake / deckctl dim     wake or dim the panel
   deckctl status                 print the host state as JSON
   deckctl adapter claude         feed a Claude Code hook event (stdin) to the panel
@@ -24,7 +25,7 @@ from pathlib import Path
 
 import adapters
 import permission
-from control_api import proof
+from control_api import NOTIFY_DEFAULT_SECONDS, NOTIFY_LEVELS, proof
 
 INFO_PATH = Path(__file__).with_name('deck-api.local.json')
 TIMEOUT = 3.0
@@ -106,6 +107,11 @@ def build_parser() -> argparse.ArgumentParser:
     state = commands.add_parser('state', help="set a toggle button's state")
     state.add_argument('button', type=int)
     state.add_argument('state', nargs='?', type=state_value, default='next')
+    say = commands.add_parser('say', help='show a short message on the panel')
+    say.add_argument('text', nargs='+', help='the message; several words need no quotes')
+    say.add_argument('--level', choices=NOTIFY_LEVELS, default='info', help='the color of its edge (default: info)')
+    say.add_argument('--seconds', type=int, default=NOTIFY_DEFAULT_SECONDS,
+                     help=f'how long it shows (default: {NOTIFY_DEFAULT_SECONDS})')
     for name in ('wake', 'dim', 'status'):
         commands.add_parser(name)
     adapter = commands.add_parser('adapter', help='send what an AI tool reports to the panel')
@@ -134,6 +140,9 @@ def run(arguments: argparse.Namespace, info: dict):
         return call(info, 'POST', '/v1/state', {'button': arguments.button, 'state': arguments.state})
     if command in ('wake', 'dim'):
         return call(info, 'POST', '/v1/display', {'action': command})
+    if command == 'say':
+        return call(info, 'POST', '/v1/notify', {'text': ' '.join(arguments.text), 'level': arguments.level,
+                                                  'seconds': arguments.seconds})
     if command == 'adapter':
         updates = adapter_updates(arguments, sys.stdin)
         return call(info, 'POST', '/v1/vars', {'set': updates}) if updates else {'ok': True}

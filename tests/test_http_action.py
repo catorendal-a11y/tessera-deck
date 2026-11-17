@@ -1,6 +1,7 @@
 """HTTP actions only talk http(s): checked when the profile is saved and again after variables are filled in."""
 import json
 from pathlib import Path
+import re
 import sys
 import unittest
 from unittest.mock import MagicMock, Mock, patch
@@ -60,6 +61,55 @@ class RunTimeTests(unittest.TestCase):
         with patch.dict(deck.os.environ, environment), patch.object(deck.WEB_OPENER, 'open', MagicMock()) as urlopen:
             daemon.run_action({'type': 'http', 'url': '$(env:TESSERA_TEST_HOOK)'})
         self.assertEqual(urlopen.call_args.args[0].full_url, 'https://example.com/secret-hook')
+
+
+class MessagePackTests(unittest.TestCase):
+    """The Discord, Telegram and ntfy keys take their address or token from the environment, never from the profile."""
+    NAMES = ('Discord message', 'Telegram message', 'ntfy message')
+
+    def packs(self):
+        catalog = json.loads((ROOT / 'host/action_packs.json').read_text(encoding='utf-8'))
+        return {pack['name']: pack for pack in catalog['packs']}
+
+    def test_the_packs_keep_secrets_in_the_environment_and_say_which_variable(self):
+        packs = self.packs()
+        for name in self.NAMES:
+            pack = packs[name]
+            text = json.dumps(pack['actions'])
+            self.assertIn('$(env:', text, name)
+            self.assertNotRegex(text, r'(?i)hooks/|bot\d|api_key=', name)
+            for variable in re.findall(r'\$\(env:(\w+)\)', text):
+                self.assertIn(variable, pack['note'], name)
+            deck.validate_config(self.config_with(pack['actions']))
+
+    def config_with(self, actions):
+        config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
+        config['profiles']['main']['pages']['main'][0]['actions'] = actions
+        return config
+
+    def test_a_telegram_press_sends_the_expanded_request(self):
+        daemon = RunTimeTests().make_daemon()
+        environment = {'TELEGRAM_BOT_TOKEN': '123:abc', 'TELEGRAM_CHAT_ID': '42'}
+        with patch.dict(deck.os.environ, environment), patch.object(deck.WEB_OPENER, 'open', MagicMock()) as urlopen:
+            daemon.run_action(self.packs()['Telegram message']['actions'][0])
+        request = urlopen.call_args.args[0]
+        self.assertEqual(request.full_url, 'https://api.telegram.org/bot123:abc/sendMessage')
+        self.assertEqual(json.loads(request.data), {'chat_id': '42', 'text': 'Hello from Tessera Deck'})
+
+    def test_the_request_names_itself_unless_the_key_sets_a_user_agent(self):
+        daemon = RunTimeTests().make_daemon()
+        for headers, expected in (({}, 'Tessera-Deck'), ({'user-agent': 'Mine/1'}, 'Mine/1')):
+            with patch.object(deck.WEB_OPENER, 'open', MagicMock()) as urlopen:
+                daemon.run_action({'type': 'http', 'url': 'https://example.com/hook', 'method': 'POST', 'headers': headers})
+            self.assertEqual(urlopen.call_args.args[0].get_header('User-agent'), expected)
+
+    def test_the_export_and_the_import_review_treat_them_as_web_requests(self):
+        import import_review
+        packs = self.packs()
+        for name, kind in (('Discord message', 'http'), ('Shut down', 'shell')):
+            config = self.config_with(packs[name]['actions'])
+            first = import_review.review(config)[0]
+            self.assertEqual(first['kind'], kind, name)
 
 
 class RedirectTests(unittest.TestCase):

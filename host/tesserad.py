@@ -21,7 +21,7 @@ from config_store import migrate
 from plugins import EventLog, PluginManager
 from live_state import LiveState
 import widgets
-from action_runner import Busy, CommandFailed, run_command
+from action_runner import Busy, CommandFailed, run_command, run_script
 from action_preview import URI_SCHEME, toggled
 from control_api import ControlServer
 import agent_activity
@@ -31,7 +31,7 @@ import permission
 from deck_assets import Assets
 from program_locator import locate
 from substitution import check_web_url, expand_environment, substitute
-from pc_state import PcState, control_audio
+from pc_state import PcState, control_audio, control_media
 from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
 
@@ -513,10 +513,18 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     run_command(command, timeout, self.stop)
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
+        elif kind == 'script':
+            with self.state_lock.suspended():
+                try:
+                    run_script(action['path'], action.get('timeout', 30), self.stop)
+                except CommandFailed as exc:
+                    raise RuntimeError(str(exc)) from exc
         elif kind == 'http':
             # $(env:NAME) is expanded before the variables, so a variable's value can never pull in a secret
             headers = {name: self.substitute(self.expand_environment(value))
                        for name, value in action.get('headers', {}).items()}
+            if not any(name.lower() == 'user-agent' for name in headers):  # some services (Discord) refuse Python-urllib
+                headers['User-Agent'] = 'Tessera-Deck'
             request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
                 method=action.get('method', 'GET'), headers=headers,
                 data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
@@ -578,6 +586,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'toggle':
             self.custom_vars[action['variable']] = toggled(action, self.custom_vars.get(action['variable']))
             self.push_page()
+        elif kind == 'media':
+            control_media(action['op'])
         elif kind == 'clipboard':
             with self.input_turn():  # the paste must not land in the middle of another key's typing
                 set_clipboard(self.substitute(action['text']))
@@ -793,6 +803,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.dim_display('by request')
         elif kind == 'wake':
             self.wake_display()
+        elif kind == 'notify':  # not a PANEL_JOB: without a panel it becomes a Windows notification
+            self.show_notice(job[1], job[2], job[3])
         elif kind == 'screen-deck':
             # A touch on the ambient screen already returned the panel to the deck.
             self.last_activity = time.monotonic()

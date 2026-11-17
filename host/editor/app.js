@@ -32,7 +32,7 @@ function renderLibrary() {
   if(ready.length){if(searching)list.append(category('Widgets',ready,0,true));else if(libraryTab==='widgets')list.append(text('p','A widget is a wide key that shows something live. Drag one to a key with a free slot to its right.','hint library-note'),element('div',{class:'lib-items lib-flat'},...ready));}
   const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
   [...groups].forEach(([group,items],index)=>put('basics',category(group,items,index%4,searching)));
-  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.actions.length>1?`${p.actions.length} actions`:'Ready-made action','pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
+  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.note||(p.actions.length>1?`${p.actions.length} actions`:'Ready-made action'),'pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
   else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)put('ready',category('Ready to use',ready,0,searching));}
   if(!list.children.length)list.append(element('div',{class:'library-empty'},text('strong','No matches'),text('span','Try another search term.')));
 }
@@ -220,7 +220,7 @@ async function askTimerName(title,label,value) {
 function activeActionsOf(base) {return base.states?base.states[Math.min(editState,base.states.length-1)].actions||[]:base.actions||[];}
 function renderBind(panel,base) {
   if(!base.states)return;
-  const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing'],['__timer','A timer is running …']];
+  const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing'],['media_shuffle','Shuffle on'],['media_repeat','Repeat on'],['__timer','A timer is running …']];
   if(base.bind?.startsWith('timer-running:'))choices.splice(-1,0,[base.bind,`Timer “${base.bind.slice(14)}” is running`]);
   panel.append(field('Follow PC state',base.bind||'',value=>{
     if(value==='__timer')return askTimerName('Follow a timer','Name of the timer to follow','').then(name=>{if(name&&current()===base)mutate(()=>{base.bind=`timer-running:${name}`;});else renderInspector();});
@@ -262,7 +262,7 @@ function renderStep(action,index,count) {
   const type=element('select',{class:'step-type','aria-label':`Step ${index+1} action type`});options(type,Object.entries(kinds).map(([key,item])=>[key,item.name]),action.type);
   type.addEventListener('change',()=>{const fresh=actionTemplate(type.value)?.actions[0];if(fresh)mutate(()=>{activeActions()[index]=fresh;});});
   step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,action.type===BETA_STEP?kindName(BETA_STEP):type),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
-  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:action.type==='media'?[['shuffle','Shuffle on / off'],['repeat','Repeat: off, all, one']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
   if(action.type===BETA_STEP){step.append(text('p',`From the Wi-Fi beta: ${action.action||''}${action.entity_id?' on '+action.entity_id:''}. It is kept as it is, and this version skips it when the key runs.`,'hint'));return step;}
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
@@ -272,7 +272,14 @@ function renderStep(action,index,count) {
   if(action.type==='open') {
     const input=parameter.querySelector('input');input.setAttribute('data-path',index);parameter.append(button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target){applyProgramDetails(result,index);}}catch(error){showError(error);}},'text-button'));
   }
+  if(action.type==='script') {
+    const input=parameter.querySelector('input');
+    parameter.append(button('Choose file …',async()=>{try{const result=await api('command/pick',{kind:'script'});if(result.path){editAction(index,'path',result.path);input.value=result.path;}}catch(error){showError(error);}},'text-button'),
+      button('Edit',async()=>{try{toast((await api('command/edit-script',{path:input.value})).message);}catch(error){showError(error);}},'text-button'));
+  }
   step.append(parameter);
+  if(action.type==='script')step.append(field('Timeout (seconds)',String(action.timeout??30),v=>editAction(index,'timeout',Math.max(1,Math.min(300,Math.round(Number(v))||30))),{type:'number'}),
+    text('p','Runs without a window in the script’s own folder. Python, PowerShell, cmd, AutoHotkey and Node.js must be installed for their file types.','hint'));
   if(action.type==='audio') {
     const op=action.op||'toggle';
     step.append(field('Operation',op,v=>mutate(()=>{const a=activeActions()[index];a.op=v;if(v==='volume'&&a.value===undefined)a.value=50;}),{values:[['toggle','Mute / unmute'],['mute','Mute'],['unmute','Unmute'],['volume','Set volume'],['up','Volume up'],['down','Volume down']]}));

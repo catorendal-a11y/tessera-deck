@@ -164,6 +164,114 @@ class ControlApiTests(unittest.TestCase):
                                        'API unknown POST /v1/press -> 401'])
         self.assertFalse(any(token in line or 'hunter2' in line for line in self.logged))
 
+    def test_notify_queues_a_short_message_for_the_panel(self):
+        self.assertEqual(self.call('POST', '/v1/notify', {'text': '  Build passed ', 'level': 'ok', 'seconds': 3})[0], 200)
+        self.daemon.submit.assert_called_with(('notify', 'Build passed', 'ok', 3))
+        self.assertEqual(self.call('POST', '/v1/notify', {'text': 'Tests ran'})[0], 200)
+        self.daemon.submit.assert_called_with(('notify', 'Tests ran', 'info', control_api.NOTIFY_DEFAULT_SECONDS))
+        self.assertEqual(self.call('POST', '/v1/notify', {'text': 'é' * control_api.NOTIFY_MAX_TEXT, 'seconds': 30})[0], 200)
+
+    def assert_not_echoed(self, body, reply):
+        sent = body.get('text')
+        if isinstance(sent, str) and sent.strip():
+            # The reply is JSON, so an echo shows up escaped.
+            self.assertNotIn(json.dumps(sent)[1:-1], json.dumps(reply))
+
+    def test_the_not_echoed_check_fails_on_a_reply_that_echoes(self):
+        with self.assertRaises(AssertionError):
+            self.assert_not_echoed({'text': 'two\nlines'}, {'error': 'bad text two\nlines'})
+        self.assert_not_echoed({'text': 'two\nlines'}, {'error': 'text must be one line'})
+
+    def test_notify_refuses_text_level_or_seconds_out_of_bounds(self):
+        bad = ({}, {'text': ''}, {'text': '   '}, {'text': 5}, {'text': 'x' * (control_api.NOTIFY_MAX_TEXT + 1)},
+               {'text': 'two\nlines'}, {'text': 'tab\there'}, {'text': 'bell\x07'}, {'text': 'line sep'},
+               {'text': 'x', 'level': 'loud'}, {'text': 'x', 'level': None}, {'text': 'x', 'seconds': 0},
+               {'text': 'x', 'seconds': 31}, {'text': 'x', 'seconds': 2.5}, {'text': 'x', 'seconds': '5'},
+               {'text': 'x', 'seconds': True})
+        for body in bad:
+            with self.subTest(body=body):
+                code, reply = self.call('POST', '/v1/notify', body)
+                self.assertEqual(code, 400)
+                self.assert_not_echoed(body, reply)
+        # A lone surrogate cannot be sent as UTF-8; JSON can still carry it.
+        self.assertEqual(self.call('POST', '/v1/notify', raw=b'{"text": "a\\ud800b"}')[0], 400)
+        self.daemon.submit.assert_not_called()
+
+    def test_notify_needs_its_plugin_permission_and_is_rate_limited(self):
+        now = [100.0]
+        self.api.clock = lambda: now[0]
+        other = self.api.add_grant('demo', {'var'}, 'demo.')
+        self.assertEqual(self.call('POST', '/v1/notify', {'text': 'hi'}, token=other)[0], 403)
+        token = self.api.add_grant('notes', set(plugins.PERMISSIONS['notify']), 'notes.')
+        codes = [self.call('POST', '/v1/notify', {'text': 'hi'}, token=token)[0] for _ in range(control_api.RATE_BURST + 1)]
+        self.assertEqual(codes[:-1], [200] * control_api.RATE_BURST)
+        self.assertEqual(codes[-1], 429)
+        self.assertEqual(self.daemon.submit.call_count, control_api.RATE_BURST)
+
+
+class NoticeTests(unittest.TestCase):
+    """The host side of a notice: the panel's banner when its firmware has one, a Windows notification otherwise."""
+
+    def daemon(self, panel=None, info=None, failed=False):
+        import threading
+        import daemon_display
+        from daemon_ticks import BackgroundMixin
+
+        class Daemon(daemon_display.DisplayMixin, BackgroundMixin):
+            pass
+
+        daemon = Daemon.__new__(Daemon)
+        daemon.panel, daemon.device_info, daemon.notices, daemon.logged = panel, info or {}, [], []
+        daemon.connection_failed = threading.Event()
+        if failed:
+            daemon.connection_failed.set()
+        daemon.log = daemon.logged.append
+        return daemon
+
+    def test_a_panel_with_a_banner_gets_the_message(self):
+        panel = Mock()
+        daemon = self.daemon(panel, {'protocol': 4, 'notify': 1})
+        daemon.show_notice('Build passed', 'ok', 5)
+        panel.send_line.assert_called_once_with('AD_NOTIFY ok 5 Build passed')
+        self.assertEqual(daemon.notices, [])
+
+    def test_without_a_banner_it_becomes_a_windows_notification(self):
+        for panel, info, failed in ((None, {'notify': 1}, False), (Mock(), {'protocol': 4}, False),
+                                    (Mock(), {'notify': True}, False), (Mock(), {'notify': 1}, True)):
+            with self.subTest(info=info, failed=failed):
+                daemon = self.daemon(panel, info, failed)
+                daemon.show_notice('Build passed', 'ok', 5)
+                if panel is not None:
+                    panel.send_line.assert_not_called()
+                self.assertEqual([(n['title'], n['message']) for n in daemon.notices], [('Tessera', 'Build passed')])
+
+    def test_a_panel_that_fails_to_take_it_falls_back_too(self):
+        panel = Mock()
+        panel.send_line.side_effect = OSError('gone')
+        daemon = self.daemon(panel, {'notify': 1})
+        daemon.show_notice('Build passed', 'warn', 5)
+        self.assertEqual([n['message'] for n in daemon.notices], ['Build passed'])
+        self.assertEqual(len(daemon.logged), 1)
+
+    def test_the_line_never_carries_a_newline(self):
+        panel = Mock()
+        self.daemon(panel, {'notify': 1}).show_notice('a\nAD_DIM\r', 'info', 6)
+        panel.send_line.assert_called_once_with('AD_NOTIFY info 6 a AD_DIM ')
+
+
+class DeckctlSayTests(unittest.TestCase):
+    def test_say_joins_its_words_and_posts_them(self):
+        import deckctl
+        parse = deckctl.build_parser().parse_args
+        with patch.object(deckctl, 'call', return_value={'ok': True}) as call:
+            deckctl.run(parse(['say', 'Build', 'passed', '--level', 'ok', '--seconds', '4']), {})
+            deckctl.run(parse(['say', 'Tests ran']), {})
+        self.assertEqual([entry.args[1:] for entry in call.call_args_list],
+                         [('POST', '/v1/notify', {'text': 'Build passed', 'level': 'ok', 'seconds': 4}),
+                          ('POST', '/v1/notify', {'text': 'Tests ran', 'level': 'info', 'seconds': 6})])
+        with self.assertRaises(SystemExit), patch('sys.stderr'):
+            parse(['say', 'x', '--level', 'loud'])
+
 
 if __name__ == '__main__':
     unittest.main()
