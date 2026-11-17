@@ -4,8 +4,11 @@ import json
 import threading
 import time
 
+from daemon_display import banner_text
+
 BLOCKING_ACTIONS = ('shell', 'script', 'http', 'delay')  # run on the slow lane so key input stays responsive
 DOUBLE_PRESS_SECONDS = 0.35  # a key with double_actions waits this long for a second tap
+FAILURE_BANNER_SECONDS = 6  # how long the panel shows why a key failed
 
 
 def action_list_name(hold, double=False):
@@ -166,6 +169,11 @@ class PressMixin:
                             ok=ok, hold=hold, double=double)
             try:
                 self.give_feedback(button_id, ok)
+                # the reason on the panel too, from the outermost key only (it carries a child key's reason), and never
+                # more than the editor's toast shows; without a banner it stays quiet, no Windows notification
+                reason = banner_text(error)
+                if reason and not self.active_press and not self.stop.is_set():
+                    self.panel_notice(reason, 'error', FAILURE_BANNER_SECONDS)
             finally:
                 self.publish_runtime(True, force=True)
         return ok

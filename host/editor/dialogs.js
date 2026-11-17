@@ -427,6 +427,7 @@ async function openPlugins() {
 }
 async function renderPlugins() {
   const {plugins, problems} = await api('command/plugins', {}), list = $('#plugins-list');
+  setPluginChoices(plugins);  // the Plugin field of a plugin step shows the same list, on or off
   list.replaceChildren();
   if (!plugins.length) list.append(text('p', 'No plugins installed. Put a plugin folder in the plugins folder next to Tessera.cmd.', 'hint'));
   for (const plugin of plugins) {
@@ -594,7 +595,7 @@ $('#welcome-test').onclick = () => testButton(selected).catch(showError);
 // Everything is defined now: start the editor.
 start().then(showWelcome).catch(error=>{setSaveState('The editor could not start',error.message);startError=error.message;renderStatusBar();});
 
-/* Page templates: a ready-made page (Meetings, Coding, Media, Browser) is shown as it will look, then added. */
+/* Page templates: a ready-made page (Meetings, Coding, Media, Browser, OBS) is shown as it will look, then added. */
 let galleryChoice = 0;
 function galleryTemplates() {
   return [...(actionCatalog.page_templates || []), {name: 'Empty page', description: 'Start with nothing', page: []}];

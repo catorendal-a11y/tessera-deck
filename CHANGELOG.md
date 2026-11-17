@@ -9,7 +9,11 @@
 - A Run script step for .py, .pyw, .ps1, .bat, .cmd, .ahk and .js files. It runs the script without a window, and the editor has a file picker, an Edit button and a dry run check for it.
 - HTTP requests from keys send Tessera-Deck as the User-Agent unless the key sets its own.
 - OBS plugin: show, hide or toggle a source, pause and resume recording, save the replay buffer, toggle the virtual camera, run the studio mode transition and change input volume in dB steps. New variables follow recording pause, input mute and OBS errors.
+- A Plugin command step in the editor: choose an installed plugin, type the command and give its arguments as JSON, so plugin keys no longer have to be written into `profiles.json` by hand. A new OBS page template has Record, Stream, Pause, Save replay, Virtual cam, Transition and the current scene.
+- OBS plugin: while OBS is not running, a key flashes red and the panel says so for three seconds, instead of doing nothing. For this the plugin also asks for the `notify` and `feedback` permissions. If it is already on, it gets them at its next start without asking again.
 - `deckctl say` and `POST /v1/notify` show a short message as a banner across the top of the panel, with a new `notify` permission for plugins. Older panel firmware gets a tray notification instead.
+- When a key fails, the panel shows the reason on its banner for six seconds (firmware with the banner only). A key that presses another key reports that key's reason, and a plugin step fails when its plugin is not installed, off or stopped.
+- Windows: after an update unpacked to a new folder, Start with Windows kept starting the old version. When the panel first connects, the new copy's tray now asks whether to start this copy instead, and the tray menu ticks Start with Windows only when the entry starts this copy.
 
 ## 1.1.0
 

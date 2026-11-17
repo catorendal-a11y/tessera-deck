@@ -4,8 +4,18 @@ from pathlib import Path
 import time
 
 from config_check import in_quiet_hours
+from control_api import NOTIFY_MAX_TEXT
 
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
+
+
+def banner_text(text) -> str:
+    """Any text as the banner takes it: one line of printable characters, at most NOTIFY_MAX_TEXT, cut with an ellipsis.
+    The firmware holds 400 bytes, so 99 characters and the 3-byte ellipsis always fit. The panel fonts have no arrow,
+    so a menu path such as 'More → Plugins' becomes 'More > Plugins'."""
+    text = str(text).replace('→', '>')
+    line = ' '.join(''.join(char for char in text if char.isprintable() or char.isspace()).split())
+    return line if len(line) <= NOTIFY_MAX_TEXT else line[:NOTIFY_MAX_TEXT - 1].rstrip() + '…'
 
 
 def windows_clock() -> str:
@@ -95,19 +105,26 @@ class DisplayMixin:
         elif not locked and self.dimmed:
             self.wake_display()
 
+    def panel_notice(self, text, level, seconds):
+        """A short message on the panel's banner. False when no panel is connected, its firmware has no banner
+        ("notify":1 in get_info) or it did not take the line."""
+        panel, banner = self.panel, self.device_info.get('notify')
+        if panel is None or self.connection_failed.is_set() or type(banner) is not int or banner < 1:
+            return False
+        # The control API checked the text; a newline would still end the line early, so it never gets through.
+        line = ''.join(char if char.isprintable() else ' ' for char in str(text))
+        try:
+            panel.send_line(f'AD_NOTIFY {level} {int(seconds)} {line}')
+            return True
+        except OSError as exc:
+            self.log(f'The panel did not take the message: {exc}')
+            return False
+
     def show_notice(self, text, level, seconds):
         """A short message (deckctl say, POST /v1/notify) on the panel's banner, or as a Windows notification through
-        the tray when no panel is connected or its firmware has no banner ("notify":1 in get_info)."""
-        panel, banner = self.panel, self.device_info.get('notify')
-        if panel is not None and not self.connection_failed.is_set() and type(banner) is int and banner >= 1:
-            # The control API checked the text; a newline would still end the line early, so it never gets through.
-            line = ''.join(char if char.isprintable() else ' ' for char in str(text))
-            try:
-                panel.send_line(f'AD_NOTIFY {level} {int(seconds)} {line}')
-                return
-            except OSError as exc:
-                self.log(f'The panel did not take the message: {exc}')
-        self.notify('Tessera', text)
+        the tray when the panel cannot show it."""
+        if not self.panel_notice(text, level, seconds):
+            self.notify('Tessera', text)
 
     def question_open(self):
         permissions = getattr(self, 'permissions', None)

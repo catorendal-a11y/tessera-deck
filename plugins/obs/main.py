@@ -1,7 +1,8 @@
 """OBS Studio on the panel: scenes, sources, recording, streaming, replay buffer, virtual camera and audio.
 
 Turn on OBS's WebSocket server (Tools → WebSocket Server Settings) and put its port and password in this plugin's
-settings (editor: More → Plugins … → OBS Studio). OBS must run on the same PC.
+settings (editor: More → Plugins … → OBS Studio). OBS must run on the same PC. While it cannot be reached, a key
+flashes red and the panel says why for a few seconds.
 
 Keys:   {"type": "plugin", "plugin": "obs", "command": "scene", "args": {"name": "Gaming"}}
         {"type": "plugin", "plugin": "obs", "command": "record"}          (start or stop)
@@ -52,6 +53,8 @@ MAX_PENDING = 100  # requests still waiting for an answer from OBS
 VOLUME_RANGE = (-100.0, 26.0)  # dB, what SetInputVolume accepts
 DEFAULT_STEP, MAX_STEP = 2.0, 20.0
 ANSWER_SECONDS = 5  # a request OBS has not answered by then is dropped
+RETRY_SECONDS = 5  # between attempts to reach OBS
+WARN_SECONDS = 3  # how long the panel says why a key did nothing
 scene_now = ''  # the current program scene, for source keys that name no scene
 volume_wait = {}  # input name -> (dB change gathered while its GetInputVolume is in flight, deadline)
 toggle_wait = {}  # (scene, source) -> deadline while a toggle of that source is in flight
@@ -66,6 +69,15 @@ def tessera(method, path, data=None, timeout=35):
                                      headers={'X-Deck-Token': TOKEN, 'Content-Type': 'application/json'})
     with urllib.request.urlopen(request, timeout=timeout) as reply:
         return json.loads(reply.read())
+
+
+def newest_event():
+    """The id to read events after, so only keys pressed from now on count. A reply holds at most 100 events, oldest
+    first, so a full one is followed until the last page."""
+    reply = tessera('GET', '/v1/events')
+    while len(reply['events']) >= 100:
+        reply = tessera('GET', f"/v1/events?since={reply['last']}")
+    return reply['last']
 
 
 def show(**values):
@@ -174,7 +186,7 @@ def on_off(active):
 
 def follow_keys(obs, stop):
     """Second thread: Tessera's key commands become OBS requests."""
-    since = tessera('GET', '/v1/events')['last']
+    since = newest_event()
     while not stop.is_set():
         reply = tessera('GET', f'/v1/events?since={since}&wait=20')
         for event in reply['events']:
@@ -382,18 +394,37 @@ def _guarded(work, *args):
         pass  # the main loop notices the closed connection and starts again
 
 
+def refuse_keys(reason, seconds):
+    """While OBS cannot be reached, a key gets a short warning on the panel and a red flash instead of doing nothing."""
+    deadline = time.monotonic() + seconds
+    since = newest_event()
+    while (left := deadline - time.monotonic()) > 0:
+        reply = tessera('GET', f'/v1/events?since={since}&wait={left:.1f}')
+        commands = [event for event in reply['events'] if event['type'] == 'command']
+        since = reply['last']
+        if not commands:
+            continue
+        try:  # one banner for a key with several OBS steps, and one flash per key
+            tessera('POST', '/v1/notify', {'text': reason, 'level': 'warn', 'seconds': WARN_SECONDS})
+            for button in {event['button'] for event in commands if isinstance(event.get('button'), int)}:
+                tessera('POST', '/v1/feedback', {'button': button, 'ok': False})
+        except urllib.error.HTTPError as exc:  # refused (an old Tessera, too many at once): the next press tries again
+            print(f'obs: Tessera refused the warning: HTTP {exc.code}', file=sys.stderr)
+
+
 def main():
     while True:
         try:
             session()
         except (ConnectionError, OSError, ValueError) as exc:
+            reason = ('OBS is not running' if isinstance(exc, (ConnectionRefusedError, TimeoutError, socket.timeout))
+                      else str(exc)[:40] or 'OBS cannot be reached')
             try:
-                show(connected='OBS is not running' if isinstance(exc, (ConnectionRefusedError, TimeoutError, socket.timeout))
-                     else str(exc)[:40], recording='OFF', streaming='OFF', paused='OFF', error='',
+                show(connected=reason, recording='OFF', streaming='OFF', paused='OFF', error='',
                      **{f'mute.{safe_name(name)}': '' for name in INPUTS})
+                refuse_keys(reason, RETRY_SECONDS)  # OBS may start later: keep trying quietly
             except (urllib.error.URLError, OSError, ValueError):
                 return  # Tessera itself is gone; it starts the plugin again
-        time.sleep(5)  # OBS may start later: keep trying quietly
 
 
 if __name__ == '__main__':

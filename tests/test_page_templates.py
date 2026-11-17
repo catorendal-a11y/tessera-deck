@@ -15,7 +15,26 @@ class PageTemplateTests(unittest.TestCase):
     def test_the_catalog_loads_with_its_page_templates(self):
         tessera_app.action_pack_catalog.cache_clear()
         names = [template['name'] for template in tessera_app.action_pack_catalog()['page_templates']]
-        self.assertEqual(names, ['Meetings', 'Coding', 'Media', 'Browser'])
+        self.assertEqual(names, ['Meetings', 'Coding', 'Media', 'Browser', 'OBS'])
+
+    def test_the_obs_page_uses_commands_and_names_the_obs_plugin_has(self):
+        source = (Path(__file__).resolve().parents[1] / 'plugins/obs/main.py').read_text(encoding='utf-8')
+        template = next(item for item in CATALOG['page_templates'] if item['name'] == 'OBS')
+        steps = [step for key in template['page'] for step in key['actions'] if step['type'] == 'plugin']
+        self.assertEqual([step['command'] for step in steps], ['record', 'stream', 'pause', 'replay', 'virtualcam', 'transition'])
+        for step in steps:
+            self.assertEqual(step['plugin'], 'obs')
+            self.assertIn(f"'{step['command']}'", source.split('def run(', 1)[1], 'a command run() handles')
+        status = {key['label']: key['status'] for key in template['page'] if 'status' in key}
+        self.assertEqual({label: item['var'] for label, item in status.items()},
+                         {'Record': 'obs.recording', 'Stream': 'obs.streaming', 'Pause': 'obs.paused'})
+        self.assertEqual(status['Record']['colors'], {'ON': '#FF7070'})
+        self.assertEqual(status['Stream']['colors'], {'ON': '#FF7070'})
+        labels = [key['label'] for key in template['page']]
+        for name in [item['var'] for item in status.values()] + ['obs.scene']:
+            self.assertIn(f'$(var:{name})', source, 'a name the plugin sets')
+        self.assertIn('$(var:obs.scene)', labels)
+        self.assertIn('More → Plugins', template['description'])
 
     def test_power_keys_hold_to_confirm_and_sleep_does_not_hibernate(self):
         tessera_app.action_pack_catalog.cache_clear()

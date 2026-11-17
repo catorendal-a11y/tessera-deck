@@ -484,6 +484,22 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.push_page(force=True)
         return True
 
+    def check_plugin(self, plugin_id):
+        """A plugin step fails when no running plugin can read it, so the key flashes red instead of green."""
+        manager = self.plugins
+        if manager is None:  # the plugin manager starts with the main loop
+            return
+        manifest = manager.manifests.get(plugin_id)
+        if manifest is None:
+            raise ValueError(f'The {plugin_id} plugin is not installed')
+        if not (self.config.get('plugins') or {}).get(plugin_id, {}).get('enabled'):
+            raise ValueError(f'{manifest.name} is off: turn it on in More → Plugins')
+        state = manager.history.get(plugin_id, {}).get('state')
+        if state == 'failed':
+            raise ValueError(f'{manifest.name} has stopped: turn it off and on in More → Plugins')
+        if state == 'crashed':
+            raise ValueError(f'{manifest.name} has stopped')
+
     def run_action(self, action):
         kind = action['type']
         if kind == 'hotkey':
@@ -562,15 +578,18 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             if self.panel is not None:
                 self.panel.send_line(f'AD_PANEL_LOCK {int(self.panel_locked)}')
         elif kind == 'press':
-            if not self.dispatch_press(int(action['id'])):
-                raise ValueError('The child button failed')
+            if not self.dispatch_press(int(action['id'])):  # the child's own reason says more than that it failed
+                raise ValueError((self.last_action or {}).get('error') or 'The child button failed')
         elif kind == 'state':
             self.set_button_state(action['button'], action.get('state', 'next'))
         elif kind == 'mouse':
             with self.input_turn():
                 send_mouse(action['op'], action.get('x', 0), action.get('y', 0), action.get('amount', 0))
         elif kind == 'plugin':
-            self.events.add('command', plugin=action['plugin'], command=action['command'], args=action.get('args', {}))
+            self.check_plugin(action['plugin'])
+            key = {'button': self.active_press[-1][2]} if self.active_press else {}  # lets the plugin flash the key
+            self.events.add('command', plugin=action['plugin'], command=action['command'], args=action.get('args', {}),
+                            **key)
         elif kind == 'counter':
             self.live.apply_counter(action)
             self.push_page()

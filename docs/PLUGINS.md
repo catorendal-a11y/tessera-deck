@@ -20,7 +20,7 @@ The top of each `main.py` lists the key actions and variable names it offers.
 
 ### OBS commands and variables
 
-Each command is a `plugin` action with `"plugin": "obs"`. Names of scenes, sources and inputs must match OBS exactly and are at most 256 characters. A command with missing or invalid arguments does nothing.
+In the editor, add a *Plugin command* step, choose OBS Studio and type a command from the table, with its arguments as JSON, for example `{"name": "Gaming"}` for `scene`. **Page → Page from a template … → OBS** gives a page with Record, Stream, Pause, Save replay, Virtual cam, Transition and the current scene. In `profiles.json` a command is a `plugin` action with `"plugin": "obs"`. Names of scenes, sources and inputs must match OBS exactly and are at most 256 characters. A command with missing or invalid arguments does nothing.
 
 | Command | Arguments | Effect |
 |---|---|---|
@@ -37,6 +37,8 @@ Each command is a `plugin` action with `"plugin": "obs"`. Names of scenes, sourc
 Variables: `obs.scene`, `obs.recording`, `obs.streaming` and `obs.paused` (*ON* or *OFF*), `obs.connected`, and `obs.error`. `obs.error` holds the reason when OBS refuses a command, for example when the replay buffer is not running, and is empty after the next command that works. It also reports a command OBS does not answer within five seconds, and a source key pressed before the current scene is known. Failures of the plugin's own startup requests are not reported there. When OBS disconnects, `obs.error` is cleared and the `obs.mute.*` variables become empty. Two quick volume presses add up, and a second toggle of the same source is ignored until the first has finished.
 
 To follow mute state, list the inputs in the plugin's *Inputs whose mute state to show* setting, separated by commas (up to 10). Each one gets `obs.mute.<name>`, *ON* when muted, where characters other than letters, digits, dash and underscore in the name become underscores, so `Mic/Aux` is `obs.mute.Mic_Aux`. Use it in a key's `status` to colour a mute key. If two names give the same variable, such as `Mic/Aux` and `Mic_Aux`, the first one is kept and the others are ignored and noted in the plugin's log.
+
+While OBS cannot be reached, a key flashes red and the panel shows why for three seconds, for example *OBS is not running*. The plugin asks for `notify` and `feedback` for this.
 
 ## A first plugin
 
@@ -91,7 +93,7 @@ To try it:
 1. Put the folder in `plugins/`. The host notices it within a few seconds.
 2. Turn the plugin on in **More → Plugins …**.
 3. Name a key `$(var:example-uptime.text)`.
-4. To restart the count from a key, add the action `{"type": "plugin", "plugin": "example-uptime", "command": "reset"}`. The full example reads it as an event.
+4. To restart the count from a key, give it a *Plugin command* step with the plugin *Example: uptime* and the command `reset`. The full example reads it as an event.
 
 ## The manifest
 
@@ -114,7 +116,7 @@ Turn it on in the editor, or in `profiles.json`:
 "plugins": { "my-plugin": { "enabled": true, "settings": { "interval": 10 } } }
 ```
 
-- **Consent.** The first time you turn a plugin on, and again for a new `version`, the editor lists what it may do and the program it runs, and asks first. The editor remembers your answer in the browser. A profile file you import cannot turn plugins on or change their settings.
+- **Consent.** When you turn a plugin on, the editor lists what it may do and the program it runs, and asks first. It asks again only when the `version`, permissions or program changed since you said yes, and remembers your answer in the browser. A plugin that is already on gets what its manifest lists at its next start without asking, so read what an update changes before you install it. A profile file you import cannot turn plugins on or change their settings.
 - **Secrets.** A setting whose key contains `token`, `secret`, `password` or `api_key` (any case) is stored encrypted for your Windows account with DPAPI. `profiles.json` and its backups hold `"$(dpapi:…)"` instead of the value. Your program receives the real value in `TESSERA_SETTINGS`. Exports leave these settings out.
 - **Settings changes.** Changing a plugin's settings restarts it.
 
@@ -176,7 +178,7 @@ Set variables with `POST /v1/vars` and `{"set": {"my-plugin.text": "42"}}`: 1 to
 
 ## Reacting to keys: events
 
-`GET /v1/events?since=<last id>&wait=<seconds>` returns `{"events": [...], "last": <id>}`. Start with `since=0` or omit it, and pass the returned `last` as the next `since`. The request waits up to `wait` seconds (at most 25) for news, so one loop is enough. Tessera keeps the last 200 events and returns at most 100 at a time. Every event also has `id`, `type` and `at` (Unix time).
+`GET /v1/events?since=<last id>&wait=<seconds>` returns `{"events": [...], "last": <id>}`. Start with `since=0` or omit it, and pass the returned `last` as the next `since`. The request waits up to `wait` seconds (at most 25) for news, so one loop is enough. Tessera keeps the last 200 events and returns at most 100 at a time, oldest first. To react only to what happens after the plugin starts, ask again with `since=<last>` while a reply holds 100 events, then start from the `last` of the shorter reply. Every event also has `id`, `type` and `at` (Unix time).
 
 | `type` | Fields |
 |---|---|
@@ -184,7 +186,7 @@ Set variables with `POST /v1/vars` and `{"set": {"my-plugin.text": "42"}}`: 1 to
 | `page` | `profile`, `page` |
 | `profile` | `profile`, `page` |
 | `agent` | `agent`, `action` |
-| `command` | `plugin`, `command`, `args`. Only the plugin it is addressed to receives it. |
+| `command` | `plugin`, `command`, `args`, and `button` when a key sent it. Only the plugin it is addressed to receives it. |
 
 A key triggers a plugin with this action:
 
@@ -193,6 +195,8 @@ A key triggers a plugin with this action:
 ```
 
 `command` is 1 to 64 letters, digits, dots, dashes or underscores. `args` is an object of at most 1,024 characters as JSON.
+
+In the editor this is the *Plugin command* step under Advanced. It lists the installed plugins and does not save a step that breaks these rules. A key with a `plugin` step fails and flashes red when that plugin is not installed, is turned off or has stopped. The reason shows in the editor, and on the panel when its firmware has the banner.
 
 ## Compatibility
 

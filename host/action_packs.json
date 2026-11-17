@@ -5111,6 +5111,126 @@
           ]
         }
       ]
+    },
+    {
+      "name": "OBS",
+      "description": "Record, stream, replay and the scene. Turn on the OBS plugin in More → Plugins first.",
+      "page": [
+        {
+          "id": 1,
+          "label": "Record",
+          "icon": "lc:e345",
+          "color": "#64B5F6",
+          "status": {
+            "var": "obs.recording",
+            "colors": {
+              "ON": "#FF7070"
+            }
+          },
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "record"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Stream",
+          "icon": "lc:e404",
+          "color": "#64B5F6",
+          "status": {
+            "var": "obs.streaming",
+            "colors": {
+              "ON": "#FF7070"
+            }
+          },
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "stream"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Pause",
+          "icon": "lc:e07f",
+          "color": "#64B5F6",
+          "status": {
+            "var": "obs.paused",
+            "colors": {
+              "ON": "#FFB74D"
+            }
+          },
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "pause"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Save replay",
+          "icon": "lc:e147",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "replay"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Virtual cam",
+          "icon": "lc:e205",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "virtualcam"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Transition",
+          "icon": "lc:e417",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "transition"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "$(var:obs.scene)",
+          "icon": "lc:e29b",
+          "color": "#35D07F",
+          "actions": []
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

@@ -90,7 +90,7 @@ Text is at least 14 px, dim text has more contrast, and Windows' high-contrast s
 | Menu | Contents |
 |---|---|
 | Profile | New profile, a profile from a template, duplicate, *Profile settings …*, *Delete this profile*. |
-| Page | New page, a page from a template (Meetings, Coding, Media, Browser), duplicate, *Page settings …*, *Delete this page*. |
+| Page | New page, a page from a template (Meetings, Coding, Media, Browser, OBS), duplicate, *Page settings …*, *Delete this page*. |
 | Panel | *Display …* (brightness, dimming, quiet hours, idle clock, clock format), *Panel firmware and updates …*, *Rail …*, *Key colors …*. |
 | More | *Getting started*, *Connect Claude Code …*, *Plugins …*, *Automatic actions …*, export, import, *Restore a backup …*, *Host log …*, *Save diagnostics*. |
 

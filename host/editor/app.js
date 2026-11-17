@@ -30,7 +30,7 @@ function renderLibrary() {
   if(('installed programs app launcher'.includes(search)||!search))put('apps',button('Installed programs …',openProgramPicker,'program-launcher'));
   const ready=WIDGETS.map(w=>{const item=make(w.name,'widget',w.sub,'widget:'+w.kind);if(item)item.querySelector('.action-symbol').innerHTML=`<svg viewBox="0 0 24 24">${w.path}</svg>`;return item;}).filter(Boolean);
   if(ready.length){if(searching)list.append(category('Widgets',ready,0,true));else if(libraryTab==='widgets')list.append(text('p','A widget is a wide key that shows something live. Drag one to a key with a free slot to its right.','hint library-note'),element('div',{class:'lib-items lib-flat'},...ready));}
-  const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
+  const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':key==='plugin'?'OBS, Home Assistant and other plugins':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
   [...groups].forEach(([group,items],index)=>put('basics',category(group,items,index%4,searching)));
   if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.note||(p.actions.length>1?`${p.actions.length} actions`:'Ready-made action'),'pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
   else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)put('ready',category('Ready to use',ready,0,searching));}
@@ -249,6 +249,28 @@ function renderGauge(panel,base) {
   }
   panel.append(text('p','The host fills in the value. The panel shows it in the gauge color, amber and red at the thresholds; without a sensor it shows --.','hint'));
 }
+/* The installed plugins for the Plugin field of a plugin step: asked for once, and refreshed when the Plugins dialog lists them. */
+let pluginChoiceList=null;
+function setPluginChoices(plugins) {pluginChoiceList=plugins.map(p=>[p.id,p.enabled?p.name:`${p.name} (off)`]);}
+function pluginChoices(value) {
+  if(!pluginChoiceList){pluginChoiceList=[];api('command/plugins',{}).then(({plugins})=>{setPluginChoices(plugins);if(plugins.length)renderInspector();}).catch(()=>{});}
+  if(!pluginChoiceList.length)return null;  // none installed, or not known yet: a text field
+  return [['','Choose a plugin'],...pluginChoiceList,...(value&&!pluginChoiceList.some(([id])=>id===value)?[[value,value]]:[])];
+}
+function renderPluginStep(step,action,index) {
+  const args=element('textarea',{placeholder:'{"name": "Gaming"}','aria-label':'Arguments (JSON, optional)'});
+  args.value=action.args===undefined?'':JSON.stringify(action.args);
+  args.addEventListener('change',()=>{
+    let value;try{value=args.value.trim()?JSON.parse(args.value):{};}catch{value=undefined;}
+    const problem=value===undefined?'write the arguments as JSON, for example {"name": "Gaming"}':pluginArgsProblem(value);
+    args.setAttribute('aria-invalid',String(!!problem));
+    if(problem)return toast(problem[0].toUpperCase()+problem.slice(1)+'.');
+    mutate(()=>activeActions()[index].args=value,false,editKey('action',index,'args'));
+  });
+  step.append(field('Command',action.command,v=>editAction(index,'command',v.trim()),{placeholder:'for example record'}),
+    element('label',{},text('span','Arguments (JSON, optional)'),args),
+    text('p','Turn the plugin on in More → Plugins first. Its commands and their arguments are listed at the top of its main.py file.','hint'));
+}
 const windowOps=[['minimize','Minimize'],['maximize','Maximize'],['restore','Restore'],['close','Close'],['topmost','Always on top (on/off)'],['next_monitor','Move to the next monitor'],['focus','Bring a program to the front']];
 function renderStep(action,index,count) {
   const k=kinds[action.type]||kinds.hotkey;
@@ -262,7 +284,7 @@ function renderStep(action,index,count) {
   const type=element('select',{class:'step-type','aria-label':`Step ${index+1} action type`});options(type,Object.entries(kinds).map(([key,item])=>[key,item.name]),action.type);
   type.addEventListener('change',()=>{const fresh=actionTemplate(type.value)?.actions[0];if(fresh)mutate(()=>{activeActions()[index]=fresh;});});
   step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,action.type===BETA_STEP?kindName(BETA_STEP):type),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
-  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:action.type==='media'?[['shuffle','Shuffle on / off'],['repeat','Repeat: off, all, one']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):null;
+  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:action.type==='media'?[['shuffle','Shuffle on / off'],['repeat','Repeat: off, all, one']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):action.type==='plugin'?pluginChoices(action.plugin):null;
   if(action.type===BETA_STEP){step.append(text('p',`From the Wi-Fi beta: ${action.action||''}${action.entity_id?' on '+action.entity_id:''}. It is kept as it is, and this version skips it when the key runs.`,'hint'));return step;}
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
@@ -319,6 +341,7 @@ function renderStep(action,index,count) {
   }
   if(action.type==='counter')renderCounterStep(step,action,index);
   if(action.type==='timer')renderTimerStep(step,action,index);
+  if(action.type==='plugin')renderPluginStep(step,action,index);
   return step;
 }
 function optionalNumber(label,value,onChange) {

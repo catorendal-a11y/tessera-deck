@@ -10,6 +10,7 @@ import socket
 import struct
 import sys
 import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -331,6 +332,87 @@ class ObsKeyTests(unittest.TestCase):
         for _ in range(self.module.MAX_PENDING + 20):
             self.module.run(self.obs, 'record', None)
         self.assertEqual(len(self.obs.pending), self.module.MAX_PENDING)
+
+
+class ObsAwayTests(unittest.TestCase):
+    """Key presses while OBS cannot be reached: a warning on the panel and a red flash instead of nothing."""
+
+    def setUp(self):
+        self.module = load('obs', {'port': 1})
+        self.posted = []
+
+    def fake_tessera(self, batch, refuse=None):
+        replies = iter([{'events': [], 'last': 5}, {'events': batch, 'last': 9}])
+
+        def tessera(method, path, data=None):
+            if method == 'POST':
+                if refuse:
+                    raise refuse
+                self.posted.append((path, data))
+                return {'ok': True}
+            reply = next(replies, None)
+            if reply is None:  # nothing new: the real route waits
+                time.sleep(0.01)
+                return {'events': [], 'last': 9}
+            return reply
+        return patch.object(self.module, 'tessera', tessera)
+
+    def test_a_key_gets_one_warning_and_one_red_flash(self):
+        batch = [{'type': 'command', 'command': 'record', 'button': 3}, {'type': 'command', 'command': 'stream', 'button': 3},
+                 {'type': 'command', 'command': 'scene'}, {'type': 'press', 'button': 3}]
+        with self.fake_tessera(batch):
+            self.module.refuse_keys('OBS is not running', 0.1)
+        self.assertEqual(self.posted, [('/v1/notify', {'text': 'OBS is not running', 'level': 'warn', 'seconds': 3}),
+                                       ('/v1/feedback', {'button': 3, 'ok': False})])
+
+    def test_other_events_get_no_warning(self):
+        with self.fake_tessera([{'type': 'page', 'page': 'main'}]):
+            self.module.refuse_keys('OBS is not running', 0.05)
+        self.assertEqual(self.posted, [])
+
+    def test_a_refused_warning_does_not_stop_the_plugin(self):
+        import urllib.error
+        refused = urllib.error.HTTPError('http://127.0.0.1:9/v1/notify', 403, 'Forbidden', {}, None)
+        with self.fake_tessera([{'type': 'command', 'command': 'record', 'button': 1}], refuse=refused), \
+                patch('sys.stderr'):
+            self.module.refuse_keys('OBS is not running', 0.05)
+
+    def test_main_answers_keys_between_attempts_and_ends_when_tessera_is_gone(self):
+        import urllib.error
+        shown = []
+        with patch.object(self.module, 'session', side_effect=ConnectionRefusedError()), \
+                patch.object(self.module, 'show', lambda **values: shown.append(values)), \
+                patch.object(self.module, 'refuse_keys', side_effect=[None, urllib.error.URLError('gone')]) as refuse:
+            self.module.main()
+        self.assertEqual([c.args for c in refuse.call_args_list], [('OBS is not running', 5)] * 2)
+        self.assertEqual(shown[0]['connected'], 'OBS is not running')
+
+    def test_keys_pressed_before_the_plugin_looked_get_no_warning(self):
+        import urllib.parse
+        log = plugins.EventLog()
+        for index in range(150):  # more than one page of old events, with an OBS key among the newer ones
+            log.add('command', plugin='obs', command='record', button=2) if index == 141 else log.add('press', button=1)
+
+        def tessera(method, path, data=None):
+            if method == 'POST':
+                self.posted.append((path, data))
+                return {'ok': True}
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
+            events, last = log.since(int(query.get('since', ['0'])[0]), 'obs', float(query.get('wait', ['0'])[0]),
+                                     with_last=True)
+            return {'events': events, 'last': last}
+
+        for name, function in (('obs', 'tessera'), ('home-assistant', 'tessera'), ('example-uptime', 'call')):
+            module = load(name, {})
+            with patch.object(module, function, tessera):
+                self.assertEqual(module.newest_event(), 150, name)
+        with patch.object(self.module, 'tessera', tessera):
+            self.module.refuse_keys('OBS is not running', 0.05)
+        self.assertEqual(self.posted, [])
+
+    def test_the_manifest_asks_for_the_banner_and_the_flash(self):
+        manifest = plugins.load_manifest(ROOT / 'plugins' / 'obs')
+        self.assertLessEqual({'notify', 'feedback'}, manifest.routes())
 
 
 if __name__ == '__main__':

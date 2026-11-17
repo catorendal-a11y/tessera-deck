@@ -230,7 +230,7 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 | Lock profile, Lock panel | `profile_lock`, `panel_lock` | Lock or unlock automatic profile switching; make the panel ignore taps (hold the logo for 2 s to unlock) |
 | Copy to clipboard | `clipboard` | Put text on the clipboard and optionally paste it |
 | Window | `window` | Minimize, maximize, restore or close a window, toggle always on top, move it to the next monitor or bring a program to the front |
-| Plugin (no editor name; added by plugins) | `plugin` | Send a command to a [plugin](PLUGINS.md) |
+| Plugin command | `plugin` | Send a command and its arguments (a JSON object) to a [plugin](PLUGINS.md). The step fails when the plugin is not installed, off or stopped |
 
 ### Labels and variables
 

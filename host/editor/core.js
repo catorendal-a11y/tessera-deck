@@ -31,6 +31,7 @@ const kinds = {
   clipboard:{name:'Copy to clipboard',icon:'download',field:'text',label:'Text to copy',placeholder:'Text; $(var:name) and $(time) work too',group:'On the computer'},
   window:{name:'Window',icon:'list',field:'op',label:'Window operation',group:'On the computer'},
   toggle:{name:'Toggle variable',icon:'loop',field:'variable',label:'Variable name',placeholder:'for example mode',group:'Advanced'},
+  plugin:{name:'Plugin command',icon:'play',field:'plugin',label:'Plugin',placeholder:'for example obs',group:'Advanced'},
 };
 /* A Home Assistant step from a profile file the Wi-Fi beta saved: shown by name, saved as it is, skipped by the host. */
 const BETA_STEP='homeassistant';
@@ -277,6 +278,15 @@ function stepProblem(a) {
 }
 /* The host refuses the whole configuration over one bad value, so a step it would refuse stays a draft like an empty one (rules from config_check.py). */
 const NAME_RULE=/^[A-Za-z0-9_.-]{1,64}$/;
+const PLUGIN_ID_RULE=/^[a-z][a-z0-9-]{1,31}$/;
+/* The host measures plugin arguments as Python's json.dumps writes them: ", " and ": " between items, and every
+   character past ASCII as \uXXXX. Counted the same way here, so the editor and the host agree on the 1024 limit. */
+const hostJson=v=>Array.isArray(v)?'['+v.map(hostJson).join(', ')+']':v&&typeof v==='object'?'{'+Object.entries(v).map(([k,x])=>hostJson(k)+': '+hostJson(x)).join(', ')+'}'
+  :JSON.stringify(v).replace(/[\u007f-\uffff]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
+function pluginArgsProblem(args) {
+  if(!args||typeof args!=='object'||Array.isArray(args))return 'write the arguments as a JSON object, for example {"name": "Gaming"}';
+  return hostJson(args).length>1024?'keep the arguments under 1024 characters':'';
+}
 function valueProblem(a) {
   const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
   if((a.type==='press'&&!whole(a.id,1,18))||(a.type==='state'&&!whole(a.button,1,18)))return 'use a key number from 1 to 18';
@@ -292,6 +302,12 @@ function valueProblem(a) {
   if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
   if(a.type==='timer'&&a.seconds!==undefined&&!whole(a.seconds,1,604800))return 'use a timer length from 1 second to 7 days';
+  if(a.type==='plugin'){
+    if(typeof a.plugin!=='string'||!PLUGIN_ID_RULE.test(a.plugin))return 'use a plugin id of small letters, digits and dashes';
+    if(typeof a.command!=='string'||!a.command)return 'fill in the command';
+    if(!NAME_RULE.test(a.command))return 'use only letters, digits, dots, dashes or underscores in the command';
+    if(a.args!==undefined)return pluginArgsProblem(a.args);
+  }
   return '';
 }
 function keyProblem(b) {
@@ -597,9 +613,9 @@ function actionTemplate(key) {
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',script:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',media:'shuffle',clipboard:'',window:'minimize',toggle:'mode'}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',script:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',media:'shuffle',clipboard:'',window:'minimize',toggle:'mode',plugin:''}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
-    ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
+    ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{}),...(key==='plugin'?{command:'',args:{}}:{})};
   // The long list names do not fit on a key (24 bytes).
   const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':key==='folder'?'Folder':key==='page'?'Go to page':k.name;
   return {label,icon:k.icon,actions:[action]};
@@ -628,7 +644,7 @@ function addAction(key,id=null) {
 
 /* The steps of a key as one readable line: "1 Open program: chrome.exe → 2 Hotkey: ctrl+t". */
 function stepDetail(action) {
-  const value = ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op'].map(key => action[key]).find(item => typeof item === 'string' && item);
+  const value = action.type === 'plugin' ? [action.plugin, action.command].filter(item => typeof item === 'string' && item).join(' ') : ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op'].map(key => action[key]).find(item => typeof item === 'string' && item);
   return value ? `${kindName(action.type)}: ${value.length > 28 ? value.slice(0, 27) + '…' : value}` : kindName(action.type);
 }
 function stepSummary(actions) {
