@@ -2,6 +2,7 @@
 """Tessera action engine and sole USB owner."""
 import argparse
 import collections
+import http.client
 import itertools
 import json
 import os
@@ -534,6 +535,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         response.read(65536)
                 except urllib.error.HTTPError as exc:  # the server answered, but with an error page
                     raise CommandFailed(f'The web request failed with HTTP {exc.code} {exc.reason}'.strip()) from exc
+                except http.client.InvalidURL:  # its message quotes the path, which can hold a webhook token
+                    raise CommandFailed('The web address is not valid') from None
         elif kind == 'delay':
             with self.state_lock.suspended():
                 self.stop.wait(action.get('ms', 100)/1000)

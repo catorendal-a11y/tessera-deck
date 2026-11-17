@@ -62,6 +62,15 @@ class RunTimeTests(unittest.TestCase):
             daemon.run_action({'type': 'http', 'url': '$(env:TESSERA_TEST_HOOK)'})
         self.assertEqual(urlopen.call_args.args[0].full_url, 'https://example.com/secret-hook')
 
+    def test_an_invalid_address_does_not_put_the_secret_in_the_error(self):
+        daemon = self.make_daemon()
+        environment = {'TESSERA_TEST_HOOK': 'https://example.com/secret hook'}
+        with patch.dict(deck.os.environ, environment):
+            with self.assertRaises(deck.CommandFailed) as caught:
+                daemon.run_action({'type': 'http', 'url': '$(env:TESSERA_TEST_HOOK)'})
+        self.assertNotIn('secret', str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
 
 class MessagePackTests(unittest.TestCase):
     """The Discord, Telegram and ntfy keys take their address or token from the environment, never from the profile."""
