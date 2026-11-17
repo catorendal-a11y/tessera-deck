@@ -1,0 +1,19 @@
+# Elecrow CrowPanel Advance 7.0, ESP32-P4, 1024 x 600 (EK79007 over MIPI DSI, GT911 touch).
+# Pins, panel timing and power are in components/espressif__esp32_p4_function_ev_board, behind this symbol.
+CONFIG_TESSERA_BOARD_P4_CROWPANEL7=y
+# The USB-C "UART" port goes to UART0 through a CH340-type bridge, so the host link is a UART at 921600 baud, like
+# the Sunton S3 board. The native USB port is not used.
+# CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is not set
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_0=y
+CONFIG_ESP_CONSOLE_UART_TX_GPIO=37
+CONFIG_ESP_CONSOLE_UART_RX_GPIO=38
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+# Without this the UART interrupt waits out every flash write and received bytes are lost.
+CONFIG_UART_ISR_IN_IRAM=y
+# Elecrow's own examples run this board with DIO flash and PSRAM at 80 MHz. The Guition values (QIO flash, PSRAM at
+# 200 MHz) are not proven on this board, so it starts from the vendor's settings.
+# CONFIG_ESPTOOLPY_FLASHMODE_QIO is not set
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+# CONFIG_SPIRAM_SPEED_200M is not set
+CONFIG_SPIRAM_SPEED_80M=y

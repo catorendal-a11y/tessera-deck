@@ -66,8 +66,13 @@
  *  @brief I2C BSP API
  *  @{
  */
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+#define BSP_I2C_SCL           (GPIO_NUM_46)
+#define BSP_I2C_SDA           (GPIO_NUM_45)
+#else
 #define BSP_I2C_SCL           (GPIO_NUM_8)
 #define BSP_I2C_SDA           (GPIO_NUM_7)
+#endif
 /** @} */ // end of i2c
 
 /** @defgroup g03_audio Audio
@@ -86,7 +91,13 @@
  *  @brief Display BSP API
  *  @{
  */
-#if CONFIG_BSP_LCD_TYPE_1024_600
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+/* Elecrow CrowPanel Advance 7.0 (ESP32-P4, EK79007): PWM backlight on IO31, no LCD reset line, touch on IO40/IO42. */
+#define BSP_LCD_BACKLIGHT     (GPIO_NUM_31)
+#define BSP_LCD_RST           (GPIO_NUM_NC)
+#define BSP_LCD_TOUCH_RST     (GPIO_NUM_40)
+#define BSP_LCD_TOUCH_INT     (GPIO_NUM_42)
+#elif CONFIG_BSP_LCD_TYPE_1024_600
 #define BSP_LCD_BACKLIGHT     (GPIO_NUM_23)
 #define BSP_LCD_RST           (GPIO_NUM_5)
 #define BSP_LCD_TOUCH_RST     (GPIO_NUM_NC)

@@ -48,7 +48,7 @@ extern "C" {
 
 static const char *TAG = "tessera";
 #ifdef CONFIG_TESSERA_BOARD_ID
-static const char *const BOARD_ID = CONFIG_TESSERA_BOARD_ID;  /* the S3 boards, see main/Kconfig.projbuild */
+static const char *const BOARD_ID = CONFIG_TESSERA_BOARD_ID;  /* see main/Kconfig.projbuild */
 #else
 static const char *const BOARD_ID = "tessera-p4";
 #endif

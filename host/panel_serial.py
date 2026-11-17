@@ -11,7 +11,7 @@ try:
 except ImportError:
     serial = None
 
-BOARD_IDS = ('tessera-p4', 'tessera-s3-ws7', 'tessera-s3-8048s070')
+BOARD_IDS = ('tessera-p4', 'tessera-p4-crowpanel7', 'tessera-s3-ws7', 'tessera-s3-8048s070')
 # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status)
 SUPPORTED_PROTOCOLS = (1, 2, 3, 4)
 HANDSHAKE_SECONDS = 2.5
