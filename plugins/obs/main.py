@@ -162,17 +162,17 @@ class Obs:
                 if first & 0x80:
                     return json.loads(message)
 
-    def request(self, kind, data=None, then=None, quiet=False, key=None):
+    def request(self, kind, data=None, then=None, quiet=False, key=None, refused=None):
         """Send a request. With `then`, it is called with OBS's answer data once the request succeeds.
         A failure or a missing answer is reported in obs.error unless the request is `quiet` (the plugin's own polls).
-        A refusal is also shown on the panel, and `key` (the button that sent it) flashes red."""
+        A refusal is also shown on the panel, and `key` (the button that sent it) flashes red; `refused` is called then."""
         with self.ids:
             self.requests += 1
             number = str(self.requests)
             if then:
                 if len(self.pending) >= MAX_PENDING:
                     self.pending.pop(next(iter(self.pending)))
-                self.pending[number] = (then, time.monotonic() + ANSWER_SECONDS, quiet, key)
+                self.pending[number] = (then, time.monotonic() + ANSWER_SECONDS, quiet, key, refused)
         self.send({'op': 6, 'd': {'requestType': kind, 'requestId': number, 'requestData': data or {}}})
 
     def identify(self):
@@ -260,28 +260,34 @@ def run(obs, command, args, key=None):
 def set_source(obs, scene, source, mode, key=None):
     """GetSceneItemId, then (for toggle) GetSceneItemEnabled, then SetSceneItemEnabled."""
     busy = (scene, source)
+    release = None
     if mode == 'toggle':  # a second toggle while one is in flight would read the old state and undo nothing
         if toggle_wait.get(busy, 0) > time.monotonic():
             return
         toggle_wait[busy] = time.monotonic() + ANSWER_SECONDS
+
+        def release():
+            toggle_wait.pop(busy, None)
 
     def set_enabled(item, enabled):
         def finished(answer):
             toggle_wait.pop(busy, None)
             done(answer)
         obs.request('SetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item, 'sceneItemEnabled': enabled}, finished,
-                    key=key)
+                    key=key, refused=release)
 
     def found(answer):
         item = answer.get('sceneItemId')
         if not isinstance(item, int) or item < 0:
+            if release:
+                release()
             return
         if mode == 'toggle':
             obs.request('GetSceneItemEnabled', {'sceneName': scene, 'sceneItemId': item},
-                        lambda state: set_enabled(item, not state.get('sceneItemEnabled')), key=key)
+                        lambda state: set_enabled(item, not state.get('sceneItemEnabled')), key=key, refused=release)
         else:
             set_enabled(item, mode == 'show')
-    obs.request('GetSceneItemId', {'sceneName': scene, 'sourceName': source}, found, key=key)
+    obs.request('GetSceneItemId', {'sceneName': scene, 'sourceName': source}, found, key=key, refused=release)
 
 
 def change_volume(obs, name, change, key=None):
@@ -300,7 +306,7 @@ def change_volume(obs, name, change, key=None):
         low, high = VOLUME_RANGE
         obs.request('SetInputVolume', {'inputName': name, 'inputVolumeDb': round(min(high, max(low, db + total)), 2)}, done,
                     key=key)
-    obs.request('GetInputVolume', {'inputName': name}, got, key=key)
+    obs.request('GetInputVolume', {'inputName': name}, got, key=key, refused=lambda: volume_wait.pop(name, None))
 
 
 def safe_name(name):
@@ -342,6 +348,8 @@ def handle(obs, message):
             entry = obs.pending.pop(data.get('requestId'), None)
         then = entry[0] if entry else None
         if not status.get('result', True):
+            if entry and entry[4]:  # a key waiting for this answer must not keep waiting for one that never comes
+                entry[4]()
             if then and not entry[2]:  # a key's request, or a step of one: say what OBS refused
                 reason = status.get('comment') or REFUSALS.get(status.get('code')) or f"{data.get('requestType')} failed"
                 show(error=reason)

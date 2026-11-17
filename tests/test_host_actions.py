@@ -1,6 +1,7 @@
 """The clipboard, window and toggle actions: validation, what they run, their dry-run text and the editor entries."""
 import ctypes
 import json
+import os
 from pathlib import Path
 import sys
 import unittest
@@ -183,6 +184,9 @@ class ScriptStepTests(unittest.TestCase):
             with self.assertRaises(ValueError, msg=bad):
                 check(bad)
         check({'type': 'script', 'path': '%USERPROFILE%\\a.py'})
+        with patch.dict(os.environ), self.assertRaisesRegex(ValueError, '%TESSERA_UNSET% is not set on this PC'):
+            os.environ.pop('TESSERA_UNSET', None)
+            check({'type': 'script', 'path': '%TESSERA_UNSET%\\a.bat'})
 
     def test_a_script_step_waits_on_the_slow_lane(self):
         self.assertTrue(make_daemon().waits([{'type': 'script', 'path': 'C:\\a.py'}]))

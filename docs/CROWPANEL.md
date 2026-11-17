@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It works on the contributor's board: the colours look right, touch works, and most of the hotkeys and actions they tried work. The panel reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the releases have its package from 1.2.0 on.
+The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It works on the contributor's board: the colors look right, touch works, and most of the hotkeys and actions they tried work. The panel reports `tessera-p4-crowpanel7`, 1024 x 600, protocol 4. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the releases have its package from 1.2.0 on.
 
 To build it yourself, from the repository root, with ESP-IDF 6.1:
 

@@ -172,6 +172,9 @@ def _check_script(action, pages, profiles):
     if not os.path.isabs(expanded) and not re.match(r'%[^%\s]+%', path.strip()):
         raise ValueError('script: use the full path of the script file')
     if expanded.lower().endswith(BATCH_SUFFIXES) and '%' in expanded:
+        unset = re.match(r'%[^%\s]+%', expanded)  # the editor allows a leading %NAME%, so say why this one fails
+        if unset:
+            raise ValueError(f'script: {unset.group()} is not set on this PC')
         raise ValueError('script: the path of a .bat or .cmd file cannot contain a % sign')
 
 

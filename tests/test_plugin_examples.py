@@ -310,6 +310,24 @@ class ObsKeyTests(unittest.TestCase):
         self.assertEqual(len(self.sent), 1)
         self.assertEqual(self.shown, [{'error': 'No source was found'}])
 
+    def test_the_next_press_after_a_refusal_asks_obs_again(self):
+        self.module.run(self.obs, 'volume-up', {'input': 'Nope', 'step': 3})
+        self.answer(ok=False, code=600)
+        self.module.run(self.obs, 'volume-up', {'input': 'Nope', 'step': 3})
+        self.assertEqual(len(self.sent), 2)
+        self.answer({'inputVolumeDb': -10.0})
+        self.assertEqual(self.requests()[-1][1]['inputVolumeDb'], -7.0)  # one step: the refused press adds nothing
+        args = {'source': 'Webcam', 'scene': 'Gaming'}
+        for refused_at in (0, 1, 2):  # GetSceneItemId, GetSceneItemEnabled, SetSceneItemEnabled
+            self.module.run(self.obs, 'source', args)
+            for _ in range(refused_at):
+                self.answer({'sceneItemId': 3, 'sceneItemEnabled': True})
+            self.answer(ok=False, code=600)
+            before = len(self.sent)
+            self.module.run(self.obs, 'source', args)
+            self.assertEqual(len(self.sent), before + 1, refused_at)
+            self.answer(ok=False, code=600)
+
     def test_a_refusal_is_said_on_the_panel_and_flashes_the_key_that_sent_it(self):
         self.module.run(self.obs, 'transition', None, 6)
         self.answer(ok=False, code=506)  # OBS sends this one without a comment

@@ -54,10 +54,11 @@ async function refreshFirmware() {
   for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} for ${p.board || 'tessera-p4'} · ${Math.round(p.bytes / 1024)} KiB`}));
   for (const p of info.packages.filter(item => item.error)) select.append(element('option', {value: '', disabled: 'true', text: `${p.path.split(/[\\/]/).pop()} · ${p.error}`}));
   if (!info.packages.length) select.append(element('option', {value: '', text: 'No package found in dist/ or firmware/'}));
-  const device = info.device, boards = new Set(good.map(p => p.board || 'tessera-p4'));
+  const device = info.device;
   // The release has one package per board: preselect the connected board's. A panel that does not say which board it is
-  // gets no guess, because both P4 boards have the same chip and nothing refuses the other board's package.
-  const newest = boards.size === 1 ? good[0] : good.find(p => (p.board || 'tessera-p4') === device.board);
+  // gets no guess, even when only one board's packages are here: both P4 boards have the same chip, and nothing refuses
+  // the other board's package on a panel that does not answer.
+  const newest = good.find(p => (p.board || 'tessera-p4') === device.board);
   if (good.length && !newest) select.prepend(element('option', {value: '', text: 'Choose the package for your board'}));
   select.value = newest ? newest.path : '';
   select.onchange = () => { $('#firmware-install').disabled = !select.value; };
