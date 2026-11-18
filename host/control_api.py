@@ -230,10 +230,10 @@ class ControlServer:
         config = self.daemon.config['profiles']
         profile = data.get('profile', self.daemon.profile)
         if profile not in config:
-            raise ApiError(f'Unknown profile: {profile}')
+            raise ApiError(f'Unknown profile: {profile}. Profiles: {", ".join(config)}')
         page = data.get('page', next(iter(config[profile]['pages'])))
         if page not in config[profile]['pages']:
-            raise ApiError(f'Unknown page: {page}')
+            raise ApiError(f'Unknown page: {page}. Pages of {profile}: {", ".join(config[profile]["pages"])}')
         self.daemon.submit(('wake',), ('profile', profile), ('page', page))
 
     def set_state(self, data):
@@ -278,6 +278,8 @@ class ControlServer:
         return {'profile': daemon.profile, 'page': daemon.page, 'connected': daemon.panel is not None
                 and not daemon.connection_failed.is_set(), 'dimmed': daemon.dimmed, 'locked': daemon.locked,
                 'variables': dict(daemon.custom_vars), 'agents': dict(daemon.agents),
+                'profile_locked': daemon.profile_locked is True,
+                'profiles': {name: list(profile.get('pages', {})) for name, profile in daemon.config.get('profiles', {}).items()},
                 'queue': {'pending': daemon.jobs.qsize(), 'capacity': daemon.jobs.maxsize,
                           'dropped': daemon.dropped_jobs, 'slow_running': len(daemon.slow_running)}}
 

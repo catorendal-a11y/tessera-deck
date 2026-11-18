@@ -154,7 +154,7 @@ Every request needs `X-Deck-Token`. The host answers only to the `Host` header `
 | `state` | `POST /v1/state` with `{"button": 1-18, "state": "next" or 0-7}` sets a toggle key's state. |
 | `notify` | `POST /v1/notify` with `{"text": "Build passed", "level": "ok", "seconds": 6}` shows a short message on the panel. `text` is 1 to 100 characters on one line, `level` is `info` (default), `ok`, `warn` or `error`, and `seconds` is 1 to 30 (default 6). A `warn` or `error` message wakes a dimmed panel, except while Windows is locked. Without a panel that can show the banner (none connected, or older firmware), the message becomes a tray notification that follows the Show Windows notifications setting, and is otherwise dropped. |
 | `events` | `GET /v1/events` reads key presses, page changes and commands. |
-| `read` | `GET /v1/state` reads the host state: profile, page, connection, variables, agents and queue sizes. |
+| `read` | `GET /v1/state` reads the host state: profile, page, the names of all profiles and their pages, whether the profile is locked, connection, variables, agents and queue sizes. |
 
 The routes `page`, `display` and `permission` are for the owner token only. No plugin can use them.
 

@@ -13,6 +13,8 @@ SHELL_SWITCH = re.compile(r'/|-(?!\d+(?:[.,]\d+)?$)')
 ENV_REFERENCE = re.compile(r'[$][(]env:([A-Za-z_][A-Za-z0-9_]{0,63})[)]')
 TOKEN = re.compile(r'[$][(]([^()]+)[)]')
 UNSET_VARIABLE =re.compile(r'[$][(]var:[A-Za-z0-9_.-]+[)]')
+# A counter or timer exists from its first use: until then a key shows where it starts, not the token itself.
+UNUSED = {'counter': '0', 'timer': '00:00', 'timer-state': 'IDLE'}
 
 
 def _shell_value(token: str, value: str, before: str) -> str:
@@ -42,7 +44,9 @@ def substitute(text: str, variables: dict[str, str], mode: str | None = None) ->
             if mode == 'shell':
                 return _shell_value(token, value, text[:match.start()])
             return urllib.parse.quote(value, safe='') if mode == 'url' else value
-        return '' if UNSET_VARIABLE.fullmatch(token) else token
+        if UNSET_VARIABLE.fullmatch(token):
+            return ''
+        return UNUSED.get(key.partition(':')[0], token) if ':' in key and mode is None else token
 
     # One pass over the template: a substituted value is never scanned for further tokens.
     return TOKEN.sub(replace, text)

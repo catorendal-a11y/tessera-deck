@@ -1627,7 +1627,7 @@
     },
     {
       "group": "GitHub Desktop",
-      "name": "Fetch (pull)",
+      "name": "Pull",
       "icon": "download",
       "color": "#8B7CFF",
       "actions": [
@@ -1639,7 +1639,7 @@
     },
     {
       "group": "GitHub Desktop",
-      "name": "Send (push)",
+      "name": "Push",
       "icon": "upload",
       "color": "#8B7CFF",
       "actions": [
@@ -1888,7 +1888,7 @@
             },
             {
               "id": 14,
-              "label": "Snip",
+              "label": "Clipboard history",
               "icon": "list",
               "color": "#35D07F",
               "actions": [
@@ -1986,7 +1986,7 @@
             },
             {
               "id": 5,
-              "label": "Power menu",
+              "label": "Quick settings",
               "icon": "settings",
               "color": "#35D07F",
               "actions": [

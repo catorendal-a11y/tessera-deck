@@ -97,8 +97,11 @@ def build(folder: Path, config: dict | None, status: dict, version: str, log_pat
     report = {'tessera': version, 'python': sys.version.split()[0], 'platform': platform.platform(),
               'packages': _versions(), 'configuration': {'readable': False} if config is None else _counts(config),
               'host': {'running': bool(status.get('running')), 'connection': status.get('connection'),
-                       'device': {key: device.get(key) for key in ('connected', 'firmware', 'protocol', 'profile',
-                                                                   'page', 'buttons', 'error')},
+                       'device': {key: device.get(key) for key in ('connected', 'board', 'firmware', 'protocol', 'reset',
+                                                                   'profile', 'page', 'buttons', 'error')},
+                       # which plugins run and why one stopped; never their settings
+                       'plugins': [{key: plugin.get(key) for key in ('id', 'state', 'error', 'crashes')}
+                                   for plugin in status.get('plugins') or [] if isinstance(plugin, dict)],
                        'queue': status.get('queue')},
               'recent_problems': [_no_labels(line) for line in recent_problems(log_path)],
               'created': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now()))}

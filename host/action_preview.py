@@ -153,12 +153,29 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
     return False, f'Unknown action type {kind!r}'
 
 
-def preview(actions: list[dict], variables: dict[str, str], environment=None, locator=locate) -> dict:
-    """What `actions` would do, step by step, using the panel's current variable values."""
+def _plugin_problem(plugin_id, plugins) -> str:
+    """Why a step for this plugin would fail, in the words the press itself uses; '' when it can run."""
+    known = next((item for item in plugins if isinstance(item, dict) and item.get('id') == plugin_id), None)
+    if known is None:
+        return f'The plugin {plugin_id} is not installed: put its folder in the plugins folder'
+    name = known.get('name') or plugin_id
+    if not known.get('enabled'):
+        return f'{name} is off: turn it on in More → Plugins'
+    if known.get('state') == 'failed':
+        return f'{name} has stopped: turn it off and on in More → Plugins'
+    return f'{name} has stopped' if known.get('state') == 'crashed' else ''
+
+
+def preview(actions: list[dict], variables: dict[str, str], environment=None, locator=locate, plugins=None) -> dict:
+    """What `actions` would do, step by step, using the panel's current variable values. `plugins` is the host's
+    list of plugins and their states; None when the host is not running and nothing is known."""
     steps, waited = [], 0.0
     for index, action in enumerate(actions, 1):
         try:
             ok, text = _step(action, variables, environment, locator)
+            if ok and plugins is not None and action.get('type') == 'plugin':
+                problem = _plugin_problem(action.get('plugin'), plugins)
+                ok, text = (False, problem) if problem else (ok, text)
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             ok, text = False, f'Cannot run this step: {exc}'
         if ok and action.get('type') == 'delay':

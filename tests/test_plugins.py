@@ -283,6 +283,17 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(len(self.spawned), plugins.MAX_QUICK_CRASHES + 1,
                          'turning it off and on gives a fresh start')
 
+    def test_a_crash_report_ends_with_the_plugins_own_last_line(self):
+        self.manager.sync(self.enabled())
+        self.manager.log_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.manager.log_dir / 'demo.log', 'a', encoding='utf-8') as log:
+            log.write('Traceback (most recent call last):\nConnectionRefusedError: OBS is not on port 4455\n\n')
+        self.spawned[-1][2].code = 1
+        self.now[0] += 1
+        self.manager.sync(self.enabled())  # notices the crash
+        error = self.manager.status(self.enabled())[0]['error']
+        self.assertTrue(error.endswith(': ConnectionRefusedError: OBS is not on port 4455'), error)
+
     def test_a_plugin_that_gave_up_starts_again_when_its_settings_change(self):
         for _ in range(plugins.MAX_QUICK_CRASHES):
             self.manager.sync(self.enabled(port='x'))

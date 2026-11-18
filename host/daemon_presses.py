@@ -149,18 +149,21 @@ class PressMixin:
         ok, error = False, ''
         try:
             self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ' (double)' if double else ''))
-            for action in resolved.get(action_list_name(hold, double), []):
+            steps, done = resolved.get(action_list_name(hold, double), []), 0
+            for action in steps:
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
                 self.run_action(action)
+                done += 1
             if (button.get('states') and not hold and not double and not button.get('bind')
                     and state_key not in self.state_set_by_action):
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
                 self.push_page()
             ok = True
         except Exception as exc:
-            error = str(exc)[:180]
-            self.log(f'Action failed: {exc}')
+            # with several steps, which one: "There is no such window" alone does not say where a macro stopped
+            error = (f'Step {done + 1}: {exc}' if len(steps) > 1 else str(exc))[:180]
+            self.log(f'Action failed: {error}')
         finally:
             self.active_press.pop()
             self.last_action = {'id': button_id, 'label': button['label'], 'ok': ok,

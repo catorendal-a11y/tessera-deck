@@ -23,6 +23,7 @@ import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
+from platform_support import load
 
 import adapters
 import permission
@@ -36,16 +37,20 @@ class DeckctlError(Exception):
     """A failure to report on stderr with a non-zero exit code."""
 
 
+LAUNCHER = load('labels').LAUNCHER  # Tessera.cmd or Tessera.sh
+
+
 def load_info(path: Path = INFO_PATH) -> dict:
     try:
         info = json.loads(Path(path).read_text(encoding='utf-8'))
         info = {'pid': int(info['pid']), 'port': int(info['port']), 'token': str(info['token'])}
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        raise DeckctlError('The Tessera host is not running (no control API found).') from exc
+        raise DeckctlError('Tessera is not running. Start it from the tray icon or with ' + LAUNCHER + '.') from exc
     # The file outlives a host that crashed. Whoever listens on its port then must not get the token or the
     # request text, so the recorded process has to be alive and be the one listening there.
     if not host_listens(info['pid'], info['port']):
-        raise DeckctlError('The Tessera host is not running (its control API file is stale).')
+        raise DeckctlError('Tessera is not running (it left its control file behind). Start it from the tray icon or with '
+                           + LAUNCHER + '.')
     return info
 
 
@@ -100,8 +105,9 @@ def build_parser() -> argparse.ArgumentParser:
     variable = commands.add_parser('var', help='set a variable')
     variable.add_argument('name')
     variable.add_argument('value')
-    for name in ('press', 'ok', 'alert'):
-        commands.add_parser(name).add_argument('button', type=int)
+    for name, about in (('press', 'press a key'), ('ok', 'flash a key green'), ('alert', 'flash a key red')):
+        commands.add_parser(name, help=about).add_argument('button', type=int, help='the key, 1 to 18')
+    commands.add_parser('get', help='print one variable; exit code 1 when it is not set').add_argument('name')
     page = commands.add_parser('page', help='show a page')
     page.add_argument('profile')
     page.add_argument('page', nargs='?')
@@ -113,8 +119,9 @@ def build_parser() -> argparse.ArgumentParser:
     say.add_argument('--level', choices=NOTIFY_LEVELS, default='info', help='the color of its edge (default: info)')
     say.add_argument('--seconds', type=int, default=NOTIFY_DEFAULT_SECONDS,
                      help=f'how long it shows (default: {NOTIFY_DEFAULT_SECONDS})')
-    for name in ('wake', 'dim', 'status'):
-        commands.add_parser(name)
+    for name, about in (('wake', 'wake the panel'), ('dim', 'dim the panel'),
+                        ('status', 'print what the host knows as JSON: profile, page, variables, profiles')):
+        commands.add_parser(name, help=about)
     adapter = commands.add_parser('adapter', help='send what an AI tool reports to the panel')
     adapter.add_argument('name', choices=[*adapters.ADAPTERS, 'generic'])
     adapter.add_argument('rest', nargs='*', help='generic: NAME STATE [MESSAGE]; codex: the event JSON')
@@ -201,6 +208,12 @@ def main(argv=None, info_path: Path = INFO_PATH) -> int:
         return 0 if arguments.command == 'adapter' and arguments.name != 'generic' else 1
     if arguments.command == 'status':
         print(json.dumps(result, indent=2))
+    if arguments.command == 'get':
+        value = (result.get('variables') or {}).get(arguments.name)
+        if value is None:
+            print(f'deckctl: the variable {arguments.name} is not set', file=sys.stderr)
+            return 1
+        print(value)
     return 0
 
 

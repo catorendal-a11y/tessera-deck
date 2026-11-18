@@ -84,7 +84,11 @@ def check(current: str, opener=_urlopen, board: str | None = None) -> dict:
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             raise ValueError('No firmware has been published on GitHub yet.') from exc
-        raise
+        if exc.code in (403, 429):
+            raise ValueError('GitHub is limiting requests from this address. Try again in an hour.') from exc
+        raise ValueError(f'GitHub answered with an error (HTTP {exc.code}). Try again later.') from exc
+    except OSError as exc:  # URLError: no network, no DNS, a time-out
+        raise ValueError('GitHub could not be reached. Check the internet connection and try again.') from exc
     try:
         release = json.loads(raw)
         latest = release['tag_name']

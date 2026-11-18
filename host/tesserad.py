@@ -30,7 +30,7 @@ from datetime import datetime
 import cockpit
 import permission
 from deck_assets import Assets
-from substitution import check_web_url, expand_environment, substitute
+from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
 from pc_state import PcState
 from system_audio import MediaReader, control_audio, control_media, read_audio
 from host_runtime import DEFAULT_PORT, InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
@@ -264,7 +264,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'dimmed': self.dimmed,
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
-                 'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'),
+                 'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'), 'reset': self.device_info.get('reset'),
                  'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
@@ -340,7 +340,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         """What a wide key shows: the music that plays (title, artist, how far it is) or a timer (time left, ring)."""
         if live == 'media':
             media = self.pc.snapshot()
-            result = {'label': (media['title'] or 'No music')[:24], 'sub': (media['artist'] or media['status'].capitalize())[:40]}
+            result = {'label': (media['title'] or 'No music')[:24], 'sub': (media['artist'] or media['status'].capitalize() or 'Nothing playing')[:40]}
             if media.get('duration', 0) > 0:
                 result['progress'] = max(0, min(100, round(media['position'] / media['duration'] * 100)))
             return result
@@ -356,7 +356,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         if live == 'calendar':
             now = datetime.now()
             events, error = self.calendar.events(self.config.get('calendar'), now)
-            return calendar_feed.content(events, now, error)
+            return calendar_feed.content(events, now, error, self.clock_format() == '12h')
         if live in widgets.WIDGETS:
             return widgets.content(live, datetime.now(), self.stats.raw, self.pc.snapshot(),
                                    {name: self.agent_seen.get(key, '') for key, name, _ in cockpit.AGENTS},
@@ -545,6 +545,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     raise RuntimeError(str(exc)) from exc
         elif kind == 'http':
             # $(env:NAME) is expanded before the variables, so a variable's value can never pull in a secret
+            # the address and the headers carry the credential; a value in the body may be left empty on purpose
+            used = ' '.join([action['url'], *action.get('headers', {}).values()])
+            missing = [name for name in dict.fromkeys(ENV_REFERENCE.findall(used)) if not os.environ.get(name)]
+            if missing:  # sent empty, it failed as "must start with http://" or as HTTP 404
+                raise CommandFailed(f'The environment variable {missing[0]} is not set (restart Tessera after setting it)')
             headers = {name: self.substitute(self.expand_environment(value))
                        for name, value in action.get('headers', {}).items()}
             if not any(name.lower() == 'user-agent' for name in headers):  # some services (Discord) refuse Python-urllib

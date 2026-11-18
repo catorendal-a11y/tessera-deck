@@ -169,7 +169,7 @@ class Controller:
                 return result
             result['device'].update({key: runtime.get(key) for key in
                                      ('connected', 'port', 'profile', 'page', 'buttons', 'error',
-                                      'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol', 'board', 'layout_bytes', 'sensor_hint')})
+                                      'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol', 'board', 'reset', 'layout_bytes', 'sensor_hint')})
             result['agents'] = runtime.get('agents', {})
             result['agent_states'] = runtime.get('agent_states', {})
             result['mixer'] = runtime.get('mixer', [])

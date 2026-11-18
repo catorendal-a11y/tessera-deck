@@ -88,6 +88,22 @@ def create_shortcut(target: Path = ROOT / 'Tessera.cmd', link: Path | None = Non
     return load('shortcuts').create_shortcut(target, link or desktop_shortcut_path())
 
 
+def forget_claude_hooks(home: Path | None = None, emit: Callable[[str], None] = print) -> bool:
+    """Take Tessera's hooks out of Claude Code's settings: left in, every Claude Code event would go on starting
+    deckctl from a folder that may be gone. True when something was removed."""
+    import claude_setup
+    from venv_paths import venv_python
+    try:
+        if not any(claude_setup.state(home).values()):
+            return False
+        claude_setup.update(False, False, venv_python(ROOT), ROOT / 'host/deckctl.py', home)
+    except (OSError, ValueError) as exc:
+        emit(f"Could not remove Tessera's hooks from Claude Code: {exc}")
+        return False
+    emit("Removed Tessera's hooks from Claude Code (a backup of its settings is next to them).")
+    return True
+
+
 def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: Callable[[str], None] = print,
               root: Path = ROOT, link: Path | None = None,
               autostart: Callable[[bool], object] | None = None) -> list[str]:
@@ -169,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == 'uninstall':
         try:
             uninstall(args.purge)
+            forget_claude_hooks()
         except OSError as exc:
             print(exc)
             return 1

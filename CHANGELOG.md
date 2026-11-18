@@ -4,6 +4,20 @@
 
 - The default profiles: hold Home to lock the profile. The panel then stays on it while you switch programs, and Home turns orange. Hold Home again to unlock. An existing setup gets the same with a *Lock profile* step under Held on its Home key.
 - The editor's profile settings say how to keep the panel on one profile.
+- A failed key says more. A macro names the step that failed ("Step 3: There is no such window"). A web request whose `$(env:NAME)` is not set names the variable; before, it failed as a bad address or as HTTP 404. A crashed plugin shows its own last line, such as the port it could not reach.
+- The editor holds a step back with a reason when the host would refuse the whole file for it: a hotkey with a misspelled key name, *Bring a program to the front* without a program, and *Move the pointer to* without a position. On Linux it accepts `.sh` scripts and `/home/...` paths, which it used to refuse.
+- Deleting a page or a profile says which keys lost the step that went there. A full page says to add a page. A file that is not an export, or one the host refuses, says that nothing was changed.
+- *Test* on a key says when a plugin step cannot run because the plugin is not installed, off or stopped.
+- A new counter or timer key shows `0` or `00:00` until its first use; before, it showed the text `$(counter:name)`. The music key says *Nothing playing*. Uptime under an hour is in minutes. The *Next meeting* key follows the 12-hour clock setting.
+- Dimming never makes the panel brighter: with quiet hours at 5 % and a dim level of 10 %, the panel got brighter when it dimmed. Weather that cannot be refreshed for an hour is no longer shown as the weather now.
+- `deckctl get NAME` prints one variable. Every `deckctl` command has help text, and a stopped host is answered with how to start it. `GET /v1/state` lists the profiles with their pages and whether the profile is locked, and an unknown profile or page is answered with the names that exist.
+- Automatic actions: the host log says when one ran, and a file rule takes a path that starts with `~` or an environment variable.
+- A profile rule `title:` with nothing after it matched every window; it now matches none.
+- *Check for updates* says what went wrong: no connection, GitHub limiting requests, or an error from GitHub.
+- Uninstall takes Tessera's hooks out of Claude Code's settings; before, Claude Code went on starting `deckctl` from a folder that was gone.
+- Save diagnostics names the board, the panel's last reset reason and the state of each plugin.
+- Ready-made keys: *Fetch (pull)* and *Send (push)* for GitHub Desktop are named *Pull* and *Push*, and in the Daily control template the `Win+V` key is *Clipboard history* and the `Win+A` key is *Quick settings*.
+- Docs: NVIDIA cards give no fan speed without Libre Hardware Monitor or HWiNFO, and the Date widget shows the weekday and the week number.
 - Fixed: a calendar with an event from before 1970, or with an impossible length, took down every page that has the *Next meeting* widget and made the host reconnect in a loop. Such an event is now skipped.
 - Fixed: a page the panel refuses when it connects (too large, or a picture it cannot hold) made the host close and reopen the USB port for ever. The host now stays connected and logs the page. A profile whose first page is refused leaves the host on the profile it had.
 - Fixed: a permission question could fail to come up on the panel. The host asked for the agents screen before it sent the question, and a panel that drew in between went back to the keys. A question that is open while the panel reconnects now comes up too.

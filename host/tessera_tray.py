@@ -288,8 +288,8 @@ class TrayApp:
             current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
             release = updates.check(current)
             if release.get('newer'):
-                notes = release.get('notes') or 'Open the editor: Panel → Panel firmware and updates …'
-                self.icon.notify(notes[:250], f"Update available: {release['latest']}")
+                how = f"You have {current}. Get the new version from the Releases page on GitHub."
+                self.icon.notify((how + '\n' + (release.get('notes') or '')).strip()[:250], f"Update available: {release['latest']}")
             else:
                 self.icon.notify(f'Tessera {current} is the newest version.', 'Tessera')
         self.background(work)

@@ -70,7 +70,8 @@ def matches_foreground(pattern, context):
     """Match a foreground executable, terminal child process, or window title."""
     pattern = pattern.strip().lower()
     if pattern.startswith('title:'):
-        return pattern.removeprefix('title:').strip() in context.get('title', '').lower()
+        wanted = pattern.removeprefix('title:').strip()
+        return bool(wanted) and wanted in context.get('title', '').lower()  # '' is in every title
     if pattern.startswith('process:'):
         pattern = pattern.removeprefix('process:').strip()
     return pattern in {name.lower() for name in context.get('processes', [])}

@@ -311,7 +311,20 @@ class PluginManager:
         ran = self._clock() - current['started']
         if ran >= STABLE_SECONDS:
             self.history.setdefault(plugin_id, _blank())['crashes'] = 0
-        self._record_failure(plugin_id, f'stopped with code {current["process"].poll()} after {ran:.0f} s')
+        said = self._last_output(plugin_id)
+        self._record_failure(plugin_id, f'stopped with code {current["process"].poll()} after {ran:.0f} s'
+                             + (f': {said}' if said else ''))
+
+    def _last_output(self, plugin_id: str) -> str:
+        """The last line the plugin wrote: a traceback ends with the reason (a wrong port, a missing module)."""
+        try:
+            with open(self.log_dir / f'{plugin_id}.log', 'rb') as log:
+                log.seek(0, os.SEEK_END)
+                log.seek(max(0, log.tell() - 4096))
+                lines = [line.strip() for line in log.read().decode('utf-8', 'replace').splitlines() if line.strip()]
+        except OSError:
+            return ''
+        return lines[-1][:120] if lines else ''
 
     def stop(self, plugin_id: str) -> None:
         current = self.running.pop(plugin_id, None)

@@ -306,7 +306,14 @@ def _wait(minutes: int) -> str:
     return f'in {hours} h {rest} min' if rest else f'in {hours} h'
 
 
-def content(events: list[dict] | None, now: datetime, error: str = '') -> dict:
+def _clock(moment: datetime, twelve: bool) -> str:
+    """'14:30', or '2:30 PM' on a 12-hour clock, as the clock widget writes it."""
+    if not twelve:
+        return f'{moment:%H:%M}'
+    return f'{moment.hour % 12 or 12}:{moment.minute:02d} {"AM" if moment.hour < 12 else "PM"}'
+
+
+def content(events: list[dict] | None, now: datetime, error: str = '', twelve: bool = False) -> dict:
     """Title, second line and progress for a wide key: the meeting that runs now, else the next one."""
     if events is None:
         return {'label': 'Calendar', 'sub': error or 'Add your calendar in Program settings'}
@@ -314,16 +321,16 @@ def content(events: list[dict] | None, now: datetime, error: str = '') -> dict:
     running = next((event for event in timed if event['start'] <= now < event['end']), None)
     if running:
         total = (running['end'] - running['start']).total_seconds() or 1
-        return {'label': running['summary'], 'sub': f"Now · until {running['end']:%H:%M}",
+        return {'label': running['summary'], 'sub': f"Now · until {_clock(running['end'], twelve)}",
                 'progress': max(0, min(100, round((now - running['start']).total_seconds() / total * 100)))}
     later = next((event for event in timed if event['start'] > now), None)
     if later and later['start'].date() == now.date():
-        return {'label': later['summary'], 'sub': f"{later['start']:%H:%M} · {_wait(int((later['start'] - now).total_seconds() // 60))}"}
+        return {'label': later['summary'], 'sub': f"{_clock(later['start'], twelve)} · {_wait(int((later['start'] - now).total_seconds() // 60))}"}
     today = next((event for event in events if event['all_day'] and event['start'].date() <= now.date() < event['end'].date()), None)
     if today:
         return {'label': today['summary'], 'sub': 'All day'}
     if later and later['start'].date() == now.date() + timedelta(days=1):
-        return {'label': later['summary'], 'sub': f"Tomorrow {later['start']:%H:%M}"}
+        return {'label': later['summary'], 'sub': f"Tomorrow {_clock(later['start'], twelve)}"}
     return {'label': 'No meetings', 'sub': 'Nothing more today'}
 
 

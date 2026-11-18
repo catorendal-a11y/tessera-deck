@@ -89,7 +89,8 @@ class DisplayMixin:
         self.panel.send_line('AD_DISPLAY_WAKE')
 
     def dim_display(self, reason):
-        self.panel.send_line(f'AD_DISPLAY_DIM {self.display_settings()["dim_level"]}')
+        # never above the level in force: quiet hours at 5 % with a dim level of 10 % made the panel brighter
+        self.panel.send_line(f'AD_DISPLAY_DIM {min(self.display_settings()["dim_level"], self.wanted_brightness())}')
         self.dimmed = True
         self.log(f'Panel dimmed {reason}')
 

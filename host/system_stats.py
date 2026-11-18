@@ -192,7 +192,9 @@ def _format_gauge_text(value: float, spec: dict) -> str:
         return 'LIVE' if value >= 1 else 'BASIC'
     if fmt == 'uptime':
         days, remainder = divmod(max(0, int(value)), 86400)
-        return f'{days}d' if days else f'{remainder // 3600}h'
+        if days:
+            return f'{days}d'
+        return f'{remainder // 3600}h' if remainder >= 3600 else f'{remainder // 60}m'
     return f'{value:.0f}{unit}'
 
 

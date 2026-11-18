@@ -92,6 +92,9 @@ def search_places(query: str, opener=urllib.request.urlopen) -> list[dict]:
             for item in results if isinstance(item, dict) and 'latitude' in item and 'longitude' in item]
 
 
+STALE_SECONDS = 3600  # a line older than this is dropped: the laptop was offline, the service is down
+
+
 class Weather:
     """Keeps the latest weather line fresh in the background."""
 
@@ -99,6 +102,7 @@ class Weather:
         self._opener, self._clock = opener, clock
         self._lock = threading.Lock()
         self._line = ''
+        self._read_at = 0.0
         self._key = None
         self._next = 0.0
         self._busy = False
@@ -111,8 +115,8 @@ class Weather:
         key = (weather['latitude'], weather['longitude'], weather.get('unit', 'celsius'), weather.get('name', ''))
         with self._lock:
             due = key != self._key or self._clock() >= self._next
-            if key != self._key:
-                self._line = ''
+            if key != self._key or self._clock() - self._read_at > STALE_SECONDS:
+                self._line = ''  # another place, or weather too old to show as the weather now
             if due and not self._busy:
                 self._busy = True
                 self._key = key
@@ -128,6 +132,6 @@ class Weather:
             line = None
         with self._lock:
             if line is not None and key == self._key:
-                self._line = line
+                self._line, self._read_at = line, self._clock()
             self._next = self._clock() + (REFRESH_SECONDS if line is not None else 60)
             self._busy = False

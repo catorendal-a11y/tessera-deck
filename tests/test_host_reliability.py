@@ -260,7 +260,10 @@ class TrayRestartTests(unittest.TestCase):
         app.background = lambda work, *args: work(*args)
         with patch.object(updates, 'check', return_value={'newer': True, 'latest': '0.7.0', 'notes': '- faster'}):
             tessera_tray.TrayApp.check_for_updates(app)
-        app.icon.notify.assert_called_once_with('- faster', 'Update available: 0.7.0')
+        text, title = app.icon.notify.call_args.args
+        self.assertEqual(title, 'Update available: 0.7.0')
+        self.assertIn('- faster', text)
+        self.assertIn('Releases page', text)  # the notice says where the new version is
 
 
 if __name__ == '__main__':

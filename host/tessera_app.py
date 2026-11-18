@@ -94,6 +94,11 @@ def action_pack_catalog():
         if not isinstance(template.get('name'), str) or not isinstance(template.get('description'), str):
             raise ValueError('The page template needs a name and a description')
         validate_config({'default_profile': 'mal', 'profiles': {'mal': {'match': [], 'pages': {'side': template.get('page')}}}})
+    # What a save is checked against, so the editor can hold a step back with a reason instead of sending a file
+    # the host refuses whole.
+    from input_common import KEY_NAMES
+    from script_files import SCRIPT_SUFFIXES
+    catalog['rules'] = {'keys': list(KEY_NAMES), 'platform': 'win32' if IS_WINDOWS else 'linux', 'scripts': list(SCRIPT_SUFFIXES)}
     return catalog
 
 
@@ -451,8 +456,9 @@ class Editor:
         if not groups or any(not isinstance(value, list) or len(value) > 50
                              or any(not isinstance(item, dict) for item in value) for value in groups.values()):
             raise ValueError('Send the button actions as lists of at most 50 steps')
-        variables = self.status().get('variables') or {}
-        return {key: preview(value, variables) for key, value in groups.items()}
+        status = self.status()
+        variables = status.get('variables') or {}
+        return {key: preview(value, variables, plugins=status.get('plugins')) for key, value in groups.items()}
 
     def version(self):
         version_file = ROOT / 'VERSION'

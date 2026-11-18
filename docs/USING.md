@@ -70,7 +70,7 @@ A widget is a wide key that shows something live. Open the **Widgets** tab and d
 | Widget | Shows |
 |---|---|
 | Clock | The time, the weekday and date, and how far the day is |
-| Date | The date, the week number and the day of the year |
+| Date | The date, the weekday and the week number |
 | Processor, Graphics card | Load with a bar, temperature, clock speed or frames per second |
 | Memory | How much memory is in use |
 | Network | Download and upload speed |
@@ -236,7 +236,9 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 
 ### Labels and variables
 
-A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)`, `$(pc:playing)`, `$(pc:shuffle)` (ON or OFF) and `$(pc:repeat)` (OFF, ALL or ONE). `$(pc:track)` shows *No music* when nothing plays. `$(pc:shuffle)` and `$(pc:repeat)` are empty when the player does not report them.
+A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)`, `$(timer-state:name)` (IDLE, RUNNING, PAUSED or DONE) and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)`, `$(pc:playing)`, `$(pc:shuffle)` (ON or OFF) and `$(pc:repeat)` (OFF, ALL or ONE). `$(pc:track)` shows *No music* when nothing plays. `$(pc:shuffle)` and `$(pc:repeat)` are empty when the player does not report them. A counter or timer nobody has used yet shows `0` or `00:00`.
+
+An HTTP step can also use `$(env:NAME)` in its address, headers and body. It is filled in from the PC's environment when the key runs, so a token or a webhook address stays out of the profile. If the variable in the address or a header is not set, the key fails and names it; restart Tessera after you set one.
 
 In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`). Tessera refuses values with shell metacharacters; spaces are allowed.
 
@@ -244,7 +246,7 @@ A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "me
 
 ### Automatic actions
 
-In the editor: **More → Automatic actions …**. Each one runs the steps it copies from a key. They run in every profile, while the host runs.
+In the editor: **More → Automatic actions …**. Each one runs the steps it copies from a key. They run in every profile, while the host runs. The host log has a line each time one runs, except for the ones on an interval.
 
 `triggers` at the top of `profiles.json` is a list of `{"when": {...}, "actions": [...]}`. `when` is one of:
 
@@ -253,7 +255,7 @@ In the editor: **More → Automatic actions …**. Each one runs the steps it co
 | `{"type": "startup"}` | When the host starts |
 | `{"type": "interval", "seconds": 60}` | Every 60 seconds |
 | `{"type": "daily", "at": "08:30"}` | Every day at that time |
-| `{"type": "file", "path": "..."}` | When the file changes |
+| `{"type": "file", "path": "..."}` | When the file changes. The path may start with `~` or an environment variable |
 | `{"type": "variable", "name": "claude"}` | When the variable changes |
 | `{"type": "variable", "name": "claude", "value": "waiting"}` | When the variable becomes `waiting` |
 
@@ -276,7 +278,7 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 | Source | Needs | Provides |
 |---|---|---|
 | Windows | Nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
-| Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power, fan speed, clock |
+| Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power and clock; fan speed on AMD only |
 | Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks |
 | HWiNFO | Running with shared memory enabled (`host\Enable-HWiNFO.ps1`, as administrator, turns it on) | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
@@ -293,7 +295,8 @@ python host\deckctl.py page main status       # show a page
 python host\deckctl.py press 5                # press key 5
 python host\deckctl.py ok 5                   # flash key 5 green (alert 5: red)
 python host\deckctl.py say Build passed --level ok   # a short message on the panel
-python host\deckctl.py status                 # also: wake, dim
+python host\deckctl.py get claude             # print one variable; exit code 1 when it is not set
+python host\deckctl.py status                 # everything as JSON, with the profiles and their pages; also: wake, dim
 ```
 
 `say` takes 1 to 100 characters on one line; longer text or a line break is refused and `deckctl` exits with 1. It shows the text in a banner at the top of the panel for `--seconds` (1 to 30, default 6), with a colored edge for `--level` `info`, `ok`, `warn` or `error`. A tap on the banner closes it. A `warn` or `error` message wakes a dimmed panel, except while Windows is locked. Without a panel that can show it (none connected, or firmware older than the banner), the message becomes a tray notification that follows the *Show Windows notifications* setting, and is otherwise dropped.

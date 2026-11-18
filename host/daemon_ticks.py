@@ -23,9 +23,9 @@ class BackgroundMixin:
     """Methods of the Daemon; they use its state."""
 
     def fire_trigger(self, when):
-        for trigger in self.config.get('triggers', []):
-            if trigger['when'] == when:
-                self.enqueue(('actions', trigger.get('actions', [])))
+        for index, trigger in enumerate(self.config.get('triggers', [])):
+            if trigger['when'] == when and self.enqueue(('actions', trigger.get('actions', []))):
+                self.log(f'Automatic action {index + 1} ({when.get("type")}) ran')
 
     def daily_runs(self):
         """trigger key -> the day a daily trigger last ran (or was marked done), from triggers.local.json."""
@@ -76,7 +76,7 @@ class BackgroundMixin:
                     value, fire = today, True
             elif kind == 'file':
                 try:
-                    value = os.stat(spec['path']).st_mtime_ns
+                    value = os.stat(os.path.expanduser(os.path.expandvars(spec['path']))).st_mtime_ns
                 except FileNotFoundError:
                     value = 0 if before is None else before  # 0: missing at start, so the file appearing fires
                 except (OSError, ValueError):
@@ -87,8 +87,11 @@ class BackgroundMixin:
                 # with a value: only when the variable becomes that value, not on every change
                 fire = value is not None and before != value and ('value' not in spec or str(value) == spec['value'])
             # Each trigger fires once; triggers of the same type are independent.
-            if fire and not self.enqueue(('actions', trigger.get('actions', []))) and kind == 'daily':
+            ran = fire and self.enqueue(('actions', trigger.get('actions', [])))
+            if fire and not ran and kind == 'daily':
                 value = before  # a full queue dropped today's run: try again next second, and do not save it as done
+            if ran and kind != 'interval':  # an interval can be every second: it would fill the log
+                self.log(f'Automatic action {index + 1} ({kind}) ran')
             self.trigger_state[index] = value
             if kind == 'daily' and value == today and runs.get(key) != today:
                 self.save_daily_run(key, today)
