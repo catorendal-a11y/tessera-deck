@@ -36,6 +36,23 @@ mountBrand();
 
 /* Panel firmware: list verified packages, install with progress. */
 let firmwareTimer = null;
+/* -1, 0 or 1 for two versions such as 1.2.3 and 1.10.0; a missing or unreadable one compares as 0 (unknown). */
+function versionOrder(a, b) {
+  const parts = text => /^\d+(\.\d+)*$/.test(String(text || '')) ? String(text).split('.').map(Number) : null, x = parts(a), y = parts(b);
+  if (!x || !y) return 0;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0) ? -1 : 1;
+  return 0;
+}
+/* What to know before Install: the chosen package against the panel's firmware, and whether a package for this
+   Tessera is here at all. Without it the dialog offered an older package and Install went back to it in silence. */
+function firmwareNote(chosen, device, host, newest = chosen) {
+  if (!chosen) return '';
+  const lines = [], has = device.connected && device.firmware;
+  if (has && versionOrder(chosen.version, device.firmware) < 0) lines.push(`This package is older than the firmware on the panel (${device.firmware}). Installing it goes back to ${chosen.version}.`);
+  else if (has && versionOrder(chosen.version, device.firmware) === 0) lines.push(`The panel already has ${chosen.version}.`);
+  if (versionOrder(newest.version, host) < 0) lines.push(`There is no firmware package for Tessera ${host} here. Check for updates downloads it.`);
+  return lines.join(' ');
+}
 async function openFirmware() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   // "Install anyway" is for the one attempt after a panel that did not answer; never carry it over.
@@ -61,7 +78,9 @@ async function refreshFirmware() {
   const newest = good.find(p => (p.board || 'tessera-p4') === device.board);
   if (good.length && !newest) select.prepend(element('option', {value: '', text: 'Choose the package for your board'}));
   select.value = newest ? newest.path : '';
-  select.onchange = () => { $('#firmware-install').disabled = !select.value; };
+  const note = () => { const text = firmwareNote(good.find(p => p.path === select.value), device, info.host, newest); $('#firmware-note').textContent = text; $('#firmware-note').hidden = !text; };
+  select.onchange = () => { $('#firmware-install').disabled = !select.value; note(); };
+  note();
   // The protocol number only matters to the user when it differs from the newest package's.
   const protocol = newest && device.protocol != null && newest.protocol !== device.protocol ? ` · protocol ${device.protocol}, package needs ${newest.protocol}` : '';
   $('#firmware-device').textContent = device.connected
@@ -88,11 +107,14 @@ async function pollFirmware() {
   $('#firmware-bar').value = job.percent || 0;
   const label = $('#firmware-state');
   if (job.state === 'running') {
+    delete label.dataset.refreshed;
     label.textContent = `${job.stage === 'checking' ? 'Checking the panel' : 'Writing'} … ${job.percent || 0}%`;
     firmwareTimer = setTimeout(pollFirmware, 700);
   } else if (job.state === 'done') {
     label.textContent = `Installed ${job.result.installed}${job.result.previous ? ` (was ${job.result.previous})` : ''}.`
       + (job.restarted ? ' The host has started again.' : job.restart_error ? ` The host did not start again: ${job.restart_error}` : '');
+    // the line at the top still names the firmware from before: read it again when the host has found the panel
+    if (!label.dataset.refreshed) { label.dataset.refreshed = '1'; setTimeout(() => refreshFirmware().catch(() => {}), 5000); }
   } else if (job.state === 'failed') {
     label.textContent = job.error || 'The installation failed.';
     const silent = (job.error || '').includes('did not answer');
@@ -162,7 +184,9 @@ function displaySettings() {
     {name: 'brightness', label: 'Panel brightness', options: displayChoices(brightnessChoices, display.brightness, v => `${v}%`), value: String(display.brightness)},
     {name: 'dimAfter', label: 'Dim the panel after', options: displayChoices(dimAfterChoices, display.dim_after, v => `${Math.round(v / 60)} min`), value: String(display.dim_after), note: 'The first touch on a dimmed panel only wakes it; it does not press a key.'},
     {name: 'dimLevel', label: 'Brightness when dimmed', options: displayChoices(dimLevelChoices, display.dim_level, v => v ? `${v}%` : 'Off'), value: String(display.dim_level)},
-    {name: 'nightWindow', label: 'Quiet hours', options: nightChoices(display.night), value: nightWindowValue(display.night), note: 'Between these times the panel uses the lower brightness below instead of the normal one.'},
+    {name: 'nightOn', label: 'Quiet hours', type: 'checkbox', value: !!display.night, note: 'Between the times below the panel uses the lower brightness instead of the normal one. The window can run past midnight.'},
+    {name: 'nightFrom', label: 'From', type: 'time', value: display.night?.from || '22:00'},
+    {name: 'nightTo', label: 'To', type: 'time', value: display.night?.to || '07:00'},
     {name: 'nightLevel', label: 'Brightness during quiet hours', options: displayChoices(nightLevelChoices, display.night?.brightness || 10, v => `${v}%`), value: String(display.night?.brightness || 10)},
     {name: 'clock', label: 'Clock format', options: [['auto', hostRules.platform === 'linux' ? 'Same as the system' : 'Same as Windows'], ['24h', '24-hour (14:32)'], ['12h', '12-hour (2:32 PM)']], value: display.clock || 'auto', note: 'For the idle clock and the clock on the rail.'},
     {name: 'enabled', label: 'Show a big clock when the panel has been idle', type: 'checkbox', value: ambient.enabled, note: 'Touch the panel to get your keys back. Needs the firmware that ships with this version.'},
@@ -171,10 +195,10 @@ function displaySettings() {
     {name: 'unit', label: 'Temperature unit', options: [['celsius', 'Celsius'], ['fahrenheit', 'Fahrenheit']], value: weather?.unit || 'celsius'}
   ], values => {
     const city = values.city.trim(), keep = weather && weather.name === city;
+    const night = nightFromValues(values.nightOn, values.nightFrom, values.nightTo, values.nightLevel);
     mutate(() => {
       config.display = {brightness: Number(values.brightness), dim_after: Number(values.dimAfter), dim_level: Number(values.dimLevel)};
       if (values.clock !== 'auto') config.display.clock = values.clock;
-      const night = nightFromValues(values.nightWindow, values.nightLevel);
       if (night) config.display.night = night;
       config.ambient = {enabled: values.enabled, after: Number(values.after)};
       // A new city keeps the old weather until the lookup succeeds (choose() replaces it); only an empty city drops it.
@@ -325,10 +349,16 @@ async function openBackups() {
   if (!backups.length) list.append(text('p', 'No backups yet. The first one is made when you change something.', 'hint'));
   for (const item of backups) {
     list.append(element('div', {class: 'backup-row'},
-      element('div', {}, text('strong', item.saved), text('small', `${item.profiles} profiles · ${item.buttons} keys · ${Math.max(1, Math.round(item.bytes / 1024))} KiB`)),
+      element('div', {}, text('strong', item.saved), text('small', backupDetail(item))),
+      button(item.kept ? 'Stop keeping' : 'Keep', () => keepBackup(item).catch(showError), 'outline', 'A kept backup is not removed when newer ones come.'),
       button('Restore', () => restoreBackup(item).catch(showError), 'outline')));
   }
   $('#backup-dialog').showModal();
+}
+const backupDetail = item => `${item.profiles} profiles · ${item.buttons} keys · ${Math.max(1, Math.round(item.bytes / 1024))} KiB${item.kept ? ' · kept' : ''}`;
+async function keepBackup(item) {
+  await api('command/keep-backup', {name: item.name, keep: !item.kept});
+  await openBackups();
 }
 async function restoreBackup(item) {
   if (!await confirmDialog('Restore this backup?', `The current configuration is replaced by the backup from ${item.saved}. The current one is kept as a backup.`, {ok: 'Restore'})) return;
@@ -356,6 +386,7 @@ async function checkUpdates() {
 async function downloadFirmware() {
   const result = await api('command/update-download-firmware', {});
   toast(result.message);
+  $('#firmware-latest').textContent = result.message;  // the toast goes after a few seconds: keep what was fetched in view
   await refreshFirmware();
 }
 $('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmware-latest').textContent = error.message; });
@@ -511,7 +542,9 @@ $('#iconify-query').addEventListener('keydown', event => { if (event.key === 'En
 
 /* The agents and readings the panel's agents and status screens can show (chosen on those screens in the rail). */
 const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', 'ZCode']];
-const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed']];
+const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed'],
+  ['net_up', 'Upload speed'], ['uptime', 'Uptime'], ['cpu_clock', 'CPU clock'], ['cpu_power', 'CPU power'], ['gpu_power', 'GPU power'], ['gpu_clock', 'GPU clock'], ['gpu_fan', 'GPU fan'], ['fps', 'FPS']];
+const PANEL_STATS_MAX = 8;  // the panel shows eight, and the host refuses more
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
 async function claudeSettings() {
@@ -653,7 +686,7 @@ const RAIL = [
 ];
 let editorView = 'keys', hooksState = null;
 function panelChoice() {
-  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config?.panel || {})};
+  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.slice(0, PANEL_STATS_MAX).map(s => s[0]), ...(config?.panel || {})};
 }
 function savePanel(change) {
   mutate(() => { config.panel = {...panelChoice(), ...change}; });
@@ -741,12 +774,14 @@ function renderScreen() {
       element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Microphone'), text('small', 'Include a microphone fader.')), element('label', {class: 'screen-check'}, mic, text('span', 'Show'))) ];
   } else {
     const stats = dashboard.stats || {};
+    const full = choice.stats.length >= PANEL_STATS_MAX;
     const cards = PANEL_STATS.map(([id, name]) => {
       const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: PANEL_STATS.map(s => s[0]).filter(key => key === id ? event.target.checked : choice.stats.includes(key))})});
       box.checked = choice.stats.includes(id);
+      box.disabled = !box.checked && full;
       return element('label', {class: 'screen-stat' + (box.checked ? '' : ' off')}, text('small', name), text('strong', stats[id] === undefined ? '--' : String(stats[id])), element('span', {class: 'screen-check'}, box, text('span', 'Show')));
     });
-    body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), element('div', {class: 'screen-stats'}, ...cards)];
+    body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), ...(full ? [text('p', `The panel shows ${PANEL_STATS_MAX} readings. Untick one to choose another.`, 'hint')] : []), element('div', {class: 'screen-stats'}, ...cards)];
   }
   area.replaceChildren(element('div', {class: 'screens-inner'}, ...body));
 }
@@ -857,6 +892,12 @@ $('#rail-apply').onclick = () => {
  * steps are copied from a key, so the key editor stays the one place where steps are built. */
 const AUTO_KINDS = [['startup', 'When the host starts'], ['interval', 'Every …'], ['daily', 'Every day at …'], ['file', 'When a file changes'], ['variable', 'When a variable changes']];
 const AUTO_DEFAULTS = {startup: {}, interval: {seconds: 300}, daily: {at: '08:00'}, file: {path: ''}, variable: {name: ''}};
+const AUTO_DAYS = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']];
+// All seven or none means every day: no days key
+function setAutoDays(when, ticked) {
+  const days = AUTO_DAYS.map(day => day[0]).filter(day => ticked.includes(day));
+  if (days.length && days.length < 7) when.days = days; else delete when.days;
+}
 const VARIABLE_NAME = /^[A-Za-z0-9_.-]{1,64}$/;  // as the host checks a variable name
 let autoDraft = [];
 function autoSettings() {
@@ -883,7 +924,11 @@ function drawAuto(focus = document.activeElement?.dataset?.auto) {
         const seconds = clockToSeconds(value);
         if (Number.isInteger(seconds) && seconds <= 604800) when.seconds = seconds;
         else { node.value = secondsToClock(when.seconds); toast('Write how often as mm:ss or h:mm:ss, at most a week.'); } })],
-      daily: () => [input({type: 'time', value: when.at, required: true, 'aria-label': name('time of day')}, value => { if (/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) when.at = value; })],
+      daily: () => [input({type: 'time', value: when.at, required: true, 'aria-label': name('time of day')}, value => { if (/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) when.at = value; }),
+        element('div', {class: 'auto-days', role: 'group', 'aria-label': name('only on these days')}, text('span', 'Only on'), ...AUTO_DAYS.map(([day, label]) => {
+          const box = element('input', {type: 'checkbox', 'data-day': day, 'aria-label': name(label), onchange: event => setAutoDays(when, [...event.target.closest('.auto-days').querySelectorAll('input:checked')].map(item => item.dataset.day))});
+          box.checked = !!when.days?.includes(day);
+          return element('label', {}, box, label); }))],
       file: () => [input({value: when.path || '', placeholder: 'The file to watch, for example C:\\Notes\\todo.txt', 'aria-label': name('file to watch')}, value => { when.path = value; })],
       variable: () => [input({value: when.name || '', maxlength: '64', placeholder: 'Variable, for example claude', 'aria-label': name('variable')}, value => { when.name = value; }),
         input({value: when.value ?? '', placeholder: 'Only when it becomes … (empty: on every change)', 'aria-label': name('only when the variable becomes this value')}, value => { if (value) when.value = value; else delete when.value; })]

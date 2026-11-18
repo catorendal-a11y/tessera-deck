@@ -103,6 +103,11 @@ function field(label,value,handler,{type='text',placeholder='',values=null,multi
   input.addEventListener(values?'change':'input',()=>handler(type==='number'?Number(input.value):input.value));
   return element('label',{},text('span',label),input);
 }
+/* Empty keeps the host's own limit (5 seconds), so no key is stored. */
+function timeoutField(index,action) {
+  const row=field('Timeout (seconds)',action.timeout===undefined?'':String(action.timeout),v=>mutate(()=>setTimeoutValue(activeActions()[index],v),false,editKey('action',index,'timeout')),{placeholder:'5'});
+  const input=row.querySelector('input');input.type='number';input.min='1';input.max='300';return row;
+}
 function editAction(index,key,value) {mutate(()=>activeActions()[index][key]=value,false,editKey('action',index,key));}
 /* Groups a run of inspector rows under a collapsible heading. Wrapped last-first so the earlier indexes stay valid. */
 let inspectorTab='look';  // which group of key settings shows: look, actions or more
@@ -290,7 +295,7 @@ function renderStep(action,index,count) {
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
   if(action.type==='panel_lock'){step.append(field('Mode',action.mode||'toggle',v=>editAction(index,'mode',v),{values:[['toggle','Lock / unlock'],['on','Lock'],['off','Unlock']]}),text('p','A locked panel ignores taps until you hold the lock badge on the rail for two seconds.','hint'));return step;}
   if(action.type==='profile_lock'){step.append(text('p','Locks the current profile when pressed. Press again to follow the active program. Pin this key to make it available on every page in this profile.','hint'));return step;}
-  const parameter=field(k.label,action[k.field],value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell','clipboard'].includes(action.type)});
+  const parameter=field(k.label,action[k.field],action.type==='profile'?value=>mutate(()=>switchProfileStep(activeActions()[index],value),true,editKey('action',index,'profile')):value=>editAction(index,k.field,value),{type:['delay','press','state'].includes(action.type)?'number':'text',placeholder:k.placeholder,values,multiline:['text','shell','clipboard'].includes(action.type)});
   if(action.type==='open') {
     const input=parameter.querySelector('input');input.setAttribute('data-path',index);parameter.append(button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target){applyProgramDetails(result,index);}}catch(error){showError(error);}},'text-button'));
   }
@@ -300,6 +305,8 @@ function renderStep(action,index,count) {
       button('Edit',async()=>{try{toast((await api('command/edit-script',{path:input.value})).message);}catch(error){showError(error);}},'text-button'));
   }
   step.append(parameter);
+  if(action.type==='profile')step.append(field('Page',action.page||'',v=>mutate(()=>{const a=activeActions()[index];if(v)a.page=v;else delete a.page;},true,editKey('action',index,'page')),{values:[['','First page'],...Object.keys(config.profiles[action.profile]?.pages||{}).map(name=>[name,name])]}));
+  if(action.type==='shell')step.append(timeoutField(index,action));
   if(action.type==='script')step.append(field('Timeout (seconds)',String(action.timeout??30),v=>editAction(index,'timeout',Math.max(1,Math.min(300,Math.round(Number(v))||30))),{type:'number'}),
     text('p','Runs without a window in the script’s own folder. Python, PowerShell, cmd, AutoHotkey and Node.js must be installed for their file types.','hint'));
   if(action.type==='audio') {
@@ -316,7 +323,9 @@ function renderStep(action,index,count) {
   }
   if(action.type==='hotkey') {const record=button('⌨ Record hotkey',()=>startRecording(index,parameter.querySelector('input'),record),'outline record');step.append(record);}
   if(['page','folder'].includes(action.type))step.append(button('＋ Create new subpage',()=>newPage(true,index),'text-button'));
-  if(action.type==='http'){step.append(field('Method',action.method||'GET',v=>editAction(index,'method',v),{values:['GET','POST','PUT','PATCH','DELETE']}),field('Body (optional)',action.body||'',v=>editAction(index,'body',v),{multiline:true}));}
+  if(action.type==='http'){step.append(field('Method',action.method||'GET',v=>editAction(index,'method',v),{values:['GET','POST','PUT','PATCH','DELETE']}),field('Body (optional)',action.body||'',v=>editAction(index,'body',v),{multiline:true}),
+    field('Headers',headersText(action.headers),v=>mutate(()=>setHeaders(activeActions()[index],v),false,editKey('action',index,'headers')),{multiline:true,placeholder:'Authorization: Bearer $(env:TOKEN)'}),timeoutField(index,action),
+    text('p','Write one header per line as Name: value. Use $(env:NAME) for a token or a secret address: it is read from this PC’s environment when the key runs.','hint'));}
   if(action.type==='text')step.append(field('Typing speed: milliseconds per character (0 = instant)',String(action.delay_ms??0),v=>editAction(index,'delay_ms',Math.max(0,Math.min(500,Math.round(Number(v))||0))),{type:'number'}));
   if(action.type==='set')step.append(field('Value',action.value||'',v=>editAction(index,'value',v)));
   if(action.type==='state') {
@@ -434,10 +443,14 @@ function deleteProfile() {
     for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);dropEmptyShortcuts();});renderAll();toast(`Profile “${old}” was deleted${withKeys(keys)}.${lostSteps(lost,'switched to it')}`,true);
 }
-const NIGHT_WINDOWS=[['','Off'],['22:00-07:00','22:00 – 07:00'],['23:00-07:00','23:00 – 07:00'],['00:00-06:00','00:00 – 06:00']],nightLevelChoices=[5,10,20,40];
-function nightWindowValue(night) {return night?`${night.from}-${night.to}`:'';}
-function nightChoices(night) {const value=nightWindowValue(night);return NIGHT_WINDOWS.some(([v])=>v===value)?NIGHT_WINDOWS:[...NIGHT_WINDOWS,[value,value.replace('-',' – ')]];}
-function nightFromValues(window,level) {if(!window)return undefined;const [from,to]=window.split('-');return {from,to,brightness:Number(level)};}
+const nightLevelChoices=[5,10,20,40];
+/* Quiet hours: any two times, a window across midnight included; unticked removes the block. */
+function nightFromValues(on,from,to,level) {
+  if(!on)return undefined;
+  if(!from||!to)throw new Error('Choose a start and an end time for quiet hours.');
+  if(from===to)throw new Error('Quiet hours need different start and end times.');
+  return {from,to,brightness:Number(level)};
+}
 const brightnessChoices=[100,80,60,40,20],dimAfterChoices=[0,60,300,600,1800,3600],dimLevelChoices=[0,5,10,20];
 function displayChoices(values,current,format) {
   const all=values.includes(current)?values:[...values,current].sort((a,b)=>b-a);
@@ -463,6 +476,10 @@ function changePage(name) {
     if(shared)rewriteActions(railSteps(),update);
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:remove?[]:[{...s,page:name}]);
     if(shared)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
+    // A Switch profile step names its page by profile, so it follows in every profile, rail step and automatic action.
+    const pageStep=a=>{if(a.type!=='profile'||a.profile!==profile||a.page!==old)return a;const {page:gone,...rest}=a;return remove?rest:{...a,page:name};};
+    for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,pageStep);
+    for(const t of config.triggers||[])t.actions=(t.actions||[]).map(pageStep);
     dropEmptyShortcuts();
   });renderAll();
 }
@@ -652,7 +669,7 @@ document.addEventListener('keydown',event=>{
     const value=parts.join('+'),index=recording.index;recording=null;editAction(index,'keys',value);renderInspector();return;
   }
   const menu=$('#key-menu');
-  if(!menu.hidden){const items=[...menu.querySelectorAll('[role="menuitem"]')],at=items.indexOf(document.activeElement);
+  if(!menu.hidden){const items=[...menu.querySelectorAll('[role="menuitem"]:not([hidden])')],at=items.indexOf(document.activeElement);
     if(event.key==='Escape'){event.preventDefault();hideKeyMenu(true);return;}
     if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?items.length-1:(at+(event.key==='ArrowDown'?1:-1)+items.length)%items.length;items[next].focus();return;}}
   if((event.ctrlKey||event.metaKey)&&event.key.toLowerCase()==='s'){event.preventDefault();save().then(()=>toast('All changes are saved.')).catch(showError);return;}
@@ -677,11 +694,16 @@ function moveToSlot(id=selected) {
     return [String(n),!b?`${n} · free`:b.id===n?`${n} · ${resolveLabel(b.label)||'key'}`:`${n} · part of ${resolveLabel(b.label)||'key '+b.id}`];});
   dialog(`Move key ${id}`,[{name:'slot',label:'Move to slot',options:slots,value:String(id),note:'A key already on that slot changes places with this one.'}],values=>moveSlot(id,Number(values.slot)),'Move');
 }
+/* The key menu's Move to page: the same move as dropping the key on a page tab. */
+const otherPages=()=>Object.keys(config.profiles[profile].pages).filter(name=>name!==page);
+function moveToPageDialog(id=selected) {
+  dialog(`Move key ${id}`,[{name:'page',label:'Move to page',options:otherPages().map(name=>[name,name]),value:otherPages()[0]}],values=>{moveToPage(id,values.page);setTimeout(()=>$('#deck-grid [data-slot]:not([tabindex="-1"])')?.focus(),0);},'Move');
+}
 function openKeyMenu(id,x,y) {
   let tile=$(`[data-slot="${id}"]`);if(!tile||!visibleButtons().some(b=>b.id===id))return;
   selected=id;editState=0;renderGrid();renderInspector();tile=$(`[data-slot="${id}"]`);keyMenuReturnFocus=tile;
   const menu=$('#key-menu'),pinned=config.profiles[profile].pinned?.some(b=>b.id===id);
-  menu.querySelector('[data-menu="pin"]').textContent=pinned?'Unpin from all pages':'Pin to all pages';menu.hidden=false;
+  menu.querySelector('[data-menu="pin"]').textContent=pinned?'Unpin from all pages':'Pin to all pages';menu.querySelector('[data-menu="page"]').hidden=otherPages().length===0;menu.hidden=false;
   const rect=tile.getBoundingClientRect(),width=menu.offsetWidth,height=menu.offsetHeight;
   menu.style.left=Math.max(8,Math.min(x??rect.left+rect.width/2,window.innerWidth-width-8))+'px';
   menu.style.top=Math.max(8,Math.min(y??rect.top+rect.height/2,window.innerHeight-height-8))+'px';
@@ -764,7 +786,7 @@ async function start() {
   $('#icons-next').onclick=()=>{iconPage++;renderIconResults();};
   $('#new-page').onclick=$('#new-page-menu').onclick=()=>newPage();$('#delete-page').onclick=deletePage;$('#delete-profile').onclick=deleteProfile;$('#page-options').onclick=pageSettings;$('#profile-options').onclick=profileSettings;
   $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=appSettings;
-  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='move')moveToSlot();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
+  $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='move')moveToSlot();if(action==='page')moveToPageDialog();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
   $('#profile-templates').onclick=openTemplates;
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true,maxLength:100}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});
   $('#export').onclick=()=>exportConfig().catch(showError);$('#import').onclick=()=>$('#import-file').click();$('#import-file').onchange=async()=>{try{await importConfig($('#import-file').files[0]);}catch(error){showError(error);}$('#import-file').value='';};

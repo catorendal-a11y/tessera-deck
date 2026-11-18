@@ -316,6 +316,8 @@ function valueProblem(a) {
     if(!(host.platform==='linux'?/^\//:/^([A-Za-z]:[\\/]|\\\\|%[^%\s]+%)/).test(path))return 'use the full path of the script file';
     if(/\.(bat|cmd)$/i.test(path)&&/%/.test(path.replace(/^%[^%\s]+%/,'')))return 'leave the % sign out of the path of a .bat or .cmd file';
   }
+  if(['http','shell','script'].includes(a.type)&&a.timeout!==undefined&&!(typeof a.timeout==='number'&&a.timeout>0&&a.timeout<=300))return 'use a timeout from 1 to 300 seconds';
+  if(a.type==='http'&&a.headers!==undefined&&(!a.headers||typeof a.headers!=='object'||Array.isArray(a.headers)))return 'write each header as Name: value';
   if(a.type==='http'&&!String(a.url).startsWith('$(')&&!/^https?:\/\/[^/\s]/i.test(a.url))return 'start the address with http:// or https://';
   if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
@@ -328,6 +330,17 @@ function valueProblem(a) {
   }
   return '';
 }
+/* The Headers field: one Name: value per line. A line without a colon keeps the raw text, so the step stays a draft with a reason. */
+function parseHeaders(value) {
+  const lines=String(value).split('\n').map(line=>line.trim()).filter(Boolean);if(!lines.length)return null;
+  const headers={};for(const line of lines){const at=line.indexOf(':');if(at<1||!line.slice(0,at).trim())return String(value);headers[line.slice(0,at).trim()]=line.slice(at+1).trim();}
+  return headers;
+}
+const headersText=headers=>typeof headers==='string'?headers:headers&&typeof headers==='object'?Object.entries(headers).map(([name,value])=>`${name}: ${value}`).join('\n'):'';
+function setHeaders(a,value) {const headers=parseHeaders(value);if(headers)a.headers=headers;else delete a.headers;}
+function setTimeoutValue(a,value) {if(String(value).trim()==='')delete a.timeout;else a.timeout=Math.max(1,Math.min(300,Math.round(Number(value))||1));}
+/* Switch profile: the page belongs to the profile, so a new profile drops a page it does not have. */
+function switchProfileStep(a,name) {a.profile=name;if(a.page!==undefined&&!config.profiles[name]?.pages?.[a.page])delete a.page;}
 function keyProblem(b) {
   const name=nameProblem(b);if(name)return name;
   for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {const step=stepProblem(a);if(step)return step;}
@@ -633,7 +646,7 @@ function moveToPage(id,name) {
   toast(`Moved key ${id} to page “${name}”, slot ${slot}.`,true);
 }
 function actionTemplate(key) {
-  if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',...(pack.confirm?{confirm:true}:{}),actions:clone(pack.actions)};}
+  if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.label||pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',...(pack.confirm?{confirm:true}:{}),...(pack.states?{states:clone(pack.states)}:{}),...(pack.bind?{bind:pack.bind}:{}),actions:clone(pack.actions||[])};}
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
@@ -658,10 +671,10 @@ function addAction(key,id=null) {
   const made=!visibleButtons().some(b=>b.id===id);
   inspectorTab=made?'look':'actions';
   const other=id!==selected;
-  mutate(()=>{selected=id;syncEditList();if(made)editList='actions';if(made||other)editState=0;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];
+  mutate(()=>{selected=id;syncEditList();if(made)editList='actions';if(made||other)editState=0;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',...(item.states?{states:clone(item.states)}:{}),...(item.bind?{bind:item.bind}:{}),actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];
     /* A pack that asks for a hold (Shut down, Restart, ...) keeps it on a new or empty key; the host refuses confirm with hold or double steps. */
     if(item.confirm&&editList==='actions'&&!b.actions.length&&!b.hold_actions?.length&&!b.double_actions?.length)b.confirm=true;
-    activeActions().push(...clone(item.actions));});
+    if(!(made&&item.states?.some(state=>state.actions?.length)))activeActions().push(...clone(item.actions));});
   if(made){const title=$('#inspector .prop-row-title input');title?.focus();title?.select();}  // name the new key first
   if(key==='folder')return newPage(true,activeActions().length-1,appearance().label);  // a folder needs its page: make it now
   toast(made?`Added to key ${id}. Drop on a key to add a step.`:'Action added. Steps run from top to bottom.');

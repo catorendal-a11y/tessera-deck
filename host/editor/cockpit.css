@@ -446,3 +446,6 @@ html body #deck-grid .deck-key.key-outlined{border:3px solid var(--key-border) !
 .status-color{display:flex;align-items:center;gap:8px;margin:0 0 6px}.status-color span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status-color input[type=color]{width:44px;height:30px;padding:0;border:0;background:transparent}
 /* Rows of 34-36 px leave no room for the 10 px padding above and below the text, which clipped it: pad only the sides. */
 .rail-short select,.rail-short input:not([type=color]){padding-top:0;padding-bottom:0}
+
+html body .context-menu [role=menuitem][hidden]{display:none}
+.auto-days{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;flex:1 1 100%}.auto-days label{display:flex;align-items:center;gap:4px}.auto-when .auto-days input{flex:none;height:auto}
