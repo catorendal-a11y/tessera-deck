@@ -48,6 +48,18 @@ def open_connection():
         raise BackendUnavailable(f'The session bus is not reachable: {exc}') from exc
 
 
+def checked(reply):
+    """The reply, or DBusErrorResponse when it is an error message: jeepney's blocking connection hands those back as
+    ordinary replies, and a failed call would go unnoticed."""
+    header = getattr(reply, 'header', None)
+    if header is not None:
+        from jeepney import MessageType
+        from jeepney.wrappers import DBusErrorResponse
+        if header.message_type == MessageType.error:
+            raise DBusErrorResponse(reply)
+    return reply
+
+
 class RemoteDesktop:
     """One RemoteDesktop session with a keyboard and a pointer, started when the first event is sent."""
 
@@ -82,7 +94,7 @@ class RemoteDesktop:
         rule = MatchRule(type='signal', interface=REQUEST, member='Response', path=request_path)
         connection.send_and_get_reply(message_bus.AddMatch(rule))
         with connection.filter(rule) as responses:
-            connection.send_and_get_reply(self._address(member, signature, (*body_before, options)))
+            checked(connection.send_and_get_reply(self._address(member, signature, (*body_before, options))))
             try:
                 reply = connection.recv_until_filtered(responses, timeout=wait)
             except TimeoutError as exc:
@@ -156,8 +168,8 @@ class RemoteDesktop:
                 try:
                     from jeepney import DBusAddress, new_method_call
                     address = DBusAddress(PATH, bus_name=BUS, interface=INTERFACE)
-                    self._connection.send_and_get_reply(
-                        new_method_call(address, member, f'o{signature}', (self._session, *arguments)), timeout=RESPONSE_WAIT)
+                    checked(self._connection.send_and_get_reply(
+                        new_method_call(address, member, f'o{signature}', (self._session, *arguments)), timeout=RESPONSE_WAIT))
                     return
                 except BackendUnavailable:
                     raise

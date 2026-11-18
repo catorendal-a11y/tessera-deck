@@ -1,0 +1,7 @@
+{
+  "uuid": "tessera-windows@tessera",
+  "name": "Tessera windows",
+  "description": "Lets the Tessera host find, focus and arrange windows. Needed on GNOME under Wayland, which shows programs no other windows.",
+  "shell-version": ["51"],
+  "version-name": "1"
+}

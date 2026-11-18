@@ -1,18 +1,34 @@
 #!/usr/bin/env bash
-# Tessera launcher for Linux (X11, or Wayland on KDE Plasma). With no arguments it starts the tray icon, which starts the USB host; the editor
+# Tessera launcher for Linux (X11, or Wayland on KDE Plasma or GNOME). With no arguments it starts the tray icon, which starts the USB host; the editor
 # opens from the tray icon (a click) or with --editor. Starting it again changes nothing.
 #   --app          the tray icon and the editor (what the *Tessera Editor* menu entry runs; the editor comes to the front)
 #   --editor [options]   only the editor
 #   --setup        first-run setup (dependencies and the application menu entries)
 #   --uninstall    remove the autostart entry and the menu entries (add --purge to delete your data too)
 #   --diagnostics  write a support bundle without button contents
+#   --gnome-extension [remove]   install (or remove) the GNOME Shell extension that lets Tessera control windows on Wayland
 #   --terminal     the terminal editor        --tray   only the tray icon
 #   --check / --no-browser   run in this terminal
 # Needs Python 3.12 or newer with venv, and for keys, text and the clipboard xdotool and xclip (X11), or ydotool,
-# wl-clipboard and on KDE Plasma kdotool (Wayland).
+# wl-clipboard and on KDE Plasma kdotool (Wayland; without ydotool keys and typing use the desktop's portal).
 set -u
 export PYTHONUTF8=1
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
+
+if [ "${1:-}" = "--gnome-extension" ]; then  # needs no Python environment
+  target="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/tessera-windows@tessera"
+  if [ "${2:-}" = "remove" ]; then
+    rm -rf "$target" && echo "Removed $target. Sign in again to unload it."
+    exit 0
+  fi
+  mkdir -p "$(dirname "$target")" && rm -rf "$target" && cp -r host/linux/gnome-extension/tessera-windows@tessera "$target" || exit 1
+  echo "Installed $target"
+  echo "GNOME loads new extensions at sign-in. Sign out and in again, then run:"
+  echo "  gnome-extensions enable tessera-windows@tessera"
+  echo "While it is on, any program of your session can read window titles and focus, move or close windows. Turn it off with"
+  echo "  gnome-extensions disable tessera-windows@tessera"
+  exit 0
+fi
 PY="host/.venv/bin/python"
 
 fail() {
@@ -58,7 +74,9 @@ check_tools() {
     case ":${XDG_CURRENT_DESKTOP:-}:" in
       *:KDE:*) command -v kdotool >/dev/null 2>&1 ||
                  echo "Note: kdotool not found. Smart profiles and window actions need it on Plasma (AUR: kdotool-bin)." >&2 ;;
-      *) echo "Note: window actions and smart profiles on Wayland need KDE Plasma; keys and typing work." >&2 ;;
+      *:GNOME:*) [ -d "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/tessera-windows@tessera" ] ||
+                 echo "Note: window actions and smart profiles on GNOME need the Tessera extension for GNOME Shell: ./Tessera.sh --gnome-extension" >&2 ;;
+      *) echo "Note: window actions and smart profiles on Wayland need KDE Plasma or GNOME; keys and typing work." >&2 ;;
     esac
     return
   fi
@@ -84,7 +102,9 @@ fi
 
 if [ "${1:-}" = "--uninstall" ]; then
   "$PY" host/setup_tool.py uninstall ${2:+"$2"}
-  exit $?
+  status=$?
+  rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/tessera-windows@tessera"  # the GNOME extension, if it was installed
+  exit $status
 fi
 
 [ -n "$FIRST_RUN" ] && echo "2/3 Installing packages ..."

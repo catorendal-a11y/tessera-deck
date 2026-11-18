@@ -1,5 +1,5 @@
-"""Wayland backend: ydotool (else the RemoteDesktop portal) for input, kdotool (KDE Plasma) for windows, wl-copy or
-Klipper for the clipboard.
+"""Wayland backend: ydotool (else the RemoteDesktop portal) for input, kdotool (KDE Plasma) or the Tessera extension
+(GNOME Shell) for windows, wl-copy or Klipper for the clipboard.
 
 Wayland has no portable way for a program to send keys, find the window in front or move windows, so each part uses
 the tool that works there:
@@ -12,7 +12,9 @@ the tool that works there:
   desktop asks once, and keys are sent as keysyms, so the layout does not matter and any character can be typed. The
   portal has no absolute pointer position.
 - **Windows** (the window in front for smart profiles, focus, minimize, ...) go through `kdotool`, which asks KWin.
-  Other compositors have no such tool yet: there the window functions say so, and keys and typing still work.
+  A compositor without such a tool gets a separate part (`windows`), filled by the compositor's own extension: GNOME
+  Shell has one (gnome_windows.py, the extension is in host/linux/gnome-extension). Other compositors have neither yet:
+  there the window functions say so, and keys and typing still work.
 - **The clipboard** uses `wl-copy` (the "wl-clipboard" package), else Plasma's Klipper.
 """
 from __future__ import annotations
@@ -28,8 +30,9 @@ from platform_linux.keysyms import char_keysym, keysym_number
 from platform_linux.portal import BUTTONS, RemoteDesktop
 from platform_linux.x11 import run
 
-WINDOWS_MESSAGE = ('Window actions on Wayland need KDE Plasma and kdotool. Keys and typing work without them; '
-                   'log in with an X11 session for window actions on other desktops.')
+WINDOWS_MESSAGE = ('Window actions on Wayland need KDE Plasma and kdotool, or GNOME and the Tessera extension for GNOME '
+                   'Shell. Keys and typing work without them; log in with an X11 session for window actions on other '
+                   'desktops.')
 TYPE_CHUNK = 32  # characters per ydotool call: the stop request is checked between
 KEY_DELAY_MS = '6'  # between key events; KWin drops keys sent with no gap at all
 KEYMAP_SECONDS = 5.0  # the session's layouts are read again after this long; which one is in use is asked every time
@@ -82,17 +85,30 @@ def is_plasma(environ=None) -> bool:
     return 'KDE' in environ.get('XDG_CURRENT_DESKTOP', '').upper().split(':') and shutil.which('kdotool') is not None
 
 
+def desktop_windows(environ=None):
+    """The window part of a desktop kdotool does not cover: GNOME has the Tessera extension; no other desktop has one
+    yet (None)."""
+    environ = os.environ if environ is None else environ
+    if 'GNOME' in environ.get('XDG_CURRENT_DESKTOP', '').upper().split(':'):
+        from platform_linux.gnome_windows import GnomeWindows
+        return GnomeWindows()
+    return None
+
+
 def session_backend() -> WaylandBackend:
-    """The backend of this session: ydotool for input where it is installed, else the RemoteDesktop portal."""
-    return WaylandBackend(remote=None if shutil.which('ydotool') else RemoteDesktop())
+    """The backend of this session: ydotool for input where it is installed, else the RemoteDesktop portal; the
+    window part of the desktop."""
+    return WaylandBackend(remote=None if shutil.which('ydotool') else RemoteDesktop(), windows=desktop_windows())
 
 
 class WaylandBackend(DesktopBackend):
     name = 'wayland'
 
-    def __init__(self, runner=run, keymap=None, plasma=None, caps_lock=caps_lock_on, remote=None, sleep=time.sleep):
+    def __init__(self, runner=run, keymap=None, plasma=None, caps_lock=caps_lock_on, remote=None, sleep=time.sleep,
+                 windows=None):
         self.run = runner
         self.remote = remote  # a RemoteDesktop portal session: input goes through it instead of ydotool
+        self.windows = windows  # active_window, find_window and window_op of a desktop without kdotool (GNOME)
         self.sleep = sleep
         self._fixed_keymap = keymap  # a test's layout; None reads the session's
         self._keymaps, self._keymaps_at = {}, 0.0
@@ -276,7 +292,7 @@ class WaylandBackend(DesktopBackend):
 
     def active_window(self):
         if not self.plasma:
-            return None
+            return self.windows.active_window() if self.windows else None
         try:
             lines = self.kdotool('getactivewindow', 'getwindowid', 'getwindowpid', 'getwindowname').splitlines()
         except BackendUnavailable:
@@ -290,7 +306,7 @@ class WaylandBackend(DesktopBackend):
 
     def find_window(self, pids):
         if not self.plasma:
-            return None
+            return self.windows.find_window(pids) if self.windows else None
         for pid in sorted(pids):
             try:
                 found = self.kdotool('search', '--all', '--pid', str(pid), '--name', '.').split()
@@ -304,6 +320,8 @@ class WaylandBackend(DesktopBackend):
 
     def window_op(self, window, op):
         if not self.plasma:
+            if self.windows:
+                return self.windows.window_op(window, op)
             raise BackendUnavailable(WINDOWS_MESSAGE)
         target = [window] if window else []
         front = [] if window else ['getactivewindow']

@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The host runs on Linux in an **X11 session**, and in a **Wayland session on KDE Plasma** (see [Wayland](#wayland)).
+The host runs on Linux in an **X11 session**, and in a **Wayland session on KDE Plasma or GNOME** (see [Wayland](#wayland)).
 Everything the Windows host does has a Linux counterpart, except the Windows-only pieces named under
 [Not on Linux](#not-on-linux). It is tested with the CrowPanel board on Arch Linux with Cinnamon (X11), and with the
 GUITION board on CachyOS with Plasma 6 (Wayland); other desktops should work wherever the tools below do.
@@ -88,6 +88,7 @@ Wayland has no common way for a program to send keys or look at windows, so the 
 |---|---|---|
 | `ydotool` and its daemon | `ydotool`, then `systemctl --user enable --now ydotool` | keys, typing, mouse (without it: the RemoteDesktop portal, see below) |
 | `kdotool` | `kdotool-bin` (AUR) | the window in front (smart profiles), focus and window actions; KDE Plasma only |
+| the Tessera extension for GNOME Shell | `./Tessera.sh --gnome-extension` (see [Windows on GNOME](#windows-on-gnome)) | the same on GNOME |
 | `wl-copy` | `wl-clipboard` | the clipboard action (without it Plasma's Klipper is used) |
 
 Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group, or the package's udev rule).
@@ -116,7 +117,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   a restart. Revoke it in the desktop's settings (Privacy or Applications), or delete that file. The portal takes
   characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
   possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
-- **Next monitor** uses KWin's own *Window to Next Screen* action.
+- **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
 - **The tray icon** uses StatusNotifier (pystray's appindicator backend) when the desktop has a StatusNotifier host,
   which Plasma has. The icon then has the desktop's own menu, and **a left click opens that menu too**: choose
@@ -127,11 +128,31 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   GNOME does not show such an icon. A desktop without a tray (GNOME) needs the *AppIndicator and KStatusNotifierItem
   Support* extension; without it Tessera says so in a notification and keeps running without an icon. Setting
   `PYSTRAY_BACKEND` yourself (`xorg` for the X11 icon) overrides the choice.
-- **Other compositors** (GNOME, sway, Hyprland): keys and typing work with `ydotool`, but the window functions and
+- **Other compositors** (sway, Hyprland): keys and typing work with `ydotool`, but the window functions and
   smart profiles are refused with a message until someone adds their window query. That goes in `wayland.py` next to the
-  `kdotool` calls.
+  `kdotool` calls, or in a part of its own like GNOME's.
 
 Audio, media, secrets, sensors and the launcher do not depend on the display server and work the same.
+
+### Windows on GNOME
+
+GNOME shows a program no other windows, so Tessera comes with a small extension for GNOME Shell
+(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51):
+
+```
+./Tessera.sh --gnome-extension          # copies it to ~/.local/share/gnome-shell/extensions
+# sign out and in again: GNOME loads new extensions at sign-in
+gnome-extensions enable tessera-windows@tessera
+```
+
+`./Tessera.sh --gnome-extension remove` (and `--uninstall`) takes it out again. While it is on, **any program of your session
+can read window titles and focus, move or close windows** (`org.tessera.Windows` on the session bus); `gnome-extensions disable
+tessera-windows@tessera` turns it off. Without the extension, the profile does not follow the program in front, and a key that
+needs a window says what to install. A program from a Flatpak or Snap runs under another process id, so a key that names it
+(by `.exe` or process name) may not find it.
+
+The window part of a desktop is separate from the rest of the backend: `gnome_windows.py` talks to the extension, and
+sway or Hyprland would add a part of their own next to it (`desktop_windows` in `wayland.py`) and change nothing else.
 
 ## Remote devices (KDE Connect)
 

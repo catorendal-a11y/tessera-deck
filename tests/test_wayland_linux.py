@@ -17,7 +17,7 @@ import unittest.mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
-from platform_linux import BackendUnavailable, keysyms, portal, wayland, xkb
+from platform_linux import BackendUnavailable, gnome_windows, keysyms, portal, wayland, xkb
 import input_common
 
 
@@ -308,6 +308,27 @@ class WindowTests(unittest.TestCase):
         for op in input_common.WINDOW_OPERATIONS:
             self.assertTrue(wayland.WaylandBackend(FakeRun(), plasma=True).window_op('{w}', op), op)
 
+    def test_a_desktop_without_kdotool_uses_its_windows_part(self):
+        class Windows:
+            def active_window(self):
+                return {'id': '7', 'pid': 1, 'title': 'x'}
+
+            def find_window(self, pids):
+                return '7'
+
+            def window_op(self, window, op):
+                return True
+        fake = FakeRun()
+        backend = wayland.WaylandBackend(fake, plasma=False, windows=Windows())
+        self.assertEqual(backend.active_window()['id'], '7')
+        self.assertEqual(backend.find_window({1}), '7')
+        self.assertTrue(backend.window_op('7', 'close'))
+        self.assertEqual(fake.calls, [])  # kdotool is not asked
+
+    def test_plasma_with_kdotool_does_not_use_a_windows_part(self):
+        fake = FakeRun({'--pid': '{w1}\n'})
+        self.assertEqual(wayland.WaylandBackend(fake, plasma=True, windows=object()).find_window({42}), '{w1}')
+
 
 CTRL, SHIFT, RETURN, TAB = 0xffe3, 0xffe1, 0xff0d, 0xff09
 
@@ -533,6 +554,27 @@ class PortalTests(unittest.TestCase):
         self.assertEqual([m for m, _ in connection.calls].count('CreateSession'), 2)
         self.assertEqual(connection.calls[-1][1][2], 0x62)
 
+    def test_an_error_reply_from_the_desktop_is_an_error_and_the_session_is_started_again(self):
+        from jeepney import MessageType
+        from jeepney.low_level import Header, HeaderFields, Message as WireMessage
+        connection = FakeConnection()
+        rd = remote(connection, self.folder)
+        rd.keysym(0x61, True)
+        original, failures = connection.send_and_get_reply, []
+
+        def failing(message, timeout=None):
+            member = next((v for k, v in message.header.fields.items() if getattr(k, 'name', '') == 'member'), '')
+            if member == 'NotifyKeyboardKeysym' and not failures:
+                failures.append(1)
+                header = Header(0, MessageType.error, 0, {HeaderFields.error_name: 'org.freedesktop.DBus.Error.Failed',
+                                                          HeaderFields.reply_serial: 1}, 0)
+                return WireMessage(header, ())
+            return original(message, timeout)
+        connection.send_and_get_reply = failing
+        rd.keysym(0x62, True)  # the error is raised, the session started once more, the key sent
+        self.assertEqual([m for m, _ in connection.calls].count('CreateSession'), 2)
+        self.assertEqual(connection.calls[-1][1][2], 0x62)
+
     def test_the_wheel_and_the_pointer_use_the_right_calls(self):
         connection = FakeConnection()
         rd = remote(connection, self.folder)
@@ -540,6 +582,88 @@ class PortalTests(unittest.TestCase):
         rd.move(4, -5)
         self.assertEqual(connection.calls[-2], ('NotifyPointerAxisDiscrete', ('/session/1', {}, 0, -3)))
         self.assertEqual(connection.calls[-1], ('NotifyPointerMotion', ('/session/1', {}, 4.0, -5.0)))
+
+
+class AbsentService(Exception):
+    name = 'org.freedesktop.DBus.Error.ServiceUnknown'
+
+
+class GnomeWindowsTests(unittest.TestCase):
+    def windows(self, answers):
+        calls = []
+
+        def call(member, signature, body):
+            calls.append((member, signature, body))
+            answer = answers[member]
+            if isinstance(answer, Exception):
+                raise answer
+            return (answer,)
+        return gnome_windows.GnomeWindows(call=call), calls
+
+    def test_the_window_in_front_is_read_from_the_extension(self):
+        windows, _ = self.windows({'Active': json.dumps({'id': '12', 'pid': 345, 'title': 'Inbox', 'class': 'mail'})})
+        self.assertEqual(windows.active_window(), {'id': '12', 'pid': 345, 'title': 'Inbox'})
+        self.assertIsNone(self.windows({'Active': ''})[0].active_window())
+
+    def test_a_window_of_a_process_is_found_by_its_pids(self):
+        windows, calls = self.windows({'Find': '7'})
+        self.assertEqual(windows.find_window({30, 10}), '7')
+        self.assertEqual(calls, [('Find', 'ai', ([10, 30],))])
+        self.assertIsNone(self.windows({'Find': ''})[0].find_window({1}))
+
+    def test_an_operation_is_passed_on_with_the_window_or_an_empty_id_for_the_one_in_front(self):
+        windows, calls = self.windows({'Operate': True})
+        self.assertTrue(windows.window_op('7', 'maximize'))
+        self.assertTrue(windows.window_op(None, 'close'))
+        self.assertEqual(calls, [('Operate', 'ss', ('7', 'maximize')), ('Operate', 'ss', ('', 'close'))])
+        self.assertFalse(self.windows({'Operate': False})[0].window_op('9', 'focus'))
+
+    def test_without_the_extension_questions_get_nothing_and_a_key_says_what_to_install(self):
+        windows, _ = self.windows({'Active': BackendUnavailable('x'), 'Find': BackendUnavailable('x'),
+                                   'Operate': BackendUnavailable(gnome_windows.MISSING)})
+        with self.assertLogs('platform_linux.gnome_windows', 'WARNING') as logged:
+            self.assertIsNone(windows.active_window())
+            self.assertIsNone(windows.find_window({1}))  # said once, not at every question
+        self.assertEqual(len(logged.records), 1)
+        with self.assertRaisesRegex(BackendUnavailable, r'--gnome-extension.*gnome-extensions enable'):
+            windows.window_op(None, 'close')
+
+    def test_a_service_that_is_not_on_the_bus_is_the_missing_extension(self):
+        class Connection:
+            def send_and_get_reply(self, message, timeout=None):
+                raise AbsentService()
+        windows = gnome_windows.GnomeWindows(connect=lambda: Connection())
+        with self.assertRaisesRegex(BackendUnavailable, 'extension'):
+            windows.window_op('1', 'focus')
+
+    def test_gnome_gets_the_extension_part_and_another_desktop_none(self):
+        from unittest import mock
+        for desktop in ('GNOME', 'ubuntu:GNOME'):
+            with mock.patch.dict('os.environ', {'XDG_CURRENT_DESKTOP': desktop}):
+                self.assertIsInstance(wayland.desktop_windows(), gnome_windows.GnomeWindows, desktop)
+        for desktop in ('KDE', 'sway', ''):
+            self.assertIsNone(wayland.desktop_windows({'XDG_CURRENT_DESKTOP': desktop}), desktop)
+        with mock.patch.dict('os.environ', {'XDG_CURRENT_DESKTOP': 'GNOME'}):
+            self.assertIsInstance(wayland.session_backend().windows, gnome_windows.GnomeWindows)
+
+
+class ExtensionFilesTests(unittest.TestCase):
+    folder = Path(__file__).resolve().parents[1] / 'host/linux/gnome-extension/tessera-windows@tessera'
+
+    def test_the_metadata_names_the_folder_and_the_shell_versions_it_was_tried_on(self):
+        meta = json.loads((self.folder / 'metadata.json').read_text(encoding='utf-8'))
+        self.assertEqual(meta['uuid'], self.folder.name)
+        self.assertEqual(meta['shell-version'], ['51'])
+
+    def test_the_extension_and_the_host_agree_on_the_bus_name_the_path_and_the_methods(self):
+        code = (self.folder / 'extension.js').read_text(encoding='utf-8')
+        self.assertIn(f"const NAME = '{gnome_windows.NAME}';", code)
+        self.assertIn(f"const PATH = '{gnome_windows.PATH}';", code)
+        for method in ('Active', 'Find', 'Operate'):
+            self.assertIn(f'<method name="{method}">', code)
+        for op in ('focus', 'minimize', 'maximize', 'restore', 'close', 'topmost', 'next_monitor'):
+            self.assertIn(f"case '{op}':", code)  # every operation of input_common.WINDOW_OPERATIONS
+        self.assertEqual(set(input_common.WINDOW_OPERATIONS), {'focus', 'minimize', 'maximize', 'restore', 'close', 'topmost', 'next_monitor'})
 
 
 class TrayBackendTests(unittest.TestCase):
