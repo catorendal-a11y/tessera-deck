@@ -1,9 +1,11 @@
 """Processes and files on Windows: ending a command's whole tree, opening a script in its editor."""
 import os
 import subprocess
+import sys
 
 # Popen.terminate() ends only the plugin itself and leaves its child processes running: kill the whole tree instead.
-STOP_BY_KILLING_TREE = True
+# Only where taskkill exists: another system that loads this package (a development machine) keeps terminate-and-wait.
+STOP_BY_KILLING_TREE = sys.platform == 'win32'
 
 
 def spawn_options() -> dict:

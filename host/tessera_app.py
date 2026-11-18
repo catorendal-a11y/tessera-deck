@@ -15,7 +15,6 @@ import os
 from pathlib import Path
 import secrets
 import subprocess
-import signal
 import sys
 import threading
 import time
@@ -932,10 +931,6 @@ def main():
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
             lock.release()
             return
-    if hasattr(signal, 'SIGTERM'):  # "Quit" in the tray stops an editor that runs in a browser tab: shut down normally
-        def terminate(*_):
-            raise KeyboardInterrupt
-        signal.signal(signal.SIGTERM, terminate)
     server = make_server(Editor(args.profiles, controller), args.port)
     url = f'http://127.0.0.1:{server.server_port}/'
     if not args.profiles:
