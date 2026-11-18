@@ -1,7 +1,7 @@
 """Desk console for the GUITION JC1060P470C (the _Y variant in its factory housing), as a FreeCAD Part Design model.
 
-    "C:\\Program Files\\FreeCAD 1.1\\bin\\freecadcmd.exe" hardware\\make_enclosure.py
-    "C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe"    hardware\\save_view.py      (stores what is shown)
+    "C:\\Program Files\\FreeCAD 1.1\\bin\\freecadcmd.exe" hardware\\scripts\\make_enclosure.py
+    "C:\\Program Files\\FreeCAD 1.1\\bin\\freecad.exe"    hardware\\scripts\\save_view.py      (stores what is shown)
 
 Writes tessera-enclosure.FCStd with a normal model tree (constrained sketches, pads, pockets, fillets, a chamfer),
 a sheet of sizes and the panel as a reference body, and exports the STL and STEP files from the body.
@@ -69,7 +69,7 @@ if CROW:
     post_x, post_pitch = 85.5, 98.0                               # M3 holes on 171.00 x 98.00
     glass_w, glass_h, glass_to_board = 164.90, 100.00, 6.00       # glass centred on the board; its front to the board's
 NAME = 'tessera-enclosure' + ('-crowpanel' if CROW else '')
-OUT = Path(os.environ.get('TESSERA_OUT') or Path(__file__).resolve().parent)
+OUT = Path(os.environ.get('TESSERA_OUT') or Path(__file__).resolve().parents[1] / ('crowpanel' if CROW else 'console'))
 
 W, H, T, C = P['width'], P['height'], P['slab'], P['clearance']
 tilt, rear = math.radians(P['tilt']), math.radians(P['rear'])
@@ -263,7 +263,7 @@ def frame_edge(edge):
 chamfer = dress('Chamfer', 'FrameChamfer', recess, edges_of(recess, frame_edge), P['frame_chamfer'])
 
 glass_in = None
-if CROW:   # behind the window: room for the glass, then the board's outline open to the back, so it goes in from behind
+if CROW:   # behind the window: room for the glass, then the board's outline open to the back, so it goes in from below
     glass_depth, board_depth = C + P['lip'] - 0.2, C + P['lip'] + glass_to_board   # 0.2 over the glass; the board's face
     glass_sketch = sketch_on('GlassOutline', front_plane('GlassPlane', glass_depth))
     rectangle(glass_sketch, -glass_w / 2 - 0.3, glass_w / 2 + 0.3, panel_low + (H - glass_h) / 2 - 0.3, panel_low + (H + glass_h) / 2 + 0.3)

@@ -1,6 +1,6 @@
 """Desk dock for the GUITION JC1060P470C in its factory housing. Run inside Blender:
 
-    blender -b --factory-startup --python-exit-code 1 -P hardware/make_dock.py -- [--out folder] [--slab 10] [--tilt 30]
+    blender -b --factory-startup --python-exit-code 1 -P hardware/scripts/make_dock.py -- [--out folder] [--slab 10] [--tilt 30]
 
 The panel drops in from the top and leans back against two uprights; the dock is open behind it, so the raised
 box on the back, the ports, the flex cables and the USB cable stay free.
@@ -21,7 +21,7 @@ import bpy
 from mathutils import Matrix, Vector
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--out', default=str(Path(__file__).resolve().parent))
+parser.add_argument('--out', default=str(Path(__file__).resolve().parents[1] / 'dock'))
 parser.add_argument('--width', type=float, default=181.80, help='outline of the housed panel (seller data)')
 parser.add_argument('--height', type=float, default=113.72, help='outline of the housed panel (seller data)')
 parser.add_argument('--slab', type=float, default=8.0, help='thickness of the flat part (drawing: 8.00)')

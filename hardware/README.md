@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y` variant).
+Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y` variant), and a version of the console for the bare Elecrow CrowPanel Advance 7.0 ([below](#crowpanel-advance-70)).
 
 | | Console | Dock |
 |---|---|---|
@@ -17,26 +17,26 @@ The console is made for the GUITION JC1060P470C in its factory housing (the `_Y`
 
 ![The console with the panel in it, rendered in Blender](../docs/images/console-hero.jpg)
 
-`tessera-enclosure.png` shows the console with the panel in place in FreeCAD. The console has a chin with the Tessera tile mark, a short upright apron, a sunken field on each end, a chamfer round the base and four recesses underneath for 10 mm stick-on rubber feet.
+`console/tessera-enclosure.png` shows the console with the panel in place in FreeCAD. The console has a chin with the Tessera tile mark, a short upright apron, a sunken field on each end, a chamfer round the base and four recesses underneath for 10 mm stick-on rubber feet.
 
 ## Files
 
 | File | What it is |
 |---|---|
-| `tessera-enclosure.stl` | Console, for the slicer |
-| `tessera-enclosure.step` | Console, for any CAD program |
-| `tessera-enclosure.FCStd` | Console, FreeCAD model: a Part Design body with sketches, pads, pockets and fillets, a sheet of sizes, and the panel as a reference body |
-| `make_enclosure.py` | Builds the console model and exports the other two; every size is a parameter at the top |
-| `tessera-enclosure-crowpanel.*` | Console for the CrowPanel Advance 7.0, in the same three formats (see below) |
-| `tessera-dock.stl` | Dock, for the slicer |
-| `tessera-dock.blend` | Dock, Blender model |
-| `make_dock.py` | Builds the dock; every size is an option |
-| `save_view.py` | Stores a ready view in the FreeCAD file, so it opens looking at the console |
-| `tessera-console.blend` | Console with the panel, feet and cable in a studio, Blender model with five cameras |
-| `tessera-desk.blend` | The same console on an oak desk in front of a monitor, Blender model with three cameras |
-| `make_render.py` | Builds `tessera-console.blend` or `tessera-desk.blend` and renders the pictures into `renders/` |
-| `render_desk.py` | The desk scene for `make_render.py`: the desk, monitor, keyboard, mouse and the everyday things around them |
-| `export_render_mesh.py` | Writes the console as a fine mesh with the exact surface normals for `make_render.py` |
+| `console/tessera-enclosure.stl` | Console, for the slicer |
+| `console/tessera-enclosure.step` | Console, for any CAD program |
+| `console/tessera-enclosure.FCStd` | Console, FreeCAD model: a Part Design body with sketches, pads, pockets and fillets, a sheet of sizes, and the panel as a reference body |
+| `crowpanel/tessera-enclosure-crowpanel.*` | Console for the CrowPanel Advance 7.0, in the same three formats (see below) |
+| `dock/tessera-dock.stl` | Dock, for the slicer |
+| `dock/tessera-dock.blend` | Dock, Blender model |
+| `render/tessera-console.blend` | Console with the panel, feet and cable in a studio, Blender model with five cameras |
+| `render/tessera-desk.blend` | The same console on an oak desk in front of a monitor, Blender model with three cameras |
+| `scripts/make_enclosure.py` | Builds the console model and exports the STL and STEP; every size is a parameter at the top |
+| `scripts/make_dock.py` | Builds the dock; every size is an option |
+| `scripts/save_view.py` | Stores a ready view in the FreeCAD file, so it opens looking at the console |
+| `scripts/make_render.py` | Builds `tessera-console.blend` or `tessera-desk.blend` and renders the pictures into `render/renders/` |
+| `scripts/render_desk.py` | The desk scene for `make_render.py`: the desk, monitor, keyboard, mouse and the everyday things around them |
+| `scripts/export_render_mesh.py` | Writes the console as a fine mesh with the exact surface normals for `make_render.py` |
 
 ## Print settings
 
@@ -61,13 +61,13 @@ The console measures 191.0 × 124.4 × 103.8 mm and holds 152 cm³ of plastic. R
 
 Screws: 4 pieces, 6 mm long, with a washer. The thread is not stated in the manufacturer's files. The hole in the insert is drawn as 2.00 mm, which points to M2. Try an M2 screw first and do not force an M2.5.
 
-The pocket is 183.0 × 114.9 mm and 8.6 mm deep (0.6 mm clearance all round). The lip covers 3.5 mm at the bottom of the glass, and the picture starts 13.5 mm in.
+The pocket is 183.0 × 114.9 mm and 11.2 mm deep (0.6 mm clearance all round), so the glass sits 2.6 mm below the front. The lip covers 3.5 mm at the bottom of the glass, and the picture starts 13.5 mm in.
 
 The dock needs no assembly: drop the panel in from the top.
 
 ## CrowPanel Advance 7.0
 
-`tessera-enclosure-crowpanel.stl` (and `.step`, `.FCStd`) is the same console for the Elecrow CrowPanel Advance 7.0 (ESP32-P4) without Elecrow's casing: the bare board with the glass on it. It is 189 × 116 × 98 mm. The sizes come from Elecrow's STEP model of the board.
+`crowpanel/tessera-enclosure-crowpanel.stl` (and `.step`, `.FCStd`) is the same console for the Elecrow CrowPanel Advance 7.0 (ESP32-P4) without Elecrow's casing: the bare board with the glass on it. It is 189 × 116 × 98 mm. The sizes come from Elecrow's STEP model of the board.
 
 The front laps 1 mm over the glass all round and leaves a 162.9 × 98.0 mm window. The board goes in from below, through the open base, and slides straight up into place; the inside is cut away along its path, so the sockets on its back clear the shell. Print the console lying on its front, as the STL is laid out. It needs no supports.
 
@@ -75,10 +75,12 @@ The front laps 1 mm over the glass all round and leaves a 162.9 × 98.0 mm windo
 2. Put an M3 × 8 screw through each corner hole of the board into the 2.6 mm hole under it. The top two are reached through the round holes in the back, the bottom two from below.
 3. Plug the cable into the upper USB-C socket (UART0) through the window in the left end. The small window above it gives a fingertip to the power switch.
 
-The opening for the board is 181.1 × 105.2 mm, 1.5 mm wider than the board at each end, so the USB-C sockets clear the end walls. The optional camera does not fit: it stands 11 mm over the top edge of the board.
+The opening for the board is 181.1 × 105.2 mm, 1.5 mm wider than the board at each end, so the USB-C sockets clear the end walls. The optional camera does not fit: it stands 11 mm over the top edge of the board. The console holds 133 cm³ of plastic.
+
+The FreeCAD model has the same features as the GUITION console without Lip, ScrewTabs and TopBrace, and adds GlassRecess (the room for the glass) and SideWindows (the windows in the left end). The cut along the board's way in is made after the body, so the printed shape is the separate object **Console (printed)**, and the STL and STEP come from it.
 
 ```powershell
-$env:TESSERA_BOARD = 'crowpanel'; & "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\make_enclosure.py; Remove-Item Env:TESSERA_BOARD
+$env:TESSERA_BOARD = 'crowpanel'; & "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\scripts\make_enclosure.py; Remove-Item Env:TESSERA_BOARD
 ```
 
 ## Sizes it is built from
@@ -113,7 +115,7 @@ Check on your own panel:
 
 ## Change the console
 
-Open `tessera-enclosure.FCStd` in FreeCAD. The body **Enclosure** is built in this order:
+Open `console/tessera-enclosure.FCStd` in FreeCAD. The body **Enclosure** is built in this order:
 
 | Feature | Sketch | What it does |
 |---|---|---|
@@ -138,12 +140,12 @@ Open `tessera-enclosure.FCStd` in FreeCAD. The body **Enclosure** is built in th
 | CableOpening | CableArch | An arch, 30 mm wide, for the USB cable in the foot of the back |
 | AirTiles | VentTiles | Three rows of eleven square openings in the back |
 
-Every sketch is fully constrained with dimensions from the origin: double-click a sketch and change a number. The sheet **Sizes** drives the lengths of the pads and pockets (outer and inner width, pocket depth, lip, cable notch).
+Every sketch is fully constrained with dimensions from the origin: double-click a sketch and change a number. The sheet **Sizes** drives the lengths of the pads and pockets: outer and inner width, pocket depth, lip, tab thickness, and the depths of the tile mark, the end fields and the foot recesses.
 
 Changing the tilt or the panel size moves several sketches at once. For that, edit the `P = dict(...)` block at the top of `make_enclosure.py` and build the model again:
 
 ```powershell
-& "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\make_enclosure.py
+& "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\scripts\make_enclosure.py
 ```
 
 The script stops with a message if a feature fails, a sketch is not fully constrained, the body is not one valid solid, or the panel or a USB plug would touch the shell.
@@ -151,15 +153,15 @@ The script stops with a message if a feature fails, a sketch is not fully constr
 To open the result looking at the console, run `save_view.py` after it:
 
 ```powershell
-& "C:\Program Files\FreeCAD 1.1\bin\freecad.exe" hardware\save_view.py
+& "C:\Program Files\FreeCAD 1.1\bin\freecad.exe" hardware\scripts\save_view.py
 ```
 
 ## Change the dock
 
-`make_dock.py` writes `tessera-dock.stl` and `tessera-dock.blend`. Pass any size as an option, for example:
+`make_dock.py` writes `dock/tessera-dock.stl` and `dock/tessera-dock.blend`. Pass any size as an option, for example:
 
 ```powershell
-blender -b --factory-startup --python-exit-code 1 -P hardware\make_dock.py -- --tilt 30 --slab 10
+blender -b --factory-startup --python-exit-code 1 -P hardware\scripts\make_dock.py -- --tilt 30 --slab 10
 ```
 
 Run it with `--help` after `--` to list the options.
@@ -168,14 +170,14 @@ Run it with `--help` after `--` to list the options.
 
 `make_render.py` builds the console in Blender as a printed part: matte PLA with 0.2 mm layer lines and softly rounded edges. It adds the panel in its factory housing with black cover glass, and shows a real panel screen in the picture area. It also adds four rubber feet and a USB-C cable that runs from the panel's socket out through the cable arch. The scene is a studio with five cameras: `hero`, `user` (the view from your chair), `side`, `back` and `detail` (the tile mark).
 
-The console mesh comes from the CAD model, so make it first. It is not in the repository because the script writes it in a few seconds:
+The console mesh comes from the GUITION console's CAD model in `console/`, so make it first. It is not in the repository because the script writes it in a few seconds:
 
 ```powershell
-& "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\export_render_mesh.py
-blender -b --factory-startup --python-exit-code 1 -P hardware\make_render.py -- --res 3840x2160 --samples 512
+& "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\scripts\export_render_mesh.py
+blender -b --factory-startup --python-exit-code 1 -P hardware\scripts\make_render.py -- --res 3840x2160 --samples 512
 ```
 
-This writes `tessera-console.blend` and `renders/hero.png` to `renders/detail.png`. On a Radeon RX 6950 XT each 4K picture takes about 80 seconds. Add `--scene desk` for the console on a desk (the picture at the top of the main README is `desk_close`). Options after `--`:
+This writes `render/tessera-console.blend` and `render/renders/hero.png` to `render/renders/detail.png`. On a Radeon RX 6950 XT each 4K picture takes about 80 seconds. Add `--scene desk` for the console on a desk (the picture at the top of the main README is `desk_close`). Options after `--`:
 
 | Option | Default | What it does |
 |---|---|---|

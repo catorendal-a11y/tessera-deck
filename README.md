@@ -137,7 +137,7 @@ The console is made for the GUITION JC1060P470C in its factory housing (the `_Y`
 
 The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. Both are drawn to print without supports. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened.
 
-<sub>The first picture is a photo of the printed console. The others are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
+<sub>The first picture is a photo of the printed console. The others are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/scripts/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/render/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
 
 ## How it works
 

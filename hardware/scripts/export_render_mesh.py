@@ -1,8 +1,8 @@
 """Writes the console as a fine OBJ with the exact surface normals, for make_render.py. Run with FreeCAD:
 
-    "C:\\Program Files\\FreeCAD 1.1\\bin\\freecadcmd.exe" hardware\\export_render_mesh.py
+    "C:\\Program Files\\FreeCAD 1.1\\bin\\freecadcmd.exe" hardware\\scripts\\export_render_mesh.py
 
-Reads tessera-enclosure.FCStd (make_enclosure.py writes it) and writes, next to it:
+Reads console/tessera-enclosure.FCStd (make_enclosure.py writes it) and writes, to render/:
     tessera-enclosure-render.obj   the body, millimetres; shared vertices, a normal per corner from the CAD surface
     tessera-enclosure-render.json  where the glass is, the foot centres and the cable arch, millimetres
 The normals come from the surfaces themselves, so rounds shade smooth and flat faces stay flat.
@@ -13,10 +13,12 @@ from pathlib import Path
 
 import FreeCAD as App
 
-HERE = Path(os.environ.get('TESSERA_OUT') or Path(__file__).resolve().parent)
+HARDWARE = Path(__file__).resolve().parents[1]
+SOURCE = Path(os.environ.get('TESSERA_OUT') or HARDWARE / 'console')
+HERE = Path(os.environ.get('TESSERA_OUT') or HARDWARE / 'render')
 DEFLECTION = 0.01          # mm the facets may stray from the surface
 
-doc = App.openDocument(str(HERE / 'tessera-enclosure.FCStd'))
+doc = App.openDocument(str(SOURCE / 'tessera-enclosure.FCStd'))
 body = doc.getObject('Enclosure').Shape
 body.tessellate(DEFLECTION)                      # meshes the whole solid once, so neighbouring faces share their edges
 

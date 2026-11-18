@@ -1,6 +1,6 @@
 """HD product renders of the Tessera console with the panel in it. Run with Blender 5.2 or newer:
 
-    blender -b --factory-startup --python-exit-code 1 -P hardware/make_render.py -- [--res 3840x2160] [--samples 512]
+    blender -b --factory-startup --python-exit-code 1 -P hardware/scripts/make_render.py -- [--res 3840x2160] [--samples 512]
             [--scene studio|desk] [--shots hero,user,side,back,detail] [--screen docs/images/panel-main.png]
             [--monitor docs/images/editor-widgets.png] [--color 2d3034] [--no-render]
 
@@ -12,7 +12,7 @@ Needs tessera-enclosure-render.obj and .json, which export_render_mesh.py writes
 Adds the panel in its factory housing from the manufacturer's sizes (outline 181.80 x 113.72, picture 155.01 x 86.72,
 slab 8.00, raised box 124.66 x 74.67 that ends 16.38 behind the glass, posts on 166.00 x 99.00) with a real panel
 screen as the picture, four 10 mm rubber feet, a USB-C cable out through the arch, a studio and five cameras.
-Saves tessera-console.blend (or tessera-desk.blend) and renders/<shot>.png next to this script. Built in metres;
+Saves tessera-console.blend (or tessera-desk.blend) and renders/<shot>.png in hardware/render. Built in metres;
 the CAD sizes are mm.
 """
 import argparse
@@ -26,14 +26,16 @@ import bpy
 from mathutils import Matrix, Vector
 
 HERE = Path(__file__).resolve().parent
+RENDER = HERE.parent / 'render'
+DOCS = HERE.parents[1] / 'docs'
 parser = argparse.ArgumentParser()
-parser.add_argument('--out', default=str(HERE))
+parser.add_argument('--out', default=str(RENDER))
 parser.add_argument('--res', default='3840x2160')
 parser.add_argument('--samples', type=int, default=512)
 parser.add_argument('--scene', choices=('studio', 'desk'), default='studio')
 parser.add_argument('--shots', help='cameras to render; all of the scene\'s cameras by default')
-parser.add_argument('--screen', default=str(HERE.parent / 'docs' / 'images' / 'panel-main.png'))
-parser.add_argument('--monitor', default=str(HERE.parent / 'docs' / 'images' / 'editor-widgets.png'), help='the PC monitor in the desk scene')
+parser.add_argument('--screen', default=str(DOCS / 'images' / 'panel-main.png'))
+parser.add_argument('--monitor', default=str(DOCS / 'images' / 'editor-widgets.png'), help='the PC monitor in the desk scene')
 parser.add_argument('--color', default='2d3034', help='the printed shell, sRGB hex')
 parser.add_argument('--no-render', action='store_true')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else [])
@@ -47,7 +49,7 @@ GLASS, CORNER = 0.7, 3.0                           # cover glass thickness, corn
 DESK = -2.0                                        # 3 mm feet, 1 mm of them in the recess
 CABLE_R = 2.0
 
-info = json.loads((HERE / 'tessera-enclosure-render.json').read_text(encoding='utf-8'))
+info = json.loads((RENDER / 'tessera-enclosure-render.json').read_text(encoding='utf-8'))
 across, out_of_glass, up = (Vector(info[k]) for k in ('across', 'out_of_glass', 'up'))
 into = -out_of_glass
 origin = Vector(info['glass_centre']) - up * (H / 2)
@@ -179,7 +181,7 @@ def box(x0, x1, y0, y1, z0, z1):
 
 def import_enclosure(material):
     before = set(bpy.data.objects)
-    result = bpy.ops.wm.obj_import(filepath=str(HERE / 'tessera-enclosure-render.obj'), forward_axis='Y', up_axis='Z')
+    result = bpy.ops.wm.obj_import(filepath=str(RENDER / 'tessera-enclosure-render.obj'), forward_axis='Y', up_axis='Z')
     assert result == {'FINISHED'}, result
     ob = next(o for o in bpy.data.objects if o not in before)
     ob.name = ob.data.name = 'Console'
