@@ -1,4 +1,5 @@
 """PC state binding: mic/speaker/media flags, label variables and the audio action; no audio hardware."""
+import os
 import copy
 import importlib.util
 import json
@@ -112,11 +113,20 @@ class AudioControlTests(unittest.TestCase):
             win_audio.control_audio('app:Discord.exe', 'toggle')
         self.assertFalse(first_state['muted'] or second_state['muted'])
 
+    def test_a_program_name_needs_exe_on_windows_only(self):
+        action = {'target': 'app:firefox'}
+        if os.name == 'nt':
+            with self.assertRaises(ValueError):
+                pc_state.check_audio(action)
+        else:
+            pc_state.check_audio(action)
+            pc_state.check_audio({'target': 'app:Firefox.exe'})  # a Windows profile still validates
+
     def test_audio_actions_are_validated(self):
         for good in ({'target': 'mic'}, {'target': 'speaker', 'op': 'volume', 'value': 30},
                      {'target': 'app:chrome.exe', 'op': 'up', 'step': 10}):
             pc_state.check_audio(good)
-        for bad in ({'target': 'tv'}, {'target': 'app:notexe'}, {'target': 'app:../x.exe'}, {'target': 'mic', 'op': 'explode'},
+        for bad in ({'target': 'tv'}, {'target': 'app:bad name.exe'}, {'target': 'app:../x.exe'}, {'target': 'mic', 'op': 'explode'},
                     {'target': 'mic', 'op': 'volume'}, {'target': 'mic', 'op': 'volume', 'value': 101},
                     {'target': 'mic', 'op': 'up', 'step': 0}, {'target': 'mic', 'op': 'up', 'step': 1.5}, {}):
             with self.assertRaises(ValueError, msg=repr(bad)):

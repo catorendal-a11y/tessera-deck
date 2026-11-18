@@ -1,4 +1,4 @@
-"""Where the project's own Python lives: Windows keeps it in .venv/Scripts."""
+"""Where the project's own Python lives: Windows keeps it in .venv/Scripts, Linux in .venv/bin."""
 from pathlib import Path
 
 from platform_support import load

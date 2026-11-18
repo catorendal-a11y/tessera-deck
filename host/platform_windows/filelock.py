@@ -1,6 +1,6 @@
 """A one-byte exclusive lock on an open file, for the single-instance lock on Windows.
 
-`msvcrt` exists only on Windows, so it is imported when a lock is
+The Linux counterpart is platform_linux/filelock.py. `msvcrt` exists only on Windows, so it is imported when a lock is
 taken, and this module imports on every system.
 """
 

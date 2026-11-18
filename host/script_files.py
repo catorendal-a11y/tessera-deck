@@ -1,5 +1,5 @@
 """The script types a script step can run, and how a script path is written. Shared by every system; what runs each type
-is platform_windows/programs.py (py launcher, cmd, AutoHotkey ...)."""
+is platform_windows/programs.py (py launcher, cmd, AutoHotkey ...) or platform_linux/scripts.py (python3, bash, node ...)."""
 import re
 
 from platform_support import load

@@ -46,10 +46,10 @@ def test_daemon(path=PROFILES, port='TEST', no_focus=True):
 class HostCase(unittest.TestCase):
     def setUp(self):
         """A test never opens a real file, folder or program (the host log in an editor, the data folder in the file
-        manager): the launcher of the system is replaced; `self.opened` lists what a test asked to open."""
+        manager): the two launchers of the systems are replaced; `self.opened` lists what a test asked to open."""
         super().setUp()
         self.opened = Mock(name='opened')
-        for target in ('platform_windows.processes.open_path',):
+        for target in ('platform_linux.programs.launch', 'platform_windows.processes.open_path'):
             patcher = patch(target, self.opened)
             patcher.start()
             self.addCleanup(patcher.stop)

@@ -112,7 +112,7 @@ class SystemStats:
         self.hwinfo = hwinfo or sensors.hwinfo_reader()
         self.lhm = lhm or LibreHardwareMonitorReader()
         frequency = psutil.cpu_freq()
-        self.native_sensors = counters is None and sensors.NATIVE_SENSORS
+        self.native_sensors = counters is None and sensors.NATIVE_SENSORS  # Linux: hwmon, the amdgpu files and nvidia-smi
         self.counters = counters or sensors.native_counters(frequency.max if frequency else None)
         # Tests that inject their own counters get no real graphics-driver readings unless they ask for them.
         self.gpu = gpu if gpu is not None else (GpuReaders() if counters is None else GpuReaders([]))

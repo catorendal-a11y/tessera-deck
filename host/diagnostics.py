@@ -22,7 +22,7 @@ PAGE = re.compile(r'^(\[[^\]\n]*\] ).+ / .+(: \d+ buttons acknowledged)$', re.M)
 PROBLEM = re.compile(r'(?i)fail|error|exception|traceback|timed? ?out|did not finish|could not')
 PROBLEM_LINES = 20
 PRESS = re.compile(r'(?m)(\bButton \d+: ).*?((?: \((?:hold|double)\))?)$')  # the host logs every press with its label
-PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', 'pycaw', 'esptool', 'textual')
+PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', 'pycaw', 'keyring', 'jeepney', 'esptool', 'textual')
 
 
 def clean(text: str) -> str:

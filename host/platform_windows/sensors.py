@@ -176,7 +176,7 @@ class WindowsCounters:
 from lhm_reader import LibreHardwareMonitorReader, flatten_sensor_tree, parse_value  # noqa: E402,F401  (kept here for the callers of this module)
 
 
-# What the shared status code asks of every system
+# What the shared status code asks of every system (platform_linux/sensors.py has the same names)
 NATIVE_SENSORS = False  # counters need a helper (Libre Hardware Monitor, HWiNFO) for temperatures
 
 

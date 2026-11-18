@@ -14,6 +14,7 @@ from unittest.mock import Mock, call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+from platform_marks import windows_only  # noqa: E402
 import psutil
 import tesserad as deck
 from system_stats import select_hwinfo_metrics
@@ -467,6 +468,8 @@ class HostRuntimeTests(HostCase):
             daemon.run_action(action)
         focus.assert_called_once_with('example.exe')
         start.assert_not_called()
+
+    @windows_only
     def test_open_action_expands_environment_variables_in_paths_only(self):
         daemon = self.daemon()
         with patch.dict(deck.os.environ, {'TESSERA_TEST_SECRET': 'secret123'}), patch.object(deck, 'IS_WINDOWS', True), \
@@ -625,6 +628,8 @@ class HostRuntimeTests(HostCase):
             controller.processes = Mock(return_value=[Mock(pid=77)])
             controller.runtime_path.write_text(json.dumps({'pid': 77, 'updated': 1, 'connected': True}))
             self.assertFalse(controller.status()['device']['connected'])
+
+    @windows_only
     def test_windows_autostart_script_can_be_enabled_and_removed(self):
         with tempfile.TemporaryDirectory() as directory:
             fake_root = Path(directory) / 'program'
@@ -637,6 +642,8 @@ class HostRuntimeTests(HostCase):
                 self.assertIn('pythonw.exe', path.read_text(encoding='utf-16'))
                 set_autostart(False, directory)
                 self.assertFalse(autostart_enabled(directory))
+
+    @windows_only
     def test_start_with_windows_counts_only_a_script_for_this_folder(self):
         with tempfile.TemporaryDirectory() as directory:
             old_root, new_root = Path(directory) / 'tessera-1.0', Path(directory) / 'tessera-1.1'
@@ -656,6 +663,8 @@ class HostRuntimeTests(HostCase):
                     self.assertFalse(autostart_enabled(directory))
                     path.write_text(f'{startup_line()}\r\n', encoding='utf-8')  # as 0.5-0.6.1 wrote it
                     self.assertTrue(autostart_enabled(directory))
+
+    @windows_only
     def test_the_tray_asks_before_start_with_windows_moves_from_another_folder(self):
         try:
             import tessera_tray

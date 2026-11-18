@@ -1,7 +1,7 @@
 """What every system shares about input and focus: the key names, the operation lists, and matching a program.
 
 The key names are the vocabulary of profiles ("ctrl+shift+t", "volumeup"). Each system turns them into its own codes
-(platform_windows/input.py: Windows virtual-key codes). Nothing here touches the system.
+(platform_windows/input.py: Windows virtual-key codes; platform_linux/x11.py: X keysyms). Nothing here touches the system.
 """
 import time
 

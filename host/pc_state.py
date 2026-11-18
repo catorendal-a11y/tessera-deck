@@ -1,6 +1,7 @@
 """Live PC state for the deck: speaker/microphone mute, volume and the current media session.
 
-A background thread polls the system's sound and media (platform_windows/audio.py and media.py) and exposes the result as label variables ($(pc:track) ...) and boolean flags that toggle buttons
+A background thread polls the system's sound and media (Windows: platform_windows/audio.py and media.py; Linux:
+platform_linux) and exposes the result as label variables ($(pc:track) ...) and boolean flags that toggle buttons
 follow. Both readers are injectable so the logic can be tested without audio hardware.
 """
 from __future__ import annotations
@@ -18,7 +19,7 @@ EMPTY = {'volume': None, 'speaker_muted': False, 'mic_muted': False,
 
 
 AUDIO_OPERATIONS = ('toggle', 'mute', 'unmute', 'volume', 'up', 'down')
-APP_TARGET = re.compile(rf'app:([A-Za-z0-9_.-]{{1,64}}{SUFFIX})', re.IGNORECASE)  # a program name ends in .exe
+APP_TARGET = re.compile(rf'app:([A-Za-z0-9_.-]{{1,64}}{SUFFIX})', re.IGNORECASE)  # a trailing .exe is optional on Linux
 
 
 def check_audio(action: dict) -> None:

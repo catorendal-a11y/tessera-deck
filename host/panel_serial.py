@@ -2,6 +2,8 @@
 from collections import OrderedDict
 import hashlib
 import json
+
+from platform_support import load
 import threading
 import time
 import zlib
@@ -15,6 +17,14 @@ BOARD_IDS = ('tessera-p4', 'tessera-p4-crowpanel7', 'tessera-s3-ws7', 'tessera-s
 # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status)
 SUPPORTED_PROTOCOLS = (1, 2, 3, 4)
 HANDSHAKE_SECONDS = 2.5
+# On Linux the kernel raises DTR and RTS when the port opens, before pyserial can lower them. The UART boards wire
+# those lines to EN and IO0, so opening the port restarts the panel and it needs about 3 s to answer. Wait longer
+# and ask again every second: a request sent while it boots is lost.
+RESETS_ON_OPEN = load('labels').RESETS_ON_OPEN
+RESET_HANDSHAKE_SECONDS = 10.0
+ASK_AGAIN_SECONDS = 1.0
+# It answers get_info before its boot screen has finished; a layout sent in that moment can lose bytes on the UART.
+SETTLE_AFTER_RESET_SECONDS = 1.5
 PANEL_CACHE_BYTES = 8 * 1024 * 1024  # what firmware without "imgCache" in get_info keeps; CacheLimit in main/deck_images.cpp
 PANEL_SIZE = (1024, 600)  # what firmware without "w"/"h" in get_info has
 OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
@@ -91,8 +101,13 @@ class PanelSerial:
         """
         self.ser.reset_input_buffer()
         self.send_line('{"cmd":"get_info"}')
-        deadline = time.monotonic() + HANDSHAKE_SECONDS
+        started = time.monotonic()
+        deadline = started + (max(HANDSHAKE_SECONDS, RESET_HANDSHAKE_SECONDS) if self.resets_on_open() else HANDSHAKE_SECONDS)
+        asked = started
         while time.monotonic() < deadline:
+            if self.resets_on_open() and time.monotonic() - asked >= ASK_AGAIN_SECONDS:
+                asked = time.monotonic()
+                self.send_line('{"cmd":"get_info"}')
             for line in self.read_lines():
                 try:
                     message = json.loads(line) if line.startswith('{') else None
@@ -100,8 +115,14 @@ class PanelSerial:
                     continue
                 if isinstance(message, dict) and message.get('type') == 'info':
                     self.accept(message)
+                    if self.resets_on_open():
+                        time.sleep(SETTLE_AFTER_RESET_SECONDS)
+                        self.ser.reset_input_buffer()  # the boot log and the answers to the repeated questions
                     return
         raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel', 'silent')
+
+    def resets_on_open(self):
+        return RESETS_ON_OPEN and str(getattr(getattr(self, 'ser', None), 'port', '')).startswith('/dev/')
 
     def accept(self, info):
         if info.get('boardId') not in BOARD_IDS:
@@ -178,8 +199,12 @@ class PanelSerial:
             raise ValueError('The button layout is too large')
         try:
             self.push_payload(payload)
-        except TimeoutError:
-            self.log('The panel did not acknowledge the button layout; sending it once more')
+        except (TimeoutError, ValueError) as exc:  # lost on the way (timeout) or damaged (INVALID): same port, once more
+            # An INVALID answer is a refusal and is not retried, except on the Linux UART link, where it is almost
+            # always a damaged line, and failing here would close and reopen the port, which restarts the panel.
+            if isinstance(exc, ValueError) and not (self.resets_on_open() and str(exc).startswith('AD_CFG_END INVALID')):
+                raise
+            self.log('The panel did not accept the button layout; sending it once more')
             self.push_payload(payload)  # the layout replaces the old one, so sending it twice is harmless
 
     def push_payload(self, payload):

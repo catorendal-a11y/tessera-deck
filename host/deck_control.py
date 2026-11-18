@@ -29,7 +29,7 @@ def firmware_installing(path=None):
 
 
 def startup_script_path(appdata=None):
-    """The per-user startup entry: the Startup folder's Tessera.vbs on Windows."""
+    """The per-user startup entry: the XDG autostart file on Linux, the Startup folder's Tessera.vbs on Windows."""
     return load('autostart').startup_script_path(appdata)
 
 

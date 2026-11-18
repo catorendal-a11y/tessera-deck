@@ -1,7 +1,8 @@
-"""Plugin secrets at rest: settings named like a password are stored encrypted for the current Windows user.
+"""Plugin secrets at rest: settings named like a password are stored encrypted for the current user.
 
 Windows DPAPI (platform_windows/secrets.py) ties the value to this user's login, so profiles.json and its backups
-hold "$(dpapi:<base64>)" instead of the token. The plain value exists only in the plugin's environment.
+hold "$(dpapi:<base64>)" instead of the token. On Linux the value goes to the system keyring and the profile holds "$(keyring:<id>)"
+(platform_linux/secrets.py). The plain value exists only in the plugin's environment.
 """
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from import_review import SECRET_SETTING
 from platform_support import load
 
 PREFIX, SUFFIX = '$(dpapi:', ')'
+KEYRING_PREFIX = '$(keyring:'
 
 
 def is_secret(name) -> bool:
@@ -16,18 +18,19 @@ def is_secret(name) -> bool:
 
 
 def is_sealed(value) -> bool:
-    return isinstance(value, str) and value.startswith(PREFIX) and value.endswith(SUFFIX)
+    return isinstance(value, str) and value.endswith(SUFFIX) and value.startswith((PREFIX, KEYRING_PREFIX))
 
 
 def protect(text: str) -> str:
-    """`text` in its sealed form for this system (Windows DPAPI); an empty or sealed value stays as it is."""
+    """`text` in its sealed form for this system (Windows DPAPI, Linux keyring); an empty or sealed value stays as it is."""
     if not text or is_sealed(text):
         return text
     return load('secrets').seal(text)
 
 
 def unprotect(value):
-    """The plain value; '' when it cannot be opened (another user or PC), so the plugin asks for it again."""
+    """The plain value; '' when it cannot be opened (another user or PC, or sealed on the other system), so the plugin
+    asks for it again."""
     if not is_sealed(value):
         return value
     return load('secrets').unseal(value)

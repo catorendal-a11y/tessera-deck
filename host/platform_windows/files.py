@@ -1,4 +1,4 @@
-"""File permissions on Windows."""
+"""File permissions on Windows (the Linux counterpart is platform_linux/files.py with the same functions)."""
 import os
 import subprocess
 from pathlib import Path

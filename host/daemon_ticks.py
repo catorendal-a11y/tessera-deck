@@ -105,9 +105,10 @@ class BackgroundMixin:
                     names.add(name.lower())
         except (psutil.Error, OSError):
             return
-        self.agents = {'codex': 'codex.exe' in names,
-                       'claude': 'claude.exe' in names,
-                       'zcode': 'zcode.exe' in names}
+        names |= {name[:-4] for name in names if name.endswith('.exe')}  # Linux programs have no .exe
+        self.agents = {'codex': 'codex.exe' in names or 'codex' in names,
+                       'claude': 'claude.exe' in names or 'claude' in names,
+                       'zcode': 'zcode.exe' in names or 'zcode' in names}
 
     def live_tick(self):
         """Announce timers that ran out: a notice for the tray, an optional sound and the timer's own actions."""

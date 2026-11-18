@@ -63,7 +63,7 @@ class PanelChoiceTests(unittest.TestCase):
         config = json.loads((Path(__file__).resolve().parents[1] / 'host/profiles.default.json').read_text(encoding='utf-8'))
         good = {'agents': ['claude'], 'apps': ['spotify.exe'], 'mic': False, 'stats': ['ram', 'net_down']}
         deck.validate_config(dict(config, panel=good))
-        for bad in ({'agents': ['nobody']}, {'apps': ['a.exe'] * 4}, {'apps': ['notaprogram']}, {'mic': 'yes'},
+        for bad in ({'agents': ['nobody']}, {'apps': ['a.exe'] * 4}, {'apps': ['not a program!']}, {'mic': 'yes'},
                     {'stats': ['cpu_heat']}, {'colour': 'red'}, 'all'):
             with self.assertRaises(ValueError, msg=bad):
                 deck.validate_config(dict(config, panel=bad))

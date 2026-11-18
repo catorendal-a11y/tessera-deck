@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from platform_marks import windows_only_module
+windows_only_module(__name__)
 import json
 from pathlib import Path
 import sys
