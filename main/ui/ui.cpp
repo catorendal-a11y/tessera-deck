@@ -688,6 +688,7 @@ void refresh_rail() {
 }
 void set_view(int next) {
     if(next<0||next>=ViewCount)return;
+    confirm_stop();  /* a hold on a confirm key does not outlive the screen it was made on */
     view=next;
     for(int i=0;i<ViewCount;++i)lv_obj_set_hidden(views[i],i!=view);
     if(view==ViewAgents&&(agents_dirty||agents_version!=deck_model_agents_version()))build_agents();
@@ -901,6 +902,7 @@ void draw_big_clock(const char *text,const char *meridiem) {
 lv_obj_t *boot=nullptr;  /* the boot screen, while it plays */
 void show_ambient(bool on) {
     if(!ambient||on==(deck_model_screen()==DECK_SCREEN_AMBIENT))return;
+    confirm_stop();
     deck_model_set_screen(on?DECK_SCREEN_AMBIENT:DECK_SCREEN_DECK);
     if(on){ambient_time[0]='\0';ambient_seen=0;}
     if(!boot)lv_screen_load(on?ambient:screen);  /* the boot screen loads the one asked for when it ends */

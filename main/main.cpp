@@ -464,6 +464,9 @@ static void usb_console_task(void *)
         const uint32_t wake = deck_model_wake_sequence();
         if (wake != wake_seen) {
             wake_seen = wake;
+            /* An AD_DISPLAY_DIM that was already in the buffer may have dimmed again after the touch: the panel is lit
+             * now, so it is not dimmed, or the next tap would only "wake" it. */
+            deck_model_set_dimmed(false);
             bsp_display_brightness_set(s_brightness);
             printf("{\"type\":\"wake\"}\n");
             fflush(stdout);

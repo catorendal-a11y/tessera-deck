@@ -220,6 +220,12 @@ static void test_confirm_key(){
     /* Sliding off the key before the ring is full cancels too. */
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(5),key_y(5)};for(int i=0;i<12;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    /* A screen that comes up under the finger, such as a permission question, cancels the hold: nothing may run on the
+     * PC while another screen shows. */
+    touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();assert(arcs_in(tile)==1);
+    deck_model_request_view(1);for(int i=0;i<12;++i)step();
+    touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    ui_show_view(0);updates();
     /* A plain key still presses on a tap. */
     tap(key_x(3),key_y(3));assert(deck_model_last_event_id()==before+2);
     deck_model_replace_buttons(saved,saved_count);updates();
