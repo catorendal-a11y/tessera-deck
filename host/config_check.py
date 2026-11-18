@@ -32,6 +32,7 @@ HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
 TIME_PATTERN = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d')
+WEEKDAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')  # Monday first, like date.weekday()
 TRIGGER_KINDS = ('startup', 'interval', 'daily', 'file', 'variable')
 
 
@@ -58,6 +59,9 @@ def _check_page(action, pages, profiles):
 def _check_profile_action(action, pages, profiles):
     if action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
+    page = action.get('page')
+    if 'page' in action and not (isinstance(page, str) and page in profiles[action['profile']]['pages']):
+        raise ValueError(f'Profile {action["profile"]} has no page {page!r}')
 
 
 def _check_text(action, pages, profiles):
@@ -394,6 +398,11 @@ def _check_trigger(trigger, pages, profiles):
     at = spec.get('at', '')
     if kind == 'daily' and not (isinstance(at, str) and TIME_PATTERN.fullmatch(at)):
         raise ValueError('daily needs at as HH:MM')
+    if 'days' in spec:
+        days = spec['days']
+        if (kind != 'daily' or not isinstance(days, list) or not days or len(set(map(str, days))) != len(days)
+                or any(day not in WEEKDAYS for day in days)):
+            raise ValueError('days must list each weekday once (mon, tue, wed, thu, fri, sat, sun) and only on a daily trigger')
     target = spec.get('path' if kind == 'file' else 'name')
     if kind in ('file', 'variable') and (not isinstance(target, str) or not target.strip() or chr(0) in target):
         raise ValueError('Trigger is missing a path or variable name')
@@ -479,6 +488,8 @@ def _check_panel(panel, pages=(), profiles=None):
     stats = panel.get('stats', [])
     if not isinstance(stats, list) or any(item not in cockpit.STAT_IDS for item in stats):
         raise ValueError('panel.stats must list readings the panel knows')
+    if len(set(stats)) > cockpit.MAX_STATS:
+        raise ValueError(f'panel.stats holds at most {cockpit.MAX_STATS} readings: the panel shows no more than that')
 
 
 def _validate_config(config):

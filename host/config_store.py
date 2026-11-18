@@ -14,7 +14,8 @@ from typing import Callable
 CONFIG_VERSION = 2
 BACKUP_KEEP = 30
 BACKUP_INTERVAL_SECONDS = 600
-BACKUP_NAME = re.compile(r'profiles-\d{8}-\d{6}(?:-\d+)?\.json')
+BACKUP_NAME = re.compile(r'profiles-\d{8}-\d{6}(?:-\d+)?(-keep)?\.json')  # -keep: the user kept it, so pruning leaves it
+KEPT = '-keep.json'
 REPLACE_ATTEMPTS = 20
 REPLACE_WAIT_SECONDS = 0.05
 
@@ -138,7 +139,7 @@ def backup(path: Path, force: bool = False, keep: int = BACKUP_KEEP, interval: i
     shutil.copyfile(path, target)
     moment = now()
     os.utime(target, (moment, moment))  # the order of backups is this time, so it matches the name's stamp
-    for old in _backup_files(folder)[:-keep]:
+    for old in [file for file in _backup_files(folder) if not file.name.endswith(KEPT)][:-keep]:
         if old != target:  # never the copy just made, even if the clock went back
             old.unlink(missing_ok=True)
     return target
@@ -155,16 +156,20 @@ def list_backups(path: Path) -> list[dict]:
             found.append({'name': file.name, 'saved': time.strftime('%Y-%m-%d %H:%M:%S',
                                                                    time.localtime(file.stat().st_mtime)),
                           'bytes': file.stat().st_size, 'profiles': len(profiles), 'buttons': buttons,
-                          'version': version_of(data)})
+                          'version': version_of(data), 'kept': file.name.endswith(KEPT)})
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             continue
     return found
 
 
-def read_backup(path: Path, name: str) -> dict:
-    """The (migrated, not yet validated) configuration stored in backup `name`."""
+def check_backup_name(name) -> None:
     if not isinstance(name, str) or not BACKUP_NAME.fullmatch(name):
         raise ValueError('Choose a backup from the list')
+
+
+def read_backup(path: Path, name: str) -> dict:
+    """The (migrated, not yet validated) configuration stored in backup `name`."""
+    check_backup_name(name)
     file = backups_dir(path) / name
     try:
         return migrate(json.loads(file.read_text(encoding='utf-8')))
@@ -172,6 +177,22 @@ def read_backup(path: Path, name: str) -> dict:
         raise ValueError('That backup no longer exists') from exc
     except (OSError, json.JSONDecodeError) as exc:
         raise ValueError(f'That backup cannot be read: {exc}') from exc
+
+
+def keep_backup(path: Path, name: str, keep: bool) -> str:
+    """Rename backup `name` to its kept form (or back); pruning never removes a kept one. Returns the new file name."""
+    check_backup_name(name)
+    file = backups_dir(path) / name
+    if not file.is_file():
+        raise ValueError('That backup no longer exists')
+    if keep == name.endswith(KEPT):
+        return name
+    new = name[:-len(KEPT)] + '.json' if name.endswith(KEPT) else name[:-5] + KEPT
+    target = file.with_name(new)
+    if target.exists():  # the same stamp can hold a kept and a plain copy only by hand; never overwrite one
+        raise ValueError('A backup with that name exists already')
+    file.rename(target)
+    return new
 
 
 def recover(path: Path) -> str | None:

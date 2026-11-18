@@ -89,7 +89,7 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
     if kind in ('page', 'folder'):
         return True, f'{"Open folder" if kind == "folder" else "Go to page"} "{action["page"]}"'
     if kind == 'profile':
-        return True, f'Switch to profile "{action["profile"]}"'
+        return True, f'Switch to profile "{action["profile"]}"' + (f', page "{action["page"]}"' if action.get('page') else '')
     if kind == 'back':
         return True, 'Go back one level'
     if kind == 'home':

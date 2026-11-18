@@ -19,8 +19,14 @@ GREEN, BLUE, PURPLE, GREY, AMBER, RED = '#58E09B', '#64B5F6', '#B388FF', '#A3B2B
 STATS = (('CPU load', 'cpu_load', '%', 100, 95, GREEN), ('CPU temp', 'cpu_temp', 'C', 100, 85, GREEN),
          ('RAM', 'ram', '%', 100, 90, BLUE), ('Disk', 'disk', '%', 100, 90, BLUE),
          ('GPU load', 'gpu_load', '%', 100, None, PURPLE), ('GPU temp', 'gpu_temp', 'C', 100, 85, PURPLE),
-         ('VRAM', 'vram', '%', 100, 90, PURPLE))
-STAT_IDS = tuple(key for _, key, *_ in STATS) + ('net_down',)
+         ('VRAM', 'vram', '%', 100, 90, PURPLE), ('Download', 'net_down', '/s', 10 * 1024 * 1024, None, GREY),
+         ('Upload', 'net_up', '/s', 10 * 1024 * 1024, None, GREY), ('Uptime', 'uptime', '', 7 * 86400, None, GREY),
+         ('CPU clock', 'cpu_clock', 'MHz', 6000, None, GREEN), ('CPU power', 'cpu_power', 'W', 250, None, GREEN),
+         ('GPU power', 'gpu_power', 'W', 450, None, PURPLE), ('GPU clock', 'gpu_clock', 'MHz', 3000, None, PURPLE),
+         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE))
+STAT_IDS = tuple(key for _, key, *_ in STATS)
+DEFAULT_STATS = STAT_IDS[:8]  # what the status screen shows until the user picks readings
+MAX_STATS = 8  # DECK_STATS_MAX in main/deck_model.h
 
 
 def _line(payload: dict) -> str:
@@ -97,10 +103,10 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
 
 
 def stats_payload(display: dict, raw: dict, shown: list | None = None) -> str:
-    """The readings for the status screen (all eight unless `shown` picks); a missing sensor shows as --."""
+    """The readings for the status screen (the first eight unless `shown` picks, never more than eight); a missing sensor shows as --."""
     stats = []
     for label, key, unit, full, warn_from, color in STATS:
-        if shown is not None and key not in shown:
+        if key not in (shown or DEFAULT_STATS) or len(stats) == MAX_STATS:
             continue
         value = raw.get(key)
         known = isinstance(value, (int, float))
@@ -108,12 +114,6 @@ def stats_payload(display: dict, raw: dict, shown: list | None = None) -> str:
         stats.append({'name': label, 'value': str(display.get(key, '--'))[:7], 'unit': unit,
                       'p': max(0, min(100, round(value / full * 100))) if known else 0,
                       'color': AMBER if warn else color, 'warn': bool(warn)})
-    down = raw.get('net_down')
-    if shown is not None and 'net_down' not in shown:
-        return _line({'stats': stats})
-    stats.append({'name': 'Download', 'value': str(display.get('net_down', '--'))[:7], 'unit': '/s',
-                  'p': max(0, min(100, round(down / (10 * 1024 * 1024) * 100))) if isinstance(down, (int, float)) else 0,
-                  'color': GREY, 'warn': False})
     return _line({'stats': stats})
 
 

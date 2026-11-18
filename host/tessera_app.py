@@ -78,9 +78,9 @@ def action_pack_catalog():
         raise ValueError('Invalid action pack')
     for index, pack in enumerate(catalog['packs'], 1):
         profile = {'match': [], 'pages': {'main': [{
-            'id': 1, 'label': pack.get('name', ''), 'icon': pack.get('icon', 'ok'),
+            'id': 1, 'label': pack.get('label', pack.get('name', '')), 'icon': pack.get('icon', 'ok'),
             'color': pack.get('color', '#35D07F'), 'actions': pack.get('actions', []),
-            **({'confirm': pack['confirm']} if 'confirm' in pack else {})}]}}
+            **{field: pack[field] for field in ('confirm', 'states', 'bind') if field in pack}}]}}
         if not isinstance(pack.get('note', ''), str):
             raise ValueError('The action pack note must be text')
         validate_config({'default_profile': 'pakke', 'profiles': {'pakke': profile}})
@@ -571,6 +571,8 @@ class Editor:
             return {'backups': config_store.list_backups(self.path)}
         if command == 'restore-backup':
             return self.restore_backup(data.get('name'))
+        if command == 'keep-backup':
+            return {'name': config_store.keep_backup(self.path, data.get('name'), data.get('keep') is True)}
         if command == 'dryrun':
             return self.dry_run(data)
         if command in ('iconify-search', 'iconify-svg'):

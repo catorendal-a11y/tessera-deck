@@ -579,7 +579,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'home':
             self.go_home()
         elif kind == 'profile':
-            self.switch_profile(action['profile'])
+            self.switch_profile(action['profile'], page=action.get('page'))
+            if action.get('page') in self.config['profiles'][self.profile]['pages'] and self.page != action['page']:
+                self.switch_page(action['page'])  # the profile was already the current one
         elif kind == 'profile_lock':
             self.profile_locked = not self.profile_locked
             self.manual_focus_exe = ''

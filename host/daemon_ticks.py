@@ -1,4 +1,5 @@
 """What the host does on its own every second: triggers, timers, plugins, sensors and reloading the configuration."""
+from datetime import date
 import json
 import re
 import os
@@ -13,6 +14,7 @@ import cockpit
 from desktop import focus_existing_process
 from platform_support import load
 
+from config_check import WEEKDAYS
 from config_store import write_atomic
 
 IDLE_SETTLE = 45  # seconds a file-guessed idle must last before an agent counts as finished
@@ -58,7 +60,8 @@ class BackgroundMixin:
                     value, fire = now, True
             elif kind == 'daily':
                 today = time.strftime('%Y-%m-%d')
-                due = time.strftime('%H:%M') >= spec['at']
+                listed = 'days' not in spec or WEEKDAYS[date.fromisoformat(today).weekday()] in spec['days']
+                due = listed and time.strftime('%H:%M') >= spec['at']
                 runs, key = self.daily_runs(), f'{index}:{spec["at"]}'
                 if before is None:
                     # No state yet (the host just started, or the trigger is new). The day it last ran is kept in

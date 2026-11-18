@@ -312,7 +312,7 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(catalog['version'], 1)
         self.assertGreaterEqual(len(catalog['packs']), 119)
         self.assertGreaterEqual(len(catalog['templates']), 10)
-        self.assertTrue(all(pack['actions'] for pack in catalog['packs']))
+        self.assertTrue(all(pack['actions'] or pack.get('states') for pack in catalog['packs']))  # a key that shows state keeps its steps in its states
         template_names = {template['name'] for template in catalog['templates']}
         self.assertTrue({'Windows control', 'GitHub Desktop', 'PowerToys',
                          'Codex', 'Claude Code', 'ZCode'} <= template_names)

@@ -1238,6 +1238,92 @@
       ]
     },
     {
+      "group": "Meetings",
+      "name": "Mic mute (shows state)",
+      "icon": "lc:e119",
+      "color": "#FFB74D",
+      "label": "Mic",
+      "states": [
+        {
+          "label": "Mic live",
+          "icon": "lc:e118",
+          "color": "#35D07F",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "mic",
+              "op": "toggle"
+            }
+          ]
+        },
+        {
+          "label": "Mic muted",
+          "icon": "lc:e119",
+          "color": "#FF5252",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "mic",
+              "op": "toggle"
+            }
+          ]
+        }
+      ],
+      "bind": "mic_muted",
+      "actions": []
+    },
+    {
+      "group": "Media",
+      "name": "Speaker mute (shows state)",
+      "icon": "lc:e1ac",
+      "color": "#FFB74D",
+      "label": "Speaker",
+      "states": [
+        {
+          "label": "Sound on",
+          "icon": "lc:e1ab",
+          "color": "#35D07F",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "speaker",
+              "op": "toggle"
+            }
+          ]
+        },
+        {
+          "label": "Muted",
+          "icon": "lc:e1ac",
+          "color": "#FF5252",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "speaker",
+              "op": "toggle"
+            }
+          ]
+        }
+      ],
+      "bind": "speaker_muted",
+      "actions": []
+    },
+    {
+      "group": "Productivity",
+      "name": "Pomodoro 25 min",
+      "icon": "play",
+      "color": "#FF7070",
+      "label": "$(timer:pomodoro)",
+      "actions": [
+        {
+          "type": "timer",
+          "name": "pomodoro",
+          "op": "toggle",
+          "seconds": 1500,
+          "notify": "Pomodoro done. Time for a break."
+        }
+      ]
+    },
+    {
       "group": "Productivity",
       "name": "Start work session",
       "icon": "play",
