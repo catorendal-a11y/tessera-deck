@@ -448,6 +448,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.events.add('page', profile=self.profile, page=page)
         return True
 
+    def push_first_page(self):
+        """The page a panel gets when it connects. A layout or picture the panel refuses is that page's problem and
+        not the link's, so the host stays connected and another page can still be shown."""
+        try:
+            self.push_page(force=True)
+        except ValueError as exc:
+            self.log(f'The panel refused the page {self.profile} / {self.page}: {exc}')
+
     def switch_profile(self, profile, auto=False, page=None):
         if not getattr(self, 'rail_moving', False):
             self.before_shortcut = None
@@ -455,6 +463,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             raise ValueError(f'Unknown profile: {profile}')
         resume, self.resume_view = self.resume_view, None
         if profile != self.profile:
+            before = (self.profile, self.page, list(self.folder_stack))
             self.folder_stack.clear()
             self.profile = profile
             pages = self.config['profiles'][profile]['pages']
@@ -464,8 +473,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.folder_stack.extend(name for name in resume[2] if name in pages)
             if page in pages:  # straight to this page: the profile's first page is never sent in between
                 self.page = page
+            try:
+                self.push_page(force=True)  # an identical-looking page must still send the new profile name and path
+            except ValueError:  # the panel refused the layout (too large): it still shows the old profile
+                self.profile, self.page, self.folder_stack[:] = before
+                raise
             self.events.add('profile', profile=profile, page=self.page)
-            self.push_page(force=True)  # an identical-looking page must still send the new profile name and path
         if not auto:
             self.auto_profile = None
             self.manual_focus_exe = self.foreground.get('exe', '')
@@ -991,10 +1004,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         self.device_info = getattr(self.panel, 'info', {}) or {}
                         self.note_panel_restart(previous_boot)
                         self.cockpit_sent = {}
-                        if self.question_open():
-                            self.enqueue(('question',))
                         remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
+                        if self.question_open():  # after the flag: the worker skips a question while the link is down
+                            self.enqueue(('question',))
                         connect_error = None
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
                         self.clock_sent_at = float('-inf')
@@ -1004,9 +1017,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         with self.state_lock:
                             self.last_activity = time.monotonic()
                             self.apply_brightness()
+                            self.locked = False  # the panel is lit again: lock_tick dims it once more if the PC is locked
                             if self.panel_locked:  # a restarted panel boots unlocked
                                 self.panel.send_line('AD_PANEL_LOCK 1')
-                            self.push_page(force=True)
+                            self.push_first_page()
                             if (self.device_info.get('protocol') or 1) >= 3:
                                 self.panel.send_line('AD_SCREEN deck')  # a restarted host may find the ambient clock showing
                         self.publish_runtime(True, force=True)

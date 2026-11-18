@@ -105,7 +105,7 @@ def check(data: bytes) -> dict:
     from config_check import validate_config  # config_check imports this module
     try:
         return validate_config(migrate(json.loads(data.decode('utf-8'))))
-    except (UnicodeDecodeError, TypeError, KeyError, AttributeError) as exc:
+    except (UnicodeDecodeError, TypeError, KeyError, AttributeError, RecursionError) as exc:
         raise ValueError(f'The configuration cannot be read: {exc}') from exc
 
 

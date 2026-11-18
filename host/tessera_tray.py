@@ -6,7 +6,7 @@ and opens the editor on a click.
 
 import json
 from desktop import open_path
-from platform_support import load
+from platform_support import IS_WINDOWS, load
 from venv_paths import venv_python
 import logging
 import os
@@ -149,6 +149,17 @@ def set_notifications(enabled: bool, path: Path | None = None) -> None:
     save_profiles(config, path or PROFILES_PATH)
 
 
+def autostart_question_open():
+    """True while this folder has not been asked about autostart: no record yet, or a record copied over from another
+    folder whose copy Start with Windows still starts."""
+    try:
+        asked = json.loads(FIRST_RUN_PATH.read_text(encoding='utf-8'))
+        elsewhere = startup_script_path().is_file() and not autostart_enabled()
+    except (OSError, ValueError):
+        return True
+    return elsewhere and (not isinstance(asked, dict) or asked.get('root') != str(ROOT))
+
+
 class TrayApp:
     def __init__(self, controller: Controller | None = None):
         self.controller = controller or Controller()
@@ -166,7 +177,7 @@ class TrayApp:
         self.restarts = 0  # automatic restarts in this burst
         self.restart_at = None  # when the next automatic restart runs (monotonic), while the host is down
         self.running_since = None  # since when the host has been seen running (monotonic)
-        self.asked_autostart = FIRST_RUN_PATH.exists()  # the question waits for the first panel connection
+        self.asked_autostart = not autostart_question_open()  # the question waits for the first panel connection
         self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
                                  menu=pystray.Menu(self.menu_items))
         load('tray').prepare(self.icon, pystray.Menu.SEPARATOR)
@@ -261,7 +272,10 @@ class TrayApp:
         def work():
             import setup_tool
             path = setup_tool.diagnostics()
-            subprocess.Popen(['explorer', '/select,', str(path)])  # noqa: S603,S607
+            if IS_WINDOWS:
+                subprocess.Popen(['explorer', '/select,', str(path)])  # noqa: S603,S607
+            else:
+                open_path(path.parent)
             self.icon.notify(f'Saved {path.name}. User names and credentials are left out.', 'Tessera')
         self.background(work)
 

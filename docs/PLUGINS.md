@@ -116,7 +116,7 @@ Turn it on in the editor, or in `profiles.json`:
 "plugins": { "my-plugin": { "enabled": true, "settings": { "interval": 10 } } }
 ```
 
-- **Consent.** When you turn a plugin on, the editor lists what it may do and the program it runs, and asks first. It asks again only when the `version`, permissions or program changed since you said yes, and remembers your answer in the browser. A plugin that is already on gets what its manifest lists at its next start without asking, so read what an update changes before you install it. A profile file you import cannot turn plugins on or change their settings.
+- **Consent.** When you turn a plugin on, the editor lists what it may do and the program it runs, and asks first. It asks again only when the `version`, permissions or program changed since you said yes, and remembers your answer in the browser. A plugin that is already on gets what its manifest lists at its next start without asking, so read what an update changes before you install it. A profile file you import turns plugins on or changes their settings only when you tick *Keep these actions*; the review lists each plugin the file turns on.
 - **Secrets.** A setting whose key contains `token`, `secret`, `password` or `api_key` (any case) is stored encrypted for your Windows account with DPAPI. `profiles.json` and its backups hold `"$(dpapi:…)"` instead of the value. On Linux the value goes to the system keyring, and the file holds `"$(keyring:<id>)"`. Your program receives the real value in `TESSERA_SETTINGS`. Exports leave these settings out.
 - **Settings changes.** Changing a plugin's settings restarts it.
 

@@ -21,7 +21,7 @@ try:
 except (ImportError, ValueError):
     sys.exit(3)
 
-TIMEOUT_SECONDS = 60  # an unanswered menu closes by itself
+TIMEOUT_SECONDS = 30  # an unanswered menu closes by itself: POPUP_SECONDS in x11_tray_menu.py, which waits 15 s longer
 
 
 def build(rows, prefix, on_choose):

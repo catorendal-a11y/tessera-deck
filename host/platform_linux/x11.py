@@ -108,7 +108,7 @@ class X11Backend(DesktopBackend):
         elif op == 'move':
             self.run(['xdotool', 'mousemove_relative', '--', str(int(x)), str(int(y))])
         elif op == 'moveto':
-            self.run(['xdotool', 'mousemove', str(int(x)), str(int(y))])
+            self.run(['xdotool', 'mousemove', '--', str(int(x)), str(int(y))])
         else:
             raise ValueError(f'Unknown mouse operation: {op}')
 

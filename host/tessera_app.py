@@ -940,13 +940,12 @@ def main():
     url = f'http://127.0.0.1:{server.server_port}/'
     if not args.profiles:
         import psutil
-        from control_api import make_private
+        from control_api import write_private
         details = {'pid': os.getpid(), 'created': psutil.Process().create_time(), 'url': url, 'token': server.token, 'build': build}
 
         def write_record():
             temporary = record.with_suffix('.tmp')
-            temporary.write_text(json.dumps(details), encoding='utf-8')
-            make_private(temporary)  # the token opens the editor's API: other accounts must not read it
+            write_private(temporary, json.dumps(details))  # the token opens the editor's API: other accounts must not read it
             os.replace(temporary, record)
         write_record()
     print('The Tessera editor is open. Keep this window open.', flush=True)

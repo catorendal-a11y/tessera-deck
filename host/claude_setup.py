@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shutil
 import time
 from pathlib import Path
 
@@ -91,15 +92,20 @@ def update(events: bool, allow: bool, python: Path, deckctl: Path, home: Path | 
             stamp, data = time.strftime('%Y%m%d-%H%M%S'), path.read_bytes()
             for number in range(1, 1000):
                 suffix = '' if number == 1 else f'-{number}'
+                kept = path.with_name(f'settings.tessera-backup-{stamp}{suffix}.json')
                 try:
-                    with open(path.with_name(f'settings.tessera-backup-{stamp}{suffix}.json'), 'xb') as backup:
+                    with open(kept, 'xb') as backup:
                         backup.write(data)
+                    shutil.copymode(path, kept)  # the settings can hold tokens: a copy is no more readable than they are
                     break
                 except FileExistsError:
                     continue
             else:
                 raise OSError('No free name for a backup of the Claude settings')
         temporary = path.with_suffix('.tmp')
+        temporary.write_text('', encoding='utf-8')
+        if path.exists():
+            shutil.copymode(path, temporary)
         temporary.write_text(json.dumps(document, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
         os.replace(temporary, path)
     return state(home)

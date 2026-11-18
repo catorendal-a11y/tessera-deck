@@ -132,7 +132,8 @@ def _events(text: str) -> list[dict]:
                     current[key] = _when(value, params)
                     if name == 'DTSTART' and value.strip().endswith('Z') and len(value.strip()) > 8:
                         current['utc'] = _when(value, params, utc=True)  # repeats are walked in UTC, then made local
-            except (ValueError, IndexError):  # one unreadable event is dropped, not the whole calendar
+            # one unreadable event is dropped, not the whole calendar. OSError: a UTC time before 1970 on Windows
+            except (ValueError, IndexError, OSError, OverflowError):
                 current = None
         elif name == 'SUMMARY':
             current['summary'] = value.replace('\\,', ',').replace('\\;', ';').replace('\\n', ' ').replace('\\\\', '\\').strip()
@@ -284,7 +285,10 @@ def upcoming(text: str, now: datetime) -> list[dict]:
             if 'rrule' in event and (cancelled or (event.get('uid'), moment) in moved):
                 continue
             begin = _as_datetime(moment)
-            finish = begin + length
+            try:
+                finish = begin + length
+            except OverflowError:  # a length that ends after the year 9999
+                continue
             if finish > now - timedelta(hours=12) and begin <= until:
                 found.append({'start': begin, 'end': finish, 'summary': event.get('summary') or 'Busy',
                               'all_day': not isinstance(moment, datetime)})
@@ -357,7 +361,7 @@ class Feed:
             found = upcoming(text, minute)
             self._parsed = (text, minute, found)
             return found, ''
-        except (ValueError, KeyError, IndexError) as exc:
+        except (ValueError, KeyError, IndexError, OSError, OverflowError) as exc:
             return None, f'The calendar could not be read: {exc}'[:60]
 
     def _refresh(self, url: str) -> None:

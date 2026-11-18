@@ -108,7 +108,7 @@ class KeyTests(unittest.TestCase):
             ['xdotool', 'click', '--repeat', '2', '--delay', '50', '1'],
             ['xdotool', 'click', '--repeat', '3', '--delay', '10', '4'],
             ['xdotool', 'click', '--repeat', '2', '--delay', '10', '5'],
-            ['xdotool', 'mousemove_relative', '--', '5', '-4'], ['xdotool', 'mousemove', '100', '200']])
+            ['xdotool', 'mousemove_relative', '--', '5', '-4'], ['xdotool', 'mousemove', '--', '100', '200']])
         with self.assertRaises(ValueError):
             backend.send_mouse('triple')
 

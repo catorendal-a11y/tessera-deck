@@ -101,6 +101,11 @@ def reason(exc):
     return 'not reachable'
 
 
+def unknown():
+    """Every entity as 'unknown': a key must not go on showing 'on' when Home Assistant cannot be reached."""
+    return {f'{PLUGIN}.{entity}'[:64]: 'unknown' for entity in ENTITIES if ENTITY.fullmatch(entity)}
+
+
 def main():
     if not HOME or not HOME_TOKEN:
         tessera('POST', '/v1/vars', {'set': {f'{PLUGIN}.connected': 'add the address and token'}})
@@ -112,7 +117,7 @@ def main():
                 try:
                     values = dict(states(), **{f'{PLUGIN}.connected': 'yes'})
                 except (urllib.error.URLError, OSError, ValueError) as exc:
-                    values = {f'{PLUGIN}.connected': reason(exc)}
+                    values = dict(unknown(), **{f'{PLUGIN}.connected': reason(exc)})
                 set_vars(values)
                 next_update = time.monotonic() + INTERVAL
             reply = tessera('GET', f'/v1/events?since={since}&wait={min(INTERVAL, 20):g}')

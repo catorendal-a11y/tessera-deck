@@ -124,8 +124,11 @@ def review(config: dict) -> list[dict]:
                 risk = 'high'
             findings.append({'where': where, 'kind': action.get('type'), 'risk': risk, 'detail': detail,
                              'automatic': automatic})
-            if len(findings) >= MAX_LISTED:
-                return findings
+    if len(findings) > MAX_LISTED:  # the user may keep all of them: the worst come first, and the cut is said
+        findings.sort(key=lambda finding: finding['risk'] != 'high')
+        more = len(findings) - MAX_LISTED
+        findings[MAX_LISTED:] = [{'where': 'The file', 'kind': 'more', 'risk': 'high', 'automatic': False,
+                                  'detail': f'has {more} more actions like these that are not listed'}]
     return findings
 
 

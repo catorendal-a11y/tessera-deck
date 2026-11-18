@@ -50,8 +50,6 @@ def autostart_enabled(appdata=None):
 
 def set_autostart(enabled, appdata=None):
     """Start the tray app (which starts the USB host) after the user signs in."""
-    if not IS_WINDOWS and appdata is None:
-        raise OSError('Automatic startup is only supported on Windows')
     path = startup_script_path(appdata)
     if not enabled:
         path.unlink(missing_ok=True)

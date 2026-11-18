@@ -179,6 +179,8 @@ class EventLog:
                     and (event['type'] != 'command' or event.get('plugin') == plugin)][:limit]
 
         with self._condition:
+            if after > self._last:  # an id from the host that ran before: this one counts from 1 again
+                after = 0
             events = visible()
             while not events and (remaining := deadline - time.monotonic()) > 0:
                 self._condition.wait(remaining)

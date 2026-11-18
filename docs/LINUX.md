@@ -54,7 +54,7 @@ ports it finds and keeps the one that answers like a panel.
 - **Open** starts `.desktop` entries with `gio launch`, other targets with `xdg-open`. The program picker lists the
   entries of the application menu, with their icons (a vector icon needs `rsvg-convert`).
 - **Scripts** (the *script* action) run with `python3`, `bash`, `node` and `pwsh`: `.py`, `.pyw`, `.sh`, `.js`, `.ps1`. `.bat`, `.cmd` and `.ahk` are Windows-only and give an error. *Edit script* and the tray's *Open the host log* open the file with `xdg-open`.
-- **The media action** (shuffle on/off, cycle repeat) works on MPRIS players that offer it, such as Spotify and VLC; a player without it says so instead of pretending.
+- **The media action** (shuffle on/off, cycle repeat) works on MPRIS players that offer it, such as Spotify and VLC; a player without it says so instead of pretending. `$(pc:shuffle)`, `$(pc:repeat)` and keys that follow shuffle or repeat show the player's state.
 - **The Claude Code, Codex and ZCode profiles** of the Linux default start their tool in your terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`, whichever is installed).
 - **Volume** uses `pactl`; per-program volume (`app:firefox`) follows PulseAudio/PipeWire streams. The media session comes
   from MPRIS, so Spotify, browsers, VLC and mpv work.
@@ -64,6 +64,7 @@ ports it finds and keeps the one that answers like a panel.
   and Intel RAPL power where it is readable.
 - **Window actions** (`maximize`, `topmost`, `next_monitor` ...) need a window manager that follows the EWMH standard
   (Cinnamon, GNOME, KDE, Xfce, i3 ...). `xprop` is used to read the current state when you have it.
+- **The idle clock** goes by the panel alone. Keyboard and mouse activity is not read on Linux yet, so the clock can come on while you work on the PC.
 - **Screen lock** is read from logind and the desktop's screensaver, to dim the panel; like on Windows it does not stop actions.
 
 ## Wayland

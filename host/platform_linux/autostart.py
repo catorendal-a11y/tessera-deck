@@ -12,7 +12,11 @@ def startup_script_path(appdata=None):
 
 
 def is_enabled(script, root):
-    return Path(script).is_file()
+    """True when the entry starts the tray of this folder. An entry left by a copy in another folder does not count."""
+    try:
+        return str(Path(root) / 'host/tessera_tray.py') in Path(script).read_text(encoding='utf-8')
+    except (OSError, UnicodeDecodeError):
+        return False
 
 
 def enable(path, root):

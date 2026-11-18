@@ -8,7 +8,8 @@ from __future__ import annotations
 MPRIS = 'org.mpris.MediaPlayer2.'
 PATH = '/org/mpris/MediaPlayer2'
 PLAYER = 'org.mpris.MediaPlayer2.Player'
-EMPTY = {'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0}
+EMPTY = {'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0, 'shuffle': None, 'repeat': ''}
+REPEAT = {'None': 'none', 'Playlist': 'list', 'Track': 'track'}  # MPRIS LoopStatus as pc_state names it
 STATUS = {'Playing': 'PLAYING', 'Paused': 'PAUSED', 'Stopped': 'STOPPED'}
 RANK = {'PLAYING': 0, 'PAUSED': 1, 'STOPPED': 2}  # the player that plays wins, then a paused one
 
@@ -27,7 +28,10 @@ def describe(properties: dict) -> dict:
     return {'title': str(meta.get('xesam:title', '') or ''), 'artist': artist,
             'status': STATUS.get(_value(properties.get('PlaybackStatus', ('s', ''))), ''),
             'position': float(position) / 1_000_000 if isinstance(position, (int, float)) else 0.0,
-            'duration': float(length) / 1_000_000 if isinstance(length, (int, float)) else 0.0}
+            'duration': float(length) / 1_000_000 if isinstance(length, (int, float)) else 0.0,
+            # a player that does not offer them leaves the properties out: None and '' mean "not reported"
+            'shuffle': bool(_value(properties['Shuffle'])) if 'Shuffle' in properties else None,
+            'repeat': REPEAT.get(_value(properties.get('LoopStatus', ('s', ''))), '')}
 
 
 def choose(sessions: list[dict]) -> dict:

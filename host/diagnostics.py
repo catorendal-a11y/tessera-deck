@@ -16,6 +16,7 @@ from pathlib import Path
 LOG_LINES = 400
 MAX_LOG_BYTES = 256 * 1024
 USER_PATH = re.compile(r'(?i)([A-Z]:[\\/]+Users[\\/]+)[^\\/"\r\n]+')  # a user name may contain spaces
+HOME_PATH = re.compile(r'(/home/)[^/\s"\']+')  # the same on Linux
 BEARER = re.compile(r'(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+')
 SECRET = re.compile(r'(?i)(token|secret|password|passwd|authorization|api[_-]?key|bearer)(["\']?\s*[:=]?\s*["\']?)([^\s"\',;]+)')
 PAGE = re.compile(r'^(\[[^\]\n]*\] ).+ / .+(: \d+ buttons acknowledged)$', re.M)  # tesserad logs each page push
@@ -27,7 +28,7 @@ PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', '
 
 def clean(text: str) -> str:
     """Remove the user's name from paths and anything that looks like a credential (the live log view uses this too)."""
-    text = USER_PATH.sub(r'\1<user>', BEARER.sub(r'\1 <hidden>', text))
+    text = HOME_PATH.sub(r'\1<user>', USER_PATH.sub(r'\1<user>', BEARER.sub(r'\1 <hidden>', text)))
     return SECRET.sub(lambda match: f'{match.group(1)}{match.group(2)}<hidden>', text)
 
 

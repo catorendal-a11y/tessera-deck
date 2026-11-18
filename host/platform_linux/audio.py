@@ -96,7 +96,10 @@ def _apply(run, kind: str, ident: str, operation: str, value, step: int, current
         run(f'set-{kind}-mute', ident, {'toggle': 'toggle', 'mute': '1', 'unmute': '0'}[operation])
         return
     target = value if operation == 'volume' else current + (step if operation == 'up' else -step)
-    run(f'set-{kind}-volume', ident, f'{max(0, min(100, target))}%')
+    target = max(0, min(100, target))
+    if operation == 'up':  # a sink can stand above 100 (over-amplification): up must not bring it down
+        target = max(current, target)
+    run(f'set-{kind}-volume', ident, f'{target}%')
 
 
 def read_mixer(pinned: list | None = None, mic: bool = True, run=pactl) -> list[dict]:

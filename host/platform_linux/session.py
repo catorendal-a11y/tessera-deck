@@ -44,6 +44,12 @@ def _screensavers(run=_run) -> bool:
     return False
 
 
+def idle_seconds() -> float:
+    """Seconds since the last keyboard or mouse input. Not read on Linux yet, so infinity: the idle clock then goes by
+    the panel alone."""
+    return float('inf')
+
+
 def locked(now=time.monotonic, run=_run) -> bool:
     global _cache
     at, value = _cache

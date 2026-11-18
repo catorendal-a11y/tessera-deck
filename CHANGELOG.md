@@ -4,6 +4,21 @@
 
 - The default profiles: hold Home to lock the profile. The panel then stays on it while you switch programs, and Home turns orange. Hold Home again to unlock. An existing setup gets the same with a *Lock profile* step under Held on its Home key.
 - The editor's profile settings say how to keep the panel on one profile.
+- Fixed: a calendar with an event from before 1970, or with an impossible length, took down every page that has the *Next meeting* widget and made the host reconnect in a loop. Such an event is now skipped.
+- Fixed: a page the panel refuses when it connects (too large, or a picture it cannot hold) made the host close and reopen the USB port for ever. The host now stays connected and logs the page. A profile whose first page is refused leaves the host on the profile it had.
+- Fixed: a permission question could fail to come up on the panel. The host asked for the agents screen before it sent the question, and a panel that drew in between went back to the keys. A question that is open while the panel reconnects now comes up too.
+- Fixed: a panel that reconnects while Windows is locked stayed lit until the idle timer dimmed it.
+- Import: a file with more than 200 flagged actions showed only the first 200, and *Keep these actions* kept all of them. The list now shows the commands first and says how many it leaves out.
+- Editor: deleting a page or a profile could leave a rail shortcut without steps, and the host then refused every save. Such a shortcut is removed with the page.
+- Editor: a save made while another save was merging a change from the tray no longer says the configuration is in conflict.
+- Editor: a key made right after *Clear* with the Held or Double-press tab open got its step there, so a tap did nothing. A new key always gets its step on Pressed, in its first state.
+- Editor: *Undo* in a toast takes back the change the toast is about, not a later edit. *Record* on a hotkey ends when you click elsewhere; before, the next letter typed in any field replaced the hotkey. Typing a new plugin password replaces the stored one; before, it was added to its end.
+- Linux: *Start with the desktop* in the tray failed with "only supported on Windows". The idle clock failed once a second in the host log. *Save diagnostics* in the tray tried to start Windows Explorer. Shuffle and repeat never showed the player's state. *Volume up* lowered a level above 100 %. An autostart entry left by a copy in another folder counted as on. The diagnostics file kept the user's name in `/home` paths.
+- Windows tray: the question *Start with Windows starts Tessera from another folder* never came when the first-run record was copied over with the other files.
+- The files that hold the editor's and the control API's tokens are made private before the token is written. Claude Code's settings file and its backups keep the permissions the file had.
+- Home Assistant plugin: entity values become *unknown* when Home Assistant cannot be reached; before, a key went on showing the last state.
+- Control API: `GET /v1/events` with a `since` from before a host restart returns the new events; before, it returned nothing until the ids caught up.
+- Firmware: a hold on a *Hold to confirm* key is cancelled when another screen comes up under the finger. A touch that wakes the panel while a dim command is on its way no longer leaves the next tap swallowed. Both need this firmware on the panel and have run only in the native tests.
 - Desk consoles: the print files are also on [Printables](https://www.printables.com/model/1921087-tessera-desk-console-for-7-inch-esp32-p4-panels-gu) and [MakerWorld](https://makerworld.com/en/models/3640174-tessera-desk-console-for-7-inch-esp32-p4-panels), and MakerWorld has sliced print profiles for Bambu printers.
 - Docs: the website shows the four screens, the agents screen, scripts and a comparison with Stream Deck. The guides say what differs on Linux and on the other boards, the protocol page lists the `w`, `h` and `imgCache` handshake fields, and the hardware notes have print times and weights from the slicer. VERIFICATION.md lists hold to confirm, the panel lock, the about sheet, the widgets, the faders and the ambient screen as tried by hand on a panel.
 

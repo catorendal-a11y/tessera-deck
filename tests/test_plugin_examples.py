@@ -85,6 +85,11 @@ class HomeAssistantTests(unittest.TestCase):
         self.assertEqual({path for path, _ in calls}, {'/v1/vars'})
         self.assertEqual({name: value for _, data in calls for name, value in data['set'].items()}, values)
 
+    def test_entities_become_unknown_when_home_assistant_cannot_be_reached(self):
+        module = load('home-assistant', {'url': 'http://127.0.0.1:9/', 'token': 'secret',
+                                         'entities': 'light.kitchen, sensor.outdoor, bad entity'})
+        self.assertEqual(module.unknown(), {'home-assistant.light.kitchen': 'unknown', 'home-assistant.sensor.outdoor': 'unknown'})
+
     def test_a_refused_service_call_is_not_reported_as_unreachable(self):
         import urllib.error
         module = load('home-assistant', {'url': 'http://127.0.0.1:9/', 'token': 'secret'})

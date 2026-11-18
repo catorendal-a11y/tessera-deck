@@ -15,7 +15,7 @@ import platform_support  # noqa: E402
 SHARED_FUNCTIONS = {
     'audio': ['control_audio', 'read_audio', 'read_mixer'],
     'media': ['MediaReader', 'control_media'],
-    'session': ['locked'],
+    'session': ['locked', 'idle_seconds'],
     'secrets': ['seal', 'unseal'],
     'shortcuts': ['desktop_shortcut_path', 'create_shortcut'],
     'dialogs': ['ask_yes_no'],

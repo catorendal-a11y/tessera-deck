@@ -108,6 +108,14 @@ class ExclusiveServer(ThreadingHTTPServer):
         super().server_bind()
 
 
+def write_private(path, text: str) -> None:
+    """Write `text` to a file only this account can read. The file is private before the text is in it."""
+    path = Path(path)
+    path.write_text('', encoding='utf-8')
+    make_private(path)
+    path.write_text(text, encoding='utf-8')
+
+
 class ControlServer:
     def __init__(self, daemon, info_path):
         self.daemon = daemon
@@ -382,8 +390,7 @@ class ControlServer:
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         info = {'pid': os.getpid(), 'port': self.server.server_port, 'token': self.token}
         temporary = self.info_path.with_suffix('.tmp')
-        temporary.write_text(json.dumps(info), encoding='utf-8')
-        make_private(temporary)
+        write_private(temporary, json.dumps(info))
         os.replace(temporary, self.info_path)
         atexit.register(self.remove_own_info)  # a normal exit without stop() leaves no stale file
 
