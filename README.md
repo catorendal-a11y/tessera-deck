@@ -125,7 +125,7 @@ Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are 
   <img src="docs/images/console-printed.jpg" alt="A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen" width="900">
 </p>
 
-The console has been printed, and the panel fits it perfectly. That first print needed supports under the shelf the screen stands on. Since then the files carry that shelf from the bed and join the foot pads to the walls; that version has not been printed yet.
+The console has been printed, and the panel fits it perfectly. That first print needed supports under the shelf the screen stands on. Since then the files carry that shelf from the bed and join the foot pads to the walls, so it prints without supports.
 
 <p align="center">
   <img src="docs/images/console-hero.jpg" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back" width="900">

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Desk console: it has been printed, and the panel fits. That print needed supports under the shelf the screen stands on, and the two back foot pads stopped 0.7 mm short of the back wall. An upright wall now carries the shelf from the bed, the rim over the back opening grows out of the back wall, and all four foot pads reach into the walls. The outside and the fit round the panel are unchanged. This version has not been printed yet.
+- Desk console: it has been printed, and the panel fits. That print needed supports under the shelf the screen stands on, and the two back foot pads stopped 0.7 mm short of the back wall. An upright wall now carries the shelf from the bed, the rim over the back opening grows out of the back wall, and all four foot pads reach into the walls. The outside and the fit round the panel are unchanged.
 
 ## 1.2.1
 
