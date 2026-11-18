@@ -4,7 +4,7 @@
 
 The host and the editor change; the panel firmware is the same as 1.2.3.
 
-- The editor can update Tessera itself. After *Check for updates*, *Update Tessera to …* downloads the release's program zip, checks it against `SHA256SUMS` and unpacks it over the program folder. Profiles, icons and backups stay, and the firmware for every board comes with it, so the panel's update needs no second download. Tessera has to be started again afterwards. A source checkout is left to `git pull`.
+- The editor can update Tessera itself. After *Check for updates*, *Update Tessera to …* downloads the release's program zip, checks it against `SHA256SUMS` and unpacks it over the program folder. Profiles, icons and backups stay, and the firmware for every board comes with it, so the panel's update needs no second download. Tessera then starts again by itself. A source checkout is left to `git pull`.
 - *Switch profile* can go straight to a page of the other profile. The page follows when it is renamed, and the step goes back to the first page when it is deleted.
 - A daily automatic action can run on chosen weekdays only (*Only on*).
 - A backup can be kept: *Keep* in **Restore a backup** holds on to it when newer ones come.

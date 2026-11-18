@@ -129,7 +129,7 @@ The OTA data image makes the bootloader start `ota_0` again, even if an update o
 
 ## Update the Windows program
 
-From version 1.2.4 the editor does it. Open **Panel → Panel firmware and updates …**, press *Check for updates* and then *Update Tessera to …*. It downloads the release's program zip, keeps it only if its SHA-256 matches `SHA256SUMS`, and unpacks it over the program folder. Your profiles, icons and backups are not in a release, so they stay where they are. Quit Tessera from the tray icon and start it again to use the new version. The zip has the firmware for every board, so the same dialog then offers the panel's update without another download. A source checkout is left alone: update it with `git pull`.
+From version 1.2.4 the editor does it. Open **Panel → Panel firmware and updates …**, press *Check for updates* and then *Update Tessera to …*. It downloads the release's program zip, keeps it only if its SHA-256 matches `SHA256SUMS`, and unpacks it over the program folder. Your profiles, icons and backups are not in a release, so they stay where they are. Tessera then closes and starts again by itself: the tray, the host and the editor. The zip has the firmware for every board, so the same dialog then offers the panel's update without another download. A source checkout is left alone: update it with `git pull`.
 
 To do it by hand: replace the program folder with the new `tessera-host` zip, or run `git pull` in a source checkout. Copy your data
 over first: from `host/`, copy `profiles.json`, `assets/`, `backups/` and the `*.local.json` files (counters, timers,

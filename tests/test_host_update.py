@@ -125,5 +125,47 @@ class EditorTests(Case):
         self.assertIn('newest', str(raised.exception))
 
 
+    def test_after_the_update_tessera_starts_again_by_itself(self):
+        from unittest.mock import patch
+        editor = self.editor()
+        editor.last_release = self.info
+        with patch.object(updates, 'download_host', return_value=self.saved()), patch.object(updates, 'install_host', return_value=3), \
+                patch.object(Editor, 'restart_soon') as restart:
+            result = editor.install_host_update()
+        restart.assert_called_once_with()
+        self.assertIn('starts again now', result['message'])
+
+
+class RestartTests(unittest.TestCase):
+    class Process:
+        def __init__(self, pid, command, folder):
+            self.pid, self.command, self.folder = pid, command, folder
+
+        def cmdline(self):
+            return self.command
+
+        def cwd(self):
+            return self.folder
+
+    def test_only_the_programs_of_this_folder_are_stopped(self):
+        import setup_tool
+        with tempfile.TemporaryDirectory() as temp:
+            here, other = Path(temp) / 'tessera', Path(temp) / 'tessera-old'
+            processes = [self.Process(1, ['pythonw', 'host/tessera_tray.py'], str(here)),
+                         self.Process(2, ['pythonw', str(here / 'host/tesserad.py'), '--port', 'COM4'], 'C:/'),
+                         self.Process(3, ['pythonw', 'host/tessera_app.py', '--editor'], str(here)),
+                         self.Process(4, ['pythonw', 'host/tessera_tray.py'], str(other)),  # a copy in another folder
+                         self.Process(5, ['python', 'host/setup_tool.py', 'restart'], str(here)),  # the one that restarts
+                         self.Process(6, ['python', 'host/tessera_tray.py'], str(here)),  # this process itself
+                         self.Process(7, ['notepad.exe'], str(here))]
+            found = setup_tool.running_programs(processes, here, own=6)
+        self.assertEqual([process.pid for process in found], [1, 2, 3])
+
+    def test_tessera_starts_again_through_its_start_file(self):
+        import setup_tool
+        command = setup_tool.restart_command(Path('folder'))
+        self.assertTrue(command[-1].endswith(('Tessera.cmd', 'Tessera.sh')))
+
+
 if __name__ == '__main__':
     unittest.main()

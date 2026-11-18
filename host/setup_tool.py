@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -152,6 +154,47 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
     return removed
 
 
+RESTART_SCRIPTS = ('tessera_tray.py', 'tesserad.py', 'tessera_app.py')
+
+
+def running_programs(processes, root: Path, own: int) -> list:
+    """The tray, the host and the editor that run from `root`: what stops before Tessera starts again. A copy of
+    Tessera in another folder is left alone, so a path is read from the folder its process runs in."""
+    wanted = {os.path.normcase(str((Path(root) / 'host' / name).resolve())) for name in RESTART_SCRIPTS}
+    found = []
+    for process in processes:
+        try:
+            if process.pid == own:
+                continue
+            scripts = [argument for argument in process.cmdline()[1:3] if argument.endswith('.py')]
+            if any(os.path.normcase(str((Path(process.cwd()) / script).resolve())) in wanted for script in scripts):
+                found.append(process)
+        except Exception:  # a process that ended meanwhile, or one this account may not look at
+            continue
+    return found
+
+
+def restart_command(root: Path) -> list[str]:
+    """The start file, which also installs what a new version needs before it starts the tray and the editor."""
+    launcher = str(Path(root) / load('labels').LAUNCHER)
+    return ['cmd', '/c', launcher] if os.name == 'nt' else [launcher]
+
+
+def restart(root: Path = ROOT, wait: Callable[[float], None] = time.sleep) -> None:
+    """Stop the tray, the host and the editor of this folder and start Tessera again (after an update)."""
+    import psutil
+    from process_flags import DETACHED, NO_WINDOW
+    wait(1.5)  # the editor first answers the page that asked for the update
+    for process in running_programs(psutil.process_iter(), root, os.getpid()):
+        try:
+            process.terminate()
+        except psutil.Error:
+            pass
+    wait(1.0)
+    subprocess.Popen(restart_command(root), cwd=str(root), creationflags=NO_WINDOW | DETACHED, start_new_session=os.name != 'nt',
+                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def diagnostics() -> Path:
     sys.path.insert(0, str(ROOT / 'host'))
     import diagnostics as bundle
@@ -170,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest='command', required=True)
     commands.add_parser('ensure', help='install dependencies when requirements.txt changed')
     commands.add_parser('setup', help='first-run setup: dependencies and a Desktop shortcut')
+    commands.add_parser('restart', help='stop the tray, the host and the editor and start Tessera again')
     remove = commands.add_parser('uninstall', help='remove the autostart entry and the Desktop shortcut')
     remove.add_argument('--purge', action='store_true', help='also delete profiles, icons, backups and downloads')
     commands.add_parser('diagnostics', help='write a support bundle without button contents')
@@ -181,6 +225,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print(f'Shortcut: {create_shortcut()}')
         print('Setup is done. Start Tessera from the shortcut or with ' + (load('labels').LAUNCHER + '.'))
+        return 0
+    if args.command == 'restart':
+        restart()
         return 0
     if args.command == 'uninstall':
         try:

@@ -500,9 +500,18 @@ class Editor:
         except zipfile.BadZipFile as exc:
             raise ValueError('The update file cannot be read as a zip; nothing was changed.') from exc
         latest = self.last_release['latest']
+        self.restart_soon()
         return {'version': latest, 'files': written,
-                'message': f'Tessera {latest} is in place. Quit Tessera from the tray icon and start it again to use it. '
+                'message': f'Tessera {latest} is in place and starts again now. '
                            'Then update the panel here if this dialog offers newer firmware.'}
+
+    @staticmethod
+    def restart_soon():
+        """Start Tessera again from the files that were just unpacked: its own process, so it outlives this one."""
+        from process_flags import DETACHED, NO_WINDOW
+        subprocess.Popen([sys.executable, str(ROOT / 'host/setup_tool.py'), 'restart'], cwd=str(ROOT),
+                         creationflags=NO_WINDOW | DETACHED, start_new_session=not IS_WINDOWS,
+                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def export_diagnostics(self):
         try:

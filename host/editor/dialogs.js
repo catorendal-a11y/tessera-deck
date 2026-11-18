@@ -395,7 +395,7 @@ $('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmwar
 $('#firmware-download').onclick = () => downloadFirmware().catch(showError);
 /* The program itself: the release's zip, checked like the firmware, unpacked over this folder. */
 async function updateHost() {
-  if (!await confirmDialog('Update Tessera now?', 'Your profiles, icons and backups stay. Tessera has to be started again afterwards.', {ok: 'Update'})) return;
+  if (!await confirmDialog('Update Tessera now?', 'Your profiles, icons and backups stay. Tessera closes and starts again by itself when the new version is in place.', {ok: 'Update'})) return;
   const label = $('#firmware-latest'), button = $('#host-update');
   button.disabled = true; label.textContent = 'Downloading and checking the new version …';
   try { const result = await api('command/update-install-host', {}); label.textContent = result.message; button.hidden = true; }
