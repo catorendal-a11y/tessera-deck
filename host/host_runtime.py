@@ -123,6 +123,23 @@ def session_locked() -> bool:
     return False
 
 
+def pc_idle_seconds() -> float:
+    """Seconds since the last keyboard or mouse input on this PC; infinity where Windows cannot tell."""
+    if os.name != 'nt':
+        return float('inf')
+    import ctypes
+
+    class LastInputInfo(ctypes.Structure):
+        _fields_ = [('cbSize', ctypes.c_uint32), ('dwTime', ctypes.c_uint32)]
+
+    info = LastInputInfo(ctypes.sizeof(LastInputInfo), 0)
+    if not ctypes.WinDLL('user32').GetLastInputInfo(ctypes.byref(info)):
+        return float('inf')
+    kernel32 = ctypes.WinDLL('kernel32')
+    kernel32.GetTickCount.restype = ctypes.c_uint32
+    return ((kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000  # both wrap after 49.7 days
+
+
 def _installed_ports():
     from serial.tools import list_ports
     return {port.device: port.serial_number for port in list_ports.comports()}
