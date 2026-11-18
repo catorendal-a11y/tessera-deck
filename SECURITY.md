@@ -18,7 +18,7 @@ The editor and the control API are two small web servers inside the host. Neithe
 - Every call that changes something through the control API is written to the host log (**More → Host log …**) with the caller's name, the method, the path and the answer code. The log never holds request bodies, and it leaves out successful bulk variable updates (`/v1/vars`). Single updates (`/v1/var`) are logged.
 - The panel itself has no network. It only speaks to the host over USB, see [Protocol](docs/PROTOCOL.md).
 - Any program that can open the panel's COM port can write firmware to it, as esptool does. Secure boot is off, so the panel runs that firmware without checking who built it.
-- *Check for updates* keeps a downloaded firmware package only if its SHA-256 matches `SHA256SUMS` from the same GitHub release. That catches a damaged download. Someone who could change the release could change `SHA256SUMS` too, so for provenance use `gh attestation verify` as [Install](docs/INSTALL.md#download-and-verify) shows.
+- *Check for updates* keeps a downloaded firmware package, or the program zip of *Update Tessera*, only if its SHA-256 matches `SHA256SUMS` from the same GitHub release. The program zip is unpacked over the program folder only: a name that leads outside it stops the update before anything is written, and your own files are never written over. That catches a damaged download. Someone who could change the release could change `SHA256SUMS` too, so for provenance use `gh attestation verify` as [Install](docs/INSTALL.md#download-and-verify) shows.
 
 ## Imported profiles
 

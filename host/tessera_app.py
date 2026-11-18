@@ -5,6 +5,7 @@ from desktop import open_path
 from platform_support import IS_WINDOWS, load
 from venv_paths import venv_python
 import argparse
+import zipfile
 import copy
 import hashlib
 from functools import lru_cache
@@ -480,6 +481,29 @@ class Editor:
             raise ValueError('The download failed. Check your internet connection and try again.') from exc
         return {'path': str(path), 'message': f'Downloaded and verified {path.name}. Choose it in the firmware list.'}
 
+    def install_host_update(self):
+        """Download the program of the release the check found and unpack it over this folder. Profiles, icons and
+        backups are not in a release and stay. The running programs keep the old code until they are started again."""
+        if not self.last_release:
+            raise ValueError('Check for updates first')
+        if not self.last_release.get('newer'):
+            raise ValueError('This is already the newest version')
+        import tempfile
+        try:
+            with tempfile.TemporaryDirectory() as folder:
+                written = updates.install_host(updates.download_host(self.last_release, Path(folder)), ROOT)
+        except PermissionError as exc:
+            raise ValueError(f'A file is in use and could not be replaced: {Path(exc.filename or "").name}. '
+                             'Quit Tessera from the tray icon, start it again and update once more.') from exc
+        except OSError as exc:
+            raise ValueError('The update could not be downloaded or written. Check your internet connection and try again.') from exc
+        except zipfile.BadZipFile as exc:
+            raise ValueError('The update file cannot be read as a zip; nothing was changed.') from exc
+        latest = self.last_release['latest']
+        return {'version': latest, 'files': written,
+                'message': f'Tessera {latest} is in place. Quit Tessera from the tray icon and start it again to use it. '
+                           'Then update the panel here if this dialog offers newer firmware.'}
+
     def export_diagnostics(self):
         try:
             config = self.read()['config']
@@ -561,6 +585,8 @@ class Editor:
             return self.check_updates()
         if command == 'update-download-firmware':
             return self.download_firmware()
+        if command == 'update-install-host':
+            return self.install_host_update()
         if command == 'diagnostics':
             return self.export_diagnostics()
         if command == 'claude-hooks':

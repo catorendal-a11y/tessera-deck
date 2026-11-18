@@ -377,6 +377,8 @@ async function checkUpdates() {
   label.textContent = 'Checking GitHub …';
   const info = await api('command/update-check', {});
   $('#firmware-download').hidden = !(info.firmware && info.sums);  // also for a new panel on the latest version
+  $('#host-update').hidden = !(info.newer && info.host && info.sums);
+  $('#host-update').textContent = `Update Tessera to ${info.latest}`;
   label.textContent = info.newer
     ? `Version ${info.latest} is available (you have ${info.current}).${info.firmware ? '' : ' It has no firmware package.'}`
     : `You have the latest version (${info.current}).${info.firmware ? ' Its firmware can still be downloaded for the panel.' : ''}`;
@@ -391,6 +393,16 @@ async function downloadFirmware() {
 }
 $('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmware-latest').textContent = error.message; });
 $('#firmware-download').onclick = () => downloadFirmware().catch(showError);
+/* The program itself: the release's zip, checked like the firmware, unpacked over this folder. */
+async function updateHost() {
+  if (!await confirmDialog('Update Tessera now?', 'Your profiles, icons and backups stay. Tessera has to be started again afterwards.', {ok: 'Update'})) return;
+  const label = $('#firmware-latest'), button = $('#host-update');
+  button.disabled = true; label.textContent = 'Downloading and checking the new version …';
+  try { const result = await api('command/update-install-host', {}); label.textContent = result.message; button.hidden = true; }
+  catch (error) { label.textContent = error.message; }
+  finally { button.disabled = false; }
+}
+$('#host-update').onclick = updateHost;
 $('#diagnostics-export').onclick = async () => { document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; }); try { await command('diagnostics'); } catch (error) { showError(error); } };
 /* Host log: a live tail of the host's own log, like a serial monitor for the whole product. */
 let logTimer = null;

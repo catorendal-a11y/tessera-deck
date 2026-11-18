@@ -1,27 +1,35 @@
 """User-initiated update check against the project's GitHub releases, and a verified firmware download.
 
 Nothing is contacted until the user presses the button. Only the project's own release API and GitHub's
-download hosts are used, downloads are limited in size, and a firmware package is kept only when its
-SHA-256 matches the SHA256SUMS file published with the same release.
+download hosts are used, downloads are limited in size, and a firmware package or a program zip is kept only
+when its SHA-256 matches the SHA256SUMS file published with the same release.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import shutil
+import zipfile
 import urllib.error
 import urllib.parse
 import urllib.request
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPOSITORY = 'catorendal-a11y/tessera-deck'
 RELEASE_API = f'https://api.github.com/repos/{REPOSITORY}/releases/latest'
 DOWNLOAD_HOSTS = ('github.com', 'objects.githubusercontent.com', 'release-assets.githubusercontent.com')
 TIMEOUT_SECONDS = 10
 MAX_DOWNLOAD = 16 * 1024 * 1024
+MAX_HOST_DOWNLOAD = 64 * 1024 * 1024  # the program zip holds the firmware of every board
+MAX_UNPACKED = 256 * 1024 * 1024
+# What the user made, as in setup_tool.USER_DATA. A release never holds these; a zip that does is not written over them.
+USER_FILES = re.compile(r'host/(profiles\.json|assets/.*|backups/.*|plugins/[^/]+\.log.*|[^/]*\.local\.[^/]*)')
 NOTES_LINES = 10
 VERSION = re.compile(r'v?(\d+)\.(\d+)\.(\d+)')
 FIRMWARE_ASSET = re.compile(r'tessera-firmware-[0-9A-Za-z.\-]+\.zip')
+HOST_ASSET = re.compile(r'tessera-host-v\d+\.\d+\.\d+\.zip')
 P4_ASSET = re.compile(r'tessera-firmware-v?\d[0-9A-Za-z.\-]*\.zip')  # the P4 package has no board in its name
 
 
@@ -100,6 +108,7 @@ def check(current: str, opener=_urlopen, board: str | None = None) -> dict:
     return {'current': current, 'latest': latest.lstrip('v'), 'newer': newer, 'page': release.get('html_url', ''),
             'notes': notes_excerpt(release.get('body')),
             'firmware': firmware_asset(assets, board),
+            'host': next((item for item in assets if item['name'] == f'tessera-host-{latest}.zip'), None),
             'sums': next((item for item in assets if item['name'] == 'SHA256SUMS'), None)}
 
 
@@ -110,25 +119,80 @@ def download_firmware(info: dict, folder: Path, opener=_urlopen) -> Path:
         raise ValueError('That release has no firmware package with a checksum file')
     if not FIRMWARE_ASSET.fullmatch(firmware['name']):
         raise ValueError('Unexpected firmware file name')
-    for url in (firmware['url'], sums['url']):
+    return _save_verified(firmware, sums, folder, opener, MAX_DOWNLOAD, 'firmware package')
+
+
+def _save_verified(asset: dict, sums: dict, folder: Path, opener, limit: int, what: str) -> Path:
+    """Fetch `asset` into `folder`; it is kept only when its SHA-256 is the one SHA256SUMS lists for it."""
+    for url in (asset['url'], sums['url']):
         _check_host(url)
     listing, final = _open(sums['url'], opener, 64 * 1024)
     _check_host(final)
     expected = None
     for line in listing.decode('utf-8', 'replace').splitlines():
         digest, _, name = line.strip().partition('  ')
-        if name.strip().lstrip('*') == firmware['name'] and re.fullmatch(r'[0-9a-fA-F]{64}', digest):
+        if name.strip().lstrip('*') == asset['name'] and re.fullmatch(r'[0-9a-fA-F]{64}', digest):
             expected = digest.lower()
     if expected is None:
-        raise ValueError('The checksum file does not list the firmware package')
-    data, final = _open(firmware['url'], opener, MAX_DOWNLOAD)
+        raise ValueError(f'The checksum file does not list the {what}')
+    data, final = _open(asset['url'], opener, limit)
     _check_host(final)
     if hashlib.sha256(data).hexdigest() != expected:
-        raise ValueError('The firmware download is damaged (checksum mismatch); nothing was saved')
+        raise ValueError(f'The {what.split()[0]} download is damaged (checksum mismatch); nothing was saved')
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
-    target = folder / firmware['name']
+    target = folder / asset['name']
     temporary = target.with_suffix('.part')
     temporary.write_bytes(data)
     temporary.replace(target)
     return target
+
+
+def download_host(info: dict, folder: Path, opener=_urlopen) -> Path:
+    """Fetch the release's program zip into `folder`, verified against SHA256SUMS."""
+    host, sums = info.get('host'), info.get('sums')
+    if not host or not sums:
+        raise ValueError('That release has no program file with a checksum file')
+    if not HOST_ASSET.fullmatch(host['name']):
+        raise ValueError('Unexpected program file name')
+    return _save_verified(host, sums, folder, opener, MAX_HOST_DOWNLOAD, 'program file')
+
+
+def install_host(package: Path, root: Path) -> int:
+    """Unpack a verified program zip over the program folder `root`; returns how many files were written.
+
+    Only files the zip holds are written. The user's own files are never among them, and every name is checked
+    before the first file is written, so a zip with one bad name changes nothing. A source checkout is left to git.
+    """
+    root = Path(root)
+    if (root / '.git').exists():
+        raise ValueError('This folder is a source checkout. Update it with git pull.')
+    with zipfile.ZipFile(package) as archive:
+        members = []
+        for item in archive.infolist():
+            top, _, relative = item.filename.partition('/')
+            if item.is_dir() or not relative:
+                continue
+            parts = PurePosixPath(relative).parts
+            if not top or '\\' in item.filename or ':' in relative or relative.startswith('/') or '..' in parts:
+                raise ValueError(f'The update file has a name that is not allowed: {item.filename[:80]}')
+            if not USER_FILES.fullmatch(relative):
+                members.append((item, relative))
+        names = {relative for _, relative in members}
+        if not {'VERSION', 'host/tesserad.py'} <= names or len({item.filename.partition('/')[0] for item, _ in members}) != 1:
+            raise ValueError('This is not a Tessera program file')
+        if sum(item.file_size for item, _ in members) > MAX_UNPACKED:
+            raise ValueError('The update file unpacks to more than expected')
+        for item, relative in members:
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_name(target.name + '.new')
+            with archive.open(item) as source, open(temporary, 'wb') as out:
+                shutil.copyfileobj(source, out)
+            mode = (item.external_attr >> 16) & 0o777
+            if target.exists():
+                shutil.copymode(target, temporary)  # Tessera.sh stays a program the user can start
+            elif mode:
+                os.chmod(temporary, mode)
+            os.replace(temporary, target)
+    return len(members)
