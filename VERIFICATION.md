@@ -44,10 +44,14 @@ Other automatic checks:
 | Watchdog: a test build hangs the screen task, then the USB loop | 0.10.1, 16 November 2026 | Passed. The panel restarted after 6.4 s (screen) and 7.2 s (USB) and reported `task_wdt` as the reason |
 | Rollback: a test build that never confirms itself and restarts 15 s after boot, installed with *Update* | 0.10.1, 16 November 2026 | Passed. After its first restart the bootloader started the previous firmware again, which kept running |
 | `hardware_smoke.py` after installing 1.0.0 with *Update* | 1.0.0, 16 November 2026 | Passed |
+| The editor's *Check for updates*, *Download firmware* and *Update*, from 1.2.1 to the published 1.2.3 | 1.2.3, 18 November 2026 | Passed. The package matched `SHA256SUMS`, the install took about 40 s, and the host started again and found the panel |
+| `hardware_smoke.py` after that update | 1.2.3, 18 November 2026 | Passed |
 
 The watchdog and rollback tests used two builds made only for that and never published. One adds a command that hangs the screen task or the USB loop. The other skips the confirmation and restarts while the new firmware is still unconfirmed. The host turns a `task_wdt` reason into a log line and a notice; that part is covered by unit tests, not by these runs. The panel runs the normal 0.10.1 build again.
 
 Two updates over USB stopped partway with *The panel did not answer AD_OTA_DATA* on a panel that had run 0.7.0 for about four hours; it kept its old firmware, and the next tries worked. The cause is not found. Since 0.8.0 the host aborts and starts such an upload once more by itself. `hardware_smoke.py` has not been run on 0.7.0 or 0.8.0.
+
+*Update Tessera* in the editor was run on Windows on a copy of the program that said it was 1.2.2: it downloaded the published 1.2.3 zip, wrote 362 files, left the profile file alone and brought the firmware for all four boards. The restart that follows was run in a real folder: the tray, the host and the editor came back and the panel reconnected. The two were not run as one chain, and neither has been tried on Linux.
 
 The editor was also walked through against a copy of a real configuration: every page, the three key tabs on every key, all dialogs, pages and profiles created, renamed and deleted, drag and drop with synthetic events, undo and redo. That was before the latest editor redesign. The editor smoke test covers the new layout only in part.
 

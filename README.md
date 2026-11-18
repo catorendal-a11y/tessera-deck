@@ -80,6 +80,8 @@ The release zip has the host and the panel firmware, so you need no build tools.
 
 Nothing runs in the editor. Keys run only when you press them on the panel.
 
+To update later, open **Panel → Panel firmware and updates …** and press *Check for updates*. From 1.2.4 the editor updates Tessera itself from there, starts it again, and then offers the panel's firmware without another download. [Install](docs/INSTALL.md#update-the-windows-program) has the details.
+
 ## Build it or buy one?
 
 | | Tessera | Stream Deck MK.2 | Stream Deck XL |
@@ -101,7 +103,7 @@ You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk
 - Over 130 ready-made actions and 10 profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
 - Macros: multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
 - Scripts and AI tools: run a script from a key, drive keys or put a message on the panel from your own scripts with the local API or `deckctl`, or add plugins (one for Home Assistant through the PC and one for OBS Studio are included) and Claude Code hooks.
-- Clock screen, offline layout, auto-dim, a firmware installer and a banner that says why a key failed.
+- Clock screen, offline layout, auto-dim, a banner that says why a key failed, and an updater in the editor for both the program and the panel's firmware.
 - Home Assistant over Wi-Fi (beta, not in the release yet): the panel joins your Wi-Fi and shows up in Home Assistant through the ESPHome integration. See [below](#home-assistant-beta).
 
 See [all features](docs/FEATURES.md).
