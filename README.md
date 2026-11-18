@@ -7,6 +7,10 @@
 </p>
 
 <p align="center">
+  The host also runs on Linux (X11): <a href="docs/LINUX.md">Tessera on Linux</a>.
+</p>
+
+<p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/host-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
