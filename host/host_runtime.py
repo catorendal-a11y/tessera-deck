@@ -111,6 +111,11 @@ def session_locked() -> bool:
     return load('session').locked()
 
 
+def pc_idle_seconds() -> float:
+    """Seconds since the last keyboard or mouse input on this PC; infinity where the system cannot tell."""
+    return load('session').idle_seconds()
+
+
 def _installed_ports():
     from serial.tools import list_ports
     return {port.device: port.serial_number for port in list_ports.comports()}

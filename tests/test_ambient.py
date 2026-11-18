@@ -212,6 +212,30 @@ class DaemonAmbientTests(unittest.TestCase):
         daemon.ambient_tick(101.0)
         daemon.panel.send_line.assert_called_once_with('AD_SCREEN deck')
 
+    def test_input_on_the_pc_keeps_the_clock_away_and_takes_it_away_again(self):
+        daemon = self.daemon()
+        daemon.last_activity = 0.0
+        daemon.pc_idle = lambda: 5.0  # typing on the PC, no press on the panel for long
+        daemon.ambient_tick(1000.0)
+        daemon.panel.send_line.assert_not_called()
+        daemon.pc_idle = lambda: 61.0
+        daemon.ambient_tick(1000.0)
+        self.assertTrue(daemon.ambient_active)
+        daemon.panel.send_line.reset_mock()
+        daemon.pc_idle = lambda: 0.5  # the mouse moves while the clock shows
+        daemon.ambient_tick(1001.0)
+        daemon.panel.send_line.assert_called_once_with('AD_SCREEN deck')
+        self.assertFalse(daemon.ambient_active)
+
+    def test_a_clock_asked_for_by_a_key_stays_while_the_pc_is_used(self):
+        daemon = self.daemon()
+        daemon.pc_idle = lambda: 0.5
+        daemon.run_action({'type': 'screen', 'show': 'clock'})
+        daemon.panel.send_line.reset_mock()
+        daemon.ambient_tick(1000.0)
+        self.assertNotIn('AD_SCREEN deck', [call.args[0] for call in daemon.panel.send_line.call_args_list])
+        self.assertTrue(daemon.ambient_active)
+
     def test_key_colors_are_sent_to_the_panel(self):
         daemon = self.daemon()
         daemon.profile, daemon.page = 'main', 'main'

@@ -5,6 +5,7 @@ import time
 
 from config_check import in_quiet_hours
 from control_api import NOTIFY_MAX_TEXT
+from host_runtime import pc_idle_seconds
 from platform_support import load
 
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
@@ -161,16 +162,25 @@ class DisplayMixin:
         self.ambient_sent = ''
         self.panel.send_line('AD_SCREEN ambient')
 
+    def pc_idle(self):
+        return pc_idle_seconds()
+
     def ambient_tick(self, now):
-        """Show the ambient clock after `after` idle seconds and keep its weather line fresh."""
+        """Show the ambient clock after `after` seconds without a press and without keyboard or mouse input on the PC,
+        and keep its weather line fresh. Input on the PC takes an idle clock away again; one asked for by a key stays."""
         settings = self.ambient_settings()
         supported = (self.device_info.get('protocol') or 1) >= 3
         if self.panel is None or not supported or not (settings['enabled'] or self.ambient_requested):
             if self.ambient_active:
                 self.leave_ambient()
             return
+        idle = min(now - self.last_activity, self.pc_idle())
+        if self.ambient_active and not self.ambient_requested and idle < settings['after']:
+            self.leave_ambient()
+            self.log('Ambient screen left for input on the PC')
+            return
         if not self.ambient_active:
-            if self.locked or now - self.last_activity < settings['after'] or self.question_open():
+            if self.locked or idle < settings['after'] or self.question_open():
                 return
             self.ambient_active = True
             self.panel.send_line('AD_SCREEN ambient')

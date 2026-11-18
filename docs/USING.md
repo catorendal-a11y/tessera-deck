@@ -171,7 +171,7 @@ Open **Panel → Display …** (or the tray's *Brightness* menu).
 | *Brightness when dimmed* | The level while dimmed, or *Off* |
 | *Quiet hours* and *Brightness during quiet hours* | A lower level between two times, for example at night |
 | *Clock format* | *Same as Windows* (the default), *24-hour* or *12-hour* with AM/PM, for the idle clock and the rail |
-| *Show a big clock when the panel has been idle* and *Show it after* | The idle clock. Touch the panel to get the keys back. |
+| *Show a big clock when the panel has been idle* and *Show it after* | The idle clock. It waits until both the panel and the PC's keyboard and mouse have been idle that long, and the keys come back when you touch the panel or use the PC. A clock you asked for with a *Switch screen* key stays until you touch the panel. |
 | *Weather for (city, optional)* and *Temperature unit* | Weather on the idle clock from open-meteo.com every 15 minutes, with an icon for sun, moon (after sunset there), cloud, fog, drizzle, rain, snow or thunder. Leave the city empty for no weather and no internet use. |
 
 The first touch on a dimmed panel only wakes it; it does not press a key. A long press on the panel's logo opens an About sheet with a brightness slider. The panel keeps its brightness across restarts.

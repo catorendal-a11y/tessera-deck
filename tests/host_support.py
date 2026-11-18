@@ -39,6 +39,7 @@ def args(path=PROFILES, port='TEST', no_focus=True):
 def test_daemon(path=PROFILES, port='TEST', no_focus=True):
     daemon = deck.Daemon(args(path, port=port, no_focus=no_focus))
     daemon.activity = agent_activity.AgentActivity(FOLDER / 'claude', FOLDER / 'codex')
+    daemon.pc_idle = lambda: float('inf')  # the PC running the tests is not idle; tests that need it set their own
     return daemon
 
 
