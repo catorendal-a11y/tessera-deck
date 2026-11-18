@@ -92,6 +92,28 @@ def stop_editor(record_path=None, script=None, wait=4.0):
     return True
 
 
+def is_alive(process) -> bool:
+    """Still running. A process that has ended but whose parent has not collected it yet (a zombie) is gone: the tray starts
+    the host, and the editor that stops it for a firmware install is not the parent, so psutil's own wait would see that
+    process for as long as the tray lives."""
+    try:
+        return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+    except psutil.Error:
+        return True  # cannot tell (access denied): assume it runs, as before
+
+
+def wait_until_gone(processes, timeout, sleep=time.sleep, clock=time.monotonic):
+    """The processes that are still alive after `timeout` seconds."""
+    deadline = clock() + timeout
+    alive = [process for process in processes if is_alive(process)]
+    while alive and clock() < deadline:
+        sleep(0.1)
+        alive = [process for process in alive if is_alive(process)]
+    return alive
+
+
 def save_profiles(config, path=None):
     from tesserad import validate_config
     path = Path(path or ROOT / 'host/profiles.json')
@@ -111,8 +133,10 @@ class Controller:
         self.pid_path = ROOT / 'host/deck-process.local.json'
         self.stop_path = ROOT / 'host/deck-stop.local.json'
         self.runtime_path = ROOT / 'host/deck-runtime.local.json'
+        self.children = []  # hosts this object started: collected as they end, so none stays a zombie
 
     def processes(self, root=None):
+        self.children = [child for child in self.children if child.poll() is None]
         try:
             saved = json.loads(self.pid_path.read_text())
             # The editor asks every 1.5 s: a host already found is checked, not searched for again.
@@ -222,6 +246,7 @@ class Controller:
                 creationflags=NO_WINDOW)
         finally:
             log.close()
+        self.children.append(process)
         current = psutil.Process(process.pid)
         self.pid_path.write_text(json.dumps({'pid': process.pid, 'created': current.create_time()}))
         time.sleep(.3)
@@ -234,10 +259,10 @@ class Controller:
         processes = self.processes()
         for process in processes:
             self.stop_path.write_text(json.dumps({'pid': process.pid}))
-        _, alive = psutil.wait_procs(processes, timeout=8)
+        alive = wait_until_gone(processes, 8)
         for process in alive:
             process.terminate()
-        _, alive = psutil.wait_procs(alive, timeout=5)
+        alive = wait_until_gone(alive, 5)
         if alive:
             raise RuntimeError('Host did not stop; no new owner was started')
         self.stop_path.unlink(missing_ok=True)
