@@ -2,7 +2,7 @@
 
     "C:\\Program Files\\FreeCAD 1.1\\bin\\freecadcmd.exe" hardware\\scripts\\export_render_mesh.py
 
-Reads console/tessera-enclosure.FCStd (make_enclosure.py writes it) and writes, to render/:
+Reads guition/tessera-enclosure.FCStd (make_enclosure.py writes it) and writes, to render/:
     tessera-enclosure-render.obj   the body, millimetres; shared vertices, a normal per corner from the CAD surface
     tessera-enclosure-render.json  where the glass is, the foot centres and the cable arch, millimetres
 The normals come from the surfaces themselves, so rounds shade smooth and flat faces stay flat.
@@ -14,7 +14,7 @@ from pathlib import Path
 import FreeCAD as App
 
 HARDWARE = Path(__file__).resolve().parents[1]
-SOURCE = Path(os.environ.get('TESSERA_OUT') or HARDWARE / 'console')
+SOURCE = Path(os.environ.get('TESSERA_OUT') or HARDWARE / 'guition')
 HERE = Path(os.environ.get('TESSERA_OUT') or HARDWARE / 'render')
 DEFLECTION = 0.01          # mm the facets may stray from the surface
 

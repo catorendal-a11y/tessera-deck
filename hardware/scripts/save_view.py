@@ -11,7 +11,7 @@ from pathlib import Path
 import FreeCAD as App
 import FreeCADGui as Gui
 
-FOLDER = Path(__file__).resolve().parents[1] / 'console'
+FOLDER = Path(__file__).resolve().parents[1] / 'guition'
 doc = App.openDocument(str(FOLDER / 'tessera-enclosure.FCStd'))
 gui = Gui.getDocument(doc.Name)
 body = doc.getObject('Enclosure')

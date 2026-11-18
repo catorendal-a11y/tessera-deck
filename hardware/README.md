@@ -6,7 +6,7 @@ Printable stands for two panels. Each panel has its own section below, with its 
 
 | Panel | Stand | Files |
 |---|---|---|
-| [GUITION JC1060P470C](#guition-jc1060p470c), in its factory housing (the `_Y` variant) | Console | `console/` |
+| [GUITION JC1060P470C](#guition-jc1060p470c), in its factory housing (the `_Y` variant) | Console | `guition/` |
 | [GUITION JC1060P470C](#guition-jc1060p470c), in its factory housing | Dock | `dock/` |
 | [Elecrow CrowPanel Advance 7.0](#crowpanel-advance-70), the bare board without Elecrow's casing | Console | `crowpanel/` |
 
@@ -16,10 +16,10 @@ Printable stands for two panels. Each panel has its own section below, with its 
 
 | File | What it is |
 |---|---|
-| `console/tessera-enclosure.stl` | GUITION console, for the slicer |
-| `console/tessera-enclosure.step` | GUITION console, for any CAD program |
-| `console/tessera-enclosure.FCStd` | GUITION console, FreeCAD model: a Part Design body with sketches, pads, pockets and fillets, a sheet of sizes, and the panel as a reference body |
-| `console/tessera-enclosure.png` | The GUITION console with the panel in place in FreeCAD |
+| `guition/tessera-enclosure.stl` | GUITION console, for the slicer |
+| `guition/tessera-enclosure.step` | GUITION console, for any CAD program |
+| `guition/tessera-enclosure.FCStd` | GUITION console, FreeCAD model: a Part Design body with sketches, pads, pockets and fillets, a sheet of sizes, and the panel as a reference body |
+| `guition/tessera-enclosure.png` | The GUITION console with the panel in place in FreeCAD |
 | `crowpanel/tessera-enclosure-crowpanel.*` | CrowPanel console, in the same three formats |
 | `dock/tessera-dock.stl` | GUITION dock, for the slicer |
 | `dock/tessera-dock.blend` | GUITION dock, Blender model |
@@ -110,7 +110,7 @@ Check on your own panel:
 
 ### Change the console
 
-Open `console/tessera-enclosure.FCStd` in FreeCAD. The body **Enclosure** is built in this order:
+Open `guition/tessera-enclosure.FCStd` in FreeCAD. The body **Enclosure** is built in this order:
 
 | Feature | Sketch | What it does |
 |---|---|---|
@@ -165,7 +165,7 @@ Run it with `--help` after `--` to list the options.
 
 `make_render.py` builds the GUITION console in Blender as a printed part: matte PLA with 0.2 mm layer lines and softly rounded edges. It adds the panel in its factory housing with black cover glass, and shows a real panel screen in the picture area. It also adds four rubber feet and a USB-C cable that runs from the panel's socket out through the cable arch. The scene is a studio with five cameras: `hero`, `user` (the view from your chair), `side`, `back` and `detail` (the tile mark).
 
-The console mesh comes from the CAD model in `console/`, so make it first. It is not in the repository because the script writes it in a few seconds:
+The console mesh comes from the CAD model in `guition/`, so make it first. It is not in the repository because the script writes it in a few seconds:
 
 ```powershell
 & "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\scripts\export_render_mesh.py

@@ -69,7 +69,7 @@ if CROW:
     post_x, post_pitch = 85.5, 98.0                               # M3 holes on 171.00 x 98.00
     glass_w, glass_h, glass_to_board = 164.90, 100.00, 6.00       # glass centred on the board; its front to the board's
 NAME = 'tessera-enclosure' + ('-crowpanel' if CROW else '')
-OUT = Path(os.environ.get('TESSERA_OUT') or Path(__file__).resolve().parents[1] / ('crowpanel' if CROW else 'console'))
+OUT = Path(os.environ.get('TESSERA_OUT') or Path(__file__).resolve().parents[1] / BOARD)
 
 W, H, T, C = P['width'], P['height'], P['slab'], P['clearance']
 tilt, rear = math.radians(P['tilt']), math.radians(P['rear'])
