@@ -60,6 +60,7 @@ let dirty=false, saving=false, saveInFlight=null, conflicted=false, version=0, s
 let drag=null, suppressClick=false, editState=0;
 let iconPack=null, packIcons=new Map(), iconPage=0, iconPreferences={favorites:[],recent:[]};
 let actionCatalog={packs:[],templates:[]};
+var hostRules={};  /* from the host: keys (the names a hotkey may use), platform, scripts (the file types it runs) */
 let installedPrograms=[];
 let lastActionAt=0;
 let keyMenuReturnFocus=null;
@@ -213,6 +214,16 @@ let editList='actions',editListFor='';
 /* The Held/Double-press tab belongs to the key it was opened on: any other key, page or profile starts on Pressed,
    so an action dropped on a new key never lands in a list it does not run on a tap. */
 /* A rail shortcut that runs steps needs at least one: the host refuses the whole file for one without. */
+/* Where the keys are whose steps `points` picks out, as 'Page 3' (with the profile first when `everywhere`): what a
+   deleted page or profile takes with it, so the toast can say which keys to look at. */
+function keysWith(points,everywhere=false) {
+  const found=[],steps=b=>[...(b.actions||[]),...(b.hold_actions||[]),...(b.double_actions||[]),...(b.states||[]).flatMap(state=>state.actions||[])];
+  for(const [name,item] of Object.entries(config.profiles)){if(!everywhere&&name!==profile)continue;
+    for(const [where,list] of [...Object.entries(item.pages||{}),['pinned',item.pinned||[]]])for(const b of list)if(steps(b).some(points))found.push(`${everywhere?name+' ':''}${where} ${b.id}`);}
+  return found;
+}
+function lostSteps(found,what) {return found.length?` ${found.length} key${found.length===1?'':'s'} lost the step that ${what}: ${found.slice(0,6).join(', ')}${found.length>6?' …':''}.`:'';}
+const withKeys=count=>count?` with its ${count} key${count===1?'':'s'}`:'';
 function dropEmptyShortcuts() {if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s?.type!=='actions'||s.actions?.length);}
 function syncEditList() {const key=[profile,page,selected].join('\u0000');if(key!==editListFor){editListFor=key;editList='actions';}}
 const TRIGGERS=[['actions','Pressed'],['hold_actions','Held'],['double_actions','Double-press']];
@@ -293,11 +304,16 @@ function valueProblem(a) {
   const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
   if((a.type==='press'&&!whole(a.id,1,18))||(a.type==='state'&&!whole(a.button,1,18)))return 'use a key number from 1 to 18';
   if(a.type==='delay'&&!whole(a.ms,0,60000))return 'use a wait of 0 to 60000 milliseconds';
+  const host=(typeof hostRules==='object'&&hostRules)||{};
   if(a.type==='hotkey'&&String(a.keys).split('+').some(part=>!part.trim()))return 'finish the key combination';
+  if(a.type==='hotkey'&&host.keys){const unknown=String(a.keys).toLowerCase().split('+').map(part=>part.trim()).find(part=>!host.keys.includes(part));if(unknown)return `use key names such as ctrl+shift+t: “${unknown}” is not one`;}
+  if(a.type==='window'&&a.op==='focus'&&!String(a.process||'').trim())return 'fill in the process name of the program to bring to the front';
+  if(a.type==='mouse'&&a.op==='moveto'&&!(Number.isInteger(a.x)&&Number.isInteger(a.y)))return 'type the Screen X and Screen Y to move the pointer to';
   if(a.type==='script'){
     const path=String(a.path).trim().replace(/^"+|"+$/g,'').trim();  // as the host reads it: Explorer's Copy as path adds quotes
-    if(!/\.(py|pyw|ps1|bat|cmd|ahk|js)$/i.test(path))return 'use a .py, .pyw, .ps1, .bat, .cmd, .ahk or .js file';
-    if(!/^([A-Za-z]:[\\/]|\\\\|%[^%\s]+%)/.test(path))return 'use the full path of the script file';
+    const types=host.scripts||['.py','.pyw','.ps1','.bat','.cmd','.ahk','.js'];  // Linux runs .sh and no .bat
+    if(!types.some(type=>path.toLowerCase().endsWith(type)))return `use a ${types.slice(0,-1).join(', ')} or ${types[types.length-1]} file`;
+    if(!(host.platform==='linux'?/^\//:/^([A-Za-z]:[\\/]|\\\\|%[^%\s]+%)/).test(path))return 'use the full path of the script file';
     if(/\.(bat|cmd)$/i.test(path)&&/%/.test(path.replace(/^%[^%\s]+%/,'')))return 'leave the % sign out of the path of a .bat or .cmd file';
   }
   if(a.type==='http'&&!String(a.url).startsWith('$(')&&!/^https?:\/\/[^/\s]/i.test(a.url))return 'start the address with http:// or https://';
@@ -467,6 +483,7 @@ function expandLabel(value) {
   const text=String(value||'').replace(/[$][(]([a-z_-]+)(?::([A-Za-z0-9_.-]+))?[)]/g,(match,kind,name)=>{
     const live=dashboard.variables?.[name?`${kind}:${name}`:kind];
     if(live!==undefined&&['pc','counter','timer','timer-state'].includes(kind))return String(live);
+    if(name&&kind==='counter')return '0';if(name&&kind==='timer')return '00:00';if(name&&kind==='timer-state')return 'IDLE';  // not used yet, as the host shows it
     if(kind==='profile_lock'&&!name)return String(live??'AUTO');
     if(kind==='agent')return dashboard.agents?.[name]?'ON':'OFF';
     if(kind==='profile'&&!name)return profile;if(kind==='page'&&!name)return page;
@@ -634,7 +651,7 @@ function addAction(key,id=null) {
   if(fresh){
     const span=key.startsWith('widget:')?WIDGETS.find(w=>w.kind===key.slice(7))?.span||2:1;
     id=[selected,...Array.from({length:18},(_,i)=>i+1)].find(slot=>spanFits(slot,span));
-    if(!id)return toast('This page has no free slot. Drop the action on a key to add it as a step.');
+    if(!id)return toast('This page has all 18 keys. Put the action on a new page (＋ beside the page tabs), or drop it on a key to add a step.');
   }
   if(key.startsWith('widget:'))return addWidget(key.slice(7),id);
   const item=actionTemplate(key);if(!item)return;
@@ -693,7 +710,7 @@ function actionSymbol(name) {
 /* Ready-made widgets: a wide key that shows something live. The host fills in the text; the list matches host/widgets.py. */
 const WIDGETS = [
   {kind: 'clock', name: 'Clock', sub: 'The time, the date and how far the day is', icon: 'lc:e087', span: 2, color: '#4DD0E1', path: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'},
-  {kind: 'date', name: 'Date', sub: 'The day, the week and the day of the year', icon: 'lc:e063', span: 2, color: '#B388FF', path: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>'},
+  {kind: 'date', name: 'Date', sub: 'The date, the weekday and the week number', icon: 'lc:e063', span: 2, color: '#B388FF', path: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>'},
   {kind: 'cpu', name: 'Processor', sub: 'Load, temperature and clock speed', icon: 'lc:e0a9', span: 2, color: '#58E09B', path: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>'},
   {kind: 'gpu', name: 'Graphics card', sub: 'Load, temperature and frames per second', icon: 'lc:e11d', span: 2, color: '#FFB74D', path: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>'},
   {kind: 'ram', name: 'Memory', sub: 'How much memory is in use', icon: 'lc:e445', span: 2, color: '#64B5F6', path: '<rect x="2" y="6" width="20" height="10" rx="2"/><path d="M6 18v-2M10 18v-2M14 18v-2M18 18v-2"/>'},

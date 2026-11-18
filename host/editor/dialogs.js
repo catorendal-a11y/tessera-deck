@@ -164,7 +164,7 @@ function displaySettings() {
     {name: 'dimLevel', label: 'Brightness when dimmed', options: displayChoices(dimLevelChoices, display.dim_level, v => v ? `${v}%` : 'Off'), value: String(display.dim_level)},
     {name: 'nightWindow', label: 'Quiet hours', options: nightChoices(display.night), value: nightWindowValue(display.night), note: 'Between these times the panel uses the lower brightness below instead of the normal one.'},
     {name: 'nightLevel', label: 'Brightness during quiet hours', options: displayChoices(nightLevelChoices, display.night?.brightness || 10, v => `${v}%`), value: String(display.night?.brightness || 10)},
-    {name: 'clock', label: 'Clock format', options: [['auto', 'Same as Windows'], ['24h', '24-hour (14:32)'], ['12h', '12-hour (2:32 PM)']], value: display.clock || 'auto', note: 'For the idle clock and the clock on the rail.'},
+    {name: 'clock', label: 'Clock format', options: [['auto', hostRules.platform === 'linux' ? 'Same as the system' : 'Same as Windows'], ['24h', '24-hour (14:32)'], ['12h', '12-hour (2:32 PM)']], value: display.clock || 'auto', note: 'For the idle clock and the clock on the rail.'},
     {name: 'enabled', label: 'Show a big clock when the panel has been idle', type: 'checkbox', value: ambient.enabled, note: 'Touch the panel to get your keys back. Needs the firmware that ships with this version.'},
     {name: 'after', label: 'Show it after', options: afterChoices, value: String(ambient.after)},
     {name: 'city', label: 'Weather for (city, optional)', value: weather?.name || '', note: `${where}Weather comes from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use.`},
@@ -436,7 +436,7 @@ async function renderPlugins() {
   const {plugins, problems} = await api('command/plugins', {}), list = $('#plugins-list');
   setPluginChoices(plugins);  // the Plugin field of a plugin step shows the same list, on or off
   list.replaceChildren();
-  if (!plugins.length) list.append(text('p', 'No plugins installed. Put a plugin folder in the plugins folder next to Tessera.cmd.', 'hint'));
+  if (!plugins.length) list.append(text('p', `No plugins installed. Put a plugin folder in the plugins folder next to ${hostRules.platform === 'linux' ? 'Tessera.sh' : 'Tessera.cmd'}.`, 'hint'));
   for (const plugin of plugins) {
     const box = element('div', {class: 'plugin-row'});
     const toggle = element('label', {class: 'check-option'}, element('input', {type: 'checkbox'}), element('span', {},
@@ -484,7 +484,7 @@ async function pluginConsent(plugin) {
   if (given[plugin.id] === seal) return true;
   const rights = plugin.permissions.map(name => `• ${PLUGIN_RIGHTS[name] || name}`).join('\n') || '• nothing in Tessera';
   if (!await confirmDialog(`Turn on ${plugin.name} ${plugin.version}?`, `In Tessera it may:\n${rights}\n\nIt runs this program: ${(plugin.command || []).join(' ')}\n\n`
-    + 'The program runs with your own Windows rights: it can use the network and read your files. Only turn it on if you trust where it came from.',
+    + 'The program runs with your own user rights: it can use the network and read your files. Only turn it on if you trust where it came from.',
     {ok: 'Turn on'})) return false;
   try { localStorage.setItem('tessera-plugin-consent', JSON.stringify({...given, [plugin.id]: seal})); } catch {}
   return true;

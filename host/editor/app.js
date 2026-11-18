@@ -91,7 +91,7 @@ function renderProgramResults() {
 }
 async function openProgramPicker() {
   const dialog=$('#program-dialog');
-  dialog.show();$('#program-results').replaceChildren(text('p','Reading the Start menu …','hint program-loading'));
+  dialog.show();$('#program-results').replaceChildren(text('p','Reading the installed programs …','hint program-loading'));
   try {
     if(!installedPrograms.length)installedPrograms=(await api('programs')).programs||[];
     $('#program-search').value='';renderProgramResults();$('#program-search').focus();
@@ -427,11 +427,12 @@ async function profileSettings() {
 /* Profile → Delete this profile: no confirm, the toast offers Undo. */
 function deleteProfile() {
   if(Object.keys(config.profiles).length===1)return toast('Keep at least one profile.');
-  const old=profile;
+  const old=profile,keys=profileButtons(config.profiles[old]).length;
+  const lost=keysWith(a=>a.type==='profile'&&a.profile===old,true).filter(place=>!place.startsWith(old+' '));
   mutate(()=>{delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
     for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
     for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
-    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);dropEmptyShortcuts();});renderAll();toast(`Profile “${old}” was deleted.`,true);
+    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);dropEmptyShortcuts();});renderAll();toast(`Profile “${old}” was deleted${withKeys(keys)}.${lostSteps(lost,'switched to it')}`,true);
 }
 const NIGHT_WINDOWS=[['','Off'],['22:00-07:00','22:00 – 07:00'],['23:00-07:00','23:00 – 07:00'],['00:00-06:00','00:00 – 06:00']],nightLevelChoices=[5,10,20,40];
 function nightWindowValue(night) {return night?`${night.from}-${night.to}`:'';}
@@ -445,7 +446,7 @@ function displayChoices(values,current,format) {
 function appSettings() {
   dialog('Program settings',[
   {name:'autostart',label:'Start the USB host automatically when I sign in',type:'checkbox',value:!!dashboard.autostart,note:'The panel is ready without opening the editor window. You can still open Tessera from the desktop to edit.'},
-  {name:'notifications',label:'Show Windows notifications',type:'checkbox',value:config.notifications!==false,note:'When a panel connects or disconnects, an agent waits for you or a timer ends. The tray menu has the same switch.'},
+  {name:'notifications',label:hostRules.platform==='linux'?'Show desktop notifications':'Show Windows notifications',type:'checkbox',value:config.notifications!==false,note:'When a panel connects or disconnects, an agent waits for you or a timer ends. The tray menu has the same switch.'},
   {name:'autoProfiles',label:'Switch profile automatically by active program',type:'checkbox',value:config.auto_profiles!==false,note:'Turn off if the panel should stay on the program launcher until you switch profile yourself.'},
   {name:'calendar',label:'Calendar for the Next meeting widget (iCal address, optional)',value:config.calendar?.url||'',placeholder:'https://calendar.google.com/calendar/ical/…/basic.ics',note:'Paste the secret iCal address of your Google, Outlook or iCloud calendar. Tessera reads it every five minutes and leaves it out when you export your keys.'}
 ],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.notifications=values.notifications;const calendar=values.calendar.trim();if(calendar)config.calendar={url:calendar};else delete config.calendar;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
@@ -468,7 +469,9 @@ function changePage(name) {
 /* Page → Delete this page: no confirm, the toast offers Undo. */
 function deletePage() {
   if(Object.keys(config.profiles[profile].pages).length===1)return toast('Keep at least one page.');
-  const old=page;changePage(null);toast(`Page “${old}” was deleted.`,true);
+  const old=page,keys=buttons().length;
+  const lost=keysWith(a=>['page','folder'].includes(a.type)&&a.page===old).filter(place=>!place.startsWith(old+' '));
+  changePage(null);toast(`Page “${old}” was deleted${withKeys(keys)}.${lostSteps(lost,'opened it')}`,true);
 }
 function pageSettings() {dialog('Page settings',[{name:'name',label:'Page name',value:page,required:true,maxLength:100}],values=>{
   const name=values.name.trim();
@@ -485,7 +488,8 @@ function exportSummary(bundle,leftOut) {
   askDialog('Exported',[kept,...notes].join('\n'),{cancel:null});
 }
 async function importConfig(file) {
-  if(!file)return;if(file.size>16*1024*1024)throw new Error('The configuration is too large.');const data=JSON.parse(await file.text());
+  if(!file)return;if(file.size>16*1024*1024)throw new Error('The file is over 16 MB, so it is not a Tessera export. Nothing was changed.');
+  let data;try{data=JSON.parse(await file.text());}catch{throw new Error('This file is not a Tessera export (it is not valid JSON). Nothing was changed.');}
   if(!data.profiles||!Object.keys(data.profiles).length)throw new Error('The file contains no profiles.');
   delete data.left_out;
   const {assets:bundledAssets,redacted,...bundle}=data;
@@ -506,7 +510,7 @@ async function importConfig(file) {
   catch(error){
     // Undo the import only when nothing was edited while the save ran; edits made on top of it stay, with their undo steps.
     if(importVersion<0||version===importVersion){config=previous;history.length=Math.min(mark,history.length);dirty=wasDirty;if(!dirty&&!conflicted)setSaveState('✓ Saved on the PC');}
-    renderAll();throw error;}
+    renderAll();throw new Error('The file was not imported and nothing was changed. '+error.message);}
 }
 /* Import as new: the file's profiles join the current ones, renamed where a name is taken; their profile switches follow the rename. */
 function addProfiles(profiles) {
@@ -736,7 +740,7 @@ async function start() {
   const code=location.hash.slice(1);  // a one-time launch code, traded for this page's session key
   if(code){window.history.replaceState(null,'',location.pathname);const response=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json','X-Deck-Launch':code},body:'{}'});if(!response.ok)throw new Error('Open the program with Tessera.cmd.');deckSession=(await response.json()).session;try{sessionStorage.setItem('deck-session',deckSession);}catch{}}
   const state=await api('config');config=state.config;revision=state.revision;savedBase=clone(config);if(state.error)setTimeout(()=>{setSaveState('Not saved · '+state.error,'Your configuration file could not be read; open More → Restore a backup …');configError=state.error;renderStatusBar();},0);profile=config.default_profile||Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];
-  try{const [,catalog]=await Promise.all([loadIconPack(),api('action-packs')]);actionCatalog=catalog;}catch(error){toast('The add-on packs could not be loaded. '+error.message);}
+  try{const [,catalog]=await Promise.all([loadIconPack(),api('action-packs')]);actionCatalog=catalog;hostRules=catalog.rules||{};}catch(error){toast('The add-on packs could not be loaded. '+error.message);}
   renderAll();renderLibrary();setSaveState('✓ Configuration ready');await pollStatus();
   $('#profile').onchange=()=>{const next=$('#profile').value;showPage(next,Object.keys(config.profiles[next].pages)[0]);renderAll();syncPanel();};
   $('#action-search').oninput=renderLibrary;
