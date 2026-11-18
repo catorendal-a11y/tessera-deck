@@ -30,6 +30,8 @@ def scan_programs():
 
 def scan_start_menu():
     """Local Start-menu and taskbar shortcuts and Store apps, without launching anything."""
+    if os.name != 'nt':
+        return []
     roots = [
         Path(os.environ.get('APPDATA', '')) / 'Microsoft/Windows/Start Menu/Programs',
         Path(os.environ.get('PROGRAMDATA', '')) / 'Microsoft/Windows/Start Menu/Programs',

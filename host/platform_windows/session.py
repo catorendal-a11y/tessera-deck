@@ -4,6 +4,9 @@ import ctypes
 
 def locked() -> bool:
     """True while the lock screen (the secure desktop) has the input."""
+    import os
+    if os.name != 'nt':
+        return False
     user32 = ctypes.WinDLL('user32', use_last_error=True)
     user32.OpenInputDesktop.argtypes = [ctypes.c_uint32, ctypes.c_bool, ctypes.c_uint32]
     user32.OpenInputDesktop.restype = ctypes.c_void_p

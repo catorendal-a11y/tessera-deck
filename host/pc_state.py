@@ -47,8 +47,8 @@ class PcState:
     def __init__(self, audio: Callable[[], dict] | None = None, media: Callable[[], dict] | None = None,
                  interval: float = POLL_SECONDS):
         import system_audio  # the readers of this system, unless the caller brings its own
-        self._audio = audio or system_audio.read_audio
-        self._media = media or system_audio.MediaReader()
+        self._audio = system_audio.read_audio if audio is None else audio
+        self._media = system_audio.MediaReader() if media is None else media
         self._interval = interval
         self._lock = threading.Lock()
         self._values = dict(EMPTY)

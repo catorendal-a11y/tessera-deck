@@ -16,6 +16,13 @@ def spawn_options() -> dict:
 
 def kill_tree(pid: int) -> None:
     """End a process and everything it started (taskkill /T), without a console window."""
+    if os.name != 'nt':  # a development machine that is not Windows: end the process itself
+        import signal
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+        return
     subprocess.run(['taskkill', '/F', '/T', '/PID', str(pid)], check=False,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                    creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
@@ -45,5 +52,7 @@ def open_path(path) -> None:
 
 def notification_beep() -> None:
     """The system "asterisk" sound, for a timer that ran out."""
+    if os.name != 'nt':
+        return
     import winsound
     winsound.MessageBeep(winsound.MB_ICONASTERISK)

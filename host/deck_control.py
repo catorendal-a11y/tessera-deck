@@ -12,7 +12,7 @@ import config_store
 from config_store import write_atomic
 import secrets_store
 from host_runtime import DEFAULT_PORT
-from platform_support import load
+from platform_support import IS_WINDOWS, load
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LOG_BYTES = 5 * 1024 * 1024
@@ -41,11 +41,17 @@ def startup_line():
 
 def autostart_enabled(appdata=None):
     """True when the startup entry starts this folder. A script left by a copy in another folder does not count."""
-    return load('autostart').is_enabled(startup_script_path(appdata), ROOT)
+    try:
+        path = startup_script_path(appdata)
+    except OSError:  # no startup folder (no APPDATA): nothing starts this folder
+        return False
+    return load('autostart').is_enabled(path, ROOT)
 
 
 def set_autostart(enabled, appdata=None):
     """Start the tray app (which starts the USB host) after the user signs in."""
+    if not IS_WINDOWS and appdata is None:
+        raise OSError('Automatic startup is only supported on Windows')
     path = startup_script_path(appdata)
     if not enabled:
         path.unlink(missing_ok=True)

@@ -5,9 +5,10 @@ from pathlib import Path
 
 def startup_script_path(appdata=None):
     """Return the per-user Windows Startup shortcut script."""
-    base = Path(appdata or os.environ.get('APPDATA', ''))
-    if not str(base):
+    raw = appdata or os.environ.get('APPDATA', '')
+    if not str(raw):  # Path('') is '.', which would put the script in the current folder
         raise OSError('The Windows startup folder is not available')
+    base = Path(raw)
     return base / 'Microsoft/Windows/Start Menu/Programs/Startup/Tessera.vbs'
 
 

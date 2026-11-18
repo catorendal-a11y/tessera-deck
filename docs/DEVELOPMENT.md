@@ -81,7 +81,8 @@ Ruff and coverage are not in `requirements.txt`. Install them with `pip install 
 
 Windows code lives in `host/platform_windows/`. Shared modules never test `os.name` or `sys.platform` themselves: they
 import `IS_WINDOWS` or call `platform_support.load('name')`, which gives `platform_windows.name`. On a machine that is
-not Windows the same modules import and run with mocks, as the unit tests and the build tools do. `labels` holds the
+not Windows the same modules still import, and the build tools and the mock-based unit tests run there; the full host
+suite (real files, processes and Windows libraries) runs on Windows, in CI. `labels` holds the
 constants the shared code reads (program-name rule, default port, the words "Windows" in messages).
 
 To add a system: add `platform_<name>/` with the same modules, choose it in `platform_support`, and run

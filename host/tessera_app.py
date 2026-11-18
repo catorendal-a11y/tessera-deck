@@ -46,7 +46,7 @@ def editor_build_id():
     digest = hashlib.sha256()
     files = [Path(__file__), ROOT / 'host/deck_control.py', ROOT / 'host/deck_assets.py',
              ROOT / 'host/tesserad.py', ROOT / 'host/config_check.py', ROOT / 'host/panel_serial.py',
-             ROOT / 'host/input_common.py', ROOT / 'host/desktop.py', ROOT / 'host/action_packs.json',
+             ROOT / 'host/input_common.py', ROOT / 'host/desktop.py', ROOT / 'host/default_profile.py', ROOT / 'host/action_packs.json',
              *sorted((ROOT / 'host/platform_windows').glob('*.py')),
              WEB / 'index.html', WEB / 'style.css', WEB / 'streamdeck.css', WEB / 'cockpit.css', WEB / 'core.js', WEB / 'app.js', WEB / 'dialogs.js']
     for path in files:

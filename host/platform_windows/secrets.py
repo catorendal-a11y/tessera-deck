@@ -28,7 +28,10 @@ def dpapi(protect: bool, data: bytes) -> bytes:
 
 
 def seal(text: str) -> str:
-    """The profile's `$(dpapi:...)` form of `text`."""
+    """The profile's `$(dpapi:...)` form of `text`. Where there is no DPAPI (a development machine that is not Windows) the text stays as it is."""
+    import os
+    if os.name != 'nt':
+        return text
     import base64
     from secrets_store import PREFIX, SUFFIX
     return PREFIX + base64.b64encode(dpapi(True, text.encode('utf-8'))).decode('ascii') + SUFFIX
@@ -39,8 +42,9 @@ def unseal(value: str) -> str:
     import base64
     import binascii
     from secrets_store import PREFIX, SUFFIX
-    if not value.startswith(PREFIX):
-        return ''
+    import os
+    if os.name != 'nt' or not value.startswith(PREFIX):
+        return ''  # a sealed value never opens without DPAPI, and is never handed on as the secret
     try:
         return dpapi(False, base64.b64decode(value[len(PREFIX):-len(SUFFIX)], validate=True)).decode('utf-8')
     except (OSError, ValueError, binascii.Error):

@@ -76,6 +76,8 @@ def fit_to_work_area(window):
 def open_native_window(url, geometry_of, save_geometry, min_window, root):
     """Open the editor in a native WebView2 window. True when the window was shown and closed; False on any failure
     (the caller then opens a browser). `geometry_of(screen)` and `save_geometry(dict)` remember the last size and place."""
+    if os.name != 'nt':
+        return False  # the caller opens a browser tab
     brand_taskbar_identity()
     try:
         import webview

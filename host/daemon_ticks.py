@@ -115,7 +115,10 @@ class BackgroundMixin:
             self.log(f'Timer {done["name"]} finished')
             self.notices.append({'id': int(time.time() * 1000), 'title': 'Tessera timer', 'message': done['message']})
             if done['sound']:
-                load('processes').notification_beep()
+                try:
+                    load('processes').notification_beep()
+                except (OSError, RuntimeError, ImportError):  # no sound device: the other timers still run
+                    pass
             if done['actions']:
                 self.enqueue(('actions', done['actions']))
             self.enqueue(('push',))
