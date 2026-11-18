@@ -33,7 +33,9 @@
    ```
 
 3. Optional, with the GitHub CLI: `gh attestation verify tessera-host-v1.2.4.zip --repo catorendal-a11y/tessera-deck` checks that the release workflow built the zip.
-4. Unpack the zip. It holds the host, the editor and the firmware package in `firmware/`.
+4. Unpack the zip. It holds the host, the editor and the firmware packages in `firmware/`.
+
+The release also has the same file as `tessera-host.zip`, without the version in its name, so one address always gives the latest: `https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip`. The README's terminal commands use it. `SHA256SUMS` lists both names with the same checksum.
 
 Windows SmartScreen may warn about the download. Tessera is not signed with a paid code-signing certificate (a signed
 installer is on the [roadmap](ROADMAP.md)), so the warning says nothing about this file. If the hashes match, choose

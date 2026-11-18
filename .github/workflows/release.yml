@@ -65,6 +65,9 @@ jobs:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git archive --format=zip --prefix="tessera-${GITHUB_REF_NAME}/" -o "dist/tessera-host-${GITHUB_REF_NAME}.zip" HEAD
           python3 -c "import glob,os,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'a'); [z.write(f,'tessera-'+sys.argv[2]+'/firmware/'+os.path.basename(f)) for f in sorted(glob.glob('dist/tessera-firmware-*.zip'))]; z.close()" "dist/tessera-host-${GITHUB_REF_NAME}.zip" "${GITHUB_REF_NAME}"
+          # The same file under a name without the version: releases/latest/download/tessera-host.zip is then one
+          # address for every release, which a command in the README can use.
+          cp "dist/tessera-host-${GITHUB_REF_NAME}.zip" dist/tessera-host.zip
           (cd dist && rm -f *.sha256 && sha256sum *.zip > SHA256SUMS)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
