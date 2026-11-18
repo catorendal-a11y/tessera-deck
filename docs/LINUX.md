@@ -80,11 +80,12 @@ ports it finds and keeps the one that answers like a panel.
 ## Wayland
 
 Wayland has no common way for a program to send keys or look at windows, so the Wayland backend
-(`host/platform_linux/wayland.py`) uses these tools instead of `xdotool` and `xclip`:
+(`host/platform_linux/wayland.py`) uses these tools instead of `xdotool` and `xclip`. The session type is read from
+`XDG_SESSION_TYPE`; `TESSERA_SESSION=x11` forces the X11 backend, for a session where only XWayland is wanted.
 
 | Tool | Package (Arch) | Used for |
 |---|---|---|
-| `ydotool` and its daemon | `ydotool`, then `systemctl --user enable --now ydotool` | keys, typing, mouse |
+| `ydotool` and its daemon | `ydotool`, then `systemctl --user enable --now ydotool` | keys, typing, mouse (without it: the RemoteDesktop portal, see below) |
 | `kdotool` | `kdotool-bin` (AUR) | the window in front (smart profiles), focus and window actions; KDE Plasma only |
 | `wl-copy` | `wl-clipboard` | the clipboard action (without it Plasma's Klipper is used) |
 
@@ -98,7 +99,8 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
 - **More than one layout:** the one in use is asked before every key or text. Plasma and sway tell, and Hyprland in
   builds from September 2025 on (`active_layout_index` in `hyprctl devices -j`). GNOME, older Hyprland and other
   desktops do not: there typing is refused with a message while the session has more than one layout, because the
-  wrong layout would type other characters. With one layout nothing needs asking.
+  wrong layout would type other characters. With one layout nothing needs asking. The RemoteDesktop portal (below)
+  needs no layout, but it is only used where `ydotool` is not installed.
 - **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
   `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
   none of these names a layout, typing is refused with a message instead of typing with a guessed one.
@@ -106,6 +108,13 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   `ctrl+slash` is Ctrl+Shift+7 on a Norwegian keyboard, where `/` is Shift+7.
 - **The mouse**: `moveto` lands a little off when pointer acceleration is on, because uinput has no absolute pointer.
   Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
+- **Without `ydotool`** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
+  RemoteDesktop portal (`host/platform_linux/portal.py`) instead. **The desktop asks once** whether Tessera may control
+  keyboard and mouse, when the first key is pressed; the key waits up to two minutes for the answer, so press it again
+  if it timed out. The permission is kept (`host/remote-desktop.local.json`), so the question does not come again after
+  a restart. Revoke it in the desktop's settings (Privacy or Applications), or delete that file. The portal takes
+  characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
+  possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
 - **Next monitor** uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
 - **The tray icon** goes through XWayland and Plasma's `xembedsniproxy`, with the same GTK right-click menu as on X11.

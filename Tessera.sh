@@ -47,13 +47,14 @@ create_environment() {
 check_tools() {
   local missing=() tool
   if [ "${TESSERA_SESSION:-${XDG_SESSION_TYPE:-}}" = "wayland" ]; then
-    command -v ydotool >/dev/null 2>&1 || missing+=("ydotool")
-    command -v wl-copy >/dev/null 2>&1 || command -v qdbus6 >/dev/null 2>&1 || missing+=("wl-copy (wl-clipboard)")
-    if [ "${#missing[@]}" -gt 0 ]; then
-      echo "Note: ${missing[*]} not found. Keys, typing and the clipboard need them on Wayland." >&2
+    if ! command -v ydotool >/dev/null 2>&1; then
+      # without ydotool the host sends keys through the desktop's RemoteDesktop portal (host/platform_linux/portal.py)
+      echo "Note: ydotool not found. Keys, typing and the mouse go through the desktop's RemoteDesktop portal instead: the desktop asks once to allow it." >&2
     elif ! ydotool key >/dev/null 2>&1; then
       echo "Note: ydotoold is not running. Start it with: systemctl --user enable --now ydotool" >&2
     fi
+    command -v wl-copy >/dev/null 2>&1 || command -v qdbus6 >/dev/null 2>&1 ||
+      echo "Note: wl-copy (wl-clipboard) not found. The clipboard needs it on Wayland." >&2
     case ":${XDG_CURRENT_DESKTOP:-}:" in
       *:KDE:*) command -v kdotool >/dev/null 2>&1 ||
                  echo "Note: kdotool not found. Smart profiles and window actions need it on Plasma (AUR: kdotool-bin)." >&2 ;;

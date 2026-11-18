@@ -1,7 +1,12 @@
 """The Wayland backend: keys and text in the session's layout, the ydotool and kdotool commands it builds.
 
 The commands and the search for the session's layout are plain logic with a fake runner, so they run on every system.
-The tests that need a real layout use libxkbcommon and skip themselves where it is missing."""
+The tests that need a real layout use libxkbcommon and skip themselves where it is missing.
+
+Where ydotool is not installed, input goes through the RemoteDesktop portal: those tests use a fake portal session, and
+the portal protocol runs against a scripted D-Bus connection. No desktop, no portal and no tool is needed."""
+import contextlib
+import json
 import sys
 from pathlib import Path
 import os
@@ -12,7 +17,7 @@ import unittest.mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
-from platform_linux import BackendUnavailable, wayland, xkb
+from platform_linux import BackendUnavailable, keysyms, portal, wayland, xkb
 import input_common
 
 
@@ -303,6 +308,238 @@ class WindowTests(unittest.TestCase):
         for op in input_common.WINDOW_OPERATIONS:
             self.assertTrue(wayland.WaylandBackend(FakeRun(), plasma=True).window_op('{w}', op), op)
 
+
+CTRL, SHIFT, RETURN, TAB = 0xffe3, 0xffe1, 0xff0d, 0xff09
+
+
+class FakeRemote:
+    def __init__(self):
+        self.events = []
+
+    def keysym(self, number, pressed):
+        self.events.append(('key', number, pressed))
+
+    def button(self, name, pressed):
+        self.events.append(('button', name, pressed))
+
+    def scroll(self, steps):
+        self.events.append(('scroll', steps))
+
+    def move(self, dx, dy):
+        self.events.append(('move', dx, dy))
+
+
+def portal_backend(**kwargs):
+    """A backend whose input goes through the RemoteDesktop portal, as where ydotool is not installed."""
+    remote = FakeRemote()
+    return wayland.WaylandBackend(remote=remote, sleep=lambda seconds: None, **kwargs), remote
+
+
+class KeysymTests(unittest.TestCase):
+    def test_every_host_key_name_has_a_number_and_the_numbers_match_the_names(self):
+        for name in input_common.KEY_NAMES:
+            self.assertIsInstance(keysyms.keysym_number(name), int, name)
+        try:
+            from Xlib import XK
+        except ImportError:
+            return
+        for name, symbol in keysyms.KEYSYMS.items():
+            if not symbol.startswith('XF86'):  # python-xlib does not load the XF86 group by default
+                self.assertEqual(keysyms.keysym_number(name), XK.string_to_keysym(symbol), name)
+
+    def test_a_character_types_as_its_code_point_and_the_two_control_characters_as_keys(self):
+        self.assertEqual([keysyms.char_keysym(c) for c in 'aAø€\n\t'],
+                         [0x61, 0x41, 0xf8, 0x01000000 + 0x20ac, RETURN, TAB])
+
+    def test_an_unknown_key_is_refused(self):
+        with self.assertRaises(ValueError):
+            keysyms.keysym_number('hyper')
+
+
+class PortalInputTests(unittest.TestCase):
+    def test_a_hotkey_presses_in_order_and_releases_in_reverse(self):
+        wl, remote = portal_backend()
+        wl.send_keys(['ctrl', 'shift', 't'])
+        self.assertEqual(remote.events, [('key', CTRL, True), ('key', SHIFT, True), ('key', 0x74, True),
+                                         ('key', 0x74, False), ('key', SHIFT, False), ('key', CTRL, False)])
+
+    def test_a_key_that_fails_still_releases_what_was_pressed(self):
+        wl, remote = portal_backend()
+        original = remote.keysym
+
+        def failing(number, pressed):
+            if number == 0x74 and pressed:
+                raise OSError('refused')
+            original(number, pressed)
+        remote.keysym = failing
+        with self.assertRaises(OSError):
+            wl.send_keys(['ctrl', 't'])
+        self.assertEqual(remote.events, [('key', CTRL, True), ('key', CTRL, False)])
+
+    def test_an_unknown_key_presses_nothing(self):
+        wl, remote = portal_backend()
+        with self.assertRaises(ValueError):
+            wl.send_keys(['ctrl', 'hyper'])
+        self.assertEqual(remote.events, [])
+
+    def test_text_types_every_character_including_ones_that_are_not_on_the_keyboard(self):
+        wl, remote = portal_backend()
+        wl.send_text('aø€\r\nb')
+        pressed = [number for kind, number, down in remote.events if down]
+        self.assertEqual(pressed, [0x61, 0xf8, 0x01000000 + 0x20ac, RETURN, 0x62])
+        self.assertEqual(len(remote.events), 10)  # each character goes down and up
+
+    def test_a_stop_request_ends_the_typing(self):
+        wl, remote = portal_backend()
+        wl.send_text('abcdef', pause=0.1, wait=lambda seconds: len(remote.events) >= 4)
+        self.assertEqual([n for _, n, down in remote.events if down], [0x61, 0x62])
+
+    def test_mouse_operations(self):
+        wl, remote = portal_backend()
+        wl.send_mouse('right')
+        wl.send_mouse('double')
+        wl.send_mouse('scroll', amount=3)
+        wl.send_mouse('scroll', amount=0)
+        wl.send_mouse('move', 5, -7)
+        self.assertEqual(remote.events, [('button', 'right', True), ('button', 'right', False),
+                                         ('button', 'left', True), ('button', 'left', False),
+                                         ('button', 'left', True), ('button', 'left', False),
+                                         ('scroll', 3), ('move', 5, -7)])
+
+    def test_an_absolute_pointer_position_is_refused_with_a_reason_and_an_unknown_operation_is_an_error(self):
+        wl, _ = portal_backend()
+        with self.assertRaisesRegex(BackendUnavailable, 'relative'):
+            wl.send_mouse('moveto', 10, 10)
+        with self.assertRaises(ValueError):
+            wl.send_mouse('fly')
+
+    def test_ydotool_is_used_where_it_is_installed_and_the_portal_where_it_is_not(self):
+        with unittest.mock.patch.object(wayland.shutil, 'which', return_value='/usr/bin/ydotool'):
+            self.assertIsNone(wayland.session_backend().remote)
+        with unittest.mock.patch.object(wayland.shutil, 'which', return_value=None):
+            self.assertIsInstance(wayland.session_backend().remote, portal.RemoteDesktop)
+
+
+class Message:
+    def __init__(self, body=(), member=''):
+        self.body, self.member = body, member
+
+
+class FakeConnection:
+    """What jeepney's blocking connection offers the portal code, answering like the portal."""
+    unique_name = ':1.77'
+
+    def __init__(self, devices=3, response=0):
+        self.devices, self.response = devices, response
+        self.calls, self.queue, self.closed = [], [], False
+        self.matches = []
+
+    def send_and_get_reply(self, message, timeout=None):
+        header = message.header.fields
+        member = next((value for key, value in header.items() if getattr(key, 'name', '') == 'member'), '')
+        if member == 'AddMatch':
+            self.matches.append(True)
+            return None
+        self.calls.append((member, message.body))
+        if member == 'CreateSession':
+            self.queue.append(Message((self.response, {'session_handle': ('s', '/session/1')})))
+        elif member == 'SelectDevices':
+            self.queue.append(Message((0, {})))
+        elif member == 'Start':
+            self.queue.append(Message((self.response, {'devices': ('u', self.devices), 'restore_token': ('s', 'new-token')})
+                                      if self.response == 0 else (self.response, {})))
+        return None
+
+    @contextlib.contextmanager
+    def filter(self, rule, **kwargs):
+        yield self.queue
+
+    def recv_until_filtered(self, queue, timeout=None):
+        if not queue:
+            raise TimeoutError
+        return queue.pop(0)
+
+    def close(self):
+        self.closed = True
+
+
+def remote(connection, folder):
+    return portal.RemoteDesktop(connect=lambda: connection, record=Path(folder) / 'remote-desktop.local.json')
+
+
+class PortalTests(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.folder = folder.name
+
+    def test_the_session_is_opened_at_the_first_key_and_the_token_is_kept(self):
+        connection = FakeConnection()
+        rd = remote(connection, self.folder)
+        self.assertEqual(connection.calls, [])  # nothing is asked until there is something to send
+        rd.keysym(0x61, True)
+        members = [member for member, _ in connection.calls]
+        self.assertEqual(members, ['CreateSession', 'SelectDevices', 'Start', 'NotifyKeyboardKeysym'])
+        select = connection.calls[1][1][1]
+        self.assertEqual((select['types'], select['persist_mode']), (('u', 3), ('u', 2)))
+        self.assertNotIn('restore_token', select)
+        self.assertEqual(connection.calls[3][1], ('/session/1', {}, 0x61, 1))
+        self.assertEqual(json.loads((Path(self.folder) / 'remote-desktop.local.json').read_text())['restore_token'], 'new-token')
+        rd.keysym(0x61, False)
+        self.assertEqual([m for m, _ in connection.calls].count('CreateSession'), 1)  # one session for all events
+
+    def test_a_saved_token_is_sent_so_the_dialog_does_not_come_again(self):
+        (Path(self.folder) / 'remote-desktop.local.json').write_text(json.dumps({'restore_token': 'old-token'}))
+        connection = FakeConnection()
+        remote(connection, self.folder).button('left', True)
+        self.assertEqual(connection.calls[1][1][1]['restore_token'], ('s', 'old-token'))
+        self.assertEqual(connection.calls[3], ('NotifyPointerButton', ('/session/1', {}, 0x110, 1)))
+
+    def test_an_answered_no_is_reported_and_the_next_key_asks_again(self):
+        connection = FakeConnection(response=1)
+        rd = remote(connection, self.folder)
+        with self.assertRaisesRegex(BackendUnavailable, 'not allowed'):
+            rd.keysym(0x61, True)
+        self.assertTrue(connection.closed)
+        connection.response = 0
+        rd.keysym(0x61, True)
+        self.assertEqual(connection.calls[-1][0], 'NotifyKeyboardKeysym')
+
+    def test_a_session_without_the_keyboard_is_refused(self):
+        with self.assertRaisesRegex(BackendUnavailable, 'keyboard'):
+            remote(FakeConnection(devices=2), self.folder).keysym(0x61, True)
+
+    def test_a_dialog_nobody_answers_is_reported(self):
+        connection = FakeConnection()
+        connection.recv_until_filtered = lambda queue, timeout=None: (_ for _ in ()).throw(TimeoutError())
+        with self.assertRaisesRegex(BackendUnavailable, 'did not answer'):
+            remote(connection, self.folder).keysym(0x61, True)
+
+    def test_a_session_the_desktop_ended_is_started_again_once(self):
+        connection = FakeConnection()
+        rd = remote(connection, self.folder)
+        rd.keysym(0x61, True)
+        original = connection.send_and_get_reply
+        failures = []
+
+        def flaky(message, timeout=None):
+            member = next((v for k, v in message.header.fields.items() if getattr(k, 'name', '') == 'member'), '')
+            if member == 'NotifyKeyboardKeysym' and not failures:
+                failures.append(1)
+                raise OSError('session closed')
+            return original(message, timeout)
+        connection.send_and_get_reply = flaky
+        rd.keysym(0x62, True)
+        self.assertEqual([m for m, _ in connection.calls].count('CreateSession'), 2)
+        self.assertEqual(connection.calls[-1][1][2], 0x62)
+
+    def test_the_wheel_and_the_pointer_use_the_right_calls(self):
+        connection = FakeConnection()
+        rd = remote(connection, self.folder)
+        rd.scroll(3)
+        rd.move(4, -5)
+        self.assertEqual(connection.calls[-2], ('NotifyPointerAxisDiscrete', ('/session/1', {}, 0, -3)))
+        self.assertEqual(connection.calls[-1], ('NotifyPointerMotion', ('/session/1', {}, 4.0, -5.0)))
 
 if __name__ == '__main__':
     unittest.main()

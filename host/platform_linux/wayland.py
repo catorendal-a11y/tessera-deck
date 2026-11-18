@@ -1,4 +1,5 @@
-"""Wayland backend: ydotool for input, kdotool (KDE Plasma) for windows, wl-copy or Klipper for the clipboard.
+"""Wayland backend: ydotool (else the RemoteDesktop portal) for input, kdotool (KDE Plasma) for windows, wl-copy or
+Klipper for the clipboard.
 
 Wayland has no portable way for a program to send keys, find the window in front or move windows, so each part uses
 the tool that works there:
@@ -7,6 +8,9 @@ the tool that works there:
   (`systemctl --user enable --now ydotool`). The device sends key positions, so text is turned into keys with the
   session's own layout (xkb.py): "@" is AltGr+2 on a Norwegian keyboard and Shift+2 on a US one. Caps Lock is read
   from the keyboard's LED, so text comes out in the case it was written in; with no LED to read it is taken as off.
+  Where `ydotool` is not installed, input goes through the desktop's RemoteDesktop portal instead (portal.py): the
+  desktop asks once, and keys are sent as keysyms, so the layout does not matter and any character can be typed. The
+  portal has no absolute pointer position.
 - **Windows** (the window in front for smart profiles, focus, minimize, ...) go through `kdotool`, which asks KWin.
   Other compositors have no such tool yet: there the window functions say so, and keys and typing still work.
 - **The clipboard** uses `wl-copy` (the "wl-clipboard" package), else Plasma's Klipper.
@@ -20,6 +24,8 @@ import time
 
 from platform_linux import BackendUnavailable
 from platform_linux.base import DesktopBackend
+from platform_linux.keysyms import char_keysym, keysym_number
+from platform_linux.portal import BUTTONS, RemoteDesktop
 from platform_linux.x11 import run
 
 WINDOWS_MESSAGE = ('Window actions on Wayland need KDE Plasma and kdotool. Keys and typing work without them; '
@@ -27,6 +33,8 @@ WINDOWS_MESSAGE = ('Window actions on Wayland need KDE Plasma and kdotool. Keys 
 TYPE_CHUNK = 32  # characters per ydotool call: the stop request is checked between
 KEY_DELAY_MS = '6'  # between key events; KWin drops keys sent with no gap at all
 KEYMAP_SECONDS = 5.0  # the session's layouts are read again after this long; which one is in use is asked every time
+PORTAL_TYPE_CHUNK = 64  # characters between two looks at the stop request when typing through the portal
+PORTAL_KEY_GAP = 0.004  # seconds between two characters typed through the portal: the compositor takes each event in turn
 CAPS_LOCK_LEDS = '/sys/class/leds/*::capslock/brightness'  # the compositor lights the LED of every keyboard
 
 # The host's key names (input_common.KEY_NAMES) to Linux input key codes (linux/input-event-codes.h).
@@ -74,11 +82,18 @@ def is_plasma(environ=None) -> bool:
     return 'KDE' in environ.get('XDG_CURRENT_DESKTOP', '').upper().split(':') and shutil.which('kdotool') is not None
 
 
+def session_backend() -> WaylandBackend:
+    """The backend of this session: ydotool for input where it is installed, else the RemoteDesktop portal."""
+    return WaylandBackend(remote=None if shutil.which('ydotool') else RemoteDesktop())
+
+
 class WaylandBackend(DesktopBackend):
     name = 'wayland'
 
-    def __init__(self, runner=run, keymap=None, plasma=None, caps_lock=caps_lock_on):
+    def __init__(self, runner=run, keymap=None, plasma=None, caps_lock=caps_lock_on, remote=None, sleep=time.sleep):
         self.run = runner
+        self.remote = remote  # a RemoteDesktop portal session: input goes through it instead of ydotool
+        self.sleep = sleep
         self._fixed_keymap = keymap  # a test's layout; None reads the session's
         self._keymaps, self._keymaps_at = {}, 0.0
         self.caps_lock = caps_lock
@@ -121,6 +136,8 @@ class WaylandBackend(DesktopBackend):
             self.run(['ydotool', 'key', '-d', KEY_DELAY_MS, *events])
 
     def send_keys(self, names):
+        if self.remote is not None:
+            return self.portal_keys(names)
         codes = []
         for code, shift, altgr in self.key_strokes(names):
             # the Shift or AltGr a punctuation key needs in this layout is held like the keys named before it
@@ -160,6 +177,8 @@ class WaylandBackend(DesktopBackend):
 
     def send_text(self, text, pause=0.0, wait=time.sleep):
         chars = text.replace('\r\n', '\n').replace('\r', '\n')
+        if self.remote is not None:
+            return self.portal_text(chars, pause, wait)
         strokes = self.text_strokes(chars)  # all of it first: nothing is typed when one character cannot be
         if pause:
             for n, char_strokes in enumerate(strokes):
@@ -173,6 +192,8 @@ class WaylandBackend(DesktopBackend):
                 break
 
     def send_mouse(self, op, x=0, y=0, amount=0):
+        if self.remote is not None:
+            return self.portal_mouse(op, x, y, amount)
         if op in MOUSE_BUTTONS:
             self.run(['ydotool', 'click', MOUSE_BUTTONS[op]])
         elif op == 'double':
@@ -186,6 +207,53 @@ class WaylandBackend(DesktopBackend):
             # uinput has no absolute pointer: ydotool goes to the corner and moves from there, so pointer
             # acceleration can make it land a little off (a flat acceleration profile makes it exact)
             self.run(['ydotool', 'mousemove', '--absolute', '--', str(int(x)), str(int(y))])
+        else:
+            raise ValueError(f'Unknown mouse operation: {op}')
+
+    # input through the RemoteDesktop portal, where ydotool is not installed
+    def portal_keys(self, names) -> None:
+        numbers = [keysym_number(name) for name in names]  # an unknown key is refused before anything is pressed
+        pressed = []
+        try:
+            for number in numbers:
+                self.remote.keysym(number, True)
+                pressed.append(number)
+        finally:
+            for number in reversed(pressed):  # released even when a later key failed: nothing stays held
+                self.remote.keysym(number, False)
+
+    def portal_text(self, chars: str, pause: float, wait) -> None:
+        for n, char in enumerate(chars):
+            number = char_keysym(char)
+            self.remote.keysym(number, True)
+            self.remote.keysym(number, False)
+            if n + 1 >= len(chars):
+                break
+            if pause:
+                if wait(pause):
+                    break
+            else:
+                self.sleep(PORTAL_KEY_GAP)
+                if (n + 1) % PORTAL_TYPE_CHUNK == 0 and wait(0):
+                    break
+
+    def portal_mouse(self, op, x=0, y=0, amount=0) -> None:
+        if op in BUTTONS:
+            self.remote.button(op, True)
+            self.remote.button(op, False)
+        elif op == 'double':
+            for _ in range(2):
+                self.remote.button('left', True)
+                self.remote.button('left', False)
+                self.sleep(0.05)
+        elif op == 'scroll':
+            if amount:
+                self.remote.scroll(amount)
+        elif op == 'move':
+            self.remote.move(x, y)
+        elif op == 'moveto':
+            raise BackendUnavailable('Moving the pointer to a screen position is not possible through the RemoteDesktop '
+                                     'portal: it only allows relative moves. Use a relative move, or install ydotool.')
         else:
             raise ValueError(f'Unknown mouse operation: {op}')
 
