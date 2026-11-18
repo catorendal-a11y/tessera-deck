@@ -193,7 +193,7 @@ function actionRow(first,toActions,row) {
   if(all.length!==1||!['hotkey','open'].includes(first.type))return row('Action',button(first?stepSummary(all):'No action yet · Add a step',toActions,'prop-field'));
   const main=field(k.label,first[k.field],value=>editAction(0,k.field,value),{placeholder:k.placeholder});
   const input=main.querySelector('input');main.querySelector('span').remove();input.setAttribute('aria-label',k.label);
-  const extra=first.type==='hotkey'?button('⌨ Record',()=>{recording={index:0,input,button:extra};extra.textContent='Press the combination · Esc cancels';extra.classList.add('recording');extra.focus();},'outline record')
+  const extra=first.type==='hotkey'?button('⌨ Record',()=>startRecording(0,input,extra),'outline record')
     :button('Choose program …',async()=>{try{const result=await api('command/pick',{kind:'program'});if(result.target)applyProgramDetails(result,0);}catch(error){showError(error);}},'outline');
   return row('Action',main,extra,button('Steps …',toActions,'text-button','Show all steps of this key'));
 }
@@ -314,7 +314,7 @@ function renderStep(action,index,count) {
     const checkbox=focus.querySelector('input');checkbox.checked=!!action.reuse;checkbox.onchange=()=>mutate(()=>activeActions()[index].reuse=checkbox.checked);step.append(focus);
     if(action.reuse)step.append(field('Process name',action.process||'',value=>editAction(index,'process',value),{placeholder:'for example chrome.exe'}));
   }
-  if(action.type==='hotkey') {const record=button('⌨ Record hotkey',()=>{recording={index,input:parameter.querySelector('input'),button:record};record.textContent='Press the combination · Esc cancels';record.classList.add('recording');record.focus();},'outline record');step.append(record);}
+  if(action.type==='hotkey') {const record=button('⌨ Record hotkey',()=>startRecording(index,parameter.querySelector('input'),record),'outline record');step.append(record);}
   if(['page','folder'].includes(action.type))step.append(button('＋ Create new subpage',()=>newPage(true,index),'text-button'));
   if(action.type==='http'){step.append(field('Method',action.method||'GET',v=>editAction(index,'method',v),{values:['GET','POST','PUT','PATCH','DELETE']}),field('Body (optional)',action.body||'',v=>editAction(index,'body',v),{multiline:true}));}
   if(action.type==='text')step.append(field('Typing speed: milliseconds per character (0 = instant)',String(action.delay_ms??0),v=>editAction(index,'delay_ms',Math.max(0,Math.min(500,Math.round(Number(v))||0))),{type:'number'}));
@@ -377,7 +377,7 @@ function renderTimerStep(step,action,index) {
     text('p',`Show the time in a key name with $(timer:${action.name||'name'}) or as a ring on a wide key (Shows). The timer keeps running while Tessera is closed.`,'hint'));
 }
 function copyButton() {if(!current())return;clipboard=clone(current());toast('The key was copied. Choose a slot and press Ctrl+V.');}
-function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};let note='';if((copy.span||1)>1&&(!spanFits(selected,copy.span,[old])||(old&&isPinned(old)&&!freeOnAllPages(selected,copy.span,[old])))){delete copy.span;delete copy.live;note=' The wide key did not fit here and was pasted as a normal key.';}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);});
+function pasteButton() {if(!clipboard)return toast('Copy a key first.');const old=current(),copy={...clone(clipboard),id:selected};let note='';if((copy.span||1)>1&&(!spanFits(selected,copy.span,[old])||(old&&isPinned(old)&&!freeOnAllPages(selected,copy.span,[old])))){delete copy.span;delete copy.live;note=' The wide key did not fit here and was pasted as a normal key.';}mutate(()=>{const list=owner(),at=list.findIndex(b=>b.id===selected);if(at>=0)list.splice(at,1);list.push(copy);editState=0;});
   if(old)toast(`Replaced key ${selected}.${note}`,true);else if(note)toast(note.trim());}
 function dialog(title,fields,onSave,saveLabel='Save') {
   const d=$('#form-dialog');$('#dialog-title').textContent=title;$('#dialog-error').textContent='';$('#dialog-submit').textContent=saveLabel;
@@ -431,7 +431,7 @@ function deleteProfile() {
   mutate(()=>{delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
     for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
     for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
-    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);});renderAll();toast(`Profile “${old}” was deleted.`,true);
+    if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);dropEmptyShortcuts();});renderAll();toast(`Profile “${old}” was deleted.`,true);
 }
 const NIGHT_WINDOWS=[['','Off'],['22:00-07:00','22:00 – 07:00'],['23:00-07:00','23:00 – 07:00'],['00:00-06:00','00:00 – 06:00']],nightLevelChoices=[5,10,20,40];
 function nightWindowValue(night) {return night?`${night.from}-${night.to}`:'';}
@@ -462,6 +462,7 @@ function changePage(name) {
     if(shared)rewriteActions(railSteps(),update);
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.flatMap(s=>s.profile!==profile||s.page!==old?[s]:remove?[]:[{...s,page:name}]);
     if(shared)for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=update(a);return changed?[changed]:[];});
+    dropEmptyShortcuts();
   });renderAll();
 }
 /* Page → Delete this page: no confirm, the toast offers Undo. */
@@ -628,8 +629,16 @@ let polling=false,lastScreenLive='';
 async function pollStatus(timer) {if(timer===true&&(document.hidden||polling))return;polling=true;  /* a hidden tab does not poll */
   try{dashboard=await api('status');editorOffline=false;renderStatus();renderWelcome();if(typeof renderRail==='function'){renderRail();const live=JSON.stringify([dashboard,editorView]);
     if(editorView!=='keys'&&live!==lastScreenLive&&!document.activeElement?.closest('#screens-view')){lastScreenLive=live;renderScreen();}}}catch(error){$('#connection').textContent='The editor is disconnected';$('#led').classList.remove('connected');editorOffline=true;renderStatusBar();}finally{polling=false;}}
+/* Recording takes every key press, so it ends when the focus leaves the button: a click into a field would otherwise
+   leave it armed, and the next letter typed there would replace the hotkey. */
+function startRecording(index,input,node) {
+  stopRecording();recording={index,input,button:node,label:node.textContent};
+  node.textContent='Press the combination · Esc cancels';node.classList.add('recording');node.focus();
+  node.addEventListener('blur',stopRecording,{once:true});
+}
+function stopRecording() {if(!recording)return;recording.button.textContent=recording.label;recording.button.classList.remove('recording');recording=null;}
 document.addEventListener('keydown',event=>{
-  if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){recording.button.textContent='⌨ Record hotkey';recording.button.classList.remove('recording');recording=null;return;}
+  if(recording){event.preventDefault();event.stopPropagation();if(event.key==='Escape'){stopRecording();return;}
     if(['Control','Shift','Alt','Meta'].includes(event.key))return;
     const aliases={' ':'space',Escape:'esc',ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right',Delete:'delete',PageUp:'pageup',PageDown:'pagedown','/':'slash','`':'grave'};
     const codes={186:'semicolon',187:'equals',188:'comma',189:'minus',190:'period',191:'slash',192:'grave',219:'lbracket',220:'backslash',221:'rbracket',222:'quote',

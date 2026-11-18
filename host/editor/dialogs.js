@@ -461,7 +461,10 @@ async function renderPlugins() {
       } else {
         // a secret comes back encrypted from the host: hide it, and typing a new one replaces it
         const type = spec.type === 'number' ? 'number' : SECRET_SETTING.test(key) ? 'password' : 'text';
-        box.append(field(spec.label || key, String(value), v => setPlugin(plugin, {settings: {[key]: spec.type === 'number' ? Number(v) : v}}), {type}));
+        const row = field(spec.label || key, String(value), v => setPlugin(plugin, {settings: {[key]: spec.type === 'number' ? Number(v) : v}}), {type});
+        // the stored form is not text to edit: the first key press clears it, or the new secret would be added to its end
+        if (type === 'password') row.querySelector('input')?.addEventListener('beforeinput', event => { if (/^\$\((dpapi|keyring):/.test(event.target.value)) event.target.value = ''; });
+        box.append(row);
       }
     }
     list.append(box);

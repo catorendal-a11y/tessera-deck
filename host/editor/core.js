@@ -167,7 +167,7 @@ const button=(text,fn,cls='quiet',title) => element('button',{text,class:cls,onc
 const text=(tag,value,cls) => element(tag,{text:value,class:cls||''});
 function toast(message,undoable=false) {const host=document.querySelector('dialog:modal')||document.body;if($('#toast').parentNode!==host){host.append($('#toast'));if(host!==document.body)host.addEventListener('close',()=>document.body.append($('#toast')),{once:true});}
   $('#toast').textContent=message;
-  if(undoable)$('#toast').append(button('Undo',()=>{undo();$('#toast').hidden=true;},'toast-undo'));$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
+  if(undoable){const about=history[history.length-1];$('#toast').append(button('Undo',()=>undoIf(about),'toast-undo'));}$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
 /* In-page confirm and prompt: the same look as the form dialog, and a Promise for the answer instead of a blocked page.
    cancel:null shows only the OK button, for a notice. */
 function askDialog(title,message,{ok='OK',cancel='Cancel',danger=false,input=null}={}) {
@@ -212,6 +212,8 @@ function appearance(b=current()) {return b?.states?.[editState]||b;}
 let editList='actions',editListFor='';
 /* The Held/Double-press tab belongs to the key it was opened on: any other key, page or profile starts on Pressed,
    so an action dropped on a new key never lands in a list it does not run on a tap. */
+/* A rail shortcut that runs steps needs at least one: the host refuses the whole file for one without. */
+function dropEmptyShortcuts() {if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s?.type!=='actions'||s.actions?.length);}
 function syncEditList() {const key=[profile,page,selected].join('\u0000');if(key!==editListFor){editListFor=key;editList='actions';}}
 const TRIGGERS=[['actions','Pressed'],['hold_actions','Held'],['double_actions','Double-press']];
 function activeActions() {syncEditList();const b=current();if(editList!=='actions')return b[editList]||[];return b.states?b.states[Math.min(editState,b.states.length-1)].actions:b.actions;}
@@ -375,7 +377,9 @@ async function mergeFromDisk() {
 }
 async function save() {
   clearTimeout(saveTimer);
-  if(saveInFlight){await saveInFlight;if(dirty)return save();return;}
+  // A save refused because the file changed elsewhere merges and sends again by itself: a second caller that got
+  // the same refusal would mark the editor as conflicted although nothing is lost.
+  if(saveInFlight){try{await saveInFlight;}catch(error){if(error.status!==409)throw error;return;}if(dirty)return save();return;}
   if(!dirty) return;
   if(conflicted)throw new Error('Reload the configuration to resolve the conflict.');
   saving=true;const sentVersion=version;
@@ -393,6 +397,9 @@ async function save() {
   } finally {saving=false;saveInFlight=null;}
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);
 }
+/* The toast's Undo takes back the change the toast is about. After a later edit a plain undo would take that one back
+   and leave the delete the toast named in place. */
+function undoIf(about) {if(about&&history[history.length-1]===about)undo();$('#toast').hidden=true;}
 function updateHistory() {$('#undo').disabled=!history.length;$('#redo').disabled=!future.length;}
 function undo(redo=false) {const source=redo?future:history,target=redo?history:future;if(!source.length)return;lastEdit={key:null,at:0};target.push(clone(config));config=source.pop();ensureSelection();changed();renderAll();}
 function ensureSelection() {
@@ -633,7 +640,8 @@ function addAction(key,id=null) {
   const item=actionTemplate(key);if(!item)return;
   const made=!visibleButtons().some(b=>b.id===id);
   inspectorTab=made?'look':'actions';
-  mutate(()=>{selected=id;syncEditList();let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];
+  const other=id!==selected;
+  mutate(()=>{selected=id;syncEditList();if(made)editList='actions';if(made||other)editState=0;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];
     /* A pack that asks for a hold (Shut down, Restart, ...) keeps it on a new or empty key; the host refuses confirm with hold or double steps. */
     if(item.confirm&&editList==='actions'&&!b.actions.length&&!b.hold_actions?.length&&!b.double_actions?.length)b.confirm=true;
     activeActions().push(...clone(item.actions));});
