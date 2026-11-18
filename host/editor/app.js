@@ -417,7 +417,7 @@ async function profileSettings() {
   const processChoices=[['','— Choose a running program —'],...running.map(name=>[name,name])];
   dialog('Profile settings',[
   {name:'name',label:'Profile name',value:profile,required:true,maxLength:100},
-  {name:'program',label:'Add a running program',options:processChoices,value:'',note:'Choose the program that activates the profile.'},
+  {name:'program',label:'Add a running program',options:processChoices,value:'',note:'Choose the program that activates the profile. To keep the panel on one profile, give a key a Lock profile step. New setups have it on Home: hold Home to lock, and hold it again to unlock.'},
   {name:'match',label:'Automatic profile switching rules',value:(config.profiles[profile].match||[]).join(', '),note:(config.profiles[profile].match||[]).length?'This profile shows '+(config.profiles[profile].match||[]).map(describeRule).join(', or ')+'. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.':'No rules yet: this profile is only used when you choose it. Separate rules with commas; use process:claude.exe for a terminal process or title:codex for a window title.'},
   {name:'default',label:'Use as default profile',type:'checkbox',value:profile===config.default_profile}],values=>{
     const name=values.name.trim();if(!name||(name!==profile&&config.profiles[name]))throw new Error('The profile name is already in use.');

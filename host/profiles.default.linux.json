@@ -1127,6 +1127,11 @@
             {
               "type": "home"
             }
+          ],
+          "hold_actions": [
+            {
+              "type": "profile_lock"
+            }
           ]
         }
       ]
@@ -1700,6 +1705,11 @@
             {
               "type": "home"
             }
+          ],
+          "hold_actions": [
+            {
+              "type": "profile_lock"
+            }
           ]
         }
       ]
@@ -1976,6 +1986,11 @@
           "actions": [
             {
               "type": "home"
+            }
+          ],
+          "hold_actions": [
+            {
+              "type": "profile_lock"
             }
           ]
         }
@@ -2476,6 +2491,11 @@
             {
               "type": "home"
             }
+          ],
+          "hold_actions": [
+            {
+              "type": "profile_lock"
+            }
           ]
         }
       ]
@@ -2707,6 +2727,11 @@
           "actions": [
             {
               "type": "home"
+            }
+          ],
+          "hold_actions": [
+            {
+              "type": "profile_lock"
             }
           ]
         }
@@ -3102,6 +3127,11 @@
           "actions": [
             {
               "type": "home"
+            }
+          ],
+          "hold_actions": [
+            {
+              "type": "profile_lock"
             }
           ]
         }
