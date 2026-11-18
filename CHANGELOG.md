@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.4
 
-The host and the editor change; the panel firmware is the same as 1.2.3.
+The host and the editor change. The panel firmware is the same as 1.2.3 apart from its version number, so a panel on 1.2.3 works with this host as it is.
 
 - The editor can update Tessera itself. After *Check for updates*, *Update Tessera to …* downloads the release's program zip, checks it against `SHA256SUMS` and unpacks it over the program folder. Profiles, icons and backups stay, and the firmware for every board comes with it, so the panel's update needs no second download. Tessera then starts again by itself. A source checkout is left to `git pull`.
 - *Switch profile* can go straight to a page of the other profile. The page follows when it is renamed, and the step goes back to the first page when it is deleted.
