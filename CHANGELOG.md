@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.3
+
+A panel with 0.7.0 or later takes this version with *Update*. The host works with a panel on 1.2.0 to 1.2.2 as it is; the two firmware fixes at the end of the list need the new firmware.
 
 - The default profiles: hold Home to lock the profile. The panel then stays on it while you switch programs, and Home turns orange. Hold Home again to unlock. An existing setup gets the same with a *Lock profile* step under Held on its Home key.
 - The editor's profile settings say how to keep the panel on one profile.
