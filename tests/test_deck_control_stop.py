@@ -21,8 +21,19 @@ PARENT = ("import subprocess, sys, time\n"
 class ZombieTests(unittest.TestCase):
     def setUp(self):
         self.parent = subprocess.Popen([sys.executable, '-c', PARENT], stdout=subprocess.PIPE, text=True)
-        self.addCleanup(lambda: (self.parent.kill(), self.parent.wait(), self.parent.stdout.close()))
         self.child = psutil.Process(int(self.parent.stdout.readline()))
+        self.addCleanup(self.stop_both)
+
+    def stop_both(self):
+        """The child first (it sleeps for a minute and would outlive its parent), then the parent; both are collected."""
+        try:
+            self.child.kill()
+        except psutil.NoSuchProcess:  # the test ended it already
+            pass
+        self.parent.kill()
+        self.parent.wait()
+        self.parent.stdout.close()
+        psutil.wait_procs([self.child], timeout=5)  # collected by init once its parent is gone
 
     def test_a_host_that_ended_but_was_not_collected_counts_as_stopped(self):
         self.assertTrue(deck_control.is_alive(self.child))
