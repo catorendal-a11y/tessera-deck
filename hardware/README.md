@@ -27,6 +27,7 @@ The console is made for the GUITION JC1060P470C in its factory housing (the `_Y`
 | `tessera-enclosure.step` | Console, for any CAD program |
 | `tessera-enclosure.FCStd` | Console, FreeCAD model: a Part Design body with sketches, pads, pockets and fillets, a sheet of sizes, and the panel as a reference body |
 | `make_enclosure.py` | Builds the console model and exports the other two; every size is a parameter at the top |
+| `tessera-enclosure-crowpanel.*` | Console for the CrowPanel Advance 7.0, in the same three formats (see below) |
 | `tessera-dock.stl` | Dock, for the slicer |
 | `tessera-dock.blend` | Dock, Blender model |
 | `make_dock.py` | Builds the dock; every size is an option |
@@ -63,6 +64,22 @@ Screws: 4 pieces, 6 mm long, with a washer. The thread is not stated in the manu
 The pocket is 183.0 × 114.9 mm and 8.6 mm deep (0.6 mm clearance all round). The lip covers 3.5 mm at the bottom of the glass, and the picture starts 13.5 mm in.
 
 The dock needs no assembly: drop the panel in from the top.
+
+## CrowPanel Advance 7.0
+
+`tessera-enclosure-crowpanel.stl` (and `.step`, `.FCStd`) is the same console for the Elecrow CrowPanel Advance 7.0 (ESP32-P4) without Elecrow's casing: the bare board with the glass on it. It is 189 × 116 × 98 mm. The sizes come from Elecrow's STEP model of the board.
+
+The front laps 1 mm over the glass all round and leaves a 162.9 × 98.0 mm window. The board goes in from below, through the open base, and slides straight up into place; the inside is cut away along its path, so the sockets on its back clear the shell. Print the console lying on its front, as the STL is laid out. It needs no supports.
+
+1. Hold the console up and push the board in from below, glass forward, with the USB-C sockets on the left, until the glass sits in the window.
+2. Put an M3 × 8 screw through each corner hole of the board into the 2.6 mm hole under it. The top two are reached through the round holes in the back, the bottom two from below.
+3. Plug the cable into the upper USB-C socket (UART0) through the window in the left end. The small window above it gives a fingertip to the power switch.
+
+The opening for the board is 181.1 × 105.2 mm, 1.5 mm wider than the board at each end, so the USB-C sockets clear the end walls. The optional camera does not fit: it stands 11 mm over the top edge of the board.
+
+```powershell
+$env:TESSERA_BOARD = 'crowpanel'; & "C:\Program Files\FreeCAD 1.1\bin\freecadcmd.exe" hardware\make_enclosure.py; Remove-Item Env:TESSERA_BOARD
+```
 
 ## Sizes it is built from
 
