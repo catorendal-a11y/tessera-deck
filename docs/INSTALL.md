@@ -42,7 +42,7 @@ installer is on the [roadmap](ROADMAP.md)), so the warning says nothing about th
 ## First 5 minutes
 
 1. Double-click `Tessera.cmd`. The tray icon, the USB host and the editor start.
-2. Plug the panel into the PC's USB port with the cable on the panel's USB Serial/JTAG port.
+2. Plug the panel into the PC's USB port with the cable on the panel's USB Serial/JTAG port. On the GUITION board that is the USB-C port marked *Full-speed Type-C* (number 7 in GUITION's interface drawing); the *High-speed Type-C* port next to it gives the panel power but no link to the PC.
 3. A new panel needs firmware. Open **Panel → Panel firmware and updates …**, choose the included package, choose *Full install (new or blank panel)*, tick *Install anyway* and press *Install*.
 4. Follow the *Getting started* checklist in the editor. It ticks each step off by itself: Host running, Panel connected, Firmware up to date, Put an action on a key, Press it on the panel.
 5. For the fourth step, click an action in the action list on the right. It makes a new key. Fill it in on the **Look** and **Actions** tabs.
@@ -160,9 +160,9 @@ When something blocks you, a bar at the bottom of the editor names the cause and
 | The USB host has stopped, so the panel does not react to presses. | Press *Start host*, or use the tray. *Show the host log* says why it stopped. Edits are still saved. The tray restarts a host that dies by itself after 5 s, 15 s, 60 s, then every 5 minutes. |
 | The host could not start: … | Press *Show the host log*. |
 | Another program is using the panel's USB port. | Close Arduino IDE, PuTTY, Thonny or any other serial program. The panel connects by itself. Flashing from source also needs the host stopped. |
-| The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port. On a CrowPanel, use the USB-C port marked UART. |
+| The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port). On a CrowPanel, use the USB-C port marked UART. |
 | The panel firmware is too old for this Tessera. | Press *Panel firmware …* and update. |
-| No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port, or on a CrowPanel the USB-C port marked UART. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
+| No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port, not the high-speed one), or on a CrowPanel the USB-C port marked UART. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
 | The panel firmware (x) is older than Tessera (y). | Press *Update firmware …*, or *Not now*. |
 
 More symptoms:
