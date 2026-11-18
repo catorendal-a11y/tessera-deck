@@ -125,7 +125,7 @@ Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are 
   <img src="docs/images/console-printed.jpg" alt="A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen" width="900">
 </p>
 
-The console has been printed, and the panel fits it perfectly. That first print needed supports under the shelf the screen stands on. Since then the files carry that shelf from the bed and join the foot pads to the walls, so it prints without supports.
+The console has been printed, and the panel fits it perfectly.
 
 <p align="center">
   <img src="docs/images/console-hero.jpg" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back" width="900">
@@ -137,7 +137,7 @@ The console has been printed, and the panel fits it perfectly. That first print 
 
 The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. Both are drawn to print without supports. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened.
 
-<sub>The first picture is a photo of the print. The others are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
+<sub>The first picture is a photo of the printed console. The others are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
 
 ## How it works
 

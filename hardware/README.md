@@ -13,7 +13,7 @@ Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y
 
 ![A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen](../docs/images/console-printed.jpg)
 
-The console has been printed, and the panel fits it perfectly. That first print needed supports under the shelf the screen stands on. Since then the files carry that shelf from the bed and join the foot pads to the walls, so it prints without supports.
+The console has been printed, and the panel fits it perfectly.
 
 ![The console with the panel in it, rendered in Blender](../docs/images/console-hero.jpg)
 
