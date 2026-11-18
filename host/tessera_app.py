@@ -2,7 +2,7 @@
 from default_profile import seed_path
 from process_flags import NEW_CONSOLE, NO_WINDOW
 from desktop import open_path
-from platform_support import load
+from platform_support import IS_WINDOWS, load
 from venv_paths import venv_python
 import argparse
 import copy
@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import subprocess
 import sys
 import threading
@@ -931,6 +932,10 @@ def main():
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
             lock.release()
             return
+    if hasattr(signal, 'SIGTERM') and not IS_WINDOWS:  # "Quit" in the tray stops an editor in a browser tab: shut down normally
+        def terminate(*_):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, terminate)
     server = make_server(Editor(args.profiles, controller), args.port)
     url = f'http://127.0.0.1:{server.server_port}/'
     if not args.profiles:
