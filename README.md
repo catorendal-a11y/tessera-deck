@@ -131,7 +131,7 @@ Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are 
   <img src="docs/images/console-printed.jpg" alt="A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen" width="900">
 </p>
 
-The console is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant). It has been printed, and that panel fits it perfectly. The other boards have not been tried in it.
+The console is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant). It has been printed, and that panel fits it perfectly.
 
 <p align="center">
   <img src="docs/images/console-hero.jpg" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back" width="900">

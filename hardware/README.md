@@ -45,7 +45,7 @@ Two stands for the GUITION JC1060P470C in its factory housing (the `_Y` variant)
 
 ![A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen](../docs/images/console-printed.jpg)
 
-The console has been printed, and the GUITION panel fits it perfectly. The other boards have not been tried in it.
+The console has been printed, and the GUITION panel fits it perfectly.
 
 ![The console with the panel in it, rendered in Blender](../docs/images/console-hero.jpg)
 
