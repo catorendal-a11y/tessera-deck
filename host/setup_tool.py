@@ -1,6 +1,6 @@
 """First-run setup, dependency sync, shortcut, diagnostics and uninstall for the program.
 
-Run through Tessera.cmd (`--setup`, `--uninstall`, `--diagnostics`); it is also called on every start to keep the
+Run through Tessera.cmd (Windows) or Tessera.sh (Linux) with `--setup`, `--uninstall` or `--diagnostics`; it is also called on every start to keep the
 virtual environment in step with host/requirements.txt (or its hashed lock file, host/requirements.lock, when
 there is one) without re-installing when nothing changed.
 """
@@ -84,7 +84,7 @@ def desktop_shortcut_path() -> Path:
 
 
 def create_shortcut(target: Path = ROOT / 'Tessera.cmd', link: Path | None = None) -> Path:
-    """A shortcut with the Tessera icon: a Desktop .lnk on Windows."""
+    """A shortcut with the Tessera icon: a Desktop .lnk on Windows, an application menu entry on Linux."""
     return load('shortcuts').create_shortcut(target, link or desktop_shortcut_path())
 
 

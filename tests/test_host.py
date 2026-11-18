@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+from platform_marks import windows_only  # noqa: E402
 import input_common
 import tesserad as deck
 from platform_windows import input as win_input
@@ -84,10 +85,14 @@ class HostTests(HostCase):
         daemon.stats.raw.pop('cpu_temp')
         missing = next(item for item in daemon.current_buttons() if item['id'] == 3)
         self.assertEqual(missing['gauge'], {'p': 0, 't': '--', 'b': 'lc:e186'})
+
+    @windows_only
     def test_letters_use_uppercase_virtual_key_codes(self):
         self.assertEqual(win_input.parse_hotkey('ctrl+c'), [0x11, 0x43])
         self.assertEqual(win_input.parse_hotkey('ctrl+lbracket'), [0x11, 0xDB])
         self.assertEqual(win_input.parse_hotkey('win+period'), [0x5B, 0xBE])
+
+    @windows_only
     def test_volume_virtual_keys(self):
         self.assertEqual(win_input.VK['volumemute'], 0xad)
         self.assertEqual(win_input.VK['volumedown'], 0xae)
@@ -296,6 +301,8 @@ class HostTests(HostCase):
         daemon.assets = Mock()
         daemon.assets.icon_for.return_value = 'im:0123456789ab'
         self.assertEqual(daemon.resolve_icon({'icon': 'app'}), 'im:0123456789ab')
+
+    @windows_only
     def test_program_targets_resolve_aliases_and_variables(self):
         from platform_windows.icons import resolve_program_target
         self.assertIn('WindowsTerminal', resolve_program_target('wt.exe'))
@@ -306,6 +313,8 @@ class HostTests(HostCase):
                              'C:' + chr(92) + 'Apps' + chr(92) + 'a.exe')
         with self.assertRaises(ValueError):
             resolve_program_target('  ')
+
+    @windows_only
     def test_an_app_icon_is_never_looked_up_on_a_network_share_or_url(self):
         # The lookup runs on every push, so an imported key could otherwise leak the NTLM sign-in to any host.
         from deck_assets import is_remote_target

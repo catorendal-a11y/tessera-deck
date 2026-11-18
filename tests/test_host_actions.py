@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+from platform_marks import windows_only  # noqa: E402
 import tesserad as deck
 import host_support  # noqa: E402
 import import_review
@@ -174,6 +175,8 @@ class ScriptStepTests(unittest.TestCase):
         path = Path(self.folder.name) / name
         path.write_text(text, encoding='utf-8')
         return str(path)
+
+    @windows_only
     def test_validation(self):
         check({'type': 'script', 'path': 'C:\\tools\\a.ps1', 'timeout': 10})
         for bad in ({'type': 'script'}, {'type': 'script', 'path': 5}, {'type': 'script', 'path': 'C:\\a.exe'},
@@ -186,6 +189,8 @@ class ScriptStepTests(unittest.TestCase):
         check({'type': 'script', 'path': ' "C:\\tools\\a.ps1" '})  # as pasted from Explorer's Copy as path
         with self.assertRaises(ValueError):
             check({'type': 'script', 'path': 'C:\\%NAME%\\a.cmd'})
+
+    @windows_only
     def test_a_variable_that_is_not_set_fails_the_key_and_not_the_configuration(self):
         from action_runner import script_path
         with patch.dict(os.environ, {'TESSERA_SET': self.folder.name}):

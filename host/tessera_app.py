@@ -2,7 +2,7 @@
 from default_profile import seed_path
 from process_flags import NEW_CONSOLE, NO_WINDOW
 from desktop import open_path
-from platform_support import load
+from platform_support import IS_WINDOWS, load
 from venv_paths import venv_python
 import argparse
 import copy
@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import signal
 import subprocess
 import sys
 import threading
@@ -47,7 +48,7 @@ def editor_build_id():
     files = [Path(__file__), ROOT / 'host/deck_control.py', ROOT / 'host/deck_assets.py',
              ROOT / 'host/tesserad.py', ROOT / 'host/config_check.py', ROOT / 'host/panel_serial.py',
              ROOT / 'host/input_common.py', ROOT / 'host/desktop.py', ROOT / 'host/default_profile.py', ROOT / 'host/action_packs.json',
-             *sorted((ROOT / 'host/platform_windows').glob('*.py')),
+             *sorted((ROOT / 'host/platform_windows').glob('*.py')), *sorted((ROOT / 'host/platform_linux').glob('*.py')),
              WEB / 'index.html', WEB / 'style.css', WEB / 'streamdeck.css', WEB / 'cockpit.css', WEB / 'core.js', WEB / 'app.js', WEB / 'dialogs.js']
     for path in files:
         digest.update(path.name.encode('utf-8'))
@@ -158,7 +159,7 @@ def installed_programs():
 
 
 def scan_programs():
-    """Return the programs of the system's menu (Windows: Start menu and Store apps)."""
+    """Return the programs of the system's menu (Windows: Start menu and Store apps; Linux: .desktop entries)."""
     return load('shell').scan_programs()
 
 
@@ -931,6 +932,10 @@ def main():
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
             lock.release()
             return
+    if hasattr(signal, 'SIGTERM') and not IS_WINDOWS:  # "Quit" in the tray stops an editor in a browser tab: shut down normally
+        def terminate(*_):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, terminate)
     server = make_server(Editor(args.profiles, controller), args.port)
     url = f'http://127.0.0.1:{server.server_port}/'
     if not args.profiles:

@@ -1,0 +1,3111 @@
+{
+  "default_profile": "main",
+  "auto_profiles": true,
+  "profiles": {
+    "main": {
+      "match": [],
+      "pages": {
+        "main": [
+          {
+            "id": 1,
+            "label": "Files",
+            "icon": "lc:e0f5",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "open",
+                "target": "~"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Terminal",
+            "icon": "lc:e0f5",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Calculator",
+            "icon": "lc:e1bc",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v gnome-calculator >/dev/null 2>&1 && exec setsid -f gnome-calculator) || (command -v kcalc >/dev/null 2>&1 && exec setsid -f kcalc) || (command -v galculator >/dev/null 2>&1 && exec setsid -f galculator) || (command -v xcalc >/dev/null 2>&1 && exec setsid -f xcalc)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Screenshot",
+            "icon": "lc:e064",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "printscreen"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Show desktop",
+            "icon": "lc:e11d",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+d"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Lock PC",
+            "icon": "lc:e10b",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "loginctl lock-session",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Volume -",
+            "icon": "lc:e1aa",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "volumedown"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Volume +",
+            "icon": "lc:e1ab",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "volumeup"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Mute",
+            "icon": "lc:e1ac",
+            "color": "#FFB74D",
+            "states": [
+              {
+                "label": "Mute",
+                "icon": "lc:e1ab",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
+              },
+              {
+                "label": "Muted",
+                "icon": "lc:e1ac",
+                "color": "#FF5252",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
+              }
+            ],
+            "bind": "speaker_muted",
+            "actions": []
+          },
+          {
+            "id": 10,
+            "label": "Play / pause",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
+            "states": [
+              {
+                "label": "Play",
+                "icon": "lc:e13c",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
+              },
+              {
+                "label": "Pause",
+                "icon": "lc:e12e",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
+              }
+            ],
+            "bind": "media_playing",
+            "actions": []
+          },
+          {
+            "id": 13,
+            "label": "Status",
+            "icon": "lc:e038",
+            "color": "#4DD0E1",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "status"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Desktop",
+            "icon": "lc:e1c1",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "system"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Audio",
+            "icon": "lc:e1ab",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "audio"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Tools",
+            "icon": "lc:e1b1",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "tools"
+              }
+            ]
+          }
+        ],
+        "status": [
+          {
+            "id": 1,
+            "label": "CPU LOAD",
+            "icon": "lc:e0a9",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_load",
+              "max": 100,
+              "unit": "%",
+              "warn": 85,
+              "critical": 97,
+              "badge": "lc:e038"
+            }
+          },
+          {
+            "id": 2,
+            "label": "CPU CLOCK",
+            "icon": "lc:e0a9",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_clock",
+              "max": 5500,
+              "fmt": "ghz",
+              "badge": "lc:e1e0"
+            }
+          },
+          {
+            "id": 3,
+            "label": "CPU TEMP",
+            "icon": "lc:e0a9",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_temp",
+              "max": 100,
+              "unit": "C",
+              "warn": 80,
+              "critical": 90,
+              "badge": "lc:e186"
+            }
+          },
+          {
+            "id": 4,
+            "label": "CPU POWER",
+            "icon": "lc:e0a9",
+            "color": "#35D07F",
+            "actions": [],
+            "gauge": {
+              "key": "cpu_power",
+              "max": 170,
+              "unit": "W",
+              "warn": 130,
+              "critical": 160,
+              "badge": "lc:e1b4"
+            }
+          },
+          {
+            "id": 5,
+            "label": "RAM",
+            "icon": "lc:e445",
+            "color": "#64B5F6",
+            "actions": [],
+            "gauge": {
+              "key": "ram",
+              "max": 100,
+              "unit": "%",
+              "warn": 85,
+              "critical": 95,
+              "badge": "lc:e038"
+            }
+          },
+          {
+            "id": 6,
+            "label": "DISK",
+            "icon": "lc:e0ed",
+            "color": "#64B5F6",
+            "actions": [],
+            "gauge": {
+              "key": "disk",
+              "max": 100,
+              "unit": "%",
+              "warn": 90,
+              "critical": 97,
+              "badge": "lc:e038"
+            }
+          },
+          {
+            "id": 7,
+            "label": "GPU LOAD",
+            "icon": "lc:e66a",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_load",
+              "max": 100,
+              "unit": "%",
+              "badge": "lc:e038"
+            }
+          },
+          {
+            "id": 8,
+            "label": "VRAM",
+            "icon": "lc:e66a",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "vram_used_gb",
+              "percent_key": "vram",
+              "max": 100,
+              "fmt": "gb",
+              "warn": 85,
+              "critical": 95,
+              "badge": "lc:e445"
+            }
+          },
+          {
+            "id": 9,
+            "label": "GPU TEMP",
+            "icon": "lc:e66a",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_temp",
+              "max": 110,
+              "unit": "C",
+              "warn": 85,
+              "critical": 100,
+              "badge": "lc:e186"
+            }
+          },
+          {
+            "id": 10,
+            "label": "GPU POWER",
+            "icon": "lc:e66a",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_power",
+              "max": 350,
+              "unit": "W",
+              "warn": 320,
+              "critical": 360,
+              "badge": "lc:e1b4"
+            }
+          },
+          {
+            "id": 11,
+            "label": "GPU CLOCK",
+            "icon": "lc:e66a",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_clock",
+              "max": 2600,
+              "fmt": "ghz",
+              "badge": "lc:e1e0"
+            }
+          },
+          {
+            "id": 12,
+            "label": "GPU FAN",
+            "icon": "lc:e379",
+            "color": "#B388FF",
+            "actions": [],
+            "gauge": {
+              "key": "gpu_fan",
+              "max": 3000,
+              "badge": "lc:e66a",
+              "unit": "rpm"
+            }
+          },
+          {
+            "id": 13,
+            "label": "DOWN",
+            "icon": "lc:e042",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "net_down",
+              "max": 125000000,
+              "fmt": "rate",
+              "scale": "log"
+            }
+          },
+          {
+            "id": 14,
+            "label": "UP",
+            "icon": "lc:e04a",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "net_up",
+              "max": 125000000,
+              "fmt": "rate",
+              "scale": "log"
+            }
+          },
+          {
+            "id": 15,
+            "label": "UPTIME",
+            "icon": "lc:e087",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "uptime",
+              "max": 604800,
+              "fmt": "uptime"
+            }
+          },
+          {
+            "id": 16,
+            "label": "SENSORS",
+            "icon": "lc:e142",
+            "color": "#90A4AE",
+            "actions": [],
+            "gauge": {
+              "key": "sensors",
+              "max": 1,
+              "fmt": "live"
+            }
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ],
+        "system": [
+          {
+            "id": 1,
+            "label": "Lock PC",
+            "icon": "lc:e10b",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "loginctl lock-session",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Show desktop",
+            "icon": "lc:e11d",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+d"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Search",
+            "icon": "lc:e151",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Snap left",
+            "icon": "lc:e12a",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+left"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Maximize",
+            "icon": "lc:e112",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "window",
+                "op": "maximize"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Snap right",
+            "icon": "lc:e431",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "win+right"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Minimize",
+            "icon": "lc:e11a",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "window",
+                "op": "minimize"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Prev desktop",
+            "icon": "lc:e048",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+alt+left"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Next desktop",
+            "icon": "lc:e049",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+alt+right"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "To left screen",
+            "icon": "lc:e422",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "window",
+                "op": "next_monitor"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ],
+        "audio": [
+          {
+            "id": 1,
+            "label": "Mute",
+            "icon": "lc:e1ac",
+            "color": "#FFB74D",
+            "states": [
+              {
+                "label": "Mute",
+                "icon": "lc:e1ab",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
+              },
+              {
+                "label": "Muted",
+                "icon": "lc:e1ac",
+                "color": "#FF5252",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "speaker",
+                    "op": "toggle"
+                  }
+                ]
+              }
+            ],
+            "bind": "speaker_muted",
+            "actions": []
+          },
+          {
+            "id": 2,
+            "label": "Volume -",
+            "icon": "lc:e1aa",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "volumedown"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Volume +",
+            "icon": "lc:e1ab",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "volumeup"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Previous",
+            "icon": "lc:e15f",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "mediaprev"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Play / pause",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
+            "states": [
+              {
+                "label": "Play",
+                "icon": "lc:e13c",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
+              },
+              {
+                "label": "Pause",
+                "icon": "lc:e12e",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "hotkey",
+                    "keys": "playpause"
+                  }
+                ]
+              }
+            ],
+            "bind": "media_playing",
+            "actions": []
+          },
+          {
+            "id": 6,
+            "label": "Next",
+            "icon": "lc:e160",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "medianext"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Stop media",
+            "icon": "lc:e167",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "mediastop"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Mic",
+            "icon": "lc:e119",
+            "color": "#FFB74D",
+            "states": [
+              {
+                "label": "Mic live",
+                "icon": "lc:e118",
+                "color": "#35D07F",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "mic",
+                    "op": "toggle"
+                  }
+                ]
+              },
+              {
+                "label": "Mic muted",
+                "icon": "lc:e119",
+                "color": "#FF5252",
+                "actions": [
+                  {
+                    "type": "audio",
+                    "target": "mic",
+                    "op": "toggle"
+                  }
+                ]
+              }
+            ],
+            "bind": "mic_muted",
+            "actions": []
+          },
+          {
+            "id": 9,
+            "label": "Sound settings",
+            "icon": "lc:e154",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings sound) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center sound) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings kcm_pulseaudio) || (command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Volume mixer",
+            "icon": "lc:e29a",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Audio devices",
+            "icon": "lc:e166",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Bluetooth",
+            "icon": "lc:e05c",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v blueman-manager >/dev/null 2>&1 && exec setsid -f blueman-manager) || (command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings bluetooth) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center bluetooth)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Meetings",
+            "icon": "lc:e1a4",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "meetings"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "$(pc:track)",
+            "icon": "lc:e122",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "playpause"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Vol $(pc:volume)",
+            "icon": "lc:e1ab",
+            "color": "#4DD0E1",
+            "actions": []
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ],
+        "meetings": [
+          {
+            "id": 1,
+            "label": "Teams mic",
+            "icon": "lc:e118",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+m"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Teams camera",
+            "icon": "lc:e1a5",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+o"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Teams share",
+            "icon": "lc:e14f",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+e"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Teams hand",
+            "icon": "lc:e1d7",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+k"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Teams leave",
+            "icon": "lc:e138",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+h"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Zoom mic",
+            "icon": "lc:e118",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+a"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Zoom camera",
+            "icon": "lc:e1a5",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+v"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Zoom share",
+            "icon": "lc:e14f",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+s"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Zoom hand",
+            "icon": "lc:e1d7",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+y"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Zoom leave",
+            "icon": "lc:e138",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+q"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Zoom chat",
+            "icon": "lc:e117",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+h"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Discord mic",
+            "icon": "lc:e118",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+m"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Discord deafen",
+            "icon": "lc:e0f1",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+d"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "id": 1,
+            "label": "Screenshot",
+            "icon": "lc:e064",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "printscreen"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Always on top",
+            "icon": "lc:e259",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "window",
+                "op": "topmost"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Calculator",
+            "icon": "lc:e1bc",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v gnome-calculator >/dev/null 2>&1 && exec setsid -f gnome-calculator) || (command -v kcalc >/dev/null 2>&1 && exec setsid -f kcalc) || (command -v galculator >/dev/null 2>&1 && exec setsid -f galculator) || (command -v xcalc >/dev/null 2>&1 && exec setsid -f xcalc)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Editor",
+            "icon": "lc:e596",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v gnome-text-editor >/dev/null 2>&1 && exec setsid -f gnome-text-editor) || (command -v gedit >/dev/null 2>&1 && exec setsid -f gedit) || (command -v kate >/dev/null 2>&1 && exec setsid -f kate) || (command -v xed >/dev/null 2>&1 && exec setsid -f xed) || (command -v mousepad >/dev/null 2>&1 && exec setsid -f mousepad)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "System monitor",
+            "icon": "lc:e038",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v gnome-system-monitor >/dev/null 2>&1 && exec setsid -f gnome-system-monitor) || (command -v ksysguard >/dev/null 2>&1 && exec setsid -f ksysguard) || (command -v xfce4-taskmanager >/dev/null 2>&1 && exec setsid -f xfce4-taskmanager)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Settings",
+            "icon": "lc:e154",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings) || (command -v xfce4-settings-manager >/dev/null 2>&1 && exec setsid -f xfce4-settings-manager)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Plain paste",
+            "icon": "lc:e3e8",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+v"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ]
+      },
+      "pinned": [
+        {
+          "id": 18,
+          "label": "Home",
+          "icon": "lc:e0f5",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "home"
+            }
+          ]
+        }
+      ]
+    },
+    "coding": {
+      "match": [
+        "code.exe",
+        "cursor.exe"
+      ],
+      "pages": {
+        "main": [
+          {
+            "id": 1,
+            "label": "Save",
+            "icon": "lc:e14d",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+s"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Command",
+            "icon": "lc:e09a",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Open file",
+            "icon": "lc:e0cb",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+p"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Search all",
+            "icon": "lc:e151",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+f"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Terminal",
+            "icon": "lc:e20a",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Format",
+            "icon": "lc:e357",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "shift+alt+f"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Rename",
+            "icon": "lc:e265",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "f2"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Definition",
+            "icon": "lc:e04d",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "f12"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+left"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Forward",
+            "icon": "lc:e049",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+right"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Comment",
+            "icon": "lc:e117",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+slash"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Problems",
+            "icon": "lc:e193",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+m"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Run / debug",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "f5"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Stop",
+            "icon": "lc:e167",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "shift+f5"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Build",
+            "icon": "lc:e0ec",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+b"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Git",
+            "icon": "lc:e0e2",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "git"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Claude Code",
+            "icon": "lc:e412",
+            "color": "#E69A6E",
+            "actions": [
+              {
+                "type": "profile",
+                "profile": "Claude Code"
+              }
+            ]
+          }
+        ],
+        "git": [
+          {
+            "id": 1,
+            "label": "Source control",
+            "icon": "lc:e0e2",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+g"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Pull",
+            "icon": "lc:e089",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Pull"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Push",
+            "icon": "lc:e091",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Push"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Commit",
+            "icon": "lc:e0e3",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Commit"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Stage all",
+            "icon": "lc:e13d",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Stage All Changes"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Sync",
+            "icon": "lc:e145",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Sync"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Branch",
+            "icon": "lc:e0e2",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Checkout to..."
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Stash",
+            "icon": "lc:e041",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Stash"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Fetch",
+            "icon": "lc:e089",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Fetch"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Merge",
+            "icon": "lc:e0e4",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Merge Branch..."
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Undo commit",
+            "icon": "lc:e148",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Undo Last Commit"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Publish",
+            "icon": "lc:e091",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+p"
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "text",
+                "text": "Git: Publish Branch..."
+              },
+              {
+                "type": "delay",
+                "ms": 250
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Pull request",
+            "icon": "lc:e0e5",
+            "color": "#FFA868",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+r"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ]
+      },
+      "pinned": [
+        {
+          "id": 18,
+          "label": "Home",
+          "icon": "lc:e0f5",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "home"
+            }
+          ]
+        }
+      ]
+    },
+    "Codex": {
+      "match": [
+        "process:codex.exe",
+        "title:codex"
+      ],
+      "pages": {
+        "main": [
+          {
+            "id": 1,
+            "label": "Codex $(agent:codex)",
+            "icon": "lc:e1bb",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex))",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Continue",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex resume --last) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex resume --last) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex resume --last) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex resume --last) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex resume --last))",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "New chat",
+            "icon": "lc:e13d",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/new"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Compact",
+            "icon": "lc:e11b",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/compact"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Resume",
+            "icon": "lc:e70d",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/resume"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Review",
+            "icon": "lc:e1ff",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/review"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Diff",
+            "icon": "lc:e0e3",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/diff"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Model",
+            "icon": "lc:e3c6",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/model"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Reasoning",
+            "icon": "lc:e412",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/reasoning"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Plan mode",
+            "icon": "lc:e1d0",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/plan"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Status",
+            "icon": "lc:e038",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/status"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Set goal",
+            "icon": "lc:e180",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/goal "
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Project init",
+            "icon": "lc:e247",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/init"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Fork chat",
+            "icon": "lc:e0e2",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/fork"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Side chat",
+            "icon": "lc:e117",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/side"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Cancel",
+            "icon": "lc:e167",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+c"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Send",
+            "icon": "lc:e0a1",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          }
+        ]
+      },
+      "pinned": [
+        {
+          "id": 18,
+          "label": "Home",
+          "icon": "lc:e0f5",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "home"
+            }
+          ]
+        }
+      ]
+    },
+    "Claude Code": {
+      "match": [
+        "process:claude.exe",
+        "title:claude"
+      ],
+      "pages": {
+        "main": [
+          {
+            "id": 1,
+            "label": "Claude $(agent:claude)",
+            "icon": "lc:e412",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude))",
+                "timeout": 10
+              }
+            ],
+            "status": {
+              "var": "claude",
+              "colors": {
+                "working": "#FFB74D",
+                "waiting": "#FF7070",
+                "idle": "#35D07F"
+              }
+            }
+          },
+          {
+            "id": 2,
+            "label": "Continue",
+            "icon": "lc:e13c",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -c) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -c) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -c) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -c) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -c))",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Resume",
+            "icon": "lc:e70d",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -r) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -r) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -r) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -r) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -r))",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Clear",
+            "icon": "lc:e148",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/clear"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Compact",
+            "icon": "lc:e11b",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/compact"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Context",
+            "icon": "lc:e529",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/context"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Plan mode",
+            "icon": "lc:e1d0",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/plan"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Model",
+            "icon": "lc:e3c6",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/model"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Permissions",
+            "icon": "lc:e10b",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/permissions"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Status",
+            "icon": "lc:e038",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/status"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Remote control",
+            "icon": "lc:e163",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/remote-control"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "More",
+            "icon": "lc:e0b6",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "more"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Help",
+            "icon": "lc:e082",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/help"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Project init",
+            "icon": "lc:e247",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/init"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Set goal",
+            "icon": "lc:e180",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/goal "
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Cancel",
+            "icon": "lc:e167",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+c"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Send",
+            "icon": "lc:e0a1",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          }
+        ],
+        "more": [
+          {
+            "id": 1,
+            "label": "MCP",
+            "icon": "lc:e37f",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/mcp"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Agents",
+            "icon": "lc:e1bb",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/agents"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Hooks",
+            "icon": "lc:e357",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/hooks"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Memory",
+            "icon": "lc:e3c6",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/memory"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Config",
+            "icon": "lc:e154",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/config"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Doctor",
+            "icon": "lc:e038",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/doctor"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Rewind",
+            "icon": "lc:e148",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/rewind"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Export",
+            "icon": "lc:e089",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/export"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Add dir",
+            "icon": "lc:e247",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/add-dir"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Security review",
+            "icon": "lc:e1ff",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/security-review"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Tasks",
+            "icon": "lc:e1d0",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/tasks"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Mobile app",
+            "icon": "lc:e163",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/mobile"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Login",
+            "icon": "lc:e4a3",
+            "color": "#E69A62",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/login"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ]
+      },
+      "pinned": [
+        {
+          "id": 18,
+          "label": "Home",
+          "icon": "lc:e0f5",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "home"
+            }
+          ]
+        }
+      ]
+    },
+    "ZCode": {
+      "match": [
+        "zcode.exe"
+      ],
+      "pages": {
+        "main": [
+          {
+            "id": 1,
+            "label": "ZCode $(agent:zcode)",
+            "icon": "lc:e3c6",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v zcode >/dev/null 2>&1 && exec setsid -f zcode)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "New task",
+            "icon": "lc:e13d",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+n"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Commands",
+            "icon": "lc:e09a",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+k"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Model",
+            "icon": "lc:e3c6",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+m"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Thinking",
+            "icon": "lc:e412",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+t"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Run mode",
+            "icon": "lc:e145",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "shift+tab"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Terminal",
+            "icon": "lc:e20a",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "shell",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm)",
+                "timeout": 10
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Side panel",
+            "icon": "lc:e12a",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+b"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Right panel",
+            "icon": "lc:e431",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+alt+b"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Find",
+            "icon": "lc:e151",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+f"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Prev chat",
+            "icon": "lc:e04a",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+lbracket"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Next chat",
+            "icon": "lc:e042",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+rbracket"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Set goal",
+            "icon": "lc:e180",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/goal "
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "Compact",
+            "icon": "lc:e11b",
+            "color": "#8B7CFF",
+            "actions": [
+              {
+                "type": "text",
+                "text": "/compact"
+              },
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+lbracket"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Forward",
+            "icon": "lc:e049",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+rbracket"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Send",
+            "icon": "lc:e0a1",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "enter"
+              }
+            ]
+          }
+        ]
+      },
+      "pinned": [
+        {
+          "id": 18,
+          "label": "Home",
+          "icon": "lc:e0f5",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "home"
+            }
+          ]
+        }
+      ]
+    },
+    "Chrome": {
+      "match": [
+        "chrome.exe"
+      ],
+      "pages": {
+        "main": [
+          {
+            "id": 1,
+            "label": "New tab",
+            "icon": "lc:e13d",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+t"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Close tab",
+            "icon": "lc:e1b2",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+w"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Reopen tab",
+            "icon": "lc:e2a1",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+t"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "Previous tab",
+            "icon": "lc:e06e",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+tab"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Next tab",
+            "icon": "lc:e06f",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+tab"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Address bar",
+            "icon": "lc:e0e8",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+l"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Back",
+            "icon": "lc:e048",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+left"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Forward",
+            "icon": "lc:e049",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "alt+right"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Refresh",
+            "icon": "lc:e149",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+r"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Hard refresh",
+            "icon": "lc:e148",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+r"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Find",
+            "icon": "lc:e151",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+f"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Bookmark",
+            "icon": "lc:e176",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+d"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Incognito",
+            "icon": "lc:e0bb",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+n"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "label": "History",
+            "icon": "lc:e1f5",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+h"
+              }
+            ]
+          },
+          {
+            "id": 15,
+            "label": "Downloads",
+            "icon": "lc:e0b2",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+j"
+              }
+            ]
+          },
+          {
+            "id": 16,
+            "label": "Developer",
+            "icon": "lc:e093",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "folder",
+                "page": "developer"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Play / pause",
+            "icon": "lc:e13c",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "playpause"
+              }
+            ]
+          }
+        ],
+        "developer": [
+          {
+            "id": 1,
+            "label": "DevTools",
+            "icon": "lc:e093",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "f12"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "label": "Inspect",
+            "icon": "lc:e120",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+c"
+              }
+            ]
+          },
+          {
+            "id": 3,
+            "label": "Console",
+            "icon": "lc:e20a",
+            "color": "#B388FF",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+j"
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "label": "View source",
+            "icon": "lc:e0c3",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+u"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "label": "Zoom in",
+            "icon": "lc:e1b6",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+equals"
+              }
+            ]
+          },
+          {
+            "id": 6,
+            "label": "Zoom out",
+            "icon": "lc:e1b7",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+minus"
+              }
+            ]
+          },
+          {
+            "id": 7,
+            "label": "Reset zoom",
+            "icon": "lc:e537",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+0"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "label": "Full screen",
+            "icon": "lc:e112",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "f11"
+              }
+            ]
+          },
+          {
+            "id": 9,
+            "label": "Print",
+            "icon": "lc:e141",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+p"
+              }
+            ]
+          },
+          {
+            "id": 10,
+            "label": "Save page",
+            "icon": "lc:e14d",
+            "color": "#35D07F",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+s"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "label": "Bookmarks bar",
+            "icon": "lc:e060",
+            "color": "#FFB74D",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+b"
+              }
+            ]
+          },
+          {
+            "id": 12,
+            "label": "Task manager",
+            "icon": "lc:e0a9",
+            "color": "#90A4AE",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "shift+escape"
+              }
+            ]
+          },
+          {
+            "id": 13,
+            "label": "Clear data",
+            "icon": "lc:e18e",
+            "color": "#FF7070",
+            "actions": [
+              {
+                "type": "hotkey",
+                "keys": "ctrl+shift+delete"
+              }
+            ]
+          },
+          {
+            "id": 17,
+            "label": "Back",
+            "icon": "lc:e06e",
+            "color": "#64B5F6",
+            "actions": [
+              {
+                "type": "back"
+              }
+            ]
+          }
+        ]
+      },
+      "pinned": [
+        {
+          "id": 18,
+          "label": "Home",
+          "icon": "lc:e0f5",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "home"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

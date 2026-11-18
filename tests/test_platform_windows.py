@@ -34,7 +34,7 @@ EXPECTED = {
     'platform_windows.files': ['make_private'],
     'platform_windows.process_flags': ['NO_WINDOW', 'NEW_PROCESS_GROUP', 'DETACHED', 'NEW_CONSOLE'],
     'platform_windows.labels': ['MODULE_PROBE', 'AUTOSTART_NAME', 'SHORTCUT_NAME', 'LAUNCHER', 'ASKS_ABOUT_AUTOSTART', 'PROGRAM_SUFFIX',
-                                'DEFAULT_PORT', 'PLUGIN_ENV_KEEP', 'VENV_SCRIPTS', 'SCRIPT_EXTRA_SUFFIXES'],
+                                'DEFAULT_PORT', 'RESETS_ON_OPEN', 'PLUGIN_ENV_KEEP', 'VENV_SCRIPTS', 'SCRIPT_EXTRA_SUFFIXES'],
     'platform_windows.tray': ['prepare'],
     'platform_windows.regional': ['clock_format'],
     'platform_windows.filelock': ['lock', 'unlock'],

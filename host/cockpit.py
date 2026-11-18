@@ -127,7 +127,7 @@ def read_mixer(pinned: list | None = None, mic: bool = True) -> list[dict]:
     """The default speaker, up to three programs and the microphone. Raises OSError without audio.
 
     `pinned` names the programs to show (those that have a sound session right now); without it the programs that
-    play sound are chosen. The sound server of the system answers (platform_windows/audio.py)."""
+    play sound are chosen. The sound server of the system answers (platform_windows/audio.py, platform_linux/audio.py)."""
     import system_audio
     return system_audio.read_mixer(pinned, mic)
 

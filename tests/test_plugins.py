@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+from platform_marks import windows_only  # noqa: E402
 import deckctl
 import plugins
 import tesserad as deck
@@ -41,6 +42,8 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual((manifest.id, manifest.permissions), ('example-uptime', frozenset({'vars', 'events'})))
         self.assertEqual(manifest.routes(), frozenset({'var', 'vars'}))
         self.assertEqual(plugins.resolve_command(manifest, 'PY')[0], 'PY')
+
+    @windows_only
     def test_invalid_manifests_are_refused_with_a_reason(self):
         cases = ({'api': 2}, {'id': 'Bad Id'}, {'id': 'other-name'}, {'name': ''}, {'version': 5},
                  {'command': []}, {'command': 'python main.py'}, {'command': [5]}, {'permissions': ['root']},

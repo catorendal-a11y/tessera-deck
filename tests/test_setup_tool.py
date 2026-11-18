@@ -1,4 +1,5 @@
 """Dependency sync, shortcut and uninstall behaviour of the setup tool, without touching pip or the real Desktop."""
+import os
 import json
 from pathlib import Path
 import sys
@@ -10,6 +11,9 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import setup_tool
+
+AUTOSTART = 'start with Windows' if os.name == 'nt' else 'start with the desktop'  # what uninstall reports
+SHORTCUT = 'Desktop shortcut' if os.name == 'nt' else 'application menu entry'
 
 
 class EnsureTests(unittest.TestCase):
@@ -108,7 +112,7 @@ class UninstallTests(unittest.TestCase):
 
     def test_a_plain_uninstall_removes_the_entries_but_keeps_user_data(self):
         removed = self.run_uninstall()
-        self.assertEqual(removed, ['start with Windows', 'Desktop shortcut'])
+        self.assertEqual(removed, [AUTOSTART, SHORTCUT])
         self.assertEqual(self.removed_autostart, [False])
         self.assertFalse(self.link.exists())
         self.assertTrue((self.root / 'host/profiles.json').exists())
@@ -161,7 +165,7 @@ class UninstallTests(unittest.TestCase):
         def broken(enabled):
             raise OSError('no access')
         removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link, broken)
-        self.assertEqual(removed, ['Desktop shortcut'])
+        self.assertEqual(removed, [SHORTCUT])
         self.assertTrue(any('autostart' in message for message in self.messages))
 
 

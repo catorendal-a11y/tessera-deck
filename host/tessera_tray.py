@@ -19,7 +19,7 @@ from pathlib import Path
 import pystray
 from PIL import Image, ImageDraw
 
-from deck_control import (ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart,
+from deck_control import (ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart, stop_editor,
                           startup_script_path)
 from process_flags import DETACHED, NO_WINDOW
 from host_runtime import InstanceLock
@@ -305,6 +305,7 @@ class TrayApp:
 
     def quit(self, *_):
         self.stop.set()
+        stop_editor()  # an editor in a browser tab has no window to close: do not leave its web server running
         self.icon.stop()
 
     def quit_and_stop_host(self, *_):

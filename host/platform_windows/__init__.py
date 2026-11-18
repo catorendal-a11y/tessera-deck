@@ -1,4 +1,4 @@
-"""Windows-specific code of the host, one module per job. The platform-neutral side reaches it through `platform_support.load`.
+"""Windows-specific code of the host, one module per job. The platform-neutral side imports it only on Windows.
 
-Shared vocabulary and logic stay in the host's top-level modules.
+The Linux counterpart is platform_linux. Shared vocabulary and logic stay in the host's top-level modules.
 """

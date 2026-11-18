@@ -169,7 +169,7 @@ class NoticeTests(HostCase):
             with patch.object(tessera_tray, 'LOG_PATH', log):
                 app.open_log()
         self.opened.assert_called_once()
-        self.assertEqual(Path(self.opened.call_args.args[0]), log)
+        self.assertEqual(Path(self.opened.call_args.args[0]), log)  # a path on Windows, a string on Linux
         app.icon.notify.assert_not_called()
 
     def test_notifications_off_keeps_the_tray_quiet_but_answers_a_click(self):

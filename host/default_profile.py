@@ -1,4 +1,4 @@
-"""Which default profile a first run starts from: the one this system names (platform labels), else the default."""
+"""Which default profile a first run starts from: the Linux one on Linux (when the folder has it), the Windows one else."""
 from pathlib import Path
 
 from platform_support import load

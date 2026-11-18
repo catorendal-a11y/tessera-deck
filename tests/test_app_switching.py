@@ -9,6 +9,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
 import host_support  # noqa: E402
 from platform_windows.input import is_neutral_window as windows_neutral_window, real_app_exe as windows_real_app_exe
+from platform_marks import windows_only
 from system_stats import select_presentmon_fps
 
 
@@ -46,6 +47,9 @@ class NeutralWindowTests(unittest.TestCase):
                            ('code.exe', '')):
             with self.subTest(exe=exe, title=title):
                 self.assertFalse(windows_neutral_window(context(exe, title)))
+
+
+@windows_only
 class StoreAppTests(unittest.TestCase):
     def test_a_frame_host_window_is_the_app_inside_it(self):
         self.assertEqual(windows_real_app_exe('applicationframehost.exe', ['applicationframehost.exe', '', 'calculatorapp.exe']),

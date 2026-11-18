@@ -1,6 +1,6 @@
 """Reads Libre Hardware Monitor's remote web server (Options > Remote Web Server) and turns its data.json tree into
-HWiNFO-style readings. It is plain HTTP and JSON, so it is shared: the Windows counters sit in the platform
-package."""
+HWiNFO-style readings. It is plain HTTP and JSON, so it is shared: the Windows counters and Linux hwmon sit in the
+platform packages."""
 from __future__ import annotations
 
 import http.client

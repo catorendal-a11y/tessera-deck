@@ -29,7 +29,7 @@ def firmware_installing(path=None):
 
 
 def startup_script_path(appdata=None):
-    """The per-user startup entry: the Startup folder's Tessera.vbs on Windows."""
+    """The per-user startup entry: the XDG autostart file on Linux, the Startup folder's Tessera.vbs on Windows."""
     return load('autostart').startup_script_path(appdata)
 
 
@@ -57,6 +57,41 @@ def set_autostart(enabled, appdata=None):
         path.unlink(missing_ok=True)
         return path
     return load('autostart').enable(path, ROOT)
+
+
+def stop_editor(record_path=None, script=None, wait=4.0):
+    """Stop the editor when it runs in a browser tab. True when one was stopped.
+
+    In a native window, closing the window ends the editor. A browser tab is not the editor's window, so without this
+    the editor's web server would keep running after the tray is closed. Only the process the record names is
+    touched, and only if it is still the same process (same script, same start time).
+
+    Not on Windows: terminate() is a hard kill there, and the tray's Quit has never stopped the editor on Windows."""
+    if IS_WINDOWS:
+        return False
+    record_path = Path(record_path or ROOT / 'host/editor.local.json')
+    script = Path(script or ROOT / 'host/tessera_app.py')
+    try:
+        record = json.loads(record_path.read_text(encoding='utf-8'))
+        if not isinstance(record, dict) or not record.get('browser'):
+            return False
+        process = psutil.Process(record['pid'])
+        command = process.cmdline()
+        if not (len(command) > 1 and Path(command[1]).resolve() == script.resolve()
+                and abs(process.create_time() - record['created']) < .01):
+            return False
+    except (OSError, ValueError, KeyError, TypeError, psutil.Error):
+        return False
+    try:
+        process.terminate()  # SIGTERM: the editor turns it into a normal shutdown (record and lock removed)
+        try:
+            process.wait(wait)
+        except psutil.TimeoutExpired:
+            process.kill()
+            process.wait(2)
+    except psutil.Error:
+        return False
+    return True
 
 
 def save_profiles(config, path=None):

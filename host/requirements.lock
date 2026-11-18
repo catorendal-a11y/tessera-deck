@@ -119,7 +119,7 @@ click==8.5.1 \
     #   esp-pylib
     #   esptool
     #   rich-click
-clr-loader==0.3.1 \
+clr-loader==0.3.1 ; sys_platform == "win32" \
     --hash=sha256:2e073e9aaf49d1ae2f56ecba27987ad5fb68be4bcd9dd34a5bed8f0e4e128366 \
     --hash=sha256:cbad189de20d202a7d621956b0fc38049e13c9bf7ca2923441eff725cd121aa1
     # via pythonnet
@@ -127,7 +127,7 @@ colorama==0.4.6 \
     --hash=sha256:08695f5cb7ed6e0531a20572697297273c47b8cae5a63ffc6d6ed5c201be6e44 \
     --hash=sha256:4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6
     # via rich-click
-comtypes==1.5.0 \
+comtypes==1.5.0 ; sys_platform == "win32" \
     --hash=sha256:831ddb867bc17bc89cac525b4f32132ebd4bef1ffe6432406ec9f5d858c1a122 \
     --hash=sha256:c648ed3b243b1eb3b7cb893a873d1b35104ca1c8922061f4b1efafeb255bacb5
     # via pycaw
@@ -365,7 +365,7 @@ pyserial==3.5 \
 pystray==0.19.5 \
     --hash=sha256:a0c2229d02cf87207297c22d86ffc57c86c227517b038c0d3c59df79295ac617
     # via -r requirements.txt
-pythonnet==3.2.1 \
+pythonnet==3.2.1 ; sys_platform == "win32" \
     --hash=sha256:c86e8dd31268f6e0c48fcc4d6030041316d49ed2764a1cb6ea8c37876e07c572 \
     --hash=sha256:dd5668b74b0c903d9a24e1ba86f728fc490f8e919d56b3c24bf06739b9ee2b7f
     # via pywebview
@@ -715,9 +715,48 @@ winrt-windows-media-control==4!10.0.28000.2957 ; sys_platform == "win32" \
     --hash=sha256:5d010ccf64e39040b0550c7b8f6cf8015e558542bd3887cc424f32096e61410e \
     --hash=sha256:6d2fd258eef4fc87a54094f5690c8964b40866c372e4c2c6f1a9e9bd546e7005
     # via -r requirements.txt
-winrt-windows-storage-streams==4!10.0.28000.2957 \
+winrt-windows-storage-streams==4!10.0.28000.2957 ; sys_platform == "win32" \
     --hash=sha256:6284341b4b01ab872007def0b8d29bf30d84d46f6922f6e42be1d738d6bf2ff7 \
     --hash=sha256:e113832320f2e7f8b09cedfb400cb7eaf0ac769ad1f2038ddbe88801497916c4
     # via
     #   winrt-windows-media
     #   winrt-windows-media-control
+
+# Linux only: the keyring (secrets), D-Bus (media session) and the tray icon backend.
+jaraco-classes==3.4.0 ; sys_platform == "linux" \
+    --hash=sha256:47a024b51d0239c0dd8c8540c6c7f484be3b8fcf0b2d85c13825780d3b3f3acd \
+    --hash=sha256:f662826b6bed8cace05e7ff873ce0f9283b5c924470fe664fff1c2f00f581790
+    # via keyring
+jaraco-context==6.1.2 ; sys_platform == "linux" \
+    --hash=sha256:bf8150b79a2d5d91ae48629d8b427a8f7ba0e1097dd6202a9059f29a36379535 \
+    --hash=sha256:f1a6c9d391e661cc5b8d39861ff077a7dc24dc23833ccee564b234b81c82dfe3
+    # via keyring
+jaraco-functools==4.6.0 ; sys_platform == "linux" \
+    --hash=sha256:880c577ec9720b3a052d5bc611fb9f2269b3d87902ef42440df443b88e443280 \
+    --hash=sha256:99e3dc0060c5cbe8fcd1cdb36258e2a65ca40f1566b2033b12abb1bb44dd3c30
+    # via keyring
+jeepney==0.9.0 ; sys_platform == "linux" \
+    --hash=sha256:97e5714520c16fc0a45695e5365a2e11b81ea79bba796e26f9f1d178cb182683 \
+    --hash=sha256:cf0e9e845622b81e4a28df94c40345400256ec608d0e55bb8a3feaa9163f5732
+    # via
+    #   -r requirements.txt
+    #   keyring
+    #   secretstorage
+keyring==25.7.0 ; sys_platform == "linux" \
+    --hash=sha256:be4a0b195f149690c166e850609a477c532ddbfbaed96a404d4e43f8d5e2689f \
+    --hash=sha256:fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b
+    # via -r requirements.txt
+more-itertools==11.2.1 ; sys_platform == "linux" \
+    --hash=sha256:35a7377edd1dd6608dcb2cdf534ded55ea32d49448875ad042cd3f879fb1ded0 \
+    --hash=sha256:cbf08fd0af284dc69718b9b76a8e6203df624d70209ea511e4219d350c856f63
+    # via
+    #   jaraco-classes
+    #   jaraco-functools
+python-xlib==0.33 ; sys_platform == "linux" \
+    --hash=sha256:55af7906a2c75ce6cb280a584776080602444f75815a7aff4d287bb2d7018b32 \
+    --hash=sha256:c3534038d42e0df2f1392a1b30a15a4ff5fdc2b86cfa94f072bf11b10a164398
+    # via pystray
+secretstorage==3.5.0 ; sys_platform == "linux" \
+    --hash=sha256:0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137 \
+    --hash=sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be
+    # via keyring
