@@ -2,6 +2,12 @@
 
 [Back to the README](../README.md)
 
+<p align="center">
+  <img src="images/crowpanel-photo.jpg" alt="A CrowPanel Advance 7.0 running Tessera: the main page with 18 keys, the sidebar and the clock" width="720">
+  <br>
+  <sub>A contributor's CrowPanel Advance 7.0 running Tessera. Photo by <a href="https://github.com/joern-h">joern-h</a>.</sub>
+</p>
+
 The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It works on the contributor's board: the colors look right, touch works, and most of the hotkeys and actions they tried work. The panel reports the board id `tessera-p4-crowpanel7`, 1024 x 600, protocol 4; the GUITION build is unchanged and keeps `tessera-p4`. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the releases have its package from 1.2.0 on.
 
 To build it yourself, from the repository root, with ESP-IDF 6.1:
