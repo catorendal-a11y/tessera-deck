@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tessera Deck</title>
-<meta name="description" content="Tessera turns a 7-inch ESP32-P4 touchscreen into an open-source macro deck for Windows: touch keys, widgets, live PC gauges, a mixer and a screen that answers your AI agent. The Elecrow CrowPanel Advance 7.0 has its own build, and an experimental build covers two 7-inch ESP32-S3 boards.">
+<meta name="description" content="Tessera turns a 7-inch ESP32-P4 touchscreen into an open-source macro deck for Windows and Linux: touch keys, widgets, live PC gauges, a mixer and a screen that answers your AI agent. The Elecrow CrowPanel Advance 7.0 has its own build, and an experimental build covers two 7-inch ESP32-S3 boards.">
 <meta property="og:title" content="Tessera Deck">
 <meta property="og:description" content="A DIY Stream Deck on one 7-inch touchscreen board. 18 keys per page, widgets, live gauges, open source.">
 <meta property="og:image" content="https://catorendal-a11y.github.io/tessera-deck/images/social-preview.png">
@@ -177,6 +177,7 @@ footer a{color:var(--muted)}
     <span class="chip">MIT licence</span>
     <span class="chip">ESP32-P4 · LVGL 9.6</span>
     <span class="chip">Windows 10 / 11</span>
+    <span class="chip">Linux (X11)</span>
     <span class="chip warn">Home Assistant over Wi-Fi in beta</span>
   </div>
 </section>
@@ -184,7 +185,7 @@ footer a{color:var(--muted)}
 <section class="block wrap" id="panel">
   <div class="eyebrow">The panel</div>
   <h2>Your apps, hotkeys and macros on a 7-inch touchscreen.</h2>
-  <p class="lead">The panel shows a 6 × 3 grid of keys on a 1024 × 600 touchscreen. A key can cover two or three slots and show a widget. It talks to a small Windows host over one USB cable and keeps the last layout for when the PC is off.</p>
+  <p class="lead">The panel shows a 6 × 3 grid of keys on a 1024 × 600 touchscreen. A key can cover two or three slots and show a widget. It talks to a small host on the PC over one USB cable and keeps the last layout for when the PC is off.</p>
   <div class="stage"><img src="images/console-desk.jpg" width="1920" height="1080" fetchpriority="high" alt="The Tessera panel in its printed desk console on a desk, with the main page of app keys on the screen and a monitor out of focus behind it"></div>
   <div class="stats">
     <div><b>18</b><span>keys per page</span></div>
@@ -312,8 +313,8 @@ idf.py -B build/idf6 -p COMx flash</pre>
   <div class="eyebrow">Questions</div>
   <h2>Before you build one.</h2>
   <div class="faq">
-    <details><summary>What do I need?</summary><p>The GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C (1024 × 600, about $35 to $42 on AliExpress), or one of the other <a href="#boards">boards</a>, a USB cable and a Windows 10 or 11 PC. The cable goes to the USB Serial/JTAG port, or to the UART port on the CrowPanel and the Sunton board. The host needs Python 3.11 or newer; the first start installs it with winget if it is missing. You need no Wi-Fi and no soldering.</p></details>
-    <details><summary>Does it run on another board, or on macOS or Linux?</summary><p>The Elecrow CrowPanel Advance 7.0, another ESP32-P4 board with a 1024 × 600 screen, has its own build. It works on a contributor's board, colors and touch included. Its firmware is in the release, and docs/CROWPANEL.md has the details. There is also an experimental build for two ESP32-S3 boards with an 800 × 480 screen, the Waveshare ESP32-S3-Touch-LCD-7 and the Sunton ESP32-8048S070. One tester runs it on the Waveshare board, the Sunton build has not run on a board yet, and docs/S3.md lists what is untested. Other boards need a port, and the host runs on Windows only. CONTRIBUTING.md says what a port takes; open an issue with the board's name and resolution.</p></details>
+    <details><summary>What do I need?</summary><p>The GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C (1024 × 600, about $35 to $42 on AliExpress), or one of the other <a href="#boards">boards</a>, a USB cable and a PC with Windows 10 or 11, or Linux in an X11 session. The cable goes to the USB Serial/JTAG port, or to the UART port on the CrowPanel and the Sunton board. The host needs Python 3.11 or newer; the first start installs it with winget if it is missing. You need no Wi-Fi and no soldering.</p></details>
+    <details><summary>Does it run on another board, or on macOS or Linux?</summary><p>The Elecrow CrowPanel Advance 7.0, another ESP32-P4 board with a 1024 × 600 screen, has its own build. It works on a contributor's board, colors and touch included. Its firmware is in the release, and docs/CROWPANEL.md has the details. There is also an experimental build for two ESP32-S3 boards with an 800 × 480 screen, the Waveshare ESP32-S3-Touch-LCD-7 and the Sunton ESP32-8048S070. One tester runs it on the Waveshare board, the Sunton build has not run on a board yet, and docs/S3.md lists what is untested. Other boards need a port. The host runs on Windows and on Linux in an X11 session (from the next release, on main today); Wayland and macOS are not supported. CONTRIBUTING.md says what a port takes; open an issue with the board's name and resolution.</p></details>
     <details><summary>How does it compare with a Stream Deck?</summary><p>A Stream Deck MK.2 lists at $149.99 with 15 physical keys, the XL at $249.99 with 32. Tessera costs the board and gives 18 keys per page, keys up to three slots wide, and widgets, a mixer, PC status and the AI agents built in, under the MIT licence. You do give up the feel of real keys, since Tessera is a glass touchscreen. Prices are US list prices from November 2026.</p></details>
     <details><summary>Does it send anything to the internet?</summary><p>Only what you ask for: the update check on GitHub, the clock's weather from Open-Meteo, online icons from Iconify, your own HTTP actions and calendar, and the plugins you turn on. The bundled plugins only reach your own Home Assistant and OBS. Setup also downloads Python packages from PyPI, pinned by hash, and Libre Hardware Monitor if you turn on the optional sensors. SECURITY.md lists every connection.</p></details>
     <details><summary>What happens when the PC is off?</summary><p>The panel keeps the last layout and shows it while the PC is off. Actions run on the PC, so keys need the host. A watchdog restarts the panel when the screen or USB loop hangs, and the bootloader rolls back an update that crashes or hangs before it confirms itself. All three were tried on a panel; VERIFICATION.md in the repository has the results.</p></details>

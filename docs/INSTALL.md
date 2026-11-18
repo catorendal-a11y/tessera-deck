@@ -20,7 +20,7 @@
 | Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C. Other sellers also list the board under this model number. |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Cable | USB cable from the PC to the board's USB Serial/JTAG port. No Wi-Fi is needed. |
-| PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. |
+| PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
 
 ## Download and verify
 

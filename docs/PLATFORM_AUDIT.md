@@ -29,7 +29,7 @@ Linux pass is not Windows evidence.
 | # | Finding | State |
 |---|---|---|
 | C1 | `desktop.py`, `system_audio.py`: `else` silently loaded the Windows code on any non-Linux system | Fixed. The selector raises `UnsupportedPlatform`; tested with a faked `darwin`. |
-| C2 | CI ran on Windows only | Fixed in the workflow (`host-linux`). **Not yet run on a runner.** |
+| C2 | CI ran on Windows only | Fixed: the `host-linux` job runs on Python 3.11 and 3.14. |
 
 ### High: platform logic in shared modules (about 60 inline checks in about 25 files)
 | Area | State |
