@@ -107,6 +107,7 @@ For a toggle, set *Key type* to **Toggle key**. Each press runs the current stat
 | Drag a key to a slot | Moves it; a key there changes places with it |
 | Drag a key onto a page tab | Moves it to that page |
 | Alt+arrow, or *Move to slot* | Moves it to the next slot |
+| *Move to page …* in the key menu (Shift+F10) | Moves it to another page of the profile |
 | Ctrl+C, Ctrl+V | Copies and pastes; pasting onto a used slot says "Replaced key N" with Undo |
 | Ctrl+D | Duplicates the key to a free slot |
 | Pin (Look tab) | Shows the key on every page |
@@ -137,7 +138,7 @@ The rail on the left of the panel switches between your keys, the AI **agents**,
 
 Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now.
 
-The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed.
+The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed, and also upload speed, uptime, CPU clock, CPU power, GPU power, GPU clock, GPU fan and FPS. The panel shows eight, so with eight ticked you untick one to choose another.
 
 ### The agents screen and Claude Code
 
@@ -171,7 +172,7 @@ Open **Panel → Display …** (or the tray's *Brightness* menu).
 | *Panel brightness* | The normal level |
 | *Dim the panel after* | How long without a press before it dims, or *Never*. It also dims when Windows locks. |
 | *Brightness when dimmed* | The level while dimmed, or *Off* |
-| *Quiet hours* and *Brightness during quiet hours* | A lower level between two times, for example at night |
+| *Quiet hours*, *From*, *To* and *Brightness during quiet hours* | A lower level between any two times, for example at night. The window can run past midnight |
 | *Clock format* | *Same as Windows* (the default), *24-hour* or *12-hour* with AM/PM, for the idle clock and the rail |
 | *Show a big clock when the panel has been idle* and *Show it after* | The idle clock. It waits until both the panel and the PC's keyboard and mouse have been idle that long, and the keys come back when you touch the panel or use the PC. A clock you asked for with a *Switch screen* key stays until you touch the panel. |
 | *Weather for (city, optional)* and *Temperature unit* | Weather on the idle clock from open-meteo.com every 15 minutes, with an icon for sun, moon (after sunset there), cloud, fog, drizzle, rain, snow or thunder. Leave the city empty for no weather and no internet use. |
@@ -184,7 +185,7 @@ Windows notifications (panel connected or disconnected, a host that stopped, an 
 
 ### Back up, export and import
 
-- Tessera keeps the latest 30 automatic backups while you edit. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.
+- Tessera keeps the latest 30 automatic backups while you edit, at most one every 10 minutes. *Keep* on a backup holds on to it: a kept backup is not removed when newer ones come. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.
 - **More → Export to a file** writes your profiles and keys. It leaves out secrets: the calendar address, plugin passwords and web request credentials.
 - **More → Import from a file …** first shows the file's profiles, pages and keys and the risky actions in it, including the host each web request goes to and every automatic rule. Then choose *Add as new profiles* (your profiles stay; rules, rail and settings in the file are not used) or *Replace the configuration*. You can undo an import.
 
@@ -217,10 +218,10 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 | Hotkey | `hotkey` | Press a key combination or media key |
 | Type text | `text` | Type text |
 | Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program. `%NAME%` is filled in from the environment in paths, not in addresses |
-| Run command, HTTP request | `shell`, `http` | Run a command or call an address; an error status (4xx, 5xx) fails the action, and so does a redirect from https to http. A redirect to another host goes there without the step's headers |
+| Run command, HTTP request | `shell`, `http` | Run a command or call an address. Both have a *Timeout* (1 to 300 seconds; a command gets 30 and a request 5 without one), and a request has *Headers*, one `Name: value` per line; an error status (4xx, 5xx) fails the action, and so does a redirect from https to http. A redirect to another host goes there without the step's headers |
 | Run script | `script` | Run a script file without a window, in the script's own folder, with the same timeout and error report as a command. Supported: `.py`, `.pyw` (py launcher), `.ps1` (PowerShell with `-NoProfile`; the execution policy is bypassed for that one process only, and a policy set by an administrator still applies), `.bat`, `.cmd`, `.ahk` (the program Windows has registered for the type, else AutoHotkey from App Paths or PATH) and `.js` (Node.js). The path must be a full path. It can start with a variable such as `%USERPROFILE%`, and quotes around it (as from Explorer's *Copy as path*) are ignored. A variable that is not set on the PC fails the key, with the variable's name as the reason. A `.bat` or `.cmd` path cannot contain a `%` sign after that first variable. Batch files on a network path (`\\server\share`) start in the Windows folder, because cmd.exe does not accept a network folder as its working folder. The editor has Choose file and Edit buttons, and the dry run reports whether the file and its interpreter were found. Import review flags it like a command |
 | Wait | `delay` | Wait between steps |
-| Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate |
+| Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate. *Switch profile* goes to the profile's first page, or to the page you choose (`"page"`) |
 | Trigger another key | `press` | Run another key |
 | Set variable, Toggle variable | `set`, `toggle` | Set a variable, or switch it between two values |
 | Set key state | `state` | Set a toggle key's state (`next` or a state number) |
@@ -254,7 +255,7 @@ In the editor: **More → Automatic actions …**. Each one runs the steps it co
 |---|---|
 | `{"type": "startup"}` | When the host starts |
 | `{"type": "interval", "seconds": 60}` | Every 60 seconds |
-| `{"type": "daily", "at": "08:30"}` | Every day at that time |
+| `{"type": "daily", "at": "08:30"}` | Every day at that time. With `"days": ["mon", "tue", "wed", "thu", "fri"]` only on those days (*Only on* in the editor) |
 | `{"type": "file", "path": "..."}` | When the file changes. The path may start with `~` or an environment variable |
 | `{"type": "variable", "name": "claude"}` | When the variable changes |
 | `{"type": "variable", "name": "claude", "value": "waiting"}` | When the variable becomes `waiting` |

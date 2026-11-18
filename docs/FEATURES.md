@@ -125,6 +125,7 @@ Deleting a page or a profile asks no question. A toast offers Undo.
 - More step types: *Copy to clipboard*, *Window* (minimize, maximize, restore, close, always on top, next monitor, bring a program to the front), *Toggle variable* and *Lock panel*.
 - *Run script* runs a `.py`, `.pyw`, `.ps1`, `.bat`, `.cmd`, `.ahk` or `.js` file without a window. The editor has a file picker, an Edit button and a dry run check for it.
 - *Plugin command* sends a command, with its arguments as JSON, to an installed plugin.
+- Ready-made keys that show state: *Mic mute* and *Speaker mute* follow the PC and change their look, and *Pomodoro 25 min* counts down on the key.
 - Counters and timers with labels (`$(counter:laps)`, `$(timer:tea)`), a countdown on the key, notifications and end actions. They are saved, and a running timer keeps counting while Tessera is closed.
 - An HTTP action fails with the status code when the answer is 4xx or 5xx. It refuses a redirect from https to http, and a redirect to another host goes there without the step's headers.
 - An *Open* step with an address does not fill in `%NAME%` from the PC's environment. Paths still do.

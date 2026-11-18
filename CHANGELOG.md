@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+The host and the editor change; the panel firmware is the same as 1.2.3.
+
+- *Switch profile* can go straight to a page of the other profile. The page follows when it is renamed, and the step goes back to the first page when it is deleted.
+- A daily automatic action can run on chosen weekdays only (*Only on*).
+- A backup can be kept: *Keep* in **Restore a backup** holds on to it when newer ones come.
+- The status screen can show eight of sixteen readings: upload speed, uptime, CPU clock, CPU power, GPU power, GPU clock, GPU fan and FPS are new.
+- Ready-made keys that show state: *Mic mute (shows state)*, *Speaker mute (shows state)* and *Pomodoro 25 min*.
+- The HTTP request step has *Headers* and *Timeout* fields, and *Run command* has *Timeout*. Before, both could only be set in `profiles.json`.
+- Quiet hours take any two times. Before, the editor offered four fixed windows.
+- *Move to page …* in the key menu moves a key to another page without the mouse.
+- The firmware dialog says when the chosen package is older than the firmware on the panel, when the panel already has it, and when no package for this Tessera version is in the folder. Before, it preselected an older package and *Install* went back to it without a word. The line at the top shows the new firmware after an install, and the download message stays in view.
+
 ## 1.2.3
 
 A panel with 0.7.0 or later takes this version with *Update*. The host works with a panel on 1.2.0 to 1.2.2 as it is; the two firmware fixes at the end of the list need the new firmware.

@@ -95,6 +95,8 @@ protocol before it writes anything, stops the host while it writes and starts it
 | *Full install (new or blank panel)* | A new or blank board, and the first install of firmware with A/B slots. It writes the bootloader, the partition table and the app. |
 | *Update (keeps settings)* | Every later update. It writes only the app, over the panel's own USB connection. |
 
+Under the package list the dialog says when the panel already has that version, when the package is older than the firmware on the panel (installing it goes back), and when the folder has no package for this Tessera version. *Check for updates* then downloads it.
+
 - A new board without Tessera firmware does not answer. The dialog then chooses *Full install* and shows *Install anyway*. Tick it. The chip type is still checked.
 - The release zip includes a firmware package. *Check for updates* asks GitHub for the latest release and can download the package; it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder and choose it in the dialog.
 - The flash has two 6 MB app slots for rollback. If a new firmware crashes or hangs before its first handshake with the host (or before it has run for 60 s), the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
