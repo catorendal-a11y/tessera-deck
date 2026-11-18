@@ -2,9 +2,9 @@
 
 [Back to the README](../README.md)
 
-Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into a Stream Deck-style panel with 18 keys and four screens. A small Windows host owns the USB connection and runs the actions. It also serves the editor, which shows the same keys as the panel.
+Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into a Stream Deck-style panel with 18 keys and four screens. A small host on the PC, for Windows or Linux, owns the USB connection and runs the actions. It also serves the editor, which shows the same keys as the panel. The [README](../README.md#supported-boards) lists the other boards with firmware.
 
-This page lists what Tessera does in version 1.0.0. The [changelog](../CHANGELOG.md) lists what changed. For how to use each part, see [Using Tessera](USING.md).
+This page lists what the latest release does, as it works on Windows. [Tessera on Linux](LINUX.md) says what differs there, and the [changelog](../CHANGELOG.md) lists what changed. For how to use each part, see [Using Tessera](USING.md).
 
 | Editor: a page of widgets | Editor: status page with live gauges |
 |---|---|
@@ -35,6 +35,8 @@ This page lists what Tessera does in version 1.0.0. The [changelog](../CHANGELOG
 | Status screen | Live gauges for the PC. |
 | Clock screen | An idle clock made of brand-colored tiles, with optional weather from Open-Meteo for a city you choose and an icon for sun, cloud, fog, drizzle, rain, snow or thunder. The clock is 24-hour or 12-hour with AM/PM; *Clock format* in Panel → Display follows Windows by default. |
 | Offline layout | The panel keeps the last layout (up to 8 KB, with the previous one as a backup) and shows it when the PC is off or the host is not running. |
+| Boot screen | At power-on the logo builds itself tile by tile and the wordmark switches on, then the keys appear, 1.4 s in all. |
+| Banner | A short message across the top of whatever screen is open: why a key failed, or a line from `deckctl say` or a plugin. A tap closes it. |
 | About sheet | A long press on the logo shows the firmware version, whether the PC is connected and a brightness slider. Tap outside to close. |
 
 ### Touch
@@ -43,6 +45,7 @@ This page lists what Tessera does in version 1.0.0. The [changelog](../CHANGELOG
 |---|---|
 | Tap a key | Runs its actions. |
 | Hold a key for about 0.4 seconds | Runs the key's *Held* actions, if it has any. |
+| Hold **Home** | Locks the profile: the panel stops following the program in front, and Home turns orange. Hold it again to unlock. |
 | Two quick taps | Run the *Double-press* actions. A key with a double press waits about a third of a second before its normal action runs. |
 | Hold a key marked *Hold to confirm* | Runs only after a 0.6 s hold while a ring fills. Lifting or sliding off earlier does nothing. |
 | Swipe right on the keys | Goes back, like Keys on the rail after a shortcut. A swipe never presses the key it starts on. |
@@ -64,7 +67,7 @@ This page lists what Tessera does in version 1.0.0. The [changelog](../CHANGELOG
 - The panel dims after inactivity or when the PC locks. Quiet hours lower the brightness at night.
 - A watchdog restarts the panel when the screen or the USB loop hangs. The host logs the restart and why, and shows a notice after a crash, hang or power dip.
 - Firmware updates go over USB. The flash has two 6 MB app slots, and the bootloader returns to the previous firmware if a new one crashes or hangs before it confirms itself (at the first handshake with the host, or after 60 s).
-- The watchdog, the rollback and the offline layout were tried on a panel with firmware 0.10.1, the first two with builds made to hang or never confirm. Hold to confirm, the panel lock, swipe back, the about sheet and how the widgets, faders and ambient screen look and feel on the glass have not been tried on a panel yet. [VERIFICATION.md](../VERIFICATION.md) has the results and the list.
+- The watchdog, the rollback and the offline layout were tried on a panel with firmware 0.10.1, the first two with builds made to hang or never confirm. Hold to confirm, the panel lock, the about sheet, the widgets, the faders and the ambient screen are in daily use on a panel. Swipe back has run only in the native tests. [VERIFICATION.md](../VERIFICATION.md) has the results and what has not been tried or measured.
 - The screen is drawn by one thread. A full screen takes about 55 ms and a page change 49 to 52 ms ([measured numbers](../VERIFICATION.md#screen-speed)). A page change draws the screen once, a picture that arrives late redraws only its key, and a change in an agent's text redraws only that text.
 
 ## In the editor
@@ -115,11 +118,13 @@ Deleting a page or a profile asks no question. A toast offers Undo.
 
 ### Actions
 
-- Over 120 ready-made actions and 10 profile templates for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
+- Over 130 ready-made actions and 10 profile templates for Windows, windows and desktops, PowerToys, GitHub Desktop, VS Code, browsers, meetings (Teams, Zoom, Discord), media, Codex, Claude Code and ZCode.
 - The ready-made keys include Shut down, Restart, Sleep and Sign out, which use *Hold to confirm*. Sleep calls `SetSuspendState` with hibernation turned off, so the PC sleeps even when hibernation is enabled (`rundll32 powrprof.dll,SetSuspendState` would hibernate). Private window is Ctrl+Shift+N for Chrome and Edge, and a separate key sends Ctrl+Shift+P for Firefox.
 - Shuffle and repeat keys work with players that offer them in the Windows media controls. `$(pc:shuffle)`, `$(pc:repeat)` and the `media_shuffle` and `media_repeat` bindings follow the player.
 - The Discord, Telegram and ntfy message keys read their address or token from the environment variables `DISCORD_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN` with `TELEGRAM_CHAT_ID`, and `NTFY_URL`, so nothing secret is saved in the profile. Set them in Windows and restart Tessera. Edit the message text in the key's HTTP step.
-- Actions added in 0.7.0: *Copy to clipboard*, *Window* (minimize, maximize, restore, close, always on top, next monitor, bring a program to the front), *Toggle variable* and *Lock panel*.
+- More step types: *Copy to clipboard*, *Window* (minimize, maximize, restore, close, always on top, next monitor, bring a program to the front), *Toggle variable* and *Lock panel*.
+- *Run script* runs a `.py`, `.pyw`, `.ps1`, `.bat`, `.cmd`, `.ahk` or `.js` file without a window. The editor has a file picker, an Edit button and a dry run check for it.
+- *Plugin command* sends a command, with its arguments as JSON, to an installed plugin.
 - Counters and timers with labels (`$(counter:laps)`, `$(timer:tea)`), a countdown on the key, notifications and end actions. They are saved, and a running timer keeps counting while Tessera is closed.
 - An HTTP action fails with the status code when the answer is 4xx or 5xx. It refuses a redirect from https to http, and a redirect to another host goes there without the step's headers.
 - An *Open* step with an address does not fill in `%NAME%` from the PC's environment. Paths still do.
@@ -147,15 +152,15 @@ Deleting a page or a profile asks no question. A toast offers Undo.
 
 ## Actions and automation
 
-- Smart profiles switch by the foreground program, process or window title and return to the earlier profile when the program loses focus. A *Lock profile* key keeps the current profile.
+- Smart profiles switch by the foreground program, process or window title and return to the earlier profile when the program loses focus. A *Lock profile* step keeps the current profile. Home has it as its held action: hold Home to lock, and hold it again to unlock.
 - A local control API and the `deckctl` command line let hooks and scripts set variables, colors, button states and pages, for example a Claude Code status light. Each token is limited to 20 calls a second.
 - Plugins get their own limited API tokens ([PLUGINS.md](PLUGINS.md)), and plugins for Home Assistant and OBS Studio are included. Adapters turn Claude Code hooks and Codex notifications into key states. The editor asks before a plugin first runs and lists what it may do.
 
 ## Sensors, safety and upkeep
 
-- The sensors come from free sources. Windows performance counters work out of the box. The graphics driver adds GPU temperature, power, fan speed and clock without administrator rights (AMD through ADL, NVIDIA through `nvidia-smi`). [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) adds CPU temperature and power. `Tessera.cmd --sensors` starts it at every sign-in (one Windows prompt) and `--sensors-off` undoes it.
+- The sensors come from free sources. Windows performance counters work out of the box. The graphics driver adds GPU temperature, power, fan speed and clock without administrator rights (AMD through ADL, NVIDIA through `nvidia-smi`). [Libre Hardware Monitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) adds CPU temperature and power. `Tessera.cmd --sensors` starts it at every sign-in (one Windows prompt) and `--sensors-off` undoes it. On Linux the readings come from the kernel's sensors and `nvidia-smi`.
 - Windows notifications (panel connected or gone, an agent waiting, a timer that ends) can be switched off in Program settings or the tray menu.
-- By default Tessera verifies the device identity, keeps the action queue bounded, runs long commands without blocking other keys and shows a review before an import, which marks a web request that sends `$(env:NAME)` as high risk. An export leaves out the calendar address, plugin passwords and web request credentials. Plugin secrets are stored encrypted for your Windows account.
+- By default Tessera verifies the device identity, keeps the action queue bounded, runs long commands without blocking other keys and shows a review before an import, which marks a web request that sends `$(env:NAME)` as high risk. An export leaves out the calendar address, plugin passwords and web request credentials. Plugin secrets are stored encrypted for your Windows account, or in the system keyring on Linux.
 - Tessera keeps rotating backups that you can restore. A broken `profiles.json` is never backed up, and the newest good backup is restored at start.
 - From the tray app you can start Tessera with Windows and control the host. A host that dies starts again by itself.
 - For upkeep there are `Tessera.cmd --setup`, `--uninstall` and `--diagnostics`. The host log is kept under 5 MB with three older logs.

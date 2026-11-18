@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  On Linux the host needs an X11 session: <a href="docs/LINUX.md">Tessera on Linux</a>.
+  The <a href="https://catorendal-a11y.github.io/tessera-deck/">website</a> shows every screen and the editor. On Linux the host needs an X11 session: <a href="docs/LINUX.md">Tessera on Linux</a>.
 </p>
 
 <p align="center">
@@ -49,7 +49,7 @@ If you have one of the S3 boards, [tell me how it goes](https://github.com/cator
 
 - When Claude Code asks for permission, the question shows on the panel and you touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
 - There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on, such as the update check or the weather. [Security](SECURITY.md#what-tessera-contacts) lists every address. The panel talks to a small host on the PC over USB.
-- Firmware, host and editor are open source (MIT), with over 800 automated tests, a documented serial protocol and a plugin API.
+- Firmware, host and editor are open source (MIT), with over 900 automated tests, a documented serial protocol and a plugin API.
 - It needs one board, which you flash from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
 
 | Widgets on wide keys | Answer Claude Code from the panel |
@@ -97,7 +97,7 @@ You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk
 - Wide keys and widgets: a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, your next meeting, the music that plays or a timer.
 - Icons: real app icons from the PC, 1,895 Lucide icons or your own images.
 - Live gauges: CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan and FPS.
-- Profiles that follow the program in front, with a lock key to stay put.
+- Profiles that follow the program in front. Hold Home to stay on the one you are in.
 - Over 130 ready-made actions and 10 profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
 - Macros: multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
 - Scripts and AI tools: run a script from a key, drive keys or put a message on the panel from your own scripts with the local API or `deckctl`, or add plugins (one for Home Assistant through the PC and one for OBS Studio are included) and Claude Code hooks.
@@ -131,7 +131,7 @@ Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are 
   <img src="docs/images/console-printed.jpg" alt="A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen" width="900">
 </p>
 
-The console is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant). It has been printed, and that panel fits it perfectly.
+The console in these pictures is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant). It has been printed, and that panel fits it perfectly. A second console holds the bare Elecrow CrowPanel Advance 7.0.
 
 <p align="center">
   <img src="docs/images/console-hero.jpg" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back" width="900">
@@ -141,7 +141,7 @@ The console is made for the GUITION JC1060P470C in its factory housing (the `_Y`
 |---|---|---|
 | <img src="docs/images/console-user.jpg" alt="The console seen from the front at eye height, with the panel's main page"> | <img src="docs/images/console-back.jpg" alt="The back of the console: air openings, two screwdriver holes and the cable arch"> | <img src="docs/images/console-detail.jpg" alt="Close-up of the tile mark in the chin, with the printed layer lines"> |
 
-The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. Both are drawn to print without supports. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened.
+The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. Both are drawn to print without supports. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened. The print files are also on [Printables](https://www.printables.com/model/1921087-tessera-desk-console-for-7-inch-esp32-p4-panels-gu) and [MakerWorld](https://makerworld.com/en/models/3640174-tessera-desk-console-for-7-inch-esp32-p4-panels); MakerWorld has sliced print profiles for Bambu printers.
 
 <sub>The first picture is a photo of the printed console. The others are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/scripts/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/render/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
 
@@ -167,14 +167,15 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 |---|---|
 | [Features](docs/FEATURES.md) | Everything Tessera does, by panel screen and editor area |
 | [Install](docs/INSTALL.md) | Hardware, start options, flashing from source |
-| [Desk console](hardware/README.md) | A printable stand for the panel: STL, STEP, the CAD models and a Blender scene for renders |
+| [Tessera on Linux](docs/LINUX.md) | The tools the Linux host needs, what differs from Windows and what stays Windows-only |
+| [Desk console](hardware/README.md) | Printable stands for the GUITION panel and the CrowPanel: STL, STEP, the CAD models and a Blender scene for renders |
 | [Using Tessera](docs/USING.md) | Actions, labels, gauges, sensors, brightness, scripts, troubleshooting |
 | [Plugins](docs/PLUGINS.md) | Write your own integration |
 | [Serial protocol](docs/PROTOCOL.md) | What the host and the panel say to each other |
 | [Development](docs/DEVELOPMENT.md) | Project layout, tests and tools |
 | [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
-| [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what nobody has tried yet |
+| [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what has not been tried or measured yet |
 | [ESP32-S3 boards](docs/S3.md) | The experimental port to two 800 x 480 S3 boards and what is still untested |
 | [CrowPanel Advance 7.0](docs/CROWPANEL.md) | The Elecrow CrowPanel Advance 7.0 (ESP32-P4): building, flashing and what is still open |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |

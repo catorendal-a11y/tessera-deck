@@ -4,7 +4,7 @@
 
 A plugin is a small program that adds values, key states and actions to Tessera. It runs as its own process, talks to Tessera over the local control API and can be written in any language. The source is `host/plugins.py` (manifests, lifecycle, events) and `host/control_api.py` (the API).
 
-> **Trust.** A plugin runs with your own Windows rights. Tessera does not sandbox it. The limits below stop a plugin from using Tessera's API beyond what it declared. They do not stop it from doing anything else on your PC. Only install plugins you trust. See [Security](../SECURITY.md).
+> **Trust.** A plugin runs with your own rights on the PC. Tessera does not sandbox it. The limits below stop a plugin from using Tessera's API beyond what it declared. They do not stop it from doing anything else on your PC. Only install plugins you trust. See [Security](../SECURITY.md).
 
 ## The plugins that come with Tessera
 
@@ -117,12 +117,12 @@ Turn it on in the editor, or in `profiles.json`:
 ```
 
 - **Consent.** When you turn a plugin on, the editor lists what it may do and the program it runs, and asks first. It asks again only when the `version`, permissions or program changed since you said yes, and remembers your answer in the browser. A plugin that is already on gets what its manifest lists at its next start without asking, so read what an update changes before you install it. A profile file you import cannot turn plugins on or change their settings.
-- **Secrets.** A setting whose key contains `token`, `secret`, `password` or `api_key` (any case) is stored encrypted for your Windows account with DPAPI. `profiles.json` and its backups hold `"$(dpapi:…)"` instead of the value. Your program receives the real value in `TESSERA_SETTINGS`. Exports leave these settings out.
+- **Secrets.** A setting whose key contains `token`, `secret`, `password` or `api_key` (any case) is stored encrypted for your Windows account with DPAPI. `profiles.json` and its backups hold `"$(dpapi:…)"` instead of the value. On Linux the value goes to the system keyring, and the file holds `"$(keyring:<id>)"`. Your program receives the real value in `TESSERA_SETTINGS`. Exports leave these settings out.
 - **Settings changes.** Changing a plugin's settings restarts it.
 
 ## What your program receives
 
-Tessera starts the program with these environment variables. Of your own environment it passes on only `PATH` and basic Windows paths (`SYSTEMROOT`, `TEMP`, `APPDATA` and similar).
+Tessera starts the program with these environment variables. Of your own environment it passes on only `PATH` and basic Windows paths (`SYSTEMROOT`, `TEMP`, `APPDATA` and similar). On Linux it passes on only `PATH`, `TEMP` and `TMP`, so a plugin sees no `HOME` or `DISPLAY`.
 
 | Variable | Meaning |
 |---|---|

@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-Printable stands for two panels. Each panel has its own section below, with its own print settings, assembly and sizes.
+Printable stands for two panels. Each panel has its own section below, with its own print settings, assembly and sizes. The print files are also on [Printables](https://www.printables.com/model/1921087-tessera-desk-console-for-7-inch-esp32-p4-panels-gu) and [MakerWorld](https://makerworld.com/en/models/3640174-tessera-desk-console-for-7-inch-esp32-p4-panels). MakerWorld has print profiles for Bambu printers, sliced with the settings below.
 
 | Panel | Stand | Files |
 |---|---|---|
@@ -61,9 +61,9 @@ The console has a chin with the Tessera tile mark, a short upright apron, a sunk
 | Infill | 15 %; the 2.8 mm shell is nearly solid with 3 walls, so infill hardly matters | 20 %; the base frame keeps it from tipping |
 | Walls | 3 (1.2 mm with a 0.4 mm nozzle) | 3; the side walls and uprights are 3 to 4 mm thick |
 | Hardware | 4 × M2 × 6 mm screws with a washer (thread not confirmed, see below), 4 stick-on rubber feet Ø 10 mm | None |
-| Material | PLA or PETG, about 190 g if solid | PLA or PETG |
+| Material | PLA or PETG; about 157 g of PLA with these settings, 190 g if solid | PLA or PETG |
 
-The console measures 191.0 × 124.4 × 103.8 mm and holds 152 cm³ of plastic. Rubber feet under the two long edges keep it from sliding when you press a key.
+The console measures 191.0 × 124.4 × 103.8 mm and holds 152 cm³ of plastic. Rubber feet under the two long edges keep it from sliding when you press a key. Bambu Studio estimates 3 h 34 min for the console on a P1S with these settings.
 
 ### Assemble the console
 
@@ -191,7 +191,7 @@ The panel sizes are the manufacturer's: picture 155.01 × 86.72 mm, so a pixel i
 
 ![The CrowPanel console with the bare board in it, rendered in Blender, a USB-C cable out of the left end](../docs/images/crowpanel-console.jpg)
 
-`crowpanel/tessera-enclosure-crowpanel.stl` (and `.step`, `.FCStd`) is the console for the Elecrow CrowPanel Advance 7.0 (ESP32-P4) without Elecrow's casing: the bare board with the glass on it. It has the same shape as the GUITION console, with a window for the glass instead of a pocket for a housed panel. It measures 189.1 × 116.3 × 96.9 mm standing and holds 133 cm³ of plastic.
+`crowpanel/tessera-enclosure-crowpanel.stl` (and `.step`, `.FCStd`) is the console for the Elecrow CrowPanel Advance 7.0 (ESP32-P4) without Elecrow's casing: the bare board with the glass on it. It has the same shape as the GUITION console, with a window for the glass instead of a pocket for a housed panel. It measures 189.1 × 116.3 × 96.9 mm standing and holds 133 cm³ of plastic. It has been printed, and the board fits it.
 
 The front laps 1 mm over the glass all round and leaves a 162.9 × 98.0 mm window. The board goes in from below, through the open base, and slides straight up into place; the inside is cut away along its path, so the parts on its back clear the shell. Both USB-C sockets and the power switch reach out through windows in the left end.
 
@@ -204,6 +204,8 @@ The front laps 1 mm over the glass all round and leaves a 162.9 × 98.0 mm windo
 | Layer height, walls, infill | As for the GUITION console: 0.2 mm, 3 walls, 15 % |
 | Hardware | 4 × M3 × 8 mm screws, 4 stick-on rubber feet Ø 10 mm |
 | Material | PLA or PETG |
+
+Bambu Studio estimates 3 h 18 min and 131 g of PLA on a P1S. It warns about a floating cantilever. That is the two tabs for the top screws: flat shelves of about 11 × 8 mm that start 80 mm above the bed. They hang on two walls and sit hidden inside the shell, so expect a little sag on their underside.
 
 ### Assemble
 

@@ -5,6 +5,8 @@ committed). Everything below was checked on Linux only: reading the code, import
 (931 tests, 34 skipped, under Xvfb). Nothing was run on Windows, and the new Linux CI job has not run on a runner. A
 Linux pass is not Windows evidence.
 
+> **After the merge.** This page is the audit as it was written on the branch. The work went into main with the Linux host and was released in 1.2.2. CI now runs the host tests on Windows (Python 3.11, 3.12 and 3.14) and on Linux under Xvfb (3.11 and 3.14) on every push, and both pass. So the Linux job has run on a runner, and the moved Windows code has run in the Windows jobs. Nobody has gone through the list under *The Windows side is unverified* function by function.
+
 ## 1. Architecture now
 
 - **`platform_support.py`** is the only reader of `sys.platform`. It exposes `NAME`, `IS_WINDOWS`, `IS_LINUX` and

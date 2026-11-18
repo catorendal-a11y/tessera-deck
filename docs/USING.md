@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-This guide covers daily use of the editor and the panel. [Install](INSTALL.md) covers setup and flashing.
+This guide covers daily use of the editor and the panel. [Install](INSTALL.md) covers setup and flashing. The steps and commands are written for Windows. [Tessera on Linux](LINUX.md) lists what differs there; where this page says `python host\deckctl.py`, use `host/.venv/bin/python host/deckctl.py`.
 
 ## The editor at a glance
 
@@ -122,6 +122,8 @@ A profile can switch in by itself when a program is in front.
 3. Tick *Use as default profile* for the profile to show when no rule matches.
 
 Rules look like `chrome.exe`, `process:claude.exe` or `title:codex`. Turn the whole feature off with *Switch profile automatically by active program* in **Program settings**. The *Lock profile* action locks or unlocks automatic switching from a key. **Profile → Profile from a template …** gives you ready-made profiles for browsers, Windows and AI tools.
+
+To keep the panel on the profile it shows, hold **Home** for about half a second. Home turns orange, and the panel stays on that profile while you switch programs. Hold Home again to unlock. A tap still goes home, and the lock ends when the host restarts. New installs have this on Home. In a setup made with 1.2.2 or earlier, select Home, open the **Actions** tab, pick **Held** and add a *Lock profile* step. Any other key can carry the step too.
 
 ### The rail and the panel's screens
 
@@ -319,6 +321,5 @@ Start with **More → Host log …**. It shows what the USB host does: connectio
 | A page change takes several seconds | The panel's image cache holds about 33 animated icons of 12 frames. With more on the pages you switch between, the host sends them again on a page change, about 0.65 s each. Use still icons for most keys. |
 | The panel stays black but touch works | A touch wakes a dimmed panel. If it stays black, restart the host; it wakes the backlight on connect. |
 | Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`). FPS needs HWiNFO with PresentMon. |
-| A key makes only a program's taskbar button flash | Update to 0.6.0 or later and restart the host. It then brings the window to the front. |
 | A key does nothing | Check the key for a yellow dot (unfinished). **Test** the key and read the steps. Then read the host log. |
 | An action list click made a key on the wrong slot | A click uses the selected slot if it is empty, else the first free one. Select the empty slot first, or drag the action to it. |

@@ -1,7 +1,7 @@
 # Tessera and SmartDeck
 
 [SmartDeck](https://github.com/ozancs/smartdeck) (v2.5.1, GPL-3.0) is an open-source macro controller for a 5" 800 × 480
-ESP32-S3 touchscreen with an Electron app for Windows. This page compares it with Tessera (first written for 0.7.0, action count updated for 0.8.0) and records what Tessera
+ESP32-S3 touchscreen with an Electron app for Windows. This page compares it with Tessera (first written for 0.7.0, action count updated for 1.2.2) and records what Tessera
 took from the comparison.
 
 **What this is based on, and what it is not.** Everything about SmartDeck below is as of 2026-10-21 (v2.5.1) and was not rechecked since. SmartDeck's four README screenshots (editor, settings, button dialog, the device), its public README, release notes (v1.0.0 to v2.5.1), file list and
@@ -34,7 +34,7 @@ README states it; behaviour that was not stated is marked *not stated*.
 | Global theme row (background, button, text, stroke, shadow) and a Themes menu (seen in its screenshots) | **Added.** *Key colors …* in the Panel menu sets the default background, label and outline for every key with five presets or custom colors; a key's own colors win. |
 | Mouse action type (click, double-click, move, drag) | **Added** click, right/middle click, double-click, scroll, move by and move to. Drag was not added. |
 | Rotary encoder with LED ring | Not applicable: Tessera targets a different board without an encoder. |
-| Presets for creative apps | Not added; mouse actions exist, and Tessera has over 120 ready-made actions and 10 profile templates for other programs. |
+| Presets for creative apps | Not added; mouse actions exist, and Tessera has over 130 ready-made actions and 10 profile templates for other programs. |
 | Smart upload (only changed files) | Tessera already sends only changed layouts and images; *Save diagnostics* in the More menu adds a support bundle. |
 | Multi-action builder, undo/redo, app-based pages, tray, sleep/wake | Already in Tessera. |
 
@@ -56,5 +56,4 @@ README states it; behaviour that was not stated is marked *not stated*.
   not tick and counters cannot change. Device-side timers are not built (see the [roadmap](ROADMAP.md)).
 - The offline layout is limited to 8 KB of layout text, and the panel keeps the previous one as a backup. A layout
   over 8 KB gets a "too big" answer and is not kept.
-- What has run on the physical panel, and what so far only in the native LVGL tests (the ambient screen among
-  them), is listed in [VERIFICATION.md](../VERIFICATION.md).
+- What has been checked on the physical panel, and what has not been tried or measured, is listed in [VERIFICATION.md](../VERIFICATION.md).

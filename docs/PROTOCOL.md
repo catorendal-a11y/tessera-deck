@@ -21,7 +21,7 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. On the CrowPane
 | `AD_PING` | none | Heartbeat every second. The rail shows *NO PC* after 3.5 s without any line from the host. |
 | `AD_TIME YYYY-MM-DDTHH:MM:SS [12h\|24h]` | `AD_TIME OK` or `INVALID` | The PC's local time, sent every 10 minutes and when the clock format changes. The panel has no network clock. The optional format sets 12- or 24-hour clocks; older firmware ignores it. |
 | `AD_CFG_BEGIN`, `AD_CFG_DATA <chunk>`, `AD_CFG_END` | `AD_CFG_BEGIN OK`, none, then `AD_CFG_END OK <keys>`, `INVALID` or `TOO_BIG 8192` | Pushes the key layout (JSON, chunked). See [Layout](#layout). |
-| `AD_IMG_BEGIN <id> <bytes> <crc32> [ack]`, `AD_IMG_DATA <offset> <hex>`, `AD_IMG_END` | `AD_IMG_END OK <id>`, `INVALID` or `FULL`; with `ack` also `AD_IMG_DATA OK <bytes received>` or `AD_IMG_DATA INVALID` | Uploads a key image. `FULL` means the 8 MiB image cache cannot hold it. See [Image upload](#image-upload). |
+| `AD_IMG_BEGIN <id> <bytes> <crc32> [ack]`, `AD_IMG_DATA <offset> <hex>`, `AD_IMG_END` | `AD_IMG_END OK <id>`, `INVALID` or `FULL`; with `ack` also `AD_IMG_DATA OK <bytes received>` or `AD_IMG_DATA INVALID` | Uploads a key image. `FULL` means the image cache (8 MiB on the P4 boards, 2 MiB on the S3 boards) cannot hold it. See [Image upload](#image-upload). |
 | `AD_CONTEXT {"profile":"…","page":"…","canBack":true}` | `AD_CONTEXT OK` or `INVALID` | Profile, page and back state for the header. |
 | `AD_FEEDBACK ok <id>` or `AD_FEEDBACK alert <id>` | `AD_FEEDBACK OK` or `INVALID` | Ends the pressed highlight with a green or red flash. |
 | `AD_BRIGHTNESS <1-100>` | `AD_BRIGHTNESS OK <level>`, `FAILED <level>` or `INVALID` | Sets the backlight and stores the level on the panel. |
@@ -76,7 +76,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 
 | Message | When | What the host does |
 |---|---|---|
-| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"layoutSaved":N,"draws":N,"drawMaxMs":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
+| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"w":N,"h":N,"imgCache":N,"reset":"…","ota":1,"imgAck":1,"notify":1,"layoutSaved":N,"draws":N,"drawMaxMs":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
 | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed. `hold` is present for a long press. | Runs the key's actions. |
 | `{"type":"wake"}` | A touch woke the dimmed panel. | Resets the idle timer. No key is pressed. |
 | `{"type":"brightness","level":N}` | The brightness slider was released. | Stores the level (1 to 100). |
@@ -96,6 +96,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `boardId`, `firmwareVersion`, `protocol` | Identify the panel. The protocol number is the panel's own. |
 | `bootId`, `uptime` | A new `bootId` tells the host the panel restarted. `uptime` is in seconds. |
 | `heap`, `psramFree` | Free internal and external memory in bytes. |
+| `w`, `h`, `imgCache` | The screen size in pixels and the size of the image cache in bytes. Missing on firmware older than 1.1.0; the host then assumes 1024 × 600 and 8 MiB. |
 | `reset` | Why the panel last started: `poweron`, `sw`, `panic`, `int_wdt`, `task_wdt`, `wdt`, `brownout`, `deepsleep`, `ext` or `unknown`. The host warns about `panic`, `int_wdt`, `task_wdt`, `wdt` and `brownout`. |
 | `ota` | `1` when the panel accepts `AD_OTA_*`. Missing on older firmware. |
 | `imgAck` | `1` when `AD_IMG_BEGIN` takes `ack` and the panel then acknowledges image data. Missing on older firmware: the host sends 160-byte lines and pauses 10 ms after every 4. |

@@ -3,14 +3,14 @@
 [Back to the README](../README.md)
 
 > [!IMPORTANT]
-> Tessera is made for one board: the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
+> This page is written for the main board: the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
 > capacitive touch screen), bought from [this AliExpress listing](https://www.aliexpress.com/item/1005010022828767.html).
 > The firmware runs on Espressif's ESP32-P4 Function EV Board support package, and the pin setup and screen layout
-> are written for this kit. Other ESP32 boards or displays need a port. The Elecrow CrowPanel Advance 7.0 (ESP32-P4) has its own build, described in [CrowPanel Advance 7.0](CROWPANEL.md). An experimental port to two ESP32-S3 boards is described in [ESP32-S3 boards](S3.md).
+> are written for this kit. Three more boards have firmware in the releases: the Elecrow CrowPanel Advance 7.0 ([CrowPanel Advance 7.0](CROWPANEL.md)) and, as an experiment, two ESP32-S3 boards ([ESP32-S3 boards](S3.md)). Those pages say what differs from the steps here. Any other board or display needs a port.
 
 <p align="center">
   <img src="images/board.jpg" alt="The GUITION 7-inch ESP32-P4 display dev board Tessera is made for" width="420"><br>
-  <sub>The board Tessera is made for (image from the seller's listing).</sub>
+  <sub>The GUITION board (image from the seller's listing).</sub>
 </p>
 
 ## Requirements
@@ -83,6 +83,8 @@ the board if Windows renumbers the port. Set the environment variable `TESSERA_P
 | `Tessera.cmd --no-browser` | Start without opening a browser window and print the editor address |
 | `Tessera.cmd --uninstall` | See [Uninstall](#uninstall) |
 
+On Linux, `./Tessera.sh` takes the same options, apart from `--sensors` and `--sensors-off`. [Tessera on Linux](LINUX.md) has the rest.
+
 ## Flash the panel
 
 Use **Panel → Panel firmware and updates …** in the editor. The installer checks the package, the board and the
@@ -131,9 +133,11 @@ your icon library and the panel you used last). [Releasing](RELEASING.md) lists 
 
 If you unpacked the new version to a new folder and Start with Windows was on, start the new copy once with `Tessera.cmd`. When the panel connects, its tray asks whether Start with Windows should start the new copy instead.
 
+On Linux the steps are the same, with `./Tessera.sh`.
+
 ## Autostart
 
-Choose **Start with Windows** in the tray menu, or tick *Start the USB host automatically when I sign in* in **Program settings** in the editor. After the panel first connects, the tray asks once whether to start with Windows.
+Choose **Start with Windows** in the tray menu, or tick *Start the USB host automatically when I sign in* in **Program settings** in the editor. After the panel first connects, the tray asks once whether to start with Windows. On Linux the tray entry is *Start with the desktop*.
 
 ## Uninstall
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The default profiles: hold Home to lock the profile. The panel then stays on it while you switch programs, and Home turns orange. Hold Home again to unlock. An existing setup gets the same with a *Lock profile* step under Held on its Home key.
+- The editor's profile settings say how to keep the panel on one profile.
+- Desk consoles: the print files are also on [Printables](https://www.printables.com/model/1921087-tessera-desk-console-for-7-inch-esp32-p4-panels-gu) and [MakerWorld](https://makerworld.com/en/models/3640174-tessera-desk-console-for-7-inch-esp32-p4-panels), and MakerWorld has sliced print profiles for Bambu printers.
+- Docs: the website shows the four screens, the agents screen, scripts and a comparison with Stream Deck. The guides say what differs on Linux and on the other boards, the protocol page lists the `w`, `h` and `imgCache` handshake fields, and the hardware notes have print times and weights from the slicer. VERIFICATION.md lists hold to confirm, the panel lock, the about sheet, the widgets, the faders and the ambient screen as tried by hand on a panel.
+
 ## 1.2.2
 
 The host now also runs on Linux. The panel firmware is the same as 1.2.1 apart from its version number, so a panel on 1.2.0 or 1.2.1 works with this host as it is.

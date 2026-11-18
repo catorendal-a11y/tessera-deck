@@ -11,7 +11,7 @@ The editor and the control API are two small web servers inside the host. Neithe
 | Editor | `127.0.0.1`, a free port | A per-run token that stays in a private file. The window opens with a one-time code that the page trades for a session key, which it sends in a header; a cookie (`HttpOnly`, `SameSite=Strict`) only opens icon previews. Requests whose `Host` is not `127.0.0.1:<port>` or that come from another web page (`Origin` header) are refused. |
 | Control API (`/v1/…`) | `127.0.0.1`, a free port | A per-run token in the `X-Deck-Token` header. The same `Host` and `Origin` checks. Each token may make 20 calls a second, in bursts of up to 40, then gets `429`. |
 
-- The tokens live in `host/deck-api.local.json` and in the editor's record file. Only your Windows account can read them. They change every time the host starts.
+- The tokens live in `host/deck-api.local.json` and in the editor's record file. Only your own account can read them. They change every time the host starts.
 - Plugins get their own token with only the routes they declared, and only variable names that start with `<plugin id>.`. See [Plugins](docs/PLUGINS.md).
 - An HTTP action does not follow a redirect from https to http. A redirect to another host goes there without the action's headers, so an `Authorization` header is not passed on.
 - An *Open* step with an address does not fill in `%NAME%` from the PC's environment, so the address cannot leak it. Paths still do.
@@ -31,13 +31,13 @@ Treat an imported profile like a program. A profile can hold shell commands, web
 
 ## Secrets
 
-- Keep API keys out of profiles. Write `$(env:NAME)` in an HTTP header or body and set the variable in Windows.
+- Keep API keys out of profiles. Write `$(env:NAME)` in an HTTP header or body and set the variable in Windows, or in your environment on Linux.
 - Exports replace known credential headers (`Authorization`, `Cookie`, `X-Api-Key` and similar) with `$(env:…)` references, and leave out the calendar address and plugin settings that look like secrets. The editor tells you what it left out.
-- Plugin settings whose key contains `token`, `secret`, `password` or `api_key` are stored encrypted for your Windows account (DPAPI). `profiles.json` and its backups hold only the encrypted form. Another Windows account, or the same files on another PC, cannot read them.
+- Plugin settings whose key contains `token`, `secret`, `password` or `api_key` are stored encrypted for your Windows account (DPAPI). `profiles.json` and its backups hold only the encrypted form. Another Windows account, or the same files on another PC, cannot read them. On Linux these settings go to the system keyring (a Secret Service such as GNOME Keyring or KWallet), and `profiles.json` holds only `$(keyring:<id>)`. Without a keyring the save fails with a message, and nothing is written in plain text.
 
 ## Plugins
 
-A plugin runs with your own Windows rights. Tessera does not sandbox it. It can read your files and use the network, whatever its manifest says. The manifest only limits what it may ask Tessera to do.
+A plugin runs with your own rights on the PC. Tessera does not sandbox it. It can read your files and use the network, whatever its manifest says. The manifest only limits what it may ask Tessera to do.
 
 - Install a plugin only from a source you trust, and read its code first.
 - The editor asks before a plugin first runs, and again for a new version, and shows the program it starts.

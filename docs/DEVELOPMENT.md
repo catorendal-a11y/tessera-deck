@@ -19,9 +19,10 @@ Plugins and AI tools         --control API------> host
 ## Project layout
 
 ```text
-main/            ESP32-P4 firmware: USB console, button model, LVGL UI, fonts, image decoder
-components/      Board support package for the ESP32-P4 Function EV Board
-host/            Windows host
+main/            Panel firmware: USB console, button model, LVGL UI, fonts, image decoder
+components/      Board support package for the ESP32-P4 Function EV Board (the GUITION board and the CrowPanel)
+boards/          Build settings for the CrowPanel and the two S3 boards, and the S3 board support
+host/            The host, for Windows and Linux
   tesserad.py          USB daemon: owns the panel, the job queue and the actions
   daemon_presses.py    Key presses: fast lane, slow lane, double taps
   daemon_display.py    Backlight, dimming, quiet hours, ambient screen
@@ -61,12 +62,12 @@ docs/            User guides, features, protocol, plugin guide, release process,
 tests/           Host tests, native LVGL tests, editor smoke test, hardware smoke test
 tools/           Packaging, screen rendering, icon and sensor tooling
 vendor/          Lucide icon pack (ISC)
-hardware/        The printable desk console
+hardware/        The printable desk consoles and the dock
 ```
 
 ## Host
 
-Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`.
+Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`. On Linux, `./Tessera.sh --setup` creates `host/.venv`; use `host/.venv/bin/python` in the commands below. The Linux tests that drive X11 start their own Xvfb server and are skipped without `Xvfb`, `xdotool`, `xterm` and `xclip`.
 
 | Task | Command |
 |---|---|
@@ -91,7 +92,7 @@ written for, the unit tests that need real files, processes or system libraries 
 
 To add a system: add `platform_<name>/` with the same modules, name it in `platform_support.detect`, and run
 `tests/test_platform_support.py`. Its parity test lists the functions and constants the shared code uses, and its isolation
-test imports every shared module with the other package blocked.
+test imports every shared module with the other package blocked. [PLATFORM_AUDIT.md](PLATFORM_AUDIT.md) is the audit the split was checked against.
 
 Tests that exercise one system's behaviour carry `@windows_only` / `@linux_only` from `tests/platform_marks.py`; the rest
 run everywhere.
@@ -122,7 +123,7 @@ It talks to a connected panel: identity, layout push, 21 synthetic presses, boot
 
 ## Firmware
 
-The firmware builds with ESP-IDF 6.1 for the ESP32-P4. In an ESP-IDF 6.1 shell:
+The firmware builds with ESP-IDF 6.1. The commands here build it for the GUITION board (ESP32-P4); [CrowPanel Advance 7.0](CROWPANEL.md) and [ESP32-S3 boards](S3.md) have the commands for the other boards. In an ESP-IDF 6.1 shell:
 
 ```powershell
 idf.py -B build/idf6 build

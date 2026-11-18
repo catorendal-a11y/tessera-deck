@@ -117,7 +117,7 @@ step in the current implementation.
 | Press/release | The SDK has separate key-down/key-up events | Click, long press and double press each run their own steps; a general key-down/key-up stream is missing |
 | App integrations | Marketplace plugins for OBS, Discord and more | Hotkeys, open, text, shell and HTTP, plus a local plugin host with permissions (no marketplace) |
 | Sharing | Stream Deck profiles and sharing of actions | Its own JSON format; no .streamDeckProfile import |
-| Program lifecycle | Established desktop app | Local Windows program with WebView2, Python host and terminal program |
+| Program lifecycle | Established desktop app | Local program for Windows and Linux (X11): a Python host, the editor in WebView2 or a browser tab, and a terminal program |
 
 Sources for the features above:
 

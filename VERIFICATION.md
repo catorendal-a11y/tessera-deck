@@ -1,10 +1,10 @@
 # Verification
 
-This page says what is tested automatically, what was checked on a real panel, and what nobody has tried on the panel yet.
+This page says what is tested automatically, what was checked on a real panel, what was tried by hand, and what has not been tried or measured.
 
 ## Tested automatically
 
-CI and `python -m unittest discover -s tests` run several hundred tests on Windows and on Linux. None needs hardware.
+CI and `python -m unittest discover -s tests` run over 850 tests on Windows and on Linux. Each system skips the tests written only for the other. None needs hardware.
 
 | Area | What the tests cover |
 |---|---|
@@ -53,6 +53,10 @@ The editor was also walked through against a copy of a real configuration: every
 
 Every check in this section was made on the GUITION board. The contributor of the CrowPanel Advance 7.0 build reports it working on their board: the colors look right, touch works, and most of the hotkeys and actions they tried work. An install from the editor's firmware dialog has not been tried on that board ([docs/CROWPANEL.md](docs/CROWPANEL.md)). One tester runs the Waveshare ESP32-S3 build at a 12 MHz pixel clock; the Sunton build has not run on a board ([docs/S3.md](docs/S3.md)).
 
+The Linux host was tested by hand by its contributor, with a CrowPanel on Arch Linux with Cinnamon (X11). The panel link and the tray had the most testing; keys, sound and sensors had less. Nobody has reported a run on another distribution or desktop ([docs/LINUX.md](docs/LINUX.md)).
+
+Both desk consoles have been printed, and each panel fits its console ([hardware/README.md](hardware/README.md)).
+
 ## Screen speed
 
 Measured on 16 November 2026 with firmware 0.10.1 and the panel connected to the host. The numbers come from the `draws` and `drawMaxMs` fields of `get_info` ([docs/PROTOCOL.md](docs/PROTOCOL.md#handshake-fields)). An update is one pass of drawing what changed and copying it into the panel's frame buffer.
@@ -68,22 +72,28 @@ Measured on 16 November 2026 with firmware 0.10.1 and the panel connected to the
 
 The screen is drawn by one thread. A test with two threads, one per core, drew a full screen in 45 ms but garbled text and icons on the panel: LVGL unpacks the compressed glyphs of every font, the icon font too, through one shared state. The touch controller is read every 15 ms. A key shows its pressed look when the finger lands and runs its action when the finger lifts, and the key flashes green or red when the host answers.
 
-## Not verified on the panel
+## Tried by hand on the panel
 
-The code for these is written and tested in simulation. Nobody has tried them on the panel.
+These are in daily use on the GUITION board, up to firmware 1.2.2. The maintainer has tried each one with a finger on the glass. No numbers were taken.
 
-| Feature | What is unknown |
+| Feature | What was tried |
 |---|---|
-| Hold to confirm | The 0.6 s hold and the filling ring with a finger on the glass |
+| Hold to confirm | The 0.6 s hold and the filling ring |
 | Panel lock | Locking, the lock badge and the 2 s hold on the logo that unlocks |
-| Swipe right to go back | Whether the gesture feels right and never presses the key it starts on |
-| About sheet | The long press on the logo and the saved brightness slider |
-| Widgets, mixer faders, status screen | How they look and feel on the glass |
+| About sheet | The long press on the logo and the brightness slider |
+| Widgets, mixer faders, status screen | How they look and work on the glass |
 | Fader drag and rail shortcut taps | Touch with a finger |
-| Ambient screen, key colors | How they look with the layout stored in flash |
-| Installer on a blank board | A full install on a new board (updating a running panel from a published release has been done) |
+| Ambient screen, key colors | With the layout stored in flash |
+| Installer on a blank board | A full install on a new board |
+| Hold Home to lock the profile | The held *Lock profile* step on Home, and Home turning orange |
+
+## Not tried or not measured
+
+| What | What is unknown |
+|---|---|
+| Swipe right to go back | Whether the gesture works with a finger and never presses the key it starts on. It has run only against simulated touches in the native tests |
 | Tap to screen | The time from a finger on the glass to the pressed look, filmed at a high frame rate |
 | Touch accuracy | Missed or wrong keys when every key is tapped many times, edges included |
 | Long sessions | Long-press timing, USB unplug, panel reset, Windows sleep and resume, panel memory use over days |
 
-Check these first after flashing a new version. [CHANGELOG.md](CHANGELOG.md) lists what changed.
+After flashing a new version, go through the hand-tried list first. [CHANGELOG.md](CHANGELOG.md) lists what changed.
