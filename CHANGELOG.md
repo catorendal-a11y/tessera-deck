@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Desk console: it has been printed, and the panel fits perfectly. An upright wall carries the shelf under the screen from the bed, the rim over the back opening grows out of the back wall, and all four foot pads reach into the walls. The outside and the fit round the panel are unchanged.
+- Desk console: it has been printed, and the GUITION JC1060P470C (the `_Y` variant, in its factory housing) fits it perfectly. An upright wall carries the shelf under the screen from the bed, the rim over the back opening grows out of the back wall, and all four foot pads reach into the walls. The outside and the fit round the panel are unchanged.
 
 ## 1.2.1
 
