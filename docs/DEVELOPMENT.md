@@ -32,6 +32,8 @@ host/            Windows host
   input_common.py      The key names and operation lists every system shares
   platform_support.py  The one place that reads sys.platform; `load('name')` gives the module of this system's package
   platform_windows/    Windows-specific code (input and windows, audio, secrets, sensors, ...)
+  desktop.py, system_audio.py, process_flags.py        What the shared modules import for input, sound and processes
+  script_files.py, lhm_reader.py                       Script types and paths; the Libre Hardware Monitor reader
   tessera_app.py       Local editor server and WebView2 window
   tessera_terminal.py  Terminal UI
   tessera_tray.py      Tray app
