@@ -15,6 +15,7 @@ Examples:
 """
 
 import argparse
+from venv_paths import venv_python
 import hmac
 import json
 import secrets
@@ -175,7 +176,7 @@ def permission_hook(stdin, info_path: Path, out) -> int:
 
 
 def hooks_block(tool: str) -> dict:
-    python = Path(__file__).resolve().parents[1] / 'host/.venv/Scripts/python.exe'
+    python = venv_python(Path(__file__).resolve().parents[1])
     if tool == 'claude-permission':
         command = adapters.deckctl_command(python if python.is_file() else Path(sys.executable), Path(__file__).resolve())
         command = command.removesuffix('adapter claude') + 'permission'

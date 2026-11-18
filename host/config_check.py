@@ -2,6 +2,8 @@
 import json
 import math
 import os
+
+from platform_support import load
 import re
 
 from ambient import check_ambient
@@ -9,11 +11,12 @@ import calendar_feed
 from config_store import CONFIG_VERSION, version_of
 from live_state import NAME as LIVE_NAME, check_counter, check_timer
 import widgets
+from program_name import SUFFIX
 from pc_state import FLAG_SOURCES, check_audio, check_media
 from plugins import PLUGIN_ID, check_plugin_config
-from program_locator import BATCH_SUFFIXES, SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text
+from script_files import BATCH_SUFFIXES, SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text
 from substitution import check_web_url
-from win_input import MOUSE_OPERATIONS, WINDOW_OPERATIONS, parse_hotkey
+from input_common import MOUSE_OPERATIONS, WINDOW_OPERATIONS, split_hotkey
 
 ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command', 'script': 'path',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
@@ -38,7 +41,7 @@ def _check_press(action, pages, profiles):
 
 
 def _check_hotkey(action, pages, profiles):
-    parse_hotkey(action['keys'])
+    split_hotkey(action['keys'])
 
 
 def _check_open(action, pages, profiles):
@@ -91,7 +94,7 @@ def _check_window(action, pages, profiles):
     if action['op'] not in WINDOW_OPERATIONS:
         raise ValueError(f'window: op must be one of {", ".join(WINDOW_OPERATIONS)}')
     if not isinstance(process, str) or len(process) > 260:
-        raise ValueError('window: process must be a program name like notepad.exe')
+        raise ValueError('window: process must be a program name like ' + load('labels').PROGRAM_EXAMPLE)
     if action['op'] == 'focus' and not process.strip():
         raise ValueError('window: focus needs a process name')
 
@@ -469,8 +472,8 @@ def _check_panel(panel, pages=(), profiles=None):
         raise ValueError('panel.agents must list claude, codex or zcode')
     apps = panel.get('apps', [])
     if (not isinstance(apps, list) or len(apps) > cockpit.MAX_APPS
-            or any(not isinstance(item, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,35}\.exe', item) for item in apps)):
-        raise ValueError(f'panel.apps must list at most {cockpit.MAX_APPS} program names ending in .exe')
+            or any(not isinstance(item, str) or not re.fullmatch(rf'[A-Za-z0-9_.-]{{1,35}}{SUFFIX}', item) for item in apps)):
+        raise ValueError(f'panel.apps must list at most {cockpit.MAX_APPS} program names' + load('labels').PROGRAM_LIST_NOTE)
     if type(panel.get('mic', True)) is not bool:
         raise ValueError('panel.mic must be true or false')
     stats = panel.get('stats', [])

@@ -122,8 +122,8 @@ class ButtonTests(unittest.TestCase):
 
     def test_open_action_focuses_a_running_program_before_starting_it(self):
         daemon = make_daemon()
-        startfile, focus = self.mocks[3], self.mocks[2]
-        with patch.object(deck, 'IS_WINDOWS', True):
+        focus = self.mocks[2]
+        with patch.object(deck, 'open_target') as startfile:  # what opens a program is the system's; the choice is shared
             focus.return_value = True
             daemon.run_action({'type': 'open', 'target': 'C:\\a.exe', 'process': 'a.exe', 'reuse': True})
             startfile.assert_not_called()

@@ -13,6 +13,8 @@ import json
 import os
 import re
 import subprocess
+from platform_support import load
+from process_flags import NO_WINDOW
 import sys
 import threading
 import time
@@ -36,8 +38,7 @@ BACKOFF_SECONDS = (1, 2, 4, 8, 16, 32, 60)
 MAX_QUICK_CRASHES = 5
 STABLE_SECONDS = 60
 MAX_LOG_BYTES = 1024 * 1024
-ENV_KEEP = ('PATH', 'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA',
-            'PROGRAMDATA', 'HOMEDRIVE', 'HOMEPATH')
+ENV_KEEP = load('labels').PLUGIN_ENV_KEEP
 
 
 class ManifestError(ValueError):
@@ -265,7 +266,7 @@ class PluginManager:
         try:
             process = self._spawn(resolve_command(manifest, self._python), cwd=manifest.path, env=environment,
                                   stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
-                                  creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                                  creationflags=NO_WINDOW)
         except (OSError, ManifestError) as exc:
             self._revoke(token)
             self._record_failure(manifest.id, f'could not start: {exc}')
@@ -318,7 +319,7 @@ class PluginManager:
         process = current['process']
         if process.poll() is None:
             from action_runner import kill_tree
-            if os.name == 'nt' and isinstance(process, subprocess.Popen):
+            if load('processes').STOP_BY_KILLING_TREE and isinstance(process, subprocess.Popen):
                 kill_tree(process)  # terminate() ends only the plugin itself and would leave its child processes running
             else:
                 process.terminate()

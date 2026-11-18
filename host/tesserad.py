@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import queue
 import shutil
-import subprocess
+import subprocess  # noqa: F401  (the tests patch deck.subprocess)
 import sys
 import threading
 import time
@@ -23,25 +23,25 @@ from plugins import EventLog, PluginManager
 from live_state import LiveState
 import widgets
 from action_runner import Busy, CommandFailed, run_command, run_script
-from action_preview import URI_SCHEME, toggled
+from action_preview import toggled
 from control_api import ControlServer
 import agent_activity
 from datetime import datetime
 import cockpit
 import permission
 from deck_assets import Assets
-from program_locator import locate
 from substitution import check_web_url, expand_environment, substitute
-from pc_state import PcState, control_audio, control_media
-from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
+from pc_state import PcState
+from system_audio import MediaReader, control_audio, control_media, read_audio
+from host_runtime import DEFAULT_PORT, InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
 
 # The engine's building blocks live in their own modules; the names stay importable from here for the apps,
 # the tools and the tests.
-from win_input import (CHILD_NAMES_SECONDS, IS_WINDOWS, VK, bring_to_front, child_names, dry_hotkey,  # noqa: F401
-                       focus_existing_process, foreground_context, is_neutral_window,
-                       matches_foreground, parse_hotkey, real_app_exe, send_hotkey, send_mouse, send_text,
-                       set_clipboard, window_action)
+from input_common import CHILD_NAMES_SECONDS, IS_WINDOWS, child_names, dry_hotkey  # noqa: F401
+from default_profile import seed_path
+from desktop import (bring_to_front, focus_existing_process, foreground_context, is_neutral_window,  # noqa: F401
+                     matches_foreground, open_target, send_hotkey, send_mouse, send_text, set_clipboard, window_action)
 from config_check import BETA_STEP, _check_display, in_quiet_hours, validate_config  # noqa: F401
 from daemon_display import DisplayMixin
 from daemon_presses import DOUBLE_PRESS_SECONDS, PressMixin  # noqa: F401
@@ -189,7 +189,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.agents = {'codex': False, 'claude': False, 'zcode': False}
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
-        self.pc = PcState()
+        self.pc = PcState(audio=read_audio, media=MediaReader())
         self.calendar = calendar_feed.Feed()
         self.events = EventLog()
         self.plugins = None
@@ -222,7 +222,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
     def load_profiles(path):
         path = Path(path)
         if not path.exists():
-            seed = path.with_name('profiles.default.json')
+            seed = seed_path(path.parent)
             if seed.exists():
                 path.write_bytes(seed.read_bytes())
         with open(path, encoding='utf-8') as stream:
@@ -515,14 +515,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                     send_text(text)
         elif kind == 'open':
             target = self.substitute(action['target'])
-            if IS_WINDOWS:
-                process = action.get('process', '')
-                if not (action.get('reuse', False) and focus_existing_process(process)):
-                    # %NAME% only in a path: in an address it would send this PC's environment to the site
-                    expanded = target if URI_SCHEME.match(target) else os.path.expandvars(target)
-                    os.startfile(expanded if os.path.exists(expanded) else locate(expanded) or expanded)
-            else:
-                subprocess.Popen(['xdg-open', target])
+            if not (action.get('reuse', False) and focus_existing_process(action.get('process', ''))):
+                open_target(target)
         elif kind == 'shell':
             command, timeout = self.substitute(action['command'], 'shell'), action.get('timeout', 30)
             with self.state_lock.suspended():  # the panel and API stay responsive while it runs
@@ -1070,7 +1064,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--port', default='COM4')
+    parser.add_argument('--port', default=DEFAULT_PORT)
     parser.add_argument('--profiles', default=str(Path(__file__).with_name('profiles.json')))
     parser.add_argument('--no-focus', action='store_true')
     parser.add_argument('--selftest', '--validate', dest='validate', action='store_true',

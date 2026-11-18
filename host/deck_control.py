@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from process_flags import NO_WINDOW
 import sys
 import time
 import psutil
@@ -10,6 +11,8 @@ import psutil
 import config_store
 from config_store import write_atomic
 import secrets_store
+from host_runtime import DEFAULT_PORT
+from platform_support import load
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LOG_BYTES = 5 * 1024 * 1024
@@ -26,46 +29,59 @@ def firmware_installing(path=None):
 
 
 def startup_script_path(appdata=None):
-    """Return the per-user Windows Startup shortcut script."""
-    base = Path(appdata or os.environ.get('APPDATA', ''))
-    if not str(base):
-        raise OSError('The Windows startup folder is not available')
-    return base / 'Microsoft/Windows/Start Menu/Programs/Startup/Tessera.vbs'
+    """The per-user startup entry: the Startup folder's Tessera.vbs on Windows."""
+    return load('autostart').startup_script_path(appdata)
 
 
 def startup_line():
-    """The line of Tessera.vbs that starts the tray app of this folder."""
-    command = f'"{ROOT / "host/.venv/Scripts/pythonw.exe"}" "{ROOT / "host/tessera_tray.py"}"'.replace('"', '""')
-    return f'TesseraShell.Run "{command}", 0, False'
+    """The line of Tessera.vbs that starts the tray app of this folder (Windows)."""
+    from platform_windows import autostart
+    return autostart.startup_line(ROOT)
 
 
 def autostart_enabled(appdata=None):
-    """True when Tessera.vbs starts this folder. A script left by a copy in another folder does not count."""
-    if os.name != 'nt':
-        return False
-    try:
-        data = startup_script_path(appdata).read_bytes()
-        return startup_line() in data.decode('utf-16' if data[:2] in (b'\xff\xfe', b'\xfe\xff') else 'utf-8')  # 0.5-0.6.1 wrote UTF-8
-    except (OSError, UnicodeError):
-        return False
+    """True when the startup entry starts this folder. A script left by a copy in another folder does not count."""
+    return load('autostart').is_enabled(startup_script_path(appdata), ROOT)
 
 
 def set_autostart(enabled, appdata=None):
     """Start the tray app (which starts the USB host) after the user signs in."""
-    if os.name != 'nt' and appdata is None:
-        raise OSError('Automatic startup is only supported on Windows')
     path = startup_script_path(appdata)
     if not enabled:
         path.unlink(missing_ok=True)
         return path
-    if not (ROOT / 'host/.venv/Scripts/pythonw.exe').is_file():
-        raise OSError('Run Tessera.cmd once before enabling automatic startup')
-    contents = f'Set TesseraShell = CreateObject("WScript.Shell")\r\n{startup_line()}\r\n'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(contents, encoding='utf-16')  # Script Host reads a non-ASCII path only as UTF-16
-    os.replace(temporary, path)
-    return path
+    return load('autostart').enable(path, ROOT)
+
+
+def stop_editor(record_path=None, script=None, wait=4.0):
+    """Stop the editor when it runs in a browser tab. True when one was stopped.
+
+    In a native window, closing the window ends the editor. A browser tab is not the editor's window, so without this
+    the editor's web server would keep running after the tray is closed. Only the process the record names is
+    touched, and only if it is still the same process (same script, same start time)."""
+    record_path = Path(record_path or ROOT / 'host/editor.local.json')
+    script = Path(script or ROOT / 'host/tessera_app.py')
+    try:
+        record = json.loads(record_path.read_text(encoding='utf-8'))
+        if not record.get('browser'):
+            return False
+        process = psutil.Process(record['pid'])
+        command = process.cmdline()
+        if not (len(command) > 1 and Path(command[1]).resolve() == script.resolve()
+                and abs(process.create_time() - record['created']) < .01):
+            return False
+    except (OSError, ValueError, KeyError, TypeError, psutil.Error):
+        return False
+    try:
+        process.terminate()  # SIGTERM: the editor turns it into a normal shutdown (record and lock removed)
+        try:
+            process.wait(wait)
+        except psutil.TimeoutExpired:
+            process.kill()
+            process.wait(2)
+    except psutil.Error:
+        return False
+    return True
 
 
 def save_profiles(config, path=None):
@@ -135,7 +151,7 @@ class Controller:
     def status(self):
         processes = self.processes()
         result = {'running': bool(processes), 'connection': 'The host has stopped',
-                  'device': {'connected': False, 'port': os.environ.get('TESSERA_PORT', 'COM4')}}
+                  'device': {'connected': False, 'port': os.environ.get('TESSERA_PORT', DEFAULT_PORT)}}
         if not processes:
             return result
         result['connection'] = 'Waiting for the panel'
@@ -170,7 +186,7 @@ class Controller:
         if self.processes():
             emit('The deck host is already running.')
             return
-        port = os.environ.get('TESSERA_PORT', 'COM4')
+        port = os.environ.get('TESSERA_PORT', DEFAULT_PORT)
         from tesserad import Daemon, shift_logs
         profiles = ROOT / 'host/profiles.json'
         log_path = ROOT / 'host/deck.local.log'
@@ -195,7 +211,7 @@ class Controller:
             process = subprocess.Popen([sys.executable, str(ROOT / 'host/tesserad.py'), '--port', port],
                 cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
                 env=dict(os.environ, PYTHONUTF8='1', PYTHONUNBUFFERED='1'),
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                creationflags=NO_WINDOW)
         finally:
             log.close()
         current = psutil.Process(process.pid)

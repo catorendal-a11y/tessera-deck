@@ -1,4 +1,5 @@
 """Host tests, part two: runtime status, sensors, toggle keys, the control API, focus, reloads and triggers."""
+from platform_windows import input as win_input
 import copy
 import json
 from pathlib import Path
@@ -59,7 +60,7 @@ class HostRuntimeTests(HostCase):
             self.assertRegex(widgets['1']['label'], r'^\d\d:\d\d$')
 
     def test_libre_hardware_monitor_tree_maps_to_the_right_cpu_and_gpu_metrics(self):
-        from sensor_sources import flatten_sensor_tree
+        from lhm_reader import flatten_sensor_tree
         def sensor(text, sensor_id, value):
             return {'Text': text, 'SensorId': sensor_id, 'Value': value, 'Children': []}
         tree = {'Text': 'Sensor', 'Children': [{'Text': 'PC', 'Children': [
@@ -466,7 +467,6 @@ class HostRuntimeTests(HostCase):
             daemon.run_action(action)
         focus.assert_called_once_with('example.exe')
         start.assert_not_called()
-
     def test_open_action_expands_environment_variables_in_paths_only(self):
         daemon = self.daemon()
         with patch.dict(deck.os.environ, {'TESSERA_TEST_SECRET': 'secret123'}), patch.object(deck, 'IS_WINDOWS', True), \
@@ -625,7 +625,6 @@ class HostRuntimeTests(HostCase):
             controller.processes = Mock(return_value=[Mock(pid=77)])
             controller.runtime_path.write_text(json.dumps({'pid': 77, 'updated': 1, 'connected': True}))
             self.assertFalse(controller.status()['device']['connected'])
-
     def test_windows_autostart_script_can_be_enabled_and_removed(self):
         with tempfile.TemporaryDirectory() as directory:
             fake_root = Path(directory) / 'program'
@@ -638,7 +637,6 @@ class HostRuntimeTests(HostCase):
                 self.assertIn('pythonw.exe', path.read_text(encoding='utf-16'))
                 set_autostart(False, directory)
                 self.assertFalse(autostart_enabled(directory))
-
     def test_start_with_windows_counts_only_a_script_for_this_folder(self):
         with tempfile.TemporaryDirectory() as directory:
             old_root, new_root = Path(directory) / 'tessera-1.0', Path(directory) / 'tessera-1.1'
@@ -658,7 +656,6 @@ class HostRuntimeTests(HostCase):
                     self.assertFalse(autostart_enabled(directory))
                     path.write_text(f'{startup_line()}\r\n', encoding='utf-8')  # as 0.5-0.6.1 wrote it
                     self.assertTrue(autostart_enabled(directory))
-
     def test_the_tray_asks_before_start_with_windows_moves_from_another_folder(self):
         try:
             import tessera_tray
@@ -945,11 +942,11 @@ class HostRuntimeTests(HostCase):
         user32 = Mock()
         user32.IsIconic.return_value = False  # maximized or normal: SW_RESTORE would un-maximize it
         user32.GetForegroundWindow.return_value = 7  # Windows let it through
-        deck.bring_to_front(user32, 7)
+        win_input.bring_to_front(user32, 7)
         user32.ShowWindow.assert_not_called()
         user32.SetForegroundWindow.assert_called_once_with(7)
         user32.IsIconic.return_value = True  # minimized: restore it first
-        deck.bring_to_front(user32, 7)
+        win_input.bring_to_front(user32, 7)
         user32.ShowWindow.assert_called_once_with(7, 9)
 
     def test_a_refused_focus_is_retried_instead_of_leaving_the_taskbar_flashing(self):
@@ -957,7 +954,7 @@ class HostRuntimeTests(HostCase):
         user32.IsIconic.return_value = False
         user32.GetForegroundWindow.return_value = 3  # another window stays in front: Windows refused
         user32.GetWindowThreadProcessId.return_value = 55
-        deck.bring_to_front(user32, 7)
+        win_input.bring_to_front(user32, 7)
         user32.BringWindowToTop.assert_called_once_with(7)
         self.assertEqual(user32.AttachThreadInput.call_args_list[0].args[1:], (55, True))
         self.assertEqual(user32.AttachThreadInput.call_args_list[-1].args[1:], (55, False), 'the threads are detached again')

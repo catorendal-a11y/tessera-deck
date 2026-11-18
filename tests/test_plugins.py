@@ -41,7 +41,6 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual((manifest.id, manifest.permissions), ('example-uptime', frozenset({'vars', 'events'})))
         self.assertEqual(manifest.routes(), frozenset({'var', 'vars'}))
         self.assertEqual(plugins.resolve_command(manifest, 'PY')[0], 'PY')
-
     def test_invalid_manifests_are_refused_with_a_reason(self):
         cases = ({'api': 2}, {'id': 'Bad Id'}, {'id': 'other-name'}, {'name': ''}, {'version': 5},
                  {'command': []}, {'command': 'python main.py'}, {'command': [5]}, {'permissions': ['root']},

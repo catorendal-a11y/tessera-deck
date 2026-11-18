@@ -1,11 +1,14 @@
 """GPU load and video memory from Windows performance counters, without reading any real counter."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pathlib import Path
 import sys
 import unittest
 from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
-import sensor_sources as sensors
+from platform_windows import sensors
 
 GIB = 1024 ** 3
 A, B = '0x00000000_0x0000AAAA', '0x00000000_0x0000BBBB'

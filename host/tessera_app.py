@@ -1,5 +1,9 @@
 """Local graphical editor for the standalone Tessera."""
-import logging
+from default_profile import seed_path
+from process_flags import NEW_CONSOLE, NO_WINDOW
+from desktop import open_path
+from platform_support import load
+from venv_paths import venv_python
 import argparse
 import copy
 import hashlib
@@ -11,6 +15,7 @@ import os
 from pathlib import Path
 import secrets
 import subprocess
+import signal
 import sys
 import threading
 import time
@@ -20,7 +25,7 @@ import webbrowser
 
 from deck_control import (FIRMWARE_FLAG_PATH, ROOT, Controller, autostart_enabled,
                           save_profiles, set_autostart)
-from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, bring_to_front, validate_config
+from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, validate_config
 from deck_assets import Assets
 import ambient
 import config_store
@@ -42,7 +47,8 @@ def editor_build_id():
     digest = hashlib.sha256()
     files = [Path(__file__), ROOT / 'host/deck_control.py', ROOT / 'host/deck_assets.py',
              ROOT / 'host/tesserad.py', ROOT / 'host/config_check.py', ROOT / 'host/panel_serial.py',
-             ROOT / 'host/win_input.py', ROOT / 'host/action_packs.json',
+             ROOT / 'host/input_common.py', ROOT / 'host/desktop.py', ROOT / 'host/action_packs.json',
+             *sorted((ROOT / 'host/platform_windows').glob('*.py')),
              WEB / 'index.html', WEB / 'style.css', WEB / 'streamdeck.css', WEB / 'cockpit.css', WEB / 'core.js', WEB / 'app.js', WEB / 'dialogs.js']
     for path in files:
         digest.update(path.name.encode('utf-8'))
@@ -51,36 +57,8 @@ def editor_build_id():
 
 
 def activate_window(pid):
-    """Restore the existing native editor instead of opening a duplicate."""
-    if os.name != 'nt':
-        return False
-    try:
-        import ctypes
-        from ctypes import wintypes
-        user32 = ctypes.WinDLL('user32', use_last_error=True)
-        found = []
-        callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
-
-        @callback_type
-        def visit(hwnd, _):
-            owner = wintypes.DWORD()
-            user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-            if owner.value == pid and user32.IsWindowVisible(hwnd):
-                length = user32.GetWindowTextLengthW(hwnd)
-                title = ctypes.create_unicode_buffer(length + 1)
-                user32.GetWindowTextW(hwnd, title, length + 1)
-                if title.value == 'Tessera':
-                    found.append(hwnd)
-                    return False
-            return True
-
-        user32.EnumWindows(visit, 0)
-        if not found:
-            return False
-        bring_to_front(user32, found[0])
-        return True
-    except (AttributeError, OSError, ValueError):
-        return False
+    """Restore the existing native editor instead of opening a duplicate (Windows; elsewhere the editor is a browser tab)."""
+    return load('editor_window').activate_window(pid)
 
 
 @lru_cache(maxsize=1)
@@ -119,40 +97,9 @@ def action_pack_catalog():
     return catalog
 
 
-APP_USER_MODEL_ID = 'Tessera.Editor'
-
-
 def brand_taskbar_identity():
-    """Give this process its own Windows identity.
-
-    Without one, Windows groups the editor window under pythonw.exe and shows the Python
-    file icon on the taskbar instead of the window's own icon.
-    """
-    if os.name != 'nt':
-        return
-    import ctypes
-    try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
-    except (AttributeError, OSError):
-        pass
-
-
-def fit_to_work_area(window):
-    """Fill the screen without covering the taskbar: a maximized WebView2 window can end up under it."""
-    try:
-        import ctypes
-        from ctypes import wintypes
-        window.events.shown.wait(15)
-        user32 = ctypes.WinDLL('user32', use_last_error=True)
-        area = wintypes.RECT()
-        if not user32.SystemParametersInfoW(0x30, 0, ctypes.byref(area), 0):  # SPI_GETWORKAREA: the screen minus the taskbar
-            return
-        handle = user32.FindWindowW(None, 'Tessera')
-        if handle:
-            user32.ShowWindow(handle, 9)  # SW_RESTORE, so the size below applies
-            user32.SetWindowPos(handle, 0, area.left, area.top, area.right - area.left, area.bottom - area.top, 0x0044)  # no z-order change, show
-    except (AttributeError, OSError, ValueError):
-        pass
+    """Give this process its own Windows identity, so the taskbar shows the editor's own icon."""
+    load('editor_window').brand_taskbar_identity()
 
 
 WINDOW_FILE = ROOT / 'host/window.local.json'
@@ -185,27 +132,10 @@ def save_window_geometry(geometry, saved_file=WINDOW_FILE):
 
 
 def open_window(url):
-    """Open the editor in a native WebView2 window; return False on fallback."""
-    if os.name == 'nt':
-        brand_taskbar_identity()
-        try:
-            import webview
-            webview.settings['ALLOW_DOWNLOADS'] = True  # Export saves through a download; pywebview cancels them all without this
-            screen = webview.screens[0]
-            width, height, x, y = window_geometry(screen)
-            window = webview.create_window('Tessera', url, width=width, height=height, x=x, y=y,
-                                           min_size=(min(MIN_WINDOW[0], screen.width), min(MIN_WINDOW[1], screen.height)),
-                                           background_color='#0A0E10', text_select=True)
-            # Remember the last size and place: the events give logical pixels, the same units create_window takes.
-            geometry = {}
-            window.events.resized += lambda width, height: geometry.update(width=width, height=height)
-            window.events.moved += lambda x, y: geometry.update(x=x, y=y)
-            window.events.closing += lambda: save_window_geometry(dict(geometry))
-            webview.start(fit_to_work_area if x is None else None, (window,), private_mode=True,
-                          storage_path=str(ROOT / 'host/.webview-data'), icon=str(ROOT / 'host/tessera.ico'))
-            return True
-        except Exception:
-            logging.getLogger(__name__).warning('WebView2 window failed; using the browser', exc_info=True)
+    """Open the editor in a native window (Windows: WebView2); anything else, or a failure, opens a browser tab. Returns
+    False for the browser."""
+    if load('editor_window').open_native_window(url, window_geometry, save_window_geometry, MIN_WINDOW, ROOT):
+        return True
     webbrowser.open(url)
     return False
 
@@ -229,67 +159,12 @@ def installed_programs():
 
 
 def scan_programs():
-    """Return local Start-menu and taskbar shortcuts without launching anything."""
-    if os.name != 'nt':
-        return []
-    roots = [
-        Path(os.environ.get('APPDATA', '')) / 'Microsoft/Windows/Start Menu/Programs',
-        Path(os.environ.get('PROGRAMDATA', '')) / 'Microsoft/Windows/Start Menu/Programs',
-        Path(os.environ.get('APPDATA', '')) / 'Microsoft/Internet Explorer/Quick Launch/User Pinned/TaskBar',
-        Path(os.environ.get('USERPROFILE', '')) / 'Desktop',
-        Path(os.environ.get('PUBLIC', '')) / 'Desktop',
-    ]
-    ignored = ('uninstall', 'readme', 'documentation', 'manual', 'release notes', 'support')
-    programs = {}
-    for root in roots:
-        if not root.is_dir():
-            continue
-        try:
-            paths = root.rglob('*.lnk')
-            for path in paths:
-                name = path.stem.strip()
-                key = name.casefold()
-                if not name or any(word in key for word in ignored) or key in programs:
-                    continue
-                programs[key] = {'name': name, 'target': str(path)}
-        except OSError:
-            continue
-    # Store apps are often absent from the shortcut folders. Get-StartApps is
-    # the same inventory Windows Search uses and gives us stable AppsFolder IDs.
-    script = ('[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); '
-              'Get-StartApps | Select-Object Name,AppID | ConvertTo-Json -Compress')
-    try:
-        result = _powershell(script, 20)
-        values = json.loads(result.stdout or '[]')
-        if isinstance(values, dict):
-            values = [values]
-        for item in values:
-            name, app_id = item.get('Name', '').strip(), item.get('AppID', '').strip()
-            key = name.casefold()
-            if name and app_id and key not in programs:
-                programs[key] = {'name': name, 'target': 'shell:AppsFolder\\' + app_id}
-    except (OSError, subprocess.SubprocessError, ValueError, AttributeError):
-        pass
-    return sorted(programs.values(), key=lambda item: item['name'].casefold())
-
-
-def _powershell(script, timeout, env=None):
-    return subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', script], env=env,
-                          capture_output=True, text=True, encoding='utf-8', timeout=timeout,
-                          creationflags=subprocess.CREATE_NO_WINDOW)
+    """Return the programs of the system's menu (Windows: Start menu and Store apps)."""
+    return load('shell').scan_programs()
 
 
 def shortcut_target(path):
-    if os.name != 'nt' or Path(path).suffix.lower() != '.lnk':
-        return str(path)
-    script = ('$shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($env:TESSERA_LINK); '
-              '[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); $shortcut.TargetPath')
-    try:
-        result = _powershell(script, 10, env=dict(os.environ, TESSERA_LINK=str(path)))
-        value = result.stdout.strip()
-        return value or str(path)
-    except (OSError, subprocess.SubprocessError):
-        return str(path)
+    return load('shell').shortcut_target(path)
 
 
 class Editor:
@@ -371,7 +246,7 @@ class Editor:
             return self.read()
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             raw = self._raw()
-            defaults = validate_config(config_store.migrate(json.loads((ROOT / 'host/profiles.default.json').read_bytes())))
+            defaults = validate_config(config_store.migrate(json.loads(seed_path(ROOT / 'host').read_bytes())))
             return {'config': defaults, 'revision': hashlib.sha256(raw).hexdigest(),
                     'error': f'profiles.json could not be read ({str(exc)[:200]}). Restore a backup or fix the file.'}
 
@@ -430,28 +305,18 @@ class Editor:
     def program_details(self, target, allowed_only=True):
         if not isinstance(target, str) or not target.strip() or len(target) > 2048:
             raise ValueError('Choose a valid program')
-        path = Path(target)
         programs = installed_programs()
         allowed = {item['target'] for item in programs}
         if allowed_only and target not in allowed:
             raise ValueError('The program is not in the local program list')
-        store_app = target.startswith('shell:AppsFolder\\')
-        if not store_app and (not path.is_file() or path.suffix.lower() not in ('.exe', '.lnk', '.cmd', '.bat')):
-            raise ValueError('Choose a local program file or shortcut')
-        resolved = target if store_app else shortcut_target(path)
-        process = Path(resolved).name if Path(resolved).suffix.lower() == '.exe' else ''
-        if store_app:
-            lowered = target.casefold()
-            process = ('ChatGPT.exe' if 'openai.codex_' in lowered else
-                       'claude.exe' if 'claude_' in lowered else
-                       'XboxPcApp.exe' if 'microsoft.gamingapp_' in lowered else '')
+        info = load('programs').describe(target)
         matched = next((item for item in programs if item['target'] == target), None)
         try:
             icon = self.assets.import_program_icon(target)['id']
         except (ValueError, OSError):
             icon = 'folder'
-        return {'name': matched['name'] if matched else path.stem, 'target': target, 'process': process,
-                'icon': icon, 'reuse': bool(process)}
+        return {'name': matched['name'] if matched else info['name'], 'target': target, 'process': info['process'],
+                'icon': icon, 'reuse': bool(info['process'])}
 
     def icon_preferences(self, data=None):
         path = self.path.with_name('icon-library.local.json')
@@ -530,7 +395,7 @@ class Editor:
             espressif = sorted(host_runtime._espressif_ports())
         except (ImportError, OSError):
             installed, espressif = {}, []
-        ports = [port for port in host_runtime.candidate_ports(os.environ.get('TESSERA_PORT', 'COM4'),
+        ports = [port for port in host_runtime.candidate_ports(os.environ.get('TESSERA_PORT', host_runtime.DEFAULT_PORT),
                                                                ROOT / 'host/deck-device.local.json', installed, espressif)
                  if port in installed]
         rejected = set()
@@ -616,8 +481,7 @@ class Editor:
             config = None  # a broken profile file is when the bundle is needed most
         target = diagnostics.build(ROOT / 'diagnostics', config, self.status(), self.version(),
                                    ROOT / 'host/deck.local.log')
-        if os.name == 'nt':
-            os.startfile(target.parent)
+        open_path(target.parent)
         return {'path': str(target), 'message': f'Saved {target.name} in the diagnostics folder. It contains no button contents.'}
 
     def claude_hooks(self, data):
@@ -625,7 +489,7 @@ class Editor:
         import claude_setup
         if 'events' not in data and 'permission' not in data:
             return claude_setup.state()
-        python = ROOT / 'host/.venv/Scripts/python.exe'
+        python = venv_python(ROOT)
         return claude_setup.update(data.get('events'), data.get('permission'), python if python.is_file() else Path(sys.executable),
                                    ROOT / 'host/deckctl.py')
 
@@ -665,7 +529,7 @@ class Editor:
                 if not isinstance(state, dict):
                     raise ValueError
             except (OSError, ValueError):
-                seed = self.path.with_name('profiles.default.json')
+                seed = seed_path(self.path.parent)
                 state = {'welcome_done': not seed.exists() or self._raw() != seed.read_bytes()}
                 changes = changes or {}
             state = {key: value for key, value in state.items() if type(value) is self.SETUP_KEYS.get(key)}
@@ -757,7 +621,7 @@ class Editor:
             return {'message': 'The host has started.' if command == 'start' else 'The host has stopped.'}
         if command == 'terminal':
             subprocess.Popen([sys.executable, str(ROOT / 'host/tessera_terminal.py')], cwd=ROOT,
-                             creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+                             creationflags=NEW_CONSOLE)
             return {'message': 'The deck terminal has been opened.'}
         if command == 'autostart':
             enabled = data.get('enabled')
@@ -773,7 +637,7 @@ class Editor:
             result = subprocess.run([sys.executable, str(ROOT / 'host/editor_file_picker.py'), kind],
                                     capture_output=True, text=True, encoding='utf-8', timeout=180,
                                     env=dict(os.environ, PYTHONUTF8='1'),
-                                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                                    creationflags=NO_WINDOW)
             if result.returncode:
                 raise ValueError('The file picker could not be opened. You can paste the path into the field.')
             path = result.stdout.strip()
@@ -1068,6 +932,10 @@ def main():
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
             lock.release()
             return
+    if hasattr(signal, 'SIGTERM'):  # "Quit" in the tray stops an editor that runs in a browser tab: shut down normally
+        def terminate(*_):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, terminate)
     server = make_server(Editor(args.profiles, controller), args.port)
     url = f'http://127.0.0.1:{server.server_port}/'
     if not args.profiles:

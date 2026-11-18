@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import gpu_sources as gpu
+from platform_windows import gpu_adl
 from system_stats import SystemStats
 
 # What an RX 6950 XT and the integrated graphics of a Ryzen reported on a real machine (slot -> value).
@@ -18,21 +19,21 @@ INTEGRATED = {1: 600, 2: 3000, 3: 1200, 7: 100, 16: 1240, 17: 10, 18: 8, 19: 0, 
 
 class AmdTests(unittest.TestCase):
     def test_the_slots_become_gauge_values(self):
-        self.assertEqual(gpu.parse_pmlog(DISCRETE), {'gpu_temp': 47.0, 'gpu_power': 43.0, 'gpu_clock': 0.0,
+        self.assertEqual(gpu_adl.parse_pmlog(DISCRETE), {'gpu_temp': 47.0, 'gpu_power': 43.0, 'gpu_clock': 0.0,
                                                      'gpu_fan': 301.0, 'gpu_load': 0.0})
 
     def test_the_hotspot_stands_in_for_a_missing_edge_temperature_and_nonsense_is_ignored(self):
-        self.assertEqual(gpu.parse_pmlog({27: 61})['gpu_temp'], 61.0)
-        self.assertNotIn('gpu_temp', gpu.parse_pmlog({8: 0}))
-        self.assertNotIn('gpu_temp', gpu.parse_pmlog({8: 9999}))
-        self.assertEqual(gpu.parse_pmlog({}), {})
+        self.assertEqual(gpu_adl.parse_pmlog({27: 61})['gpu_temp'], 61.0)
+        self.assertNotIn('gpu_temp', gpu_adl.parse_pmlog({8: 0}))
+        self.assertNotIn('gpu_temp', gpu_adl.parse_pmlog({8: 9999}))
+        self.assertEqual(gpu_adl.parse_pmlog({}), {})
 
     def test_the_card_with_a_fan_wins_over_the_integrated_graphics(self):
-        self.assertEqual(gpu.pick_graphics_card({0: INTEGRATED, 5: DISCRETE}), 5)
+        self.assertEqual(gpu_adl.pick_graphics_card({0: INTEGRATED, 5: DISCRETE}), 5)
 
     def test_without_any_fan_the_most_power_hungry_adapter_is_used(self):
-        self.assertEqual(gpu.pick_graphics_card({0: {23: 25}, 1: {23: 90}}), 1)
-        self.assertIsNone(gpu.pick_graphics_card({}))
+        self.assertEqual(gpu_adl.pick_graphics_card({0: {23: 25}, 1: {23: 90}}), 1)
+        self.assertIsNone(gpu_adl.pick_graphics_card({}))
 
 
 class NvidiaTests(unittest.TestCase):

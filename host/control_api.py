@@ -14,9 +14,9 @@ import os
 import re
 import secrets
 import socket
-import subprocess
 import threading
 import time
+from platform_support import load
 from action_runner import Busy
 import permission
 from dataclasses import dataclass
@@ -74,21 +74,7 @@ class Grant:
 
 def make_private(path) -> None:
     """Let only the owner read the token file: other accounts on a shared PC must not be able to drive the panel."""
-    try:
-        if os.name != 'nt':
-            os.chmod(path, 0o600)
-            return
-        # *S-1-3-4 is "owner rights": no user name to look up, and it follows the file's owner.
-        flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-        subprocess.run(['icacls', str(path), '/inheritance:r', '/grant:r', '*S-1-3-4:F'], check=True, timeout=10,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
-        try:
-            Path(path).read_bytes()
-        except OSError:  # never leave a file its own user cannot read
-            subprocess.run(['icacls', str(path), '/reset'], check=False, timeout=10, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, creationflags=flags)
-    except (OSError, subprocess.SubprocessError):
-        pass  # the file then keeps the folder's permissions, as before
+    load('files').make_private(path)
 
 
 def _button(data) -> int:

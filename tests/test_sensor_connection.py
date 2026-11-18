@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -11,8 +14,8 @@ sys.path.insert(0, str(ROOT / 'host'))
 import psutil
 import tesserad as deck
 import host_support  # noqa: E402
-import win_input
-from sensor_sources import LibreHardwareMonitorReader
+import input_common
+from platform_windows.sensors import LibreHardwareMonitorReader
 
 TREE = {'Text': 'root', 'Children': [{'Text': 'pc', 'Children': [{'Text': 'CPU', 'Children': [
     {'Text': 'Core', 'SensorId': '/amdcpu/0/temperature/0', 'Value': '45.0 °C'}]}]}]}
@@ -78,7 +81,7 @@ class SensorConnectionTests(unittest.TestCase):
 
 class ChildNameTests(unittest.TestCase):
     def setUp(self):
-        patcher = patch.object(win_input, '_child_names', (None, 0.0, []))
+        patcher = patch.object(input_common, '_child_names', (None, 0.0, []))
         patcher.start()
         self.addCleanup(patcher.stop)
         child = Mock()

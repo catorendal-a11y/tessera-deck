@@ -5,6 +5,7 @@ import time
 
 from config_check import in_quiet_hours
 from control_api import NOTIFY_MAX_TEXT
+from platform_support import load
 
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
 
@@ -21,9 +22,7 @@ def banner_text(text) -> str:
 def windows_clock() -> str:
     """'12h' when Windows shows the time with AM/PM (Region settings), else '24h'."""
     try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Control Panel\International') as key:
-            return '12h' if str(winreg.QueryValueEx(key, 'iTime')[0]) == '0' else '24h'
+        return load('regional').clock_format()
     except (ImportError, OSError):
         return '24h'
 
