@@ -11,6 +11,10 @@ Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y
 | Back | Closed, with air openings, a cable arch and two screwdriver holes | Open, so the ports and cables stay free |
 | Drawn with | FreeCAD (`make_enclosure.py`) | Blender (`make_dock.py`) |
 
+![A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen](../docs/images/console-printed.jpg)
+
+The console has been printed, and the panel fits it perfectly. That first print needed supports under the shelf the screen stands on. Since then the files carry that shelf from the bed and join the foot pads to the walls; that version has not been printed yet.
+
 ![The console with the panel in it, rendered in Blender](../docs/images/console-hero.jpg)
 
 `tessera-enclosure.png` shows the console with the panel in place in FreeCAD. The console has a chin with the Tessera tile mark, a short upright apron, a sunken field on each end, a chamfer round the base and four recesses underneath for 10 mm stick-on rubber feet.
@@ -39,13 +43,13 @@ Two printable stands for the GUITION JC1060P470C in its factory housing (the `_Y
 |---|---|---|
 | Orientation | Standing, as it stands on the desk (open underside on the bed) | Standing on its base frame, as it stands on the desk |
 | Layer height | 0.2 mm | 0.2 mm |
-| Supports | None: the front reclines 45° and the back leans 10° | None expected: it leans back 30° and stands on its floor and ribs; check the slicer's overhang preview |
+| Supports | None: the front reclines 45° and the back leans 10°. The shelf under the screen stands on a wall from the bed, and the rim over the back opening grows out of the back wall | None expected: it leans back 30° and stands on its floor and ribs; check the slicer's overhang preview |
 | Infill | 15 %; the 2.8 mm shell is nearly solid with 3 walls, so infill hardly matters | 20 %; the base frame keeps it from tipping |
 | Walls | 3 (1.2 mm with a 0.4 mm nozzle) | 3; the side walls and uprights are 3 to 4 mm thick |
 | Hardware | 4 × M2 × 6 mm screws with a washer (thread not confirmed, see below), 4 stick-on rubber feet Ø 10 mm | None |
-| Material | PLA or PETG, about 180 g if solid | PLA or PETG |
+| Material | PLA or PETG, about 190 g if solid | PLA or PETG |
 
-The console measures 191.0 × 124.4 × 103.8 mm and holds 144 cm³ of plastic. Rubber feet under the two long edges keep it from sliding when you press a key.
+The console measures 191.0 × 124.4 × 103.8 mm and holds 152 cm³ of plastic. Rubber feet under the two long edges keep it from sliding when you press a key.
 
 ## Assemble the console
 
@@ -101,15 +105,17 @@ Open `tessera-enclosure.FCStd` in FreeCAD. The body **Enclosure** is built in th
 | BaseChamfer | | A 1.2 mm chamfer round the base |
 | Hollow | Inside | Hollows the shell; the front stays thick for the pocket, and there is no floor |
 | HollowChin | ChinInside | Thins the chin and the apron to the wall thickness, to save plastic |
+| ChinWeb | ChinWebOutline | A 1.6 mm upright wall under the back edge of the shelf the screen stands on, so the shelf does not start in the air |
 | PanelPocket | PanelOutline | The pocket the panel lies in, on the leaning **FrontPlane** |
 | FrameChamfer | | A 0.8 mm chamfer round the mouth of the pocket |
 | BackOpening | RimOpening | Opens the pocket to the inside, leaving the rim the panel rests on |
 | Lip | LipOutline | The low lip that holds the bottom edge |
 | TileMark | MarkTiles | The three-by-three tile mark, 0.6 mm deep, in the chin |
 | ScrewTabs | TabOutlines | Four tabs behind the corner posts, on **TabPlane** |
+| TopBrace | TopBraceOutline | Fills the space between the rim over the back opening and the back, so that rim grows out of the back wall at 45° |
 | ScrewHoles | ScrewHoleCentres | A 2.6 mm hole in each tab |
 | ScrewAccess | AccessHoleCentres | Two 8 mm holes through the back, in line with the top screws |
-| FootPads, FootRecesses | FootPadOutlines, FootCentres | Four pads in the corners with a 10.4 mm recess for a rubber foot |
+| FootPads, FootRecesses | FootPadOutlines, FootCentres | Four pads in the corners, joined to the walls, with a 10.4 mm recess for a rubber foot |
 | TrimAtDesk | BelowDesk | Cuts off what reaches below the desk |
 | CheekRight, CheekLeft | CheekFieldRight, CheekFieldLeft | A 0.6 mm sunken field on each end |
 | CableOpening | CableArch | An arch, 30 mm wide, for the USB cable in the foot of the back |

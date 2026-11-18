@@ -39,6 +39,7 @@ P = dict(
     top_round=10.0, end_round=3.0, frame_chamfer=0.8, base_chamfer=1.2,
     cheek_inset=8.0, cheek_deep=0.6,          # a sunken field on each end
     chin_wall=2.5,                            # what is left under the pocket when the chin is hollowed
+    chin_web=1.6,                             # an upright wall under the back edge of that shelf, so it prints from the bed
     post_deep=13.0, post_gap=0.3,             # the corner posts end this far behind the glass; gap to the screw tabs
     tab_t=3.0, tab_reach=7.0, tab_slope=1.75, # screw tabs: thickness, reach past the post, how steeply they grow from the wall
     screw_hole=2.6, access_hole=8.0,          # hole for an M2 or M2.5 screw; hole in the back for the screwdriver
@@ -46,6 +47,7 @@ P = dict(
     vent_tile=7.0, vent_gap=4.0, vent_cols=11, vent_rows=3, vent_low=26.0,
     cable_d=30.0,                             # the cable opening is an arch this wide
     foot=10.4, foot_deep=1.0, foot_pad=17.0, foot_pad_t=2.4,   # 10 mm stick-on rubber feet
+    foot_pad_in=2.0,                          # the pads start this far inside the front and the back, so they join the walls
 )
 OUT = Path(os.environ.get('TESSERA_OUT') or Path(__file__).resolve().parent)
 
@@ -195,6 +197,13 @@ light_sketch = sketch_on('ChinInside', planes['YZ_Plane'])
 polygon(light_sketch, [(P['wall'], below), at(start, P['wall']), at(chin_top, P['wall']), at(chin_top, plate + 0.5), (front_at(below) + 0.5, below)])
 lighten = extrude('Pocket', 'HollowChin', light_sketch, 2 * (half - P['side']), symmetric=True, expression='innerWidth')
 
+# The shelf under the pocket would start in the air, 175 mm from end wall to end wall. An upright wall under its back
+# edge carries it from the bed; the shelf then grows forward from the wall at 45 degrees until it meets the front.
+web_y, web_z = at(chin_top, plate)
+web_sketch = sketch_on('ChinWebOutline', planes['YZ_Plane'])
+polygon(web_sketch, [(web_y - P['chin_web'], below), (web_y, below), (web_y, web_z + 0.2), (web_y - P['chin_web'], web_z + P['chin_web'] + 0.2)])
+web = extrude('Pad', 'ChinWeb', web_sketch, 2 * (half - P['side']) + 1.0, symmetric=True)
+
 
 # --- 3. planes on and behind the reclining front: x across, y up the front from the top of the apron ----------
 def front_plane(name, depth):
@@ -266,6 +275,15 @@ for sx in (-1, 1):
                          (sx * tab_in, post_low + P['tab_reach']), (sx * tab_in, -30.0)])       # bottom tab, down to the desk
 tabs = extrude('Pad', 'ScrewTabs', tab_sketch, P['tab_t'], reversed_=True, expression='tabThickness')
 
+# The rim over the back opening would also start in the air, from one side of the opening to the other. The space
+# between it and the back is filled from where a 45 degree slope down from the rim's lower edge meets the back, so
+# the rim grows out of the back wall. The screwdriver holes below are cut through it.
+brace_y, brace_z = at(panel_low + H - P['rim_low'], plate)
+brace_low = (brace_y + brace_z - back_at(0)) / (1 - tan_r)       # the height where that slope meets the inside of the back
+brace_sketch = sketch_on('TopBraceOutline', planes['YZ_Plane'])
+polygon(brace_sketch, [(brace_y - 0.3, brace_z + 0.3), (back_at(brace_low) + 0.5, brace_low - 0.5), (back_at(top_z) + 0.5, top_z), (front_at(top_z) - 0.5, top_z)])
+brace = extrude('Pad', 'TopBrace', brace_sketch, 2 * (half - P['side']) + 1.0, symmetric=True)
+
 hole_sketch = sketch_on('ScrewHoleCentres', tab_plane)
 for sx in (-1, 1):
     for y in (post_low, post_high):
@@ -282,7 +300,7 @@ pad_sketch = sketch_on('FootPadOutlines', planes['XY_Plane'])
 feet = []
 for sx in (-1, 1):
     x_out, x_in = sx * (half - 2.5), sx * (half - 2.5 - P['foot_pad'])      # clear of the chamfer round the base
-    for y0 in (2.5, foot_back - 3.5 - P['foot_pad']):
+    for y0 in (P['foot_pad_in'], foot_back - P['foot_pad_in'] - P['foot_pad']):   # inside the walls, clear of the base chamfer
         rectangle(pad_sketch, min(x_out, x_in), max(x_out, x_in), y0, y0 + P['foot_pad'])
         feet.append(((x_out + x_in) / 2, y0 + P['foot_pad'] / 2))
 pads = extrude('Pad', 'FootPads', pad_sketch, P['foot_pad_t'])
@@ -321,7 +339,7 @@ for row in range(P['vent_rows']):
 vents = extrude('Pocket', 'AirTiles', vent_sketch, foot_back - apex_y + 5)
 doc.recompute()
 
-features = (shell, round_top, soft_front, round_ends, floating, hollow, lighten, recess, chamfer, opening, lip, mark, tabs, holes, access, pads, trim,
+features = (shell, round_top, soft_front, round_ends, floating, hollow, lighten, web, recess, chamfer, opening, lip, mark, tabs, brace, holes, access, pads, trim,
             recesses, *cheeks, notch, vents)
 for feature in features:
     assert feature.isValid() and not feature.Shape.isNull(), f'{feature.Name} did not build: {feature.getStatusString()}'
