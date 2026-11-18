@@ -17,7 +17,8 @@ You need Python 3.12 or newer with `venv`, and these tools:
 | `xclip` | `xclip` | the clipboard action |
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
-| PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional) |
+| PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional), and the tray icon on Wayland |
+| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1` | the tray icon on Wayland (see [Wayland](#wayland)) |
 | WebKitGTK (system Python) | `webkit2gtk-4.1` / `gir1.2-webkit2-4.1` | the editor's own window (optional; without it the editor opens in your browser) |
 
 Then, in the Tessera folder:
@@ -38,7 +39,7 @@ work as in `Tessera.cmd`. *Start with the desktop* in the tray menu writes `~/.c
 
 **Stopping it from a terminal:** the tray, the host and the editor name themselves `Tessera`, so `killall Tessera` (or `pkill Tessera`) stops all three without touching other Python programs.
 
-**The tray icon:** left click opens the editor; right click shows the menu (status, profiles, brightness, *Start / Restart / Stop host*, *Quit tray*, *Quit and stop host*). The X11 tray icon has no menu of its own, so Tessera shows it itself: a native GTK menu that follows your theme, closing with Esc or a click elsewhere. GTK runs in a small helper under the *system* Python, so you need PyGObject there (`python-gobject` on Arch, `python3-gi` and `gir1.2-gtk-3.0` on Debian or Ubuntu); the virtual environment needs nothing. Without it the menu falls back to a plain `tkinter` one (`TESSERA_TRAY_MENU=tk` forces that).
+**The tray icon:** left click opens the editor; right click shows the menu (status, profiles, brightness, *Start / Restart / Stop host*, *Quit tray*, *Quit and stop host*). The X11 tray icon has no menu of its own, so Tessera shows it itself: a native GTK menu that follows your theme, closing with Esc or a click elsewhere. GTK runs in a small helper under the *system* Python, so you need PyGObject there (`python-gobject` on Arch, `python3-gi` and `gir1.2-gtk-3.0` on Debian or Ubuntu); the virtual environment needs nothing. Without it the menu falls back to a plain `tkinter` one (`TESSERA_TRAY_MENU=tk` forces that). On Wayland the icon is a StatusNotifier one with a menu of its own, and any click opens that menu: see [Wayland](#wayland).
 
 Your user must be allowed to open serial ports: the group `uucp` (Arch) or `dialout` (Debian, Ubuntu).
 
@@ -117,7 +118,15 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
 - **Next monitor** uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
-- **The tray icon** goes through XWayland and Plasma's `xembedsniproxy`, with the same GTK right-click menu as on X11.
+- **The tray icon** uses StatusNotifier (pystray's appindicator backend) when the desktop has a StatusNotifier host,
+  which Plasma has. The icon then has the desktop's own menu, and **a left click opens that menu too**: choose
+  *Open editor* there, because this kind of icon has no click action of its own. It needs `libayatana-appindicator`
+  with its typelib, and PyGObject for the system Python; that Python must be the same version (3.x) as the one in
+  `host/.venv`, or PyGObject cannot be loaded from it. Without those the icon is the X11 one, through XWayland: Plasma
+  shows it with `xembedsniproxy`, with the same GTK right-click menu as on X11 and a left click that opens the editor;
+  GNOME does not show such an icon. A desktop without a tray (GNOME) needs the *AppIndicator and KStatusNotifierItem
+  Support* extension; without it Tessera says so in a notification and keeps running without an icon. Setting
+  `PYSTRAY_BACKEND` yourself (`xorg` for the X11 icon) overrides the choice.
 - **Other compositors** (GNOME, sway, Hyprland): keys and typing work with `ydotool`, but the window functions and
   smart profiles are refused with a message until someone adds their window query. That goes in `wayland.py` next to the
   `kdotool` calls.

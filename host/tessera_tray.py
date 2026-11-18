@@ -16,7 +16,8 @@ import threading
 import time
 from pathlib import Path
 
-import pystray
+load('tray').choose_backend()  # before pystray is imported: it picks its backend then
+import pystray  # noqa: E402
 from PIL import Image, ImageDraw
 
 from deck_control import (ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart, stop_editor,

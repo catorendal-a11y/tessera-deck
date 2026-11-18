@@ -541,5 +541,49 @@ class PortalTests(unittest.TestCase):
         self.assertEqual(connection.calls[-2], ('NotifyPointerAxisDiscrete', ('/session/1', {}, 0, -3)))
         self.assertEqual(connection.calls[-1], ('NotifyPointerMotion', ('/session/1', {}, 4.0, -5.0)))
 
+
+class TrayBackendTests(unittest.TestCase):
+    """Which pystray backend a session gets, decided before pystray is imported."""
+
+    def choose(self, env, watcher=True, folder='/usr/lib/python3/site-packages', typelib=True):
+        from unittest import mock
+        from platform_linux import tray
+        path = list(sys.path)
+        self.addCleanup(lambda: sys.path.__setitem__(slice(None), path))
+        with mock.patch.object(tray, 'watcher_present', return_value=watcher), \
+                mock.patch.object(tray, 'system_gi_folder', return_value=folder), \
+                mock.patch.object(tray, '_typelib_available', return_value=typelib), \
+                mock.patch('platform_linux.notify.notify', return_value=True) as notice, \
+                mock.patch.dict(sys.modules, {'gi': None}):
+            return tray.choose_backend(env), notice, folder in sys.path
+
+    def test_x11_keeps_pystrays_own_choice(self):
+        self.assertEqual(self.choose({'XDG_SESSION_TYPE': 'x11'})[0], 'default')
+
+    def test_a_backend_the_user_chose_is_left_alone(self):
+        self.assertEqual(self.choose({'XDG_SESSION_TYPE': 'wayland', 'PYSTRAY_BACKEND': 'gtk'})[0], 'gtk')
+
+    def test_wayland_with_a_tray_host_uses_appindicator_and_adds_the_system_gi_at_the_end_of_the_path(self):
+        env = {'XDG_SESSION_TYPE': 'wayland'}
+        backend, notice, added = self.choose(env)
+        self.assertEqual((backend, env['PYSTRAY_BACKEND'], added), ('appindicator', 'appindicator', True))
+        self.assertEqual(sys.path[-1], '/usr/lib/python3/site-packages')
+        notice.assert_not_called()
+
+    def test_wayland_without_a_tray_host_says_so_once_and_chooses_nothing(self):
+        env = {'XDG_SESSION_TYPE': 'wayland'}
+        backend, notice, _ = self.choose(env, watcher=False)
+        self.assertEqual((backend, 'PYSTRAY_BACKEND' in env), ('none', False))
+        self.assertIn('AppIndicator', notice.call_args.args[0])
+
+    def test_wayland_without_gi_or_the_typelib_names_the_x11_icon(self):
+        # pystray's own choice would not do: with the system gi on the path its appindicator backend stops on the missing
+        # library with a ValueError, which pystray does not catch
+        for missing in ({'folder': None}, {'typelib': False}):
+            with self.subTest(**missing):
+                env = {'XDG_SESSION_TYPE': 'wayland'}
+                self.assertEqual((self.choose(env, **missing)[0], env['PYSTRAY_BACKEND']), ('xorg', 'xorg'))
+
+
 if __name__ == '__main__':
     unittest.main()

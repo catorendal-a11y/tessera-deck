@@ -37,7 +37,7 @@ EXPECTED = {
                                 'DEFAULT_PORT', 'RESETS_ON_OPEN', 'PLUGIN_ENV_KEEP', 'VENV_SCRIPTS', 'SCRIPT_EXTRA_SUFFIXES'],
     'platform_windows.remote': ['list_devices', 'read_device', 'write_volume', 'send_action', 'reset'],
     'platform_windows.dbus': ['KdeConnectBus', 'find_endpoint', 'authenticate'],
-    'platform_windows.tray': ['prepare'],
+    'platform_windows.tray': ['prepare', 'choose_backend'],
     'platform_windows.regional': ['clock_format'],
     'platform_windows.filelock': ['lock', 'unlock'],
 }

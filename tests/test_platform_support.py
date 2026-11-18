@@ -19,7 +19,7 @@ SHARED_FUNCTIONS = {
     'secrets': ['seal', 'unseal'],
     'shortcuts': ['desktop_shortcut_path', 'shortcut_files', 'create_shortcut'],
     'dialogs': ['ask_yes_no'],
-    'tray': ['prepare'],
+    'tray': ['prepare', 'choose_backend'],
     'remote': ['list_devices', 'read_device', 'write_volume', 'send_action'],
     'filelock': ['lock', 'unlock'],
     'autostart': ['startup_script_path', 'is_enabled', 'enable'],
