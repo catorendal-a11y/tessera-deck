@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.1
+
+Fixes in the host, the editor and the OBS plugin. The panel firmware is the same as 1.2.0 apart from its version number, so a panel on 1.2.0 works with this host as it is.
 
 - OBS plugin: a volume or source key that OBS refused kept waiting for an answer, so the next press did nothing for five seconds. A refusal now ends the wait, and a late answer to an older press no longer ends the wait of a newer one. A pause key while OBS is not recording now flashes red and says so; OBS 33 accepts that pause without a word.
 - Run script: quotes around the path (as from Explorer's *Copy as path*) and spaces around it are ignored. Only `%NAME%` is read as a variable, so a folder named `$NAME` works. A variable that is not set fails the key and names the variable; before, a `.bat` path with one made the whole configuration invalid.
