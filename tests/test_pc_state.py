@@ -10,6 +10,7 @@ from unittest.mock import Mock, PropertyMock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import pc_state
+from platform_windows import audio as win_audio, media as win_media
 import tesserad as deck
 import host_support  # noqa: E402
 
@@ -58,57 +59,57 @@ class PcStateTests(unittest.TestCase):
 
     def test_unknown_audio_commands_are_rejected(self):
         with self.assertRaises(ValueError):
-            pc_state.control_audio('headset', 'toggle')
+            win_audio.control_audio('headset', 'toggle')
         with self.assertRaises(ValueError):
-            pc_state.control_audio('mic', 'explode')
+            win_audio.control_audio('mic', 'explode')
 
 
 class AudioControlTests(unittest.TestCase):
     def fake(self, volume=0.4, muted=False):
         state = {'volume': volume, 'muted': muted}
-        control = pc_state._Control(lambda: state['muted'], lambda value, _: state.update(muted=bool(value)),
+        control = win_audio._Control(lambda: state['muted'], lambda value, _: state.update(muted=bool(value)),
                                     lambda: state['volume'], lambda value, _: state.update(volume=value))
         return control, state
 
     def test_mute_toggle_and_volume_operations(self):
         control, state = self.fake()
-        pc_state.apply_operation(control, 'toggle')
+        win_audio.apply_operation(control, 'toggle')
         self.assertTrue(state['muted'])
-        pc_state.apply_operation(control, 'unmute')
+        win_audio.apply_operation(control, 'unmute')
         self.assertFalse(state['muted'])
-        pc_state.apply_operation(control, 'volume', 70)
+        win_audio.apply_operation(control, 'volume', 70)
         self.assertEqual(state['volume'], 0.7)
-        pc_state.apply_operation(control, 'up', None, 10)
+        win_audio.apply_operation(control, 'up', None, 10)
         self.assertAlmostEqual(state['volume'], 0.8)
-        pc_state.apply_operation(control, 'down', None, 50)
+        win_audio.apply_operation(control, 'down', None, 50)
         self.assertAlmostEqual(state['volume'], 0.3)
-        pc_state.apply_operation(control, 'down', None, 50)
+        win_audio.apply_operation(control, 'down', None, 50)
         self.assertEqual(state['volume'], 0.0, 'the volume never goes below 0')
-        pc_state.apply_operation(control, 'volume', 100)
-        pc_state.apply_operation(control, 'up', None, 50)
+        win_audio.apply_operation(control, 'volume', 100)
+        win_audio.apply_operation(control, 'up', None, 50)
         self.assertEqual(state['volume'], 1.0, 'nor above 100')
 
     @unittest.skipIf(importlib.util.find_spec('comtypes') is None, 'comtypes is not installed')
     def test_an_app_target_controls_every_session_of_that_program_and_explains_silence(self):
         first, first_state = self.fake()
         second, second_state = self.fake()
-        with patch.object(pc_state, '_app_controls', return_value=[first, second]) as found:
-            pc_state.control_audio('app:Spotify.exe', 'mute')
+        with patch.object(win_audio, '_app_controls', return_value=[first, second]) as found:
+            win_audio.control_audio('app:Spotify.exe', 'mute')
         found.assert_called_once_with('Spotify.exe')
         self.assertTrue(first_state['muted'] and second_state['muted'])
-        with patch.object(pc_state, '_app_controls', return_value=[]):
+        with patch.object(win_audio, '_app_controls', return_value=[]):
             with self.assertRaises(OSError) as raised:
-                pc_state.control_audio('app:ghost.exe', 'mute')
+                win_audio.control_audio('app:ghost.exe', 'mute')
         self.assertIn('not playing sound', str(raised.exception))
 
     @unittest.skipIf(importlib.util.find_spec('comtypes') is None, 'comtypes is not installed')
     def test_toggling_an_app_with_mixed_sessions_mutes_them_all_then_unmutes_them_all(self):
         first, first_state = self.fake(muted=True)
         second, second_state = self.fake(muted=False)
-        with patch.object(pc_state, '_app_controls', return_value=[first, second]):
-            pc_state.control_audio('app:Discord.exe', 'toggle')
+        with patch.object(win_audio, '_app_controls', return_value=[first, second]):
+            win_audio.control_audio('app:Discord.exe', 'toggle')
             self.assertTrue(first_state['muted'] and second_state['muted'])
-            pc_state.control_audio('app:Discord.exe', 'toggle')
+            win_audio.control_audio('app:Discord.exe', 'toggle')
         self.assertFalse(first_state['muted'] or second_state['muted'])
 
     def test_audio_actions_are_validated(self):
@@ -202,7 +203,7 @@ class MediaReadTests(unittest.TestCase):
         session = Mock(try_get_media_properties_async=properties, get_playback_info=lambda: BrokenInfo(),
                        get_timeline_properties=Mock(side_effect=OSError('no timeline')))
         manager = Mock(get_current_session=lambda: session)
-        reader = pc_state.MediaReader()
+        reader = win_media.MediaReader()
         reader._manager = manager
         result = asyncio.run(reader._read(None))
         self.assertEqual((result['title'], result['artist'], result['status']), ('Song', 'Band', 'PLAYING'))
@@ -212,7 +213,7 @@ class MediaReadTests(unittest.TestCase):
 class MediaOptionTests(unittest.TestCase):
     def run_option(self, session, operation):
         import asyncio
-        return asyncio.run(pc_state._change_media_option(session, operation))
+        return asyncio.run(win_media._change_media_option(session, operation))
 
     def test_shuffle_flips_and_repeat_cycles_off_all_one(self):
         session = FakeSession(shuffle=False)
@@ -240,7 +241,7 @@ class MediaOptionTests(unittest.TestCase):
             manager = types.SimpleNamespace(request_async=request_async)
             module = types.SimpleNamespace(GlobalSystemMediaTransportControlsSessionManager=manager)
             with patch.dict(sys.modules, {'winrt.windows.media.control': module}):
-                pc_state.control_media(operation)
+                win_media.control_media(operation)
 
         with self.assertRaisesRegex(OSError, 'No player is open'):
             control(None, 'repeat')

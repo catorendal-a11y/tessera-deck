@@ -5,6 +5,9 @@ and opens the editor on a click.
 """
 
 import json
+from desktop import open_path
+from platform_support import load
+from venv_paths import venv_python
 import logging
 import os
 import subprocess
@@ -18,6 +21,7 @@ from PIL import Image, ImageDraw
 
 from deck_control import (ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart,
                           startup_script_path)
+from process_flags import DETACHED, NO_WINDOW
 from host_runtime import InstanceLock
 
 log = logging.getLogger(__name__)
@@ -165,6 +169,7 @@ class TrayApp:
         self.asked_autostart = FIRST_RUN_PATH.exists()  # the question waits for the first panel connection
         self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
                                  menu=pystray.Menu(self.menu_items))
+        load('tray').prepare(self.icon, pystray.Menu.SEPARATOR)
 
     # --- actions (all run off the UI thread) ---------------------------------
     def background(self, work, *args):
@@ -181,9 +186,9 @@ class TrayApp:
         if now - getattr(self, 'editor_asked', -10.0) < 2.0:  # a double click is one request
             return
         self.editor_asked = now
-        pythonw = ROOT / 'host/.venv/Scripts/pythonw.exe'
+        pythonw = venv_python(ROOT, True)
         executable = str(pythonw if pythonw.is_file() else sys.executable)
-        flags = (subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS) if os.name == 'nt' else 0
+        flags = NO_WINDOW | DETACHED
         subprocess.Popen([executable, str(ROOT / 'host/tessera_app.py'), '--editor'], cwd=ROOT, creationflags=flags)
 
     def host(self, *steps):
@@ -237,7 +242,7 @@ class TrayApp:
     # --- help: what a user needs to report a problem ---------------------------
     def open_log(self, *_):
         if LOG_PATH.is_file():
-            os.startfile(LOG_PATH)  # noqa: S606 - the user's own log in their text editor
+            open_path(LOG_PATH)  # the user's own log in their text editor
         else:
             self.icon.notify('There is no host log yet. It is written once the host has run.', 'Tessera')
 
@@ -250,7 +255,7 @@ class TrayApp:
             return
         PROBLEMS_PATH.write_text('Recent problems in the Tessera host log (newest last)\n\n' + '\n'.join(problems) + '\n',
                                  encoding='utf-8')
-        os.startfile(PROBLEMS_PATH)  # noqa: S606 - our own text file in the user's text editor
+        open_path(PROBLEMS_PATH)  # our own text file in the user's text editor
 
     def save_diagnostics(self, *_):
         def work():
@@ -261,7 +266,7 @@ class TrayApp:
         self.background(work)
 
     def open_data_folder(self, *_):
-        os.startfile(ROOT / 'host')  # noqa: S606 - profiles, icons and backups live here
+        open_path(ROOT / 'host')  # profiles, icons and backups live here
 
     def check_for_updates(self, *_):
         def work():
@@ -279,7 +284,7 @@ class TrayApp:
         """Once per folder, at the first panel connection: the panel does nothing after a restart until Tessera runs, so
         ask. A record copied over with the *.local.json files from the folder before an update does not count while
         Start with Windows still starts that folder."""
-        if os.name != 'nt':
+        if not load('labels').ASKS_ABOUT_AUTOSTART:
             return
         try:
             elsewhere = startup_script_path().is_file() and not autostart_enabled()
@@ -295,11 +300,7 @@ class TrayApp:
             question = f'Start with Windows starts Tessera from another folder. Start this copy instead?\n\n{ROOT}'
         else:
             question = 'Start Tessera when you sign in to Windows?\n\nThe panel then works after every restart.'
-        import ctypes
-        answer = ctypes.windll.user32.MessageBoxW(
-            None, question + '\n\nYou can change this later in the tray menu: Start with Windows.', 'Tessera',
-            0x4 | 0x20 | 0x10000 | 0x40000)
-        if answer == 6:  # IDYES
+        if load('dialogs').ask_yes_no(question + '\n\nYou can change this later in the tray menu: Start with Windows.', 'Tessera'):
             set_autostart(True)
 
     def quit(self, *_):
@@ -350,7 +351,7 @@ class TrayApp:
         yield pystray.MenuItem('Restart host', self.restart_host, enabled=running)
         yield pystray.MenuItem('Stop host', self.stop_host, enabled=running)
         yield pystray.Menu.SEPARATOR
-        yield pystray.MenuItem('Start with Windows', self.toggle_autostart, checked=lambda item: autostart_enabled())
+        yield pystray.MenuItem('Start with ' + load('labels').AUTOSTART_NAME, self.toggle_autostart, checked=lambda item: autostart_enabled())
         yield pystray.MenuItem('Show notifications', self.toggle_notifications, checked=lambda item: notifications_enabled())
         yield pystray.MenuItem('Help', pystray.Menu(
             pystray.MenuItem('Open the host log', self.open_log),

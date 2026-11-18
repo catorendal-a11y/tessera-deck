@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
 import host_support  # noqa: E402
 import import_review
-import win_input
+from platform_windows import input as win_input
 from action_preview import preview
 
 
@@ -174,7 +174,6 @@ class ScriptStepTests(unittest.TestCase):
         path = Path(self.folder.name) / name
         path.write_text(text, encoding='utf-8')
         return str(path)
-
     def test_validation(self):
         check({'type': 'script', 'path': 'C:\\tools\\a.ps1', 'timeout': 10})
         for bad in ({'type': 'script'}, {'type': 'script', 'path': 5}, {'type': 'script', 'path': 'C:\\a.exe'},
@@ -187,7 +186,6 @@ class ScriptStepTests(unittest.TestCase):
         check({'type': 'script', 'path': ' "C:\\tools\\a.ps1" '})  # as pasted from Explorer's Copy as path
         with self.assertRaises(ValueError):
             check({'type': 'script', 'path': 'C:\\%NAME%\\a.cmd'})
-
     def test_a_variable_that_is_not_set_fails_the_key_and_not_the_configuration(self):
         from action_runner import script_path
         with patch.dict(os.environ, {'TESSERA_SET': self.folder.name}):
@@ -206,7 +204,7 @@ class ScriptStepTests(unittest.TestCase):
         self.assertTrue(make_daemon().waits([{'type': 'script', 'path': 'C:\\a.py'}]))
 
     def test_interpreter_choice(self):
-        from program_locator import script_command
+        from platform_windows.programs import script_command
         which = {'py.exe': 'C:\\py.exe', 'pyw.exe': 'C:\\pyw.exe', 'powershell.exe': 'C:\\ps.exe', 'node.exe': 'C:\\node.exe'}.get
         pick = lambda path, **kw: script_command(path, which=which, registry=lambda name: None,
                                                  association=lambda suffix: None, roots=lambda: [], **kw)
@@ -224,7 +222,7 @@ class ScriptStepTests(unittest.TestCase):
             pick('C:\\s\\a.vbs')
 
     def test_autohotkey_uses_the_file_association_then_app_paths(self):
-        from program_locator import script_command
+        from platform_windows.programs import script_command
         exe = self.make('AutoHotkey64.exe')
         via_association = script_command('C:\\s\\a.ahk', which=lambda name: None, registry=lambda name: None,
                                         association=lambda suffix: f'"{exe}" "%1" %*')
@@ -236,7 +234,7 @@ class ScriptStepTests(unittest.TestCase):
 
     def test_a_per_user_autohotkey_is_found_without_the_file_association(self):
         # The per-user installer puts AutoHotkey in %LOCALAPPDATA%\Programs and adds neither App Paths nor PATH
-        from program_locator import script_command
+        from platform_windows.programs import script_command
         programs = Path(self.folder.name)
         (programs / 'AutoHotkey' / 'v2').mkdir(parents=True)
         (programs / 'AutoHotkey' / 'v2' / 'AutoHotkey64.exe').write_bytes(b'')
@@ -281,7 +279,8 @@ class ScriptStepTests(unittest.TestCase):
         self.assertTrue(result['ok'])
         self.assertIn('node.exe', result['steps'][0]['text'])
         batch = self.make('t 1.bat')
-        self.assertIn('with cmd (', preview([{'type': 'script', 'path': batch}], {})['steps'][0]['text'])
+        with patch('action_preview.script_command', return_value=f'"{batch}"'):  # a batch file is one command line for cmd
+            self.assertIn('with cmd (', preview([{'type': 'script', 'path': batch}], {})['steps'][0]['text'])
         missing = preview([{'type': 'script', 'path': str(Path(self.folder.name) / 'none.js')}], {})
         self.assertFalse(missing['ok'])
         self.assertIn('not found', missing['steps'][0]['text'])

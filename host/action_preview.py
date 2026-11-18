@@ -6,9 +6,10 @@ import re
 import shutil
 
 from action_runner import script_path
-from program_locator import locate, script_command
-from win_input import parse_hotkey
+from desktop import locate, script_command
+from input_common import split_hotkey
 from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
+
 
 MAX_TEXT = 90
 URI_SCHEME = re.compile(r'(?i)[a-z][a-z0-9+.-]+:')  # two or more letters, so a drive letter is not a scheme
@@ -33,7 +34,7 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
     kind = action.get('type')
     if kind == 'hotkey':
         try:
-            parse_hotkey(action['keys'])
+            split_hotkey(action['keys'])
         except (ValueError, KeyError) as exc:
             return False, f'Unknown key combination: {exc}'
         return True, f'Press {action["keys"]}'

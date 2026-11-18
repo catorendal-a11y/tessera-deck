@@ -1,4 +1,7 @@
 """Portable defaults: program discovery when install paths differ, and vendor-neutral GPU selection."""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 import json
 from pathlib import Path
 import sys
@@ -7,7 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
-from program_locator import locate, program_roots
+from platform_windows.programs import locate, program_roots
 from system_stats import gpu_discrete_bonus, select_hwinfo_metrics
 
 

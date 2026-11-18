@@ -9,8 +9,9 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+import input_common
 import tesserad as deck
-import win_input
+from platform_windows import input as win_input
 from system_stats import select_hwinfo_metrics
 from deck_assets import Assets
 from host_support import HostCase, test_daemon
@@ -83,31 +84,29 @@ class HostTests(HostCase):
         daemon.stats.raw.pop('cpu_temp')
         missing = next(item for item in daemon.current_buttons() if item['id'] == 3)
         self.assertEqual(missing['gauge'], {'p': 0, 't': '--', 'b': 'lc:e186'})
-
     def test_letters_use_uppercase_virtual_key_codes(self):
-        self.assertEqual(deck.parse_hotkey('ctrl+c'), [0x11, 0x43])
-        self.assertEqual(deck.parse_hotkey('ctrl+lbracket'), [0x11, 0xDB])
-        self.assertEqual(deck.parse_hotkey('win+period'), [0x5B, 0xBE])
-
+        self.assertEqual(win_input.parse_hotkey('ctrl+c'), [0x11, 0x43])
+        self.assertEqual(win_input.parse_hotkey('ctrl+lbracket'), [0x11, 0xDB])
+        self.assertEqual(win_input.parse_hotkey('win+period'), [0x5B, 0xBE])
     def test_volume_virtual_keys(self):
-        self.assertEqual(deck.VK['volumemute'], 0xad)
-        self.assertEqual(deck.VK['volumedown'], 0xae)
-        self.assertEqual(deck.VK['volumeup'], 0xaf)
+        self.assertEqual(win_input.VK['volumemute'], 0xad)
+        self.assertEqual(win_input.VK['volumedown'], 0xae)
+        self.assertEqual(win_input.VK['volumeup'], 0xaf)
 
     def test_unknown_modifier_is_rejected(self):
         with self.assertRaises(ValueError):
-            deck.parse_hotkey('ctrrl+c')
+            input_common.split_hotkey('ctrrl+c')
 
     def test_all_pressed_keys_are_released_after_failure(self):
         with patch.object(win_input, '_key') as key:
             key.side_effect = [None, OSError('blocked'), None]
             with self.assertRaises(OSError):
-                deck.send_hotkey('ctrl+c')
+                win_input.send_hotkey('ctrl+c')
             self.assertEqual(key.call_args_list[-1].kwargs, {'vk': 0x11, 'flags': 2})
 
     def test_unicode_sends_utf16_surrogates(self):
         with patch.object(win_input, '_key') as key:
-            deck.send_text('\U0001f680')
+            win_input.send_text('\U0001f680')
             self.assertEqual([call.kwargs['scan'] for call in key.call_args_list],
                              [0xd83d, 0xd83d, 0xde80, 0xde80])
 
@@ -242,7 +241,7 @@ class HostTests(HostCase):
     def test_navigation_keys_are_sent_as_extended_keys(self):
         sent = []
         with patch.object(win_input, '_key', lambda vk=0, scan=0, flags=0: sent.append((vk, flags))):
-            deck.send_hotkey('ctrl+left')
+            win_input.send_hotkey('ctrl+left')
         self.assertEqual(sent, [(0x11, 0), (37, 1), (37, 3), (0x11, 2)])
 
     def test_triggers_may_target_pages_of_any_profile(self):
@@ -297,9 +296,8 @@ class HostTests(HostCase):
         daemon.assets = Mock()
         daemon.assets.icon_for.return_value = 'im:0123456789ab'
         self.assertEqual(daemon.resolve_icon({'icon': 'app'}), 'im:0123456789ab')
-
     def test_program_targets_resolve_aliases_and_variables(self):
-        from deck_assets import resolve_program_target
+        from platform_windows.icons import resolve_program_target
         self.assertIn('WindowsTerminal', resolve_program_target('wt.exe'))
         self.assertEqual(resolve_program_target('shell:AppsFolder' + chr(92) + 'X!App'),
                          'shell:AppsFolder' + chr(92) + 'X!App')
@@ -308,7 +306,6 @@ class HostTests(HostCase):
                              'C:' + chr(92) + 'Apps' + chr(92) + 'a.exe')
         with self.assertRaises(ValueError):
             resolve_program_target('  ')
-
     def test_an_app_icon_is_never_looked_up_on_a_network_share_or_url(self):
         # The lookup runs on every push, so an imported key could otherwise leak the NTLM sign-in to any host.
         from deck_assets import is_remote_target
@@ -327,7 +324,7 @@ class HostTests(HostCase):
 
     @unittest.skipUnless(sys.platform == 'win32', 'shell icons need Windows')
     def test_program_icon_is_extracted_from_the_shell_at_full_quality(self):
-        from deck_assets import shell_item_image
+        from platform_windows.icons import shell_item_image
         image = shell_item_image('C:' + chr(92) + 'Windows' + chr(92) + 'explorer.exe')
         self.assertGreaterEqual(image.width, 128)
         self.assertGreater(image.getchannel('A').getextrema()[1], 0)

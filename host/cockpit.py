@@ -127,40 +127,9 @@ def read_mixer(pinned: list | None = None, mic: bool = True) -> list[dict]:
     """The default speaker, up to three programs and the microphone. Raises OSError without audio.
 
     `pinned` names the programs to show (those that have a sound session right now); without it the programs that
-    play sound are chosen."""
-    from pc_state import APP_TARGET, _with_audio
-
-    def work(ends):
-        from pycaw.pycaw import AudioUtilities
-        speaker, mic_end = ends['speaker'], ends['mic']
-        apps = {}
-        for session in AudioUtilities.GetAllSessions():
-            process = session.Process
-            if process is None:
-                continue
-            name = process.name()
-            if name.lower() in apps or not APP_TARGET.fullmatch('app:' + name) or len(name) + 4 > MAX_ID:
-                continue
-            volume = session.SimpleAudioVolume
-            apps[name.lower()] = {'id': 'app:' + name, 'name': app_title(name), 'active': int(session.State) == 1,
-                                  'level': round(volume.GetMasterVolume() * 100), 'muted': bool(volume.GetMute())}
-        # Programs that are playing right now come first; the ones shown keep alphabetical order so they do not jump.
-        if pinned:
-            wanted = [name.lower() for name in pinned][:MAX_APPS]
-            chosen = [apps[name] for name in wanted if name in apps]
-        else:
-            chosen = sorted(sorted(apps.values(), key=lambda app: (not app['active'], app['name'].lower()))[:MAX_APPS],
-                            key=lambda app: app['name'].lower())
-        faders = [{'id': 'speaker', 'name': 'Master', 'level': round(speaker.GetMasterVolumeLevelScalar() * 100),
-                   'muted': bool(speaker.GetMute()), 'color': GREEN}]
-        faders += [{'id': app['id'], 'name': app['name'], 'level': app['level'], 'muted': app['muted'],
-                    'color': APP_COLORS[index]} for index, app in enumerate(chosen)]
-        if mic and mic_end is not None:  # no microphone: the mixer shows the speaker and the programs only
-            faders.append({'id': 'mic', 'name': 'Mic', 'level': round(mic_end.GetMasterVolumeLevelScalar() * 100),
-                           'muted': bool(mic_end.GetMute()), 'mic': True, 'color': '#4DD0E1'})
-        return faders
-
-    return _with_audio(work)
+    play sound are chosen. The sound server of the system answers (platform_windows/audio.py)."""
+    import system_audio
+    return system_audio.read_mixer(pinned, mic)
 
 
 def mixer_payload(faders: list[dict]) -> str:

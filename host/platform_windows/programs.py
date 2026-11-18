@@ -13,6 +13,8 @@ import re
 import shutil
 from pathlib import Path, PureWindowsPath
 
+from script_files import BATCH_SUFFIXES, SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text  # noqa: F401
+
 ROOT_VARIABLES = ('ProgramFiles', 'ProgramFiles(x86)', 'ProgramW6432', 'LOCALAPPDATA', 'APPDATA')
 VERSION_SEGMENT = re.compile(r'(?i)^(\d+(\.\d+)*|[A-Za-z]+\d+(\.\d+)*|v\d+(\.\d+)*)$')
 PROGRAM_SUFFIXES = ('.exe', '.bat', '.cmd', '.com', '.lnk')
@@ -104,16 +106,8 @@ def locate(target: str, environment=None, registry=_app_paths) -> str | None:
     return None
 
 
-SCRIPT_SUFFIXES = ('.py', '.pyw', '.ps1', '.bat', '.cmd', '.ahk', '.js')
-BATCH_SUFFIXES = ('.bat', '.cmd')
-SCRIPT_VARIABLE = re.compile(r'%([^%\s]+)%')  # %NAME% only: $NAME is a legal folder name, so expandvars is not used
 AUTOHOTKEY_NAMES = ('AutoHotkey64.exe', 'AutoHotkey32.exe', 'AutoHotkey.exe', 'AutoHotkeyU64.exe')
 COMMAND_TOKEN = re.compile(r'"([^"]*)"|(\S+)')
-
-
-def script_text(path: str) -> str:
-    """A script step's path as typed: without the spaces around it and the quotes of Explorer's Copy as path."""
-    return path.strip().strip('"').strip()
 
 
 def _association(suffix: str) -> str | None:
@@ -194,3 +188,20 @@ def script_command(script: str, which=shutil.which, registry=_app_paths, associa
                 if (root / folder / name).is_file():
                     return [str(root / folder / name), script]
     raise ValueError('AutoHotkey was not found on this PC')
+
+
+def describe(target: str) -> dict:
+    """{'name', 'process'} of a program picked from the list: a file or shortcut, or a Store app; ValueError otherwise."""
+    from platform_windows.shell import shortcut_target
+    path = Path(target)
+    store_app = target.startswith('shell:AppsFolder\\')
+    if not store_app and (not path.is_file() or path.suffix.lower() not in ('.exe', '.lnk', '.cmd', '.bat')):
+        raise ValueError('Choose a local program file or shortcut')
+    resolved = target if store_app else shortcut_target(path)
+    process = Path(resolved).name if Path(resolved).suffix.lower() == '.exe' else ''
+    if store_app:
+        lowered = target.casefold()
+        process = ('ChatGPT.exe' if 'openai.codex_' in lowered else
+                   'claude.exe' if 'claude_' in lowered else
+                   'XboxPcApp.exe' if 'microsoft.gamingapp_' in lowered else '')
+    return {'name': path.stem, 'process': process}

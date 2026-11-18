@@ -5,7 +5,9 @@ import time
 
 import psutil
 
-IS_WINDOWS = os.name == 'nt'
+from input_common import (CHILD_NAMES_SECONDS, IS_WINDOWS, MOUSE_OPERATIONS, WINDOW_OPERATIONS, child_names,  # noqa: F401
+                          dry_hotkey, matches_foreground, split_hotkey)
+
 VK = {'ctrl': 0x11, 'control': 0x11, 'shift': 0x10, 'alt': 0x12,
       'win': 0x5b, 'meta': 0x5b, 'enter': 13, 'return': 13, 'tab': 9,
       'esc': 27, 'escape': 27, 'space': 32, 'backspace': 8, 'delete': 46,
@@ -25,19 +27,9 @@ EXTENDED_VK = frozenset({33, 34, 35, 36, 37, 38, 39, 40, 44, 45, 46, 0x5b, 0x5d}
 KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP = 1, 2
 
 
+
 def parse_hotkey(combo):
-    parts = [p.strip().lower() for p in combo.split('+')]
-    if not parts or any(p not in VK for p in parts):
-        raise ValueError(f'Unknown hotkey: {combo!r}')
-    return [VK[p] for p in parts]
-
-
-def dry_hotkey(combo):
-    try:
-        parse_hotkey(combo)
-        return True, combo.split('+')
-    except ValueError:
-        return False, combo.split('+')
+    return [VK[name] for name in split_hotkey(combo)]
 
 
 if IS_WINDOWS:
@@ -102,7 +94,6 @@ def _key(vk=0, scan=0, flags=0):
 
 
 MOUSE_FLAGS = {'left': (0x2, 0x4), 'right': (0x8, 0x10), 'middle': (0x20, 0x40)}
-MOUSE_OPERATIONS = ('left', 'right', 'middle', 'double', 'scroll', 'move', 'moveto')
 
 
 def _mouse(flags, dx=0, dy=0, data=0):
@@ -246,26 +237,6 @@ def window_context(hwnd):
     return {'exe': exe, 'title': title, 'processes': processes}
 
 
-CHILD_NAMES_SECONDS = 3.0  # listing children walks every process on the PC; a new foreground window is listed at once
-_child_names = (None, 0.0, [])
-
-
-def child_names(pid):
-    global _child_names
-    known, listed_at, names = _child_names
-    now = time.monotonic()
-    if known == pid and now - listed_at < CHILD_NAMES_SECONDS:
-        return names
-    names = []
-    try:
-        for child in psutil.Process(pid).children(recursive=True):
-            name = child.name().lower()
-            if name and name not in names:
-                names.append(name)
-    except (psutil.Error, OSError):
-        pass
-    _child_names = (pid, now, names)
-    return names
 
 
 def bring_to_front(user32, hwnd):
@@ -331,7 +302,8 @@ def process_window(process_name):
     return found[0] if found else None
 
 
-WINDOW_OPERATIONS = ('minimize', 'maximize', 'restore', 'close', 'topmost', 'next_monitor', 'focus')
+
+
 SHOW_COMMANDS = {'minimize': 6, 'maximize': 3, 'restore': 9}  # SW_MINIMIZE, SW_MAXIMIZE, SW_RESTORE
 WM_CLOSE, GWL_EXSTYLE, WS_EX_TOPMOST = 0x10, -20, 0x8
 SWP_KEEP = 0x1 | 0x2 | 0x10  # SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE: only the z-order changes
@@ -387,13 +359,3 @@ def set_clipboard(text, tries=10, wait=time.sleep):
             raise OSError('Windows did not take the clipboard text')
     finally:
         user32.CloseClipboard()
-
-
-def matches_foreground(pattern, context):
-    """Match a foreground executable, terminal child process, or window title."""
-    pattern = pattern.strip().lower()
-    if pattern.startswith('title:'):
-        return pattern.removeprefix('title:').strip() in context.get('title', '').lower()
-    if pattern.startswith('process:'):
-        pattern = pattern.removeprefix('process:').strip()
-    return pattern in {name.lower() for name in context.get('processes', [])}

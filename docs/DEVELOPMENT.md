@@ -29,7 +29,11 @@ host/            Windows host
   config_check.py      Validation of profiles.json
   config_store.py      Configuration versions and backups
   panel_serial.py      USB link: handshake, layout and image transfer
-  win_input.py         Keys, mouse, foreground window and focus on Windows
+  input_common.py      The key names and operation lists every system shares
+  platform_support.py  The one place that reads sys.platform; `load('name')` gives the module of this system's package
+  platform_windows/    Windows-specific code (input and windows, audio, secrets, sensors, ...)
+  desktop.py, system_audio.py, process_flags.py        What the shared modules import for input, sound and processes
+  script_files.py, lhm_reader.py                       Script types and paths; the Libre Hardware Monitor reader
   tessera_app.py       Local editor server and WebView2 window
   tessera_terminal.py  Terminal UI
   tessera_tray.py      Tray app
@@ -48,7 +52,7 @@ host/            Windows host
   import_review.py     Import approval
   action_preview.py    Dry run (Test)
   setup_tool.py        Setup, uninstall, diagnostics, dependency sync
-  system_stats.py, sensor_sources.py, gpu_sources.py   Gauge values
+  system_stats.py, gpu_sources.py                      Gauge values (Windows sensor readers: platform_windows/)
   live_state.py, pc_state.py, ambient.py               Counters, timers, PC state, idle screen
   deck_assets.py       Icons and images
   editor/              Editor front end (index.html, core.js, app.js, dialogs.js, CSS)
@@ -74,6 +78,17 @@ Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`.
 | JavaScript syntax | `foreach ($f in 'core','app','dialogs') { node --check host/editor/$f.js }` in PowerShell (`node --check` reads only its first file) |
 
 Ruff and coverage are not in `requirements.txt`. Install them with `pip install ruff==0.17.2 coverage==7.17.0`. [CONTRIBUTING.md](../CONTRIBUTING.md) has the exact CI commands.
+
+### Platforms
+
+Windows code lives in `host/platform_windows/`. Shared modules never test `os.name` or `sys.platform` themselves: they
+import `IS_WINDOWS` or call `platform_support.load('name')`, which gives `platform_windows.name`. On a machine that is
+not Windows the same modules still import, and the build tools and the mock-based unit tests run there; the full host
+suite (real files, processes and Windows libraries) runs on Windows, in CI. `labels` holds the
+constants the shared code reads (program-name rule, default port, the words "Windows" in messages).
+
+To add a system: add `platform_<name>/` with the same modules, choose it in `platform_support`, and run
+`tests/test_platform_support.py`; its test lists the functions and constants the shared code uses.
 
 The tests use fake serial ports, fake HTTP and a fake esptool. None of them needs the panel.
 

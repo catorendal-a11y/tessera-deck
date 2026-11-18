@@ -157,6 +157,21 @@ class NoticeTests(HostCase):
                 deck_control.Controller().start()
 
     @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
+    def test_the_log_menu_item_opens_the_log_with_the_system_launcher_and_a_test_never_reaches_it(self):
+        import tempfile
+        from unittest.mock import Mock, patch
+        import tessera_tray
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / 'deck.local.log'
+            log.write_text('x', encoding='utf-8')
+            app = tray_app(Mock())
+            app.icon = Mock()
+            with patch.object(tessera_tray, 'LOG_PATH', log):
+                app.open_log()
+        self.opened.assert_called_once()
+        self.assertEqual(Path(self.opened.call_args.args[0]), log)
+        app.icon.notify.assert_not_called()
+
     def test_notifications_off_keeps_the_tray_quiet_but_answers_a_click(self):
         import json
         import tempfile
@@ -177,8 +192,9 @@ class NoticeTests(HostCase):
                 app.show_notices([{'id': 5, 'title': 'Claude', 'message': 'Waiting for you'}])
                 app.tell('The panel was disconnected.')
                 app.icon.notify.assert_not_called()
-                app.open_log()  # an answer to a click still shows
-                self.assertEqual(app.icon.notify.call_count, int(not tessera_tray.LOG_PATH.is_file()))
+                with patch.object(tessera_tray, 'LOG_PATH', Path(folder) / 'no-such.log'):
+                    app.open_log()  # an answer to a click still shows
+                app.icon.notify.assert_called_once()
                 tessera_tray.set_notifications(True)
                 app.tell('The panel is connected.')
                 app.icon.notify.assert_called_with('The panel is connected.', 'Tessera')

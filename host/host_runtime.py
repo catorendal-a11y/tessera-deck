@@ -5,11 +5,14 @@ import os
 from pathlib import Path
 import threading
 
+from platform_support import load
+
 ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4 and of the native-USB S3 board
 CH340_VID = 0x1A86  # the UART bridge of the ESP32-8048S070 board
 PANEL_VIDS = (ESPRESSIF_VID, CH340_VID)
 UART_BAUD = 921600  # firmware UART speed on the CH340 board; USB Serial/JTAG ignores the baud rate
 DEFAULT_BAUD = 115200
+DEFAULT_PORT = load('labels').DEFAULT_PORT
 
 
 class SuspendableRLock:
@@ -65,6 +68,11 @@ class SuspendableRLock:
             self._owner, self._count = threading.get_ident(), saved
 
 
+def filelock():
+    """The file-lock module of this system."""
+    return load('filelock')
+
+
 class InstanceLock:
     """OS-level exclusive lock; released automatically when the process dies."""
 
@@ -75,13 +83,7 @@ class InstanceLock:
     def acquire(self):
         handle = open(self.path, 'a+')
         try:
-            if os.name == 'nt':
-                import msvcrt
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            filelock().lock(handle)
         except OSError:
             handle.close()
             return False
@@ -96,10 +98,7 @@ class InstanceLock:
         if self.handle is None:
             return
         try:
-            if os.name == 'nt':
-                import msvcrt
-                self.handle.seek(0)
-                msvcrt.locking(self.handle.fileno(), msvcrt.LK_UNLCK, 1)
+            filelock().unlock(self.handle)
         except OSError:
             pass
         finally:
@@ -108,36 +107,13 @@ class InstanceLock:
 
 
 def session_locked() -> bool:
-    """True while the Windows lock screen (the secure desktop) has the input."""
-    if os.name != 'nt':
-        return False
-    import ctypes
-    user32 = ctypes.WinDLL('user32', use_last_error=True)
-    user32.OpenInputDesktop.argtypes = [ctypes.c_uint32, ctypes.c_bool, ctypes.c_uint32]
-    user32.OpenInputDesktop.restype = ctypes.c_void_p
-    user32.CloseDesktop.argtypes = [ctypes.c_void_p]
-    desktop = user32.OpenInputDesktop(0, False, 0x0100)  # DESKTOP_SWITCHDESKTOP
-    if not desktop:
-        return True
-    user32.CloseDesktop(desktop)
-    return False
+    """True while the lock screen has the input (the secure desktop on Windows)."""
+    return load('session').locked()
 
 
 def pc_idle_seconds() -> float:
-    """Seconds since the last keyboard or mouse input on this PC; infinity where Windows cannot tell."""
-    if os.name != 'nt':
-        return float('inf')
-    import ctypes
-
-    class LastInputInfo(ctypes.Structure):
-        _fields_ = [('cbSize', ctypes.c_uint32), ('dwTime', ctypes.c_uint32)]
-
-    info = LastInputInfo(ctypes.sizeof(LastInputInfo), 0)
-    if not ctypes.WinDLL('user32').GetLastInputInfo(ctypes.byref(info)):
-        return float('inf')
-    kernel32 = ctypes.WinDLL('kernel32')
-    kernel32.GetTickCount.restype = ctypes.c_uint32
-    return ((kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000  # both wrap after 49.7 days
+    """Seconds since the last keyboard or mouse input on this PC; infinity where the system cannot tell."""
+    return load('session').idle_seconds()
 
 
 def _installed_ports():
@@ -170,7 +146,7 @@ def candidate_ports(requested, state_path, installed=None, espressif=None):
         others = espressif if espressif is not None else _espressif_ports()
     except (ImportError, OSError):
         others = []
-    return [first] + [device for device in sorted(others) if device != first]
+    return ([first] if first else []) + [device for device in sorted(others) if device != first]
 
 
 def _remembered(state_path, key):

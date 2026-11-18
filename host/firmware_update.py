@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import subprocess
+from process_flags import NO_WINDOW
 import time
 import sys
 import tempfile
@@ -205,7 +206,7 @@ def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tupl
     """Run esptool, forwarding its percentage output; returns (exit code, tail of the output)."""
     process = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                encoding='utf-8', errors='replace', bufsize=1,
-                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                               creationflags=NO_WINDOW)
     tail = ''
     assert process.stdout is not None
     watchdog = threading.Timer(ESPTOOL_TIMEOUT, process.kill)

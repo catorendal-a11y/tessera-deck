@@ -6,8 +6,8 @@ import subprocess
 import tempfile
 import threading
 import time
+from platform_support import load
 
-IS_WINDOWS = os.name == 'nt'
 POLL_SECONDS = 0.1
 STDERR_TAIL = 200
 
@@ -24,12 +24,7 @@ def kill_tree(process: subprocess.Popen) -> None:
     """Stop a command and everything it started; `shell=True` alone only kills the shell."""
     if process.poll() is not None:
         return
-    if IS_WINDOWS:
-        subprocess.run(['taskkill', '/F', '/T', '/PID', str(process.pid)], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       creationflags=subprocess.CREATE_NO_WINDOW)
-    else:
-        process.kill()
+    load('processes').kill_tree(process.pid)  # the command runs in its own group or session (spawn_options)
     try:
         process.wait(timeout=2)
     except subprocess.TimeoutExpired:
@@ -38,11 +33,10 @@ def kill_tree(process: subprocess.Popen) -> None:
 
 def run_command(command, timeout: float, stop: threading.Event, shell: bool = True, cwd: str | None = None) -> None:
     """Run `command` until it exits, `timeout` passes or `stop` is set; raises CommandFailed otherwise."""
-    flags = subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP if IS_WINDOWS else 0
     # stderr goes to a file, not a pipe: a program launched with `start` inherits a pipe and would hold it open
     with tempfile.TemporaryFile() as errors:
         process = subprocess.Popen(command, shell=shell, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                   stderr=errors, creationflags=flags, cwd=cwd)
+                                   stderr=errors, cwd=cwd, **load('processes').spawn_options())
         deadline = time.monotonic() + timeout
         try:
             while True:
@@ -65,7 +59,7 @@ def run_command(command, timeout: float, stop: threading.Event, shell: bool = Tr
 
 def script_path(script: str) -> str:
     """The full path of a script step's file, with %NAME% expanded; ValueError says what is wrong with it."""
-    from program_locator import SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text
+    from script_files import SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text
     expanded = SCRIPT_VARIABLE.sub(lambda name: os.environ.get(name[1], name[0]), script_text(script))
     unset = SCRIPT_VARIABLE.match(expanded)
     if unset:
@@ -81,7 +75,7 @@ def script_path(script: str) -> str:
 
 def run_script(script: str, timeout: float, stop: threading.Event) -> None:
     """Run a script file without a window, in its own folder, with the limits and errors of `run_command`."""
-    from program_locator import script_command
+    from desktop import script_command
     try:
         path = script_path(script)
         argv = script_command(path)
@@ -93,7 +87,4 @@ def run_script(script: str, timeout: float, stop: threading.Event) -> None:
 def edit_script(script: str) -> None:
     """Open a script in the user's editor: the file type's edit verb, else Notepad."""
     path = script_path(script)
-    try:
-        os.startfile(path, 'edit')
-    except OSError:
-        subprocess.Popen(['notepad.exe', path])
+    load('processes').edit_script(path)

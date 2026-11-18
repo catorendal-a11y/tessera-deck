@@ -10,7 +10,8 @@ import psutil
 
 import agent_activity
 import cockpit
-from win_input import IS_WINDOWS, focus_existing_process
+from desktop import focus_existing_process
+from platform_support import load
 
 from config_store import write_atomic
 
@@ -113,9 +114,11 @@ class BackgroundMixin:
         for done in self.live.tick():
             self.log(f'Timer {done["name"]} finished')
             self.notices.append({'id': int(time.time() * 1000), 'title': 'Tessera timer', 'message': done['message']})
-            if done['sound'] and IS_WINDOWS:
-                import winsound
-                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            if done['sound']:
+                try:
+                    load('processes').notification_beep()
+                except (OSError, RuntimeError, ImportError):  # no sound device: the other timers still run
+                    pass
             if done['actions']:
                 self.enqueue(('actions', done['actions']))
             self.enqueue(('push',))
