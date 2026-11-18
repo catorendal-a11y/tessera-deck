@@ -21,7 +21,7 @@ try:
     import pystray
 except ImportError:  # the host's venv has it; a bare system Python may not
     pystray = None
-from platform_linux import tray_menu
+from platform_linux import x11_tray_menu as tray_menu
 
 
 class FakeIcon:
@@ -87,6 +87,16 @@ class ClickTests(unittest.TestCase):
         handler(types.SimpleNamespace(detail=3, root_x=40, root_y=50))
         handler(types.SimpleNamespace(detail=2, root_x=1, root_y=1))
         self.assertEqual((calls, opened), (['default'], [(40, 50)]))
+
+    def test_only_an_x11_session_gets_the_menu_of_its_own(self):
+        from platform_linux import tray
+        for session, attached in (('x11', True), ('wayland', False)):
+            with self.subTest(session=session), unittest.mock.patch('platform_linux.session_type', return_value=session), \
+                    unittest.mock.patch.object(tray_menu, 'attach') as attach:
+                icon = fake_icon([])
+                tray.prepare(icon, pystray.Menu.SEPARATOR)
+                self.assertEqual(attach.called, attached)
+                self.assertTrue(callable(icon.notify))  # notices go to notify-send in either session
 
     def test_an_icon_that_has_a_menu_is_left_alone(self):
         self.assertFalse(tray_menu.attach(fake_icon([], has_menu=True), pystray.Menu.SEPARATOR))

@@ -84,7 +84,7 @@ The host has three layers. Shared code (validation, the engine, the editor) name
 lives in one package per system: `host/platform_windows/` (input and windows, Core Audio and WinRT media, DPAPI secrets,
 the sensor readers, program lookup and icons, the editor window, shortcuts, autostart, process flags ...) and
 `host/platform_linux/` (`x11.py`, `audio.py`, `media.py`, `secrets.py`, `programs.py`, `sensors.py`, `session.py`,
-`desktop_entries.py`, `tray_menu.py` ...). `host/input_common.py` holds the vocabulary both share (key names, operation
+`desktop_entries.py`, `x11_tray_menu.py` ...). `host/input_common.py` holds the vocabulary both share (key names, operation
 lists, program matching). `host/desktop.py` and `host/system_audio.py` hand the rest of the host the Windows or the Linux
 functions.
 

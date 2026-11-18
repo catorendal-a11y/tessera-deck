@@ -156,7 +156,7 @@ WINDOWS_ONLY = 'msvcrt,winreg,winsound,_winapi,win32pdh,win32api,win32con,win32g
 
 
 # programs that run in their own process (the tray menu helper exits when its GTK libraries are missing)
-SCRIPTS = {'gtk_menu_helper'}
+SCRIPTS = {'x11_menu_helper'}
 
 
 class ImportableEverywhereTests(unittest.TestCase):

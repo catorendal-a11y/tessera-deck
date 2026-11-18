@@ -5,7 +5,7 @@ menu: it only runs the default action on a left click. `attach(icon)` keeps that
 on a right click.
 
 The menu is a native GTK menu, so it follows the desktop theme and closes the way every GTK menu does (Esc, a click
-elsewhere). GTK runs in a small helper process (gtk_menu_helper.py) under the system Python, which has PyGObject; the
+elsewhere). GTK runs in a small helper process (x11_menu_helper.py) under the system Python, which has PyGObject; the
 project's own virtual environment needs none. Without a system Python that has GTK, the menu is drawn with tkinter
 instead (set TESSERA_TRAY_MENU=tk to force that).
 
@@ -21,7 +21,7 @@ import subprocess
 import sys
 import threading
 
-HELPER = Path(__file__).with_name('gtk_menu_helper.py')
+HELPER = Path(__file__).with_name('x11_menu_helper.py')
 SYSTEM_PYTHONS = ('/usr/bin/python3', '/usr/bin/python')
 GTK_PROBE = 'import gi; gi.require_version("Gtk", "3.0"); from gi.repository import Gtk'
 _gtk_python = []  # [path or None], filled once

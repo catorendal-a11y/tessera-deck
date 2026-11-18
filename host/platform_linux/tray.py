@@ -2,8 +2,12 @@
 
 
 def prepare(icon, separator) -> None:
-    """The X11 tray cannot show balloons, so notices go to the desktop's notifications, and it has no menu of its own."""
-    from platform_linux import tray_menu
+    """Notices go to the desktop's notifications (notify-send), whichever tray backend pystray picked. Only an X11
+    session adds the right-click menu: the legacy X11 tray has none of its own. A Wayland session gets its tray from
+    StatusNotifier, which draws the icon's own menu."""
+    from platform_linux import session_type
     from platform_linux.notify import notify
     icon.notify = lambda message, title=None: notify(message, title or 'Tessera')
-    tray_menu.attach(icon, separator)
+    if session_type() == 'x11':
+        from platform_linux import x11_tray_menu
+        x11_tray_menu.attach(icon, separator)
