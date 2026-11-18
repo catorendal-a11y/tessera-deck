@@ -28,7 +28,7 @@
 Tessera is a macro deck for Windows and Linux that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. It needs no soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
-> You need one of the [supported boards](#supported-boards), a USB cable and a PC with Windows 10/11 or Linux in an X11 session. Other boards need porting. Wayland and macOS are not supported. Linux support is on `main` and comes with the next release.
+> You need one of the [supported boards](#supported-boards), a USB cable and a PC with Windows 10/11 or Linux in an X11 session. Other boards need porting. Wayland and macOS are not supported.
 
 <p align="center">
   <img src="docs/images/promo.gif" alt="A short loop: the Tessera logo, the Windows app and the panel joined by one USB cable, a tap on Allow on the agents screen, the editor putting a Timer key on the panel, and what you need to build one" width="760">

@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.2
+
+The host now also runs on Linux. The panel firmware is the same as 1.2.1 apart from its version number, so a panel on 1.2.0 or 1.2.1 works with this host as it is.
 
 - The host runs on Linux in an X11 session, contributed by joern-h. `Tessera.sh` sets it up and starts the tray, the host and the editor, which opens in the browser. Keys, typing, the mixer, media, sensors, plugin secrets in the system keyring, the program list and autostart all have a Linux side. It is tested by hand with the CrowPanel on Arch Linux with Cinnamon; keys, sound and sensors have had less hand testing than the panel link and the tray. Wayland is not supported yet. [LINUX.md](docs/LINUX.md) has the tools to install and what stays Windows-only.
 - The idle clock no longer comes on while you work on the PC: typing or moving the mouse counts as activity, as a press on the panel does, and takes the clock away again. A clock shown by a *Switch screen* key stays.
