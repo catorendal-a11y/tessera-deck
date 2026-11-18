@@ -120,11 +120,12 @@ class MediaTests(unittest.TestCase):
 
     def test_a_player_is_described(self):
         self.assertEqual(media.describe(self.PLAYING), {'title': 'Song', 'artist': 'A, B', 'status': 'PLAYING',
-                                                        'position': 61.5, 'duration': 200.0})
+                                                        'position': 61.5, 'duration': 200.0, 'shuffle': None, 'repeat': ''})
 
     def test_a_player_without_metadata_gives_empty_values(self):
         self.assertEqual(media.describe({'PlaybackStatus': ('s', 'Paused')}),
-                         {'title': '', 'artist': '', 'status': 'PAUSED', 'position': 0.0, 'duration': 0.0})
+                         {'title': '', 'artist': '', 'status': 'PAUSED', 'position': 0.0, 'duration': 0.0, 'shuffle': None,
+                          'repeat': ''})
 
     def test_the_player_that_plays_wins_over_a_paused_one(self):
         paused = dict(media.describe(self.PLAYING), status='PAUSED', title='Old')
