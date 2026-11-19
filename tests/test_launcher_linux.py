@@ -15,10 +15,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 
-FAKE_PYTHON = '#!/bin/sh\necho "$*" >> "$(dirname "$0")/../../../calls.txt"\n'
+FAKE_PYTHON = '#!/bin/sh\nexit 0\n'  # `setup_tool.py ensure` and the like: nothing to do
+# The launcher starts the tray and the editor with `setsid nohup <python> <script> &` and does not wait for them. A fake setsid
+# writes down what it was asked to start, so the test waits for that list and not for the programs themselves.
+FAKE_SETSID = '#!/bin/sh\necho "$*" >> "$(dirname "$0")/../calls.txt"\n'
 
 
-@unittest.skipUnless(shutil.which('bash') and shutil.which('setsid'), 'needs bash and setsid')
+@unittest.skipUnless(shutil.which('bash'), 'needs bash')
 class LauncherTests(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
@@ -29,29 +32,35 @@ class LauncherTests(unittest.TestCase):
         python.parent.mkdir(parents=True)
         python.write_text(FAKE_PYTHON)
         python.chmod(python.stat().st_mode | stat.S_IXUSR)
+        fake = self.folder / 'bin/setsid'
+        fake.parent.mkdir()
+        fake.write_text(FAKE_SETSID)
+        fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
         self.calls = self.folder / 'calls.txt'
 
-    def launch(self, *args):
+    def launch(self, *args, expect):
+        """What the launcher started in the background (`expect` programs), as the script and its options."""
         done = subprocess.run(['bash', str(self.folder / 'Tessera.sh'), *args], capture_output=True, text=True, timeout=30,
-                              env=dict(os.environ, XDG_SESSION_TYPE='x11'))
+                              env=dict(os.environ, XDG_SESSION_TYPE='x11', PATH=f'{self.folder / "bin"}:{os.environ["PATH"]}'))
         self.assertEqual(done.returncode, 0, done.stderr)
         deadline = time.monotonic() + 5
-        while not self.calls.exists() and time.monotonic() < deadline:  # the programs start in the background
-            time.sleep(0.05)
-        time.sleep(0.3)
-        return sorted(line for line in self.calls.read_text().splitlines() if not line.startswith('host/setup_tool.py'))
+        while True:  # each start is written down by its own background job: wait until all of them have been
+            started = self.calls.read_text().splitlines() if self.calls.exists() else []
+            if len(started) >= expect or time.monotonic() > deadline:
+                return sorted(line.removeprefix('nohup host/.venv/bin/python ') for line in started)
+            time.sleep(0.01)
 
     def test_without_arguments_only_the_tray_starts(self):
-        self.assertEqual(self.launch(), ['host/tessera_tray.py'])
+        self.assertEqual(self.launch(expect=1), ['host/tessera_tray.py'])
 
     def test_app_starts_the_tray_and_the_editor(self):
-        self.assertEqual(self.launch('--app'), ['host/tessera_app.py --editor', 'host/tessera_tray.py'])
+        self.assertEqual(self.launch('--app', expect=2), ['host/tessera_app.py --editor', 'host/tessera_tray.py'])
 
     def test_editor_starts_only_the_editor_and_keeps_its_options(self):
-        self.assertEqual(self.launch('--editor'), ['host/tessera_app.py --editor'])
+        self.assertEqual(self.launch('--editor', expect=1), ['host/tessera_app.py --editor'])
 
     def test_the_options_after_editor_reach_the_editor(self):
-        self.assertEqual(self.launch('--editor', '--port', '4711'), ['host/tessera_app.py --editor --port 4711'])
+        self.assertEqual(self.launch('--editor', '--port', '4711', expect=1), ['host/tessera_app.py --editor --port 4711'])
 
 
 class MenuEntryTests(unittest.TestCase):
