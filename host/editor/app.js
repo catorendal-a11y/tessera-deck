@@ -307,7 +307,7 @@ function renderStep(action,index,count) {
   step.append(parameter);
   if(action.type==='remote_media'&&['volumeup','volumedown'].includes(action.op))step.append(field('Step (1–50)',String(action.step??5),v=>editAction(index,'step',Math.max(1,Math.min(50,Math.round(Number(v))||5))),{type:'number'}));
   if(action.type==='remote_media')step.append(field('Device',action.device||'first',v=>editAction(index,'device',v),{values:remoteDeviceChoices(action.device)}),
-    text('p','Controls the media player of a device paired with KDE Connect, such as a phone. Needs KDE Connect on this PC (Linux).','hint'));
+    text('p','Controls the media player of a device paired with KDE Connect, such as a phone. Needs KDE Connect on this PC.','hint'));
   if(action.type==='profile')step.append(field('Page',action.page||'',v=>mutate(()=>{const a=activeActions()[index];if(v)a.page=v;else delete a.page;},true,editKey('action',index,'page')),{values:[['','First page'],...Object.keys(config.profiles[action.profile]?.pages||{}).map(name=>[name,name])]}));
   if(action.type==='shell')step.append(timeoutField(index,action));
   if(action.type==='script')step.append(field('Timeout (seconds)',String(action.timeout??30),v=>editAction(index,'timeout',Math.max(1,Math.min(300,Math.round(Number(v))||30))),{type:'number'}),

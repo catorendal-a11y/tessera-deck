@@ -791,7 +791,7 @@ function renderScreen() {
       element('div', {class: 'screen-faders'}, ...(faders.length ? faders : [text('p', 'The host has not read the sound yet.', 'hint')])),
       element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Programs'), text('small', 'Up to three. Leave empty to use the ones that are playing sound.')), apps),
       element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Microphone'), text('small', 'Include a microphone fader.')), element('label', {class: 'screen-check'}, mic, text('span', 'Show'))),
-      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Remote devices'), text('small', 'The volume of a device paired with KDE Connect, such as a phone, as a fader (Linux). It takes a place of the programs: the panel shows five faders.')), remoteSelect) ];
+      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Remote devices'), text('small', 'The volume of a device paired with KDE Connect, such as a phone, as a fader. It takes a place of the programs: the panel shows five faders.')), remoteSelect) ];
   } else {
     const stats = dashboard.stats || {};
     const full = choice.stats.length >= PANEL_STATS_MAX;

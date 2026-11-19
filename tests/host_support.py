@@ -17,6 +17,25 @@ sys.path.insert(0, str(ROOT / 'host'))
 import agent_activity  # noqa: E402
 import tesserad as deck  # noqa: E402
 
+
+class _NoRemoteDevices:
+    """KDE Connect as seen by the host tests: no paired device. A test daemon must not read (or press) the phone of the
+    developer who runs the tests; test_remote_devices.py and test_kdeconnect*.py bring their own fakes."""
+
+    @staticmethod
+    def list_devices():
+        return []
+
+    @staticmethod
+    def read_device(*args):
+        raise OSError('no remote devices in the tests')
+
+    write_volume = send_action = read_device
+
+
+import remote_devices  # noqa: E402
+patch.object(remote_devices, '_system', return_value=_NoRemoteDevices).start()
+
 FOLDER = Path(tempfile.mkdtemp(prefix='tessera-tests-'))
 atexit.register(shutil.rmtree, FOLDER, True)
 PROFILES = FOLDER / 'profiles.default.json'

@@ -537,7 +537,7 @@
       "icon": "lc:e13c",
       "color": "#35D07F",
       "label": "Remote",
-      "note": "A paired device (KDE Connect, Linux)",
+      "note": "A paired device (KDE Connect)",
       "states": [
         {
           "label": "Play",
@@ -574,7 +574,7 @@
       "group": "Media",
       "name": "Remote next track",
       "icon": "lc:e160",
-      "note": "A paired device (KDE Connect, Linux)",
+      "note": "A paired device (KDE Connect)",
       "actions": [
         {
           "type": "remote_media",
@@ -590,7 +590,7 @@
       "group": "Media",
       "name": "Remote previous track",
       "icon": "lc:e15f",
-      "note": "A paired device (KDE Connect, Linux)",
+      "note": "A paired device (KDE Connect)",
       "actions": [
         {
           "type": "remote_media",
@@ -610,7 +610,7 @@
       "name": "Remote volume +",
       "icon": "plus",
       "label": "Remote vol +",
-      "note": "A paired device (KDE Connect, Linux)",
+      "note": "A paired device (KDE Connect)",
       "actions": [
         {
           "type": "remote_media",
@@ -627,7 +627,7 @@
       "name": "Remote volume -",
       "icon": "minus",
       "label": "Remote vol -",
-      "note": "A paired device (KDE Connect, Linux)",
+      "note": "A paired device (KDE Connect)",
       "actions": [
         {
           "type": "remote_media",

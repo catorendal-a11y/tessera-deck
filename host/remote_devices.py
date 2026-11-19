@@ -1,5 +1,5 @@
 """Other devices paired with KDE Connect (a phone, a laptop): the volume of their media player as a fader of the mixer, and
-their media keys. What the system provides (platform_linux/remote.py; Windows has none) is four calls: list_devices, read_device,
+their media keys. What the system provides (platform_linux/remote.py, platform_windows/remote.py; both ask host/kdeconnect.py) is four calls: list_devices, read_device,
 write_volume and send_action. Choosing the devices, the fader ids and what a mute does are the same everywhere.
 
 The panel shows at most five faders, an id of at most 39 characters and a name of 15, so a device is named by `remote:` and ten
