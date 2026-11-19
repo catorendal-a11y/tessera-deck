@@ -87,7 +87,9 @@ def show(modules, request):
         if kind not in (WebKit2.PolicyDecisionType.NAVIGATION_ACTION, WebKit2.PolicyDecisionType.NEW_WINDOW_ACTION):
             return False
         uri = decision.get_navigation_action().get_request().get_uri()
-        if urlsplit(uri)[:2] == origin and kind == WebKit2.PolicyDecisionType.NAVIGATION_ACTION:
+        # Export saves a blob the page made: its address is "blob:" and then the editor's own
+        own = urlsplit(uri.removeprefix('blob:'))[:2] == origin
+        if own and kind == WebKit2.PolicyDecisionType.NAVIGATION_ACTION:
             return False
         if uri.startswith(('http:', 'https:', 'mailto:')):
             open_outside(uri)
@@ -104,6 +106,7 @@ def show(modules, request):
             if folder:
                 dialog.set_current_folder(folder)
             if dialog.run() == Gtk.ResponseType.ACCEPT:
+                download.set_allow_overwrite(True)  # the dialog asked before replacing a file; WebKit refuses by default
                 download.set_destination(dialog.get_uri())
             else:
                 download.cancel()
@@ -116,14 +119,22 @@ def show(modules, request):
 
     geometry = {}
 
-    def remember(*_):
+    gone = []  # the page's process ended: nothing is left to ask
+
+    def closing(*_):
         if not window.is_maximized():
             width, height = window.get_size()
             x, y = window.get_position()
             geometry.update(width=width, height=height, x=x, y=y)
-        return False
+        if gone or not view.get_is_web_process_responsive():
+            return False  # GTK closes the window
+        # the page is asked first: with unsaved changes its beforeunload shows "Leave page?", and Stay keeps the window
+        view.try_close()
+        return True
 
-    window.connect('delete-event', remember)
+    window.connect('delete-event', closing)
+    view.connect('close', lambda *_: window.destroy())
+    view.connect('web-process-terminated', lambda *_: gone.append(True))
     window.connect('destroy', lambda *_: Gtk.main_quit())
     window.add(view)
     window.show_all()

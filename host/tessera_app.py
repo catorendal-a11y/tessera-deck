@@ -137,12 +137,13 @@ def save_window_geometry(geometry, saved_file=WINDOW_FILE):
             pass
 
 
-def open_window(url):
+def open_window(launch_url):
     """Open the editor in a native window (Windows: WebView2); anything else, or a failure, opens a browser tab. Returns
-    False for the browser."""
-    if load('editor_window').open_native_window(url, window_geometry, save_window_geometry, MIN_WINDOW, ROOT):
+    False for the browser. `launch_url()` gives an address with a one-time code: the browser gets one of its own, since
+    a window that failed after it had loaded the page has used the first."""
+    if load('editor_window').open_native_window(launch_url(), window_geometry, save_window_geometry, MIN_WINDOW, ROOT):
         return True
-    webbrowser.open(url)
+    webbrowser.open(launch_url())
     return False
 
 
@@ -936,7 +937,7 @@ def show_running_editor(record, build, open_if_hidden=False):
             if activate_window(previous['pid']):
                 return True
             if open_if_hidden:
-                open_window(launch_url())
+                open_window(launch_url)
                 return True
             return False
         # A launcher reopening an updated editor must not reuse a stale API server. The independent USB host stays up.
@@ -1000,7 +1001,7 @@ def main():
         if not args.no_browser:
             server_thread = threading.Thread(target=server.serve_forever, daemon=True)
             server_thread.start()
-            if open_window(server.launch_url()):
+            if open_window(server.launch_url):
                 server.shutdown()
                 server_thread.join(timeout=3)
                 return

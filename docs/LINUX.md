@@ -92,11 +92,18 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
 - **Typing follows your keyboard layout.** `ydotool` sends key positions, so the host reads the session's layout
   (`host/platform_linux/xkb.py`, through libxkbcommon) and presses the right keys: `@` is AltGr+2 on a Norwegian keyboard and
   Shift+2 on a US one. `~`, `^` and accented letters go through the dead keys. A character your layout has no key for
-  is refused before anything is typed; put it on the clipboard and paste it instead.
-- **Punctuation in a hotkey** means the key that types it: `ctrl+minus` presses the `-` key of your layout.
+  is refused before anything is typed; put it on the clipboard and paste it instead. With more than one layout, the one
+  in use is asked before every key or text (Plasma, sway and Hyprland tell; elsewhere the first is used). Caps Lock does
+  not change the case of typed text: its state is read from the keyboard's LED.
+- **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
+  `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
+  none of these names a layout, typing is refused with a message instead of typing with a guessed one.
+- **Punctuation in a hotkey** means the key that types it: `ctrl+minus` presses the `-` key of your layout, and
+  `ctrl+slash` is Ctrl+Shift+7 on a Norwegian keyboard, where `/` is Shift+7.
 - **The mouse**: `moveto` lands a little off when pointer acceleration is on, because uinput has no absolute pointer.
   Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
 - **Next monitor** uses KWin's own *Window to Next Screen* action.
+- **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
 - **The tray icon** goes through XWayland and Plasma's `xembedsniproxy`, with the same GTK right-click menu as on X11.
 - **Other compositors** (GNOME, sway, Hyprland): keys and typing work with `ydotool`, but the window functions and
   smart profiles are refused with a message until someone adds their window query. That goes in `wayland.py` next to the

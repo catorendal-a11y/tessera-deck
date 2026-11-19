@@ -36,7 +36,17 @@ class RunningEditorTests(unittest.TestCase):
             open_window.assert_not_called()
             self.assertTrue(tessera_app.show_running_editor(record, 'b1', open_if_hidden=True))
             # the address carries a one-time code from the editor, never the record's long-lived token
-            open_window.assert_called_once_with('http://127.0.0.1:5000/#one-time')
+            open_window.assert_called_once()
+            self.assertEqual(open_window.call_args.args[0](), 'http://127.0.0.1:5000/#one-time')
+
+    def test_the_browser_gets_a_launch_code_of_its_own_when_the_window_fails(self):
+        # a window that loaded the page and then failed has used its one-time code
+        codes = iter(['http://127.0.0.1:5000/#first', 'http://127.0.0.1:5000/#second'])
+        window = Mock(**{'open_native_window.return_value': False})
+        with patch.object(tessera_app, 'load', return_value=window), patch.object(tessera_app.webbrowser, 'open') as browser:
+            self.assertFalse(tessera_app.open_window(lambda: next(codes)))
+        self.assertEqual(window.open_native_window.call_args.args[0], 'http://127.0.0.1:5000/#first')
+        browser.assert_called_once_with('http://127.0.0.1:5000/#second')
 
     def test_a_visible_editor_is_brought_forward_and_an_older_build_is_stopped(self):
         process, answer = self.running()

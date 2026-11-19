@@ -5,13 +5,15 @@ the tool that works there:
 
 - **Input** goes through `ydotool`, which types on a virtual uinput keyboard and mouse; its daemon `ydotoold` must run
   (`systemctl --user enable --now ydotool`). The device sends key positions, so text is turned into keys with the
-  session's own layout (xkb.py): "@" is AltGr+2 on a Norwegian keyboard and Shift+2 on a US one.
+  session's own layout (xkb.py): "@" is AltGr+2 on a Norwegian keyboard and Shift+2 on a US one. Caps Lock is read
+  from the keyboard's LED, so text comes out in the case it was written in.
 - **Windows** (the window in front for smart profiles, focus, minimize, ...) go through `kdotool`, which asks KWin.
   Other compositors have no such tool yet: there the window functions say so, and keys and typing still work.
 - **The clipboard** uses `wl-copy` (the "wl-clipboard" package), else Plasma's Klipper.
 """
 from __future__ import annotations
 
+import glob
 import os
 import shutil
 import time
@@ -24,7 +26,8 @@ WINDOWS_MESSAGE = ('Window actions on Wayland need KDE Plasma and kdotool. Keys 
                    'log in with an X11 session for window actions on other desktops.')
 TYPE_CHUNK = 32  # characters per ydotool call: the stop request is checked between
 KEY_DELAY_MS = '6'  # between key events; KWin drops keys sent with no gap at all
-KEYMAP_SECONDS = 5.0  # the layout is read again after this long, so a switch of layout is followed
+KEYMAP_SECONDS = 5.0  # the session's layouts are read again after this long; which one is in use is asked every time
+CAPS_LOCK_LEDS = '/sys/class/leds/*::capslock/brightness'  # the compositor lights the LED of every keyboard
 
 # The host's key names (input_common.KEY_NAMES) to Linux input key codes (linux/input-event-codes.h).
 KEYCODES = {'ctrl': 29, 'control': 29, 'shift': 42, 'alt': 56, 'win': 125, 'meta': 125, 'enter': 28, 'return': 28,
@@ -43,11 +46,24 @@ KEYCODES.update({f'f{i}': 58 + i for i in range(1, 11)})
 KEYCODES.update({'f11': 87, 'f12': 88})
 KEYCODES.update({f'f{i}': 170 + i for i in range(13, 25)})
 # Punctuation in a hotkey means the character: on a Norwegian keyboard ctrl+minus is the key that types "-", not the
-# key in the US minus position. The US position is the fallback for a character that needs Shift or AltGr.
+# key in the US minus position, and ctrl+slash is Ctrl+Shift+7, which is how "/" is typed there. The US position is
+# the fallback for a character the layout has no single key for (a dead key, or none).
 PUNCTUATION = {'comma': ',', 'period': '.', 'slash': '/', 'grave': '`', 'lbracket': '[', 'rbracket': ']',
                'minus': '-', 'equals': '=', 'semicolon': ';', 'quote': "'", 'backslash': '\\'}
 SHIFT_CODE, ALTGR_CODE, ENTER_CODE, TAB_CODE = 42, 100, 28, 15
 MOUSE_BUTTONS = {'left': '0xC0', 'right': '0xC1', 'middle': '0xC2'}  # 0xC0: press and release
+
+
+def caps_lock_on(leds: str = CAPS_LOCK_LEDS) -> bool:
+    """Whether Caps Lock is on. A session has one lock state for all keyboards, ydotool's included."""
+    for path in glob.glob(leds):
+        try:
+            with open(path, encoding='ascii') as led:
+                if int(led.read().strip() or 0):
+                    return True
+        except (OSError, ValueError):
+            continue
+    return False
 
 
 def is_plasma(environ=None) -> bool:
@@ -58,47 +74,70 @@ def is_plasma(environ=None) -> bool:
 class WaylandBackend(DesktopBackend):
     name = 'wayland'
 
-    def __init__(self, runner=run, keymap=None, plasma=None):
+    def __init__(self, runner=run, keymap=None, plasma=None, caps_lock=caps_lock_on):
         self.run = runner
-        self._keymap, self._keymap_at = keymap, (float('inf') if keymap is not None else 0.0)
+        self._fixed_keymap = keymap  # a test's layout; None reads the session's
+        self._keymaps, self._keymaps_at = {}, 0.0
+        self.caps_lock = caps_lock
         self.plasma = is_plasma() if plasma is None else plasma
 
     # input
     def keymap(self):
-        if time.monotonic() - self._keymap_at > KEYMAP_SECONDS:
-            from platform_linux.xkb import session_keymap
-            self._keymap, self._keymap_at = session_keymap(), time.monotonic()
-        return self._keymap
+        """The keymap of the layout in use right now. Which layout that is, is asked every time: a switch changes what
+        every key types, and Plasma can switch with the window in front. The layouts themselves are kept for
+        KEYMAP_SECONDS."""
+        if self._fixed_keymap is not None:
+            return self._fixed_keymap
+        from platform_linux import xkb
+        now = time.monotonic()
+        if now - self._keymaps_at > KEYMAP_SECONDS:
+            self._keymaps, self._keymaps_at = {}, now
+        group = xkb.active_group()
+        if group not in self._keymaps:
+            self._keymaps[group] = xkb.session_keymap(group=group)
+        return self._keymaps[group]
 
-    def keycode(self, name: str) -> int:
-        if name in PUNCTUATION:
-            stroke = self.keymap().strokes(PUNCTUATION[name])
-            if stroke and len(stroke) == 1 and not stroke[0][1] and not stroke[0][2]:
-                return stroke[0][0]
-        try:
-            return KEYCODES[name]
-        except KeyError:
-            raise ValueError(f'Unknown key: {name!r}') from None
+    def key_strokes(self, names) -> list[tuple[int, bool, bool]]:
+        """(key code, shift, altgr) of every key name of a hotkey; ValueError for a name that is no key."""
+        keymap, strokes = None, []
+        for name in names:
+            if name not in KEYCODES:
+                raise ValueError(f'Unknown key: {name!r}')
+            found = None
+            if name in PUNCTUATION:
+                try:
+                    keymap = keymap or self.keymap()
+                    found = keymap.strokes(PUNCTUATION[name])
+                except BackendUnavailable:
+                    pass  # the layout is unknown: the US positions
+            strokes.append(found[0] if found and len(found) == 1 else (KEYCODES[name], False, False))
+        return strokes
 
     def ydotool(self, events: list[str]) -> None:
         if events:
             self.run(['ydotool', 'key', '-d', KEY_DELAY_MS, *events])
 
     def send_keys(self, names):
-        codes = [self.keycode(name) for name in names]
+        codes = []
+        for code, shift, altgr in self.key_strokes(names):
+            # the Shift or AltGr a punctuation key needs in this layout is held like the keys named before it
+            codes += [mod for needed, mod in ((shift, SHIFT_CODE), (altgr, ALTGR_CODE)) if needed and mod not in codes]
+            codes.append(code)
         # released even when a later key fails: one call, so nothing stays held
         self.ydotool([f'{c}:1' for c in codes] + [f'{c}:0' for c in reversed(codes)])
 
     def text_strokes(self, text: str) -> list[list[tuple[int, bool, bool]]]:
         """The strokes of every character; ValueError naming the characters this layout cannot type."""
         keymap, strokes, missing = self.keymap(), [], []
+        caps_lock = self.caps_lock()
         for char in text:
             if char == '\n':
                 strokes.append([(ENTER_CODE, False, False)])
             elif char == '\t':
                 strokes.append([(TAB_CODE, False, False)])
             else:
-                found = keymap.strokes(char)
+                # a character Caps Lock leaves no way to (none is known) is typed as without the lock
+                found = (caps_lock and keymap.strokes(char, True)) or keymap.strokes(char)
                 if found is None:
                     missing.append(char)
                 strokes.append(found or [])

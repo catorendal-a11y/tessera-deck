@@ -5,18 +5,22 @@ to type "@" on a Norwegian keyboard the backend has to press AltGr+2, and on a U
 layout the session uses and answers which key and modifiers give a character. It uses libxkbcommon through ctypes
 (every Wayland desktop has it), so the host needs no extra Python package.
 
-The layout is read from XWayland (`xkbcomp`), which the compositor keeps in step with its own keymap; without
-XWayland it falls back to the XKB_DEFAULT_* variables, then to "us".
+The layout is read from XWayland (`xkbcomp`), which the compositor keeps in step with its own keymap. Without
+XWayland it is the layout the session was set up with (`layout_names`). When nothing names one, typing is refused:
+a guessed layout would type other characters than the ones asked for.
 """
 from __future__ import annotations
 
+import configparser
 import ctypes
 import ctypes.util
+import json
 import os
 import re
 import shutil
 import subprocess
 import unicodedata
+from pathlib import Path
 
 from platform_linux import BackendUnavailable
 
@@ -30,6 +34,9 @@ DEAD_TWICE = {0xfe51, 0xfe57}
 DEAD_COMBINING = {'̀': 0xfe50, '́': 0xfe51, '̂': 0xfe52, '̃': 0xfe53, '̈': 0xfe57}
 KEYPAD_SYMS = range(0xff80, 0xffbe)  # KP_Divide and the like: they type the same character, but programs treat them apart
 SPACE_CODE = 57
+# The keys of a real keyboard. A layout also names keys no keyboard has (a "$" key, a "€" key): they would win as
+# the plainest way to a character, and nothing says the virtual keyboard can press them.
+MAX_KEYCODE = 255
 
 
 class _Names(ctypes.Structure):
@@ -61,6 +68,10 @@ def library():
                 ('xkb_keymap_key_get_syms_by_level', ctypes.c_int, [vp, u32, u32, u32, ctypes.POINTER(ctypes.POINTER(u32))]),
                 ('xkb_keymap_key_get_mods_for_level', ctypes.c_size_t, [vp, u32, u32, u32, ctypes.POINTER(u32), ctypes.c_size_t]),
                 ('xkb_keymap_mod_get_index', u32, [vp, ctypes.c_char_p]),
+                ('xkb_state_new', vp, [vp]),
+                ('xkb_state_unref', None, [vp]),
+                ('xkb_state_update_mask', ctypes.c_int, [vp, u32, u32, u32, u32, u32, u32]),
+                ('xkb_state_key_get_one_sym', u32, [vp, u32]),
                 ('xkb_keysym_to_utf32', u32, [u32])):
             function = getattr(lib, name)
             function.restype, function.argtypes = res, args
@@ -69,7 +80,8 @@ def library():
 
 
 class Keymap:
-    """Which key, with which of Shift and AltGr, types a character in one layout group."""
+    """Which key, with which of Shift and AltGr, types a character in one layout group. `locked` and `locked_dead`
+    answer the same while Caps Lock is on, when a letter key gives the other case."""
 
     def __init__(self, keymap_text: bytes | None = None, names: dict | None = None, group: int = 0):
         lib = library()
@@ -86,7 +98,7 @@ class Keymap:
                 raise BackendUnavailable('The keyboard layout of the session could not be read')
             try:
                 self.group = group if group < lib.xkb_keymap_num_layouts(keymap) else 0
-                self.chars, self.dead = self._read(lib, keymap)
+                self.chars, self.dead, self.locked, self.locked_dead = self._read(lib, keymap)
             finally:
                 lib.xkb_keymap_unref(keymap)
         finally:
@@ -101,7 +113,7 @@ class Keymap:
                 altgr |= 1 << index
         chars, dead = {}, {}
         masks = (ctypes.c_uint32 * 8)()
-        for code in range(lib.xkb_keymap_min_keycode(keymap), lib.xkb_keymap_max_keycode(keymap) + 1):
+        for code in range(lib.xkb_keymap_min_keycode(keymap), min(lib.xkb_keymap_max_keycode(keymap), MAX_KEYCODE) + 1):
             for level in range(lib.xkb_keymap_num_levels_for_key(keymap, code, self.group)):
                 syms = ctypes.POINTER(ctypes.c_uint32)()
                 if lib.xkb_keymap_key_get_syms_by_level(keymap, code, self.group, level, ctypes.byref(syms)) != 1:
@@ -112,43 +124,71 @@ class Keymap:
                 mods = sorted((masks[n] for n in range(count) if not masks[n] & ~(shift | altgr)), key=lambda m: bin(m).count('1'))
                 if not mods:
                     continue
-                stroke = (code - EVDEV_OFFSET, bool(mods[0] & shift), bool(mods[0] & altgr))
-                if sym in DEAD_SPACING:
-                    table, key = dead, sym
-                elif sym in KEYPAD_SYMS:
-                    continue
-                else:
-                    char = lib.xkb_keysym_to_utf32(sym)
-                    if not char:
-                        continue
-                    table, key = chars, chr(char)
-                if key not in table or self.cost(stroke) < self.cost(table[key]):
-                    table[key] = stroke
+                self._note(lib, chars, dead, sym, (code - EVDEV_OFFSET, bool(mods[0] & shift), bool(mods[0] & altgr)))
+        return chars, dead, *self._read_locked(lib, keymap, shift, altgr)
+
+    def _read_locked(self, lib, keymap, shift, altgr):
+        """The same tables with Caps Lock on. The levels of a key do not say what the lock does to it, so each key is
+        asked with every combination of Shift and AltGr."""
+        chars, dead = {}, {}
+        lock_index = lib.xkb_keymap_mod_get_index(keymap, b'Lock')
+        state = lib.xkb_state_new(keymap) if lock_index < 32 else None
+        if not state:
+            return chars, dead
+        try:
+            for code in range(lib.xkb_keymap_min_keycode(keymap), min(lib.xkb_keymap_max_keycode(keymap), MAX_KEYCODE) + 1):
+                for with_shift, with_altgr in ((False, False), (True, False), (False, True), (True, True)):
+                    lib.xkb_state_update_mask(state, shift * with_shift | altgr * with_altgr, 0, 1 << lock_index, 0, 0, self.group)
+                    sym = lib.xkb_state_key_get_one_sym(state, code)
+                    if sym:
+                        self._note(lib, chars, dead, sym, (code - EVDEV_OFFSET, with_shift, with_altgr))
+        finally:
+            lib.xkb_state_unref(state)
         return chars, dead
+
+    def _note(self, lib, chars, dead, sym, stroke):
+        if sym in DEAD_SPACING:
+            table, key = dead, sym
+        elif sym in KEYPAD_SYMS:
+            return
+        else:
+            char = lib.xkb_keysym_to_utf32(sym)
+            if not char:
+                return
+            table, key = chars, chr(char)
+        if key not in table or self.cost(stroke) < self.cost(table[key]):
+            table[key] = stroke
 
     @staticmethod
     def cost(stroke):
         return (stroke[1] + stroke[2], stroke[0])
 
-    def strokes(self, char: str) -> list[tuple[int, bool, bool]] | None:
-        """[(kernel key code, shift, altgr)] that type `char`, or None when this layout cannot type it."""
-        if char in self.chars:
-            return [self.chars[char]]
+    def strokes(self, char: str, caps_lock: bool = False) -> list[tuple[int, bool, bool]] | None:
+        """[(kernel key code, shift, altgr)] that type `char`, or None when this layout cannot type it. With
+        `caps_lock` the strokes are the ones that give `char` while Caps Lock is on."""
+        chars, dead = (self.locked, self.locked_dead) if caps_lock and self.locked else (self.chars, self.dead)
+        if char in chars:
+            return [chars[char]]
         for sym, spacing in DEAD_SPACING.items():
-            if char == spacing and sym in self.dead:
-                return [self.dead[sym], self.dead[sym] if sym in DEAD_TWICE else (SPACE_CODE, False, False)]
+            if char == spacing and sym in dead:
+                return [dead[sym], dead[sym] if sym in DEAD_TWICE else (SPACE_CODE, False, False)]
         parts = unicodedata.normalize('NFD', char)
-        if len(parts) == 2 and parts[1] in DEAD_COMBINING and DEAD_COMBINING[parts[1]] in self.dead:
-            base = self.strokes(parts[0])
+        if len(parts) == 2 and parts[1] in DEAD_COMBINING and DEAD_COMBINING[parts[1]] in dead:
+            base = self.strokes(parts[0], caps_lock)
             if base and len(base) == 1:
-                return [self.dead[DEAD_COMBINING[parts[1]]], base[0]]
+                return [dead[DEAD_COMBINING[parts[1]]], base[0]]
         return None
 
 
-def session_keymap(run=subprocess.run, environ=None) -> Keymap:
-    """The keymap the session types with right now."""
+NO_LAYOUT = ('The keyboard layout of the session could not be read, so nothing is typed. Install xkbcomp '
+             '("xorg-xkbcomp" on Arch, "x11-xkb-utils" on Debian or Ubuntu) or set XKB_DEFAULT_LAYOUT to your layout, for example "no".')
+
+
+def session_keymap(run=subprocess.run, environ=None, group: int | None = None) -> Keymap:
+    """The keymap the session types with right now, or of layout number `group`."""
     environ = os.environ if environ is None else environ
-    group = active_group(run)
+    if group is None:
+        group = active_group(run, environ)
     if environ.get('DISPLAY') and shutil.which('xkbcomp'):
         try:
             done = run(['xkbcomp', '-w0', environ['DISPLAY'], '-'], capture_output=True, timeout=5, check=False)
@@ -156,18 +196,72 @@ def session_keymap(run=subprocess.run, environ=None) -> Keymap:
                 return Keymap(keymap_text=done.stdout, group=group)
         except (OSError, subprocess.SubprocessError):
             pass
-    names = {f: environ.get(f'XKB_DEFAULT_{f.upper()}', '') for f in ('rules', 'model', 'layout', 'variant', 'options')}
+    names = layout_names(run, environ)
+    if names is None:
+        raise BackendUnavailable(NO_LAYOUT)
     return Keymap(names=names, group=group)
 
 
-def active_group(run=subprocess.run) -> int:
-    """The layout in use when you have more than one (Plasma tells; elsewhere the first)."""
-    if not shutil.which('gdbus'):
-        return 0
+def layout_names(run=subprocess.run, environ=None) -> dict | None:
+    """The layout the session was set up with, for a session without XWayland; None when nothing names one.
+
+    XKB_DEFAULT_* is what sway and the other wlroots compositors read. Plasma has its keyboard settings (kxkbrc) and,
+    with no layouts chosen there, follows the system's layout (localectl). Another desktop may have its own setting
+    that differs from the system's, so localectl is asked on Plasma only."""
+    environ = os.environ if environ is None else environ
+    fields = ('rules', 'model', 'layout', 'variant', 'options')
+    if environ.get('XKB_DEFAULT_LAYOUT'):
+        return {f: environ.get(f'XKB_DEFAULT_{f.upper()}', '') for f in fields}
+    if 'KDE' not in environ.get('XDG_CURRENT_DESKTOP', '').upper().split(':'):
+        return None
+    settings = configparser.RawConfigParser(strict=False)
+    settings.optionxform = str
     try:
-        done = run(['gdbus', 'call', '--session', '--dest', 'org.kde.keyboard', '--object-path', '/Layouts',
-                    '--method', 'org.kde.KeyboardLayouts.getLayout'], capture_output=True, text=True, timeout=2, check=False)
+        home = environ.get('XDG_CONFIG_HOME') or Path(environ.get('HOME') or Path.home()) / '.config'
+        settings.read_string((Path(home) / 'kxkbrc').read_text(encoding='utf-8'))
+        chosen = dict(settings['Layout'])
+    except (OSError, ValueError, KeyError, configparser.Error):
+        chosen = {}
+    if chosen.get('Use', '').lower() == 'true' and chosen.get('LayoutList'):
+        return {'layout': chosen['LayoutList'], 'variant': chosen.get('VariantList', ''),
+                'model': chosen.get('Model', ''), 'options': chosen.get('Options', '')}
+    if not shutil.which('localectl'):
+        return None
+    try:
+        done = run(['localectl', 'status'], capture_output=True, text=True, timeout=5, check=False)
     except (OSError, subprocess.SubprocessError):
-        return 0
-    found = re.search(r'(\d+),?\)', done.stdout) if done.returncode == 0 else None  # "(uint32 1,)"
-    return int(found.group(1)) if found else 0
+        return None
+    found = {key.lower(): value.strip() for key, value in re.findall(r'X11 (Layout|Model|Variant|Options):(.*)', done.stdout or '')}
+    if done.returncode != 0 or not re.fullmatch(r'[\w,]+', found.get('layout', '')):  # "(unset)" and "n/a" name none
+        return None
+    return found
+
+
+def active_group(run=subprocess.run, environ=None) -> int:
+    """The layout in use when the session has more than one. Plasma, sway and Hyprland tell; elsewhere the first."""
+    environ = os.environ if environ is None else environ
+    try:
+        if 'KDE' in environ.get('XDG_CURRENT_DESKTOP', '').upper().split(':') and shutil.which('gdbus'):
+            done = run(['gdbus', 'call', '--session', '--dest', 'org.kde.keyboard', '--object-path', '/Layouts',
+                        '--method', 'org.kde.KeyboardLayouts.getLayout'], capture_output=True, text=True, timeout=2, check=False)
+            found = re.search(r'(\d+),?\)', done.stdout) if done.returncode == 0 else None  # "(uint32 1,)"
+            return int(found.group(1)) if found else 0
+        if environ.get('SWAYSOCK') and shutil.which('swaymsg'):
+            done = run(['swaymsg', '-t', 'get_inputs', '--raw'], capture_output=True, text=True, timeout=2, check=False)
+            return _keyboard_group(json.loads(done.stdout), 'xkb_active_layout_index') if done.returncode == 0 else 0
+        if environ.get('HYPRLAND_INSTANCE_SIGNATURE') and shutil.which('hyprctl'):
+            done = run(['hyprctl', 'devices', '-j'], capture_output=True, text=True, timeout=2, check=False)
+            return _keyboard_group(json.loads(done.stdout)['keyboards'], 'active_layout_index') if done.returncode == 0 else 0
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        pass
+    return 0
+
+
+def _keyboard_group(devices, field) -> int:
+    """These compositors keep a layout per keyboard: ydotool's own keyboard is the one the keys come from."""
+    groups = [(device.get('name', ''), device[field]) for device in devices
+              if isinstance(device, dict) and isinstance(device.get(field), int) and device[field] >= 0]
+    for name, group in groups:
+        if 'ydotool' in name.lower():
+            return group
+    return groups[0][1] if groups else 0
