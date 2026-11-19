@@ -25,7 +25,7 @@ SHARED_FUNCTIONS = {
     'shell': ['scan_programs', 'shortcut_target'],
     'editor_window': ['activate_window', 'brand_taskbar_identity', 'open_native_window'],
     'programs': ['describe', 'script_command', 'locate'],
-    'processes': ['kill_tree', 'spawn_options', 'open_path', 'open_target', 'edit_script', 'notification_beep'],
+    'processes': ['kill_tree', 'name_process', 'spawn_options', 'open_path', 'open_target', 'edit_script', 'notification_beep'],
     'files': ['make_private'],
     'sensors': ['native_counters', 'hwinfo_reader', 'disk_root', 'extra_gpu_readers'],
     'icons': ['program_icon_image'],

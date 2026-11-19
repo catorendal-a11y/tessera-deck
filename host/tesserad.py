@@ -40,6 +40,7 @@ from system_stats import SystemStats, gauge_state
 # the tools and the tests.
 from input_common import CHILD_NAMES_SECONDS, IS_WINDOWS, child_names, dry_hotkey  # noqa: F401
 from default_profile import seed_path
+from platform_support import load
 from desktop import (bring_to_front, focus_existing_process, foreground_context, is_neutral_window,  # noqa: F401
                      matches_foreground, open_target, send_hotkey, send_mouse, send_text, set_clipboard, window_action)
 from config_check import BETA_STEP, _check_display, in_quiet_hours, validate_config  # noqa: F401
@@ -1084,6 +1085,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
 
 
 def main():
+    load('processes').name_process('Tessera')  # so that `killall Tessera` finds it
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', default=DEFAULT_PORT)
     parser.add_argument('--profiles', default=str(Path(__file__).with_name('profiles.json')))

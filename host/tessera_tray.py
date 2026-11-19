@@ -482,6 +482,7 @@ class TrayApp:
 
 
 def main():
+    load('processes').name_process('Tessera')  # so that `killall Tessera` finds it
     lock = InstanceLock(Path(__file__).with_name('deck-tray.local.lock'))
     if not lock.acquire():
         print('The Tessera tray is already running.')

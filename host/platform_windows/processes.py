@@ -8,6 +8,10 @@ import sys
 STOP_BY_KILLING_TREE = sys.platform == 'win32'
 
 
+def name_process(name: str) -> None:
+    """Windows lists a program by its file name (python.exe), which cannot be changed from inside; nothing to do."""
+
+
 def spawn_options() -> dict:
     """Extra keyword arguments for subprocess.Popen: no console window, and a new process group."""
     from process_flags import NEW_PROCESS_GROUP, NO_WINDOW

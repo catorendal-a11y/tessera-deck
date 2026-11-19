@@ -29,7 +29,7 @@ EXPECTED = {
     'platform_windows.editor_window': ['activate_window', 'brand_taskbar_identity', 'fit_to_work_area', 'open_native_window'],
     'platform_windows.session': ['locked'],
     'platform_windows.dialogs': ['ask_yes_no'],
-    'platform_windows.processes': ['kill_tree', 'edit_script', 'open_target', 'open_path', 'notification_beep', 'spawn_options',
+    'platform_windows.processes': ['kill_tree', 'name_process', 'edit_script', 'open_target', 'open_path', 'notification_beep', 'spawn_options',
                                    'STOP_BY_KILLING_TREE'],
     'platform_windows.files': ['make_private'],
     'platform_windows.process_flags': ['NO_WINDOW', 'NEW_PROCESS_GROUP', 'DETACHED', 'NEW_CONSOLE'],

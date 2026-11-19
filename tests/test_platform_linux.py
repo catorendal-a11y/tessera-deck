@@ -240,5 +240,35 @@ class X11IntegrationTests(unittest.TestCase):
         self.assertIsNotNone(self.backend.find_window({self.term.pid}))
 
 
+class ProcessNameTests(unittest.TestCase):
+    """`killall Tessera` stops the host: a Python program is called python until it names itself."""
+
+    CODE = ("import sys; sys.path.insert(0, 'host'); from platform_linux import processes; "
+            "processes.name_process(sys.argv[1]); print(open('/proc/self/comm').read().strip(), flush=True); "
+            "sys.stdin.read()")
+
+    def start(self, name):
+        import subprocess
+        child = subprocess.Popen([sys.executable, '-c', self.CODE, name], cwd=Path(__file__).resolve().parents[1],
+                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.addCleanup(lambda: (child.stdin.close(), child.wait(), child.stdout.close()))
+        return child, child.stdout.readline().strip()
+
+    def test_the_process_is_called_tessera_and_a_long_name_is_cut_to_what_the_kernel_keeps(self):
+        self.assertEqual(self.start('Tessera')[1], 'Tessera')
+        self.assertEqual(self.start('A' * 40)[1], 'A' * 15)
+
+    def test_killall_finds_it_by_that_name(self):
+        import shutil
+        import subprocess
+        if shutil.which('pkill') is None:
+            self.skipTest('needs pkill')
+        child, name = self.start('TesseraTest')
+        self.assertEqual(name, 'TesseraTest')
+        # -x: the exact name, as killall matches it; the child ends because it was sent SIGTERM
+        self.assertEqual(subprocess.run(['pkill', '-x', '-P', str(os.getpid()), 'TesseraTest']).returncode, 0)
+        self.assertEqual(child.wait(timeout=10), -15)
+
+
 if __name__ == '__main__':
     unittest.main()
