@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tessera launcher for Linux (X11). With no arguments it starts the tray icon, which starts the USB host; the editor
+# Tessera launcher for Linux (X11, or Wayland on KDE Plasma). With no arguments it starts the tray icon, which starts the USB host; the editor
 # opens from the tray icon (a click) or with --editor. Starting it again changes nothing.
 #   --app          the tray icon and the editor (what the *Tessera Editor* menu entry runs; the editor comes to the front)
 #   --editor [options]   only the editor
@@ -8,7 +8,8 @@
 #   --diagnostics  write a support bundle without button contents
 #   --terminal     the terminal editor        --tray   only the tray icon
 #   --check / --no-browser   run in this terminal
-# Needs Python 3.12 or newer with venv, and xdotool and xclip for keys, text and the clipboard (X11 session).
+# Needs Python 3.12 or newer with venv, and for keys, text and the clipboard xdotool and xclip (X11), or ydotool,
+# wl-clipboard and on KDE Plasma kdotool (Wayland).
 set -u
 export PYTHONUTF8=1
 cd "$(dirname "$(readlink -f "$0")")" || exit 1
@@ -45,15 +46,27 @@ create_environment() {
 
 check_tools() {
   local missing=() tool
+  if [ "${TESSERA_SESSION:-${XDG_SESSION_TYPE:-}}" = "wayland" ]; then
+    command -v ydotool >/dev/null 2>&1 || missing+=("ydotool")
+    command -v wl-copy >/dev/null 2>&1 || command -v qdbus6 >/dev/null 2>&1 || missing+=("wl-copy (wl-clipboard)")
+    if [ "${#missing[@]}" -gt 0 ]; then
+      echo "Note: ${missing[*]} not found. Keys, typing and the clipboard need them on Wayland." >&2
+    elif ! ydotool key >/dev/null 2>&1; then
+      echo "Note: ydotoold is not running. Start it with: systemctl --user enable --now ydotool" >&2
+    fi
+    case ":${XDG_CURRENT_DESKTOP:-}:" in
+      *:KDE:*) command -v kdotool >/dev/null 2>&1 ||
+                 echo "Note: kdotool not found. Smart profiles and window actions need it on Plasma (AUR: kdotool-bin)." >&2 ;;
+      *) echo "Note: window actions and smart profiles on Wayland need KDE Plasma; keys and typing work." >&2 ;;
+    esac
+    return
+  fi
   for tool in xdotool xclip; do
     command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
   done
   if [ "${#missing[@]}" -gt 0 ]; then
     echo "Note: ${missing[*]} not found. Keys, typing and the clipboard need them (install the packages of the same names)." >&2
   fi
-  case "${XDG_SESSION_TYPE:-}" in
-    wayland) echo "Note: this is a Wayland session. Tessera supports X11 only for now: keys, typing and windows will not work." >&2 ;;
-  esac
 }
 
 background() {  # start a program that outlives this terminal

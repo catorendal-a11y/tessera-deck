@@ -155,8 +155,8 @@ POSIX_ONLY = 'fcntl,termios'  # the ones this project could import; psutil and o
 WINDOWS_ONLY = 'msvcrt,winreg,winsound,_winapi,win32pdh,win32api,win32con,win32gui,pycaw,comtypes,winrt'
 
 
-# programs that run in their own process (the tray menu helper exits when its GTK libraries are missing)
-SCRIPTS = {'x11_menu_helper'}
+# programs that run in their own process (the tray menu and editor window helpers exit when their GTK libraries are missing)
+SCRIPTS = {'x11_menu_helper', 'editor_window_helper'}
 
 
 class ImportableEverywhereTests(unittest.TestCase):

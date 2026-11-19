@@ -46,6 +46,7 @@ Other automatic checks:
 | `hardware_smoke.py` after installing 1.0.0 with *Update* | 1.0.0, 16 November 2026 | Passed |
 | The editor's *Check for updates*, *Download firmware* and *Update*, from 1.2.1 to the published 1.2.3 | 1.2.3, 18 November 2026 | Passed. The package matched `SHA256SUMS`, the install took about 40 s, and the host started again and found the panel |
 | `hardware_smoke.py` after that update | 1.2.3, 18 November 2026 | Passed |
+| `hardware_smoke.py` from the Linux host (CachyOS, Plasma 6 on Wayland, `/dev/ttyACM0`), then every page of six profiles (15 pages) pushed by the host and acknowledged | 1.2.4, 19 November 2026 | Passed. The tray started the host again and it found the panel in 10 s |
 
 The watchdog and rollback tests used two builds made only for that and never published. One adds a command that hangs the screen task or the USB loop. The other skips the confirmation and restarts while the new firmware is still unconfirmed. The host turns a `task_wdt` reason into a log line and a notice; that part is covered by unit tests, not by these runs. The panel runs the normal 0.10.1 build again.
 
@@ -57,7 +58,7 @@ The editor was also walked through against a copy of a real configuration: every
 
 Every check in this section was made on the GUITION board. The contributor of the CrowPanel Advance 7.0 build reports it working on their board: the colors look right, touch works, and most of the hotkeys and actions they tried work. An install from the editor's firmware dialog has not been tried on that board ([docs/CROWPANEL.md](docs/CROWPANEL.md)). One tester runs the Waveshare ESP32-S3 build at a 12 MHz pixel clock; the Sunton build has not run on a board ([docs/S3.md](docs/S3.md)).
 
-The Linux host was tested by hand by its contributor, with a CrowPanel on Arch Linux with Cinnamon (X11). The panel link and the tray had the most testing; keys, sound and sensors had less. Nobody has reported a run on another distribution or desktop ([docs/LINUX.md](docs/LINUX.md)).
+The Linux host was tested by hand by its contributor, with a CrowPanel on Arch Linux with Cinnamon (X11). The panel link and the tray had the most testing; keys, sound and sensors had less. On CachyOS with Plasma 6 (Wayland) and a Norwegian keyboard, the Wayland backend was run against a window of its own: 80 characters typed and read back (`æøå`, the AltGr symbols and the dead-key accents), Ctrl+A, the clipboard through Klipper, and finding, focusing, maximizing, minimizing and closing the window with `kdotool`. The mouse was not tried there. Nobody has reported a run on another distribution or desktop ([docs/LINUX.md](docs/LINUX.md)).
 
 Both desk consoles have been printed, and each panel fits its console ([hardware/README.md](hardware/README.md)).
 

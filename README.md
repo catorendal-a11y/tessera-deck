@@ -7,12 +7,12 @@
 </p>
 
 <p align="center">
-  The <a href="https://catorendal-a11y.github.io/tessera-deck/">website</a> shows every screen and the editor. On Linux the host needs an X11 session: <a href="docs/LINUX.md">Tessera on Linux</a>.
+  The <a href="https://catorendal-a11y.github.io/tessera-deck/">website</a> shows every screen and the editor. On Linux the host needs an X11 session or KDE Plasma on Wayland: <a href="docs/LINUX.md">Tessera on Linux</a>.
 </p>
 
 <p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/host-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
-  <img alt="Linux (X11)" src="https://img.shields.io/badge/host-Linux%20(X11)-FCC624?logo=linux&logoColor=black">
+  <img alt="Linux (X11, Plasma Wayland)" src="https://img.shields.io/badge/host-Linux%20(X11%2C%20Plasma%20Wayland)-FCC624?logo=linux&logoColor=black">
   <a href="https://aur.archlinux.org/packages/tessera-deck"><img alt="AUR package tessera-deck" src="https://img.shields.io/aur/version/tessera-deck?logo=archlinux&logoColor=white&color=1793D1"></a>
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
@@ -29,7 +29,7 @@
 Tessera is a macro deck for Windows and Linux that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. It needs no soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
-> You need one of the [supported boards](#supported-boards), a USB cable and a PC with Windows 10/11 or Linux in an X11 session. Other boards need porting. Wayland and macOS are not supported.
+> You need one of the [supported boards](#supported-boards), a USB cable and a PC with Windows 10/11 or Linux (X11, or KDE Plasma on Wayland). Other boards need porting. Other Wayland desktops are partly supported, macOS not at all.
 
 <p align="center">
   <img src="docs/images/promo.gif" alt="A short loop: the Tessera logo, the Windows app and the panel joined by one USB cable, a tap on Allow on the agents screen, the editor putting a Timer key on the panel, and what you need to build one" width="760">
@@ -85,10 +85,11 @@ Nothing runs in the editor. Keys run only when you press them on the panel.
 
 ### Quick start on Linux
 
-The host runs in an X11 session. Install it in one of two ways:
+The host runs in an X11 session, or in a Wayland session on KDE Plasma. Install it in one of two ways:
 
 - **Arch Linux:** install the [`tessera-deck`](https://aur.archlinux.org/packages/tessera-deck) package from the AUR, for example `yay -S tessera-deck`. It brings the dependencies. Start *Tessera* (the tray icon and the USB host) or *Tessera Editor* (the editor, which starts the tray too when it is not running) from the application menu, or run `tessera` and `tessera --app` in a terminal. The package keeps your profiles and logs in `~/.local/share/tessera`.
 - **Any distribution:** unpack the release zip and run `./Tessera.sh`. It needs Python 3.12 or newer with `venv`, `xdotool` and `xclip`; `libpulse` (`pactl`) gives the volume actions, and a Secret Service such as GNOME Keyring stores plugin passwords. The first start creates `host/.venv` and adds the same two menu entries. The tray starts first: click its icon to open the editor, or run `./Tessera.sh --editor`.
+- **Wayland on KDE Plasma:** instead of `xdotool` and `xclip`, install `ydotool` (and run `systemctl --user enable --now ydotool`), `kdotool-bin` from the AUR and `wl-clipboard`. [Tessera on Linux](docs/LINUX.md#wayland) has the details.
 
 Your user must be allowed to open serial ports: add it to the group `uucp` (Arch) or `dialout` (Debian, Ubuntu) and log in again. Then continue with step 2 above. To stop Tessera from a terminal run `killall Tessera`; `tessera --uninstall` (the package) or `./Tessera.sh --uninstall` removes the autostart and menu entries. [Tessera on Linux](docs/LINUX.md) has the details: the tray menu, what differs from Windows and what stays Windows-only.
 
