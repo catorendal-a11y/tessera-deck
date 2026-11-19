@@ -192,8 +192,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
         self.pc = PcState(audio=read_audio, media=MediaReader(),
-                          remote=lambda: remote_devices.state(self.config.get('panel', {}).get('remote'))
-                          if remote_devices.needs_state(self.config) else dict(remote_devices.EMPTY_STATE))
+                          remote=lambda: remote_devices.state() if remote_devices.needs_state(self.config) else dict(remote_devices.EMPTY_STATE))
         self.calendar = calendar_feed.Feed()
         self.events = EventLog()
         self.plugins = None

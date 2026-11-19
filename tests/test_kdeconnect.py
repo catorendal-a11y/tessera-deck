@@ -103,6 +103,35 @@ class DeviceTests(Case):
         bus.error = None
         self.assertEqual(len(self.remote.list_devices()), 2)
 
+    def test_a_device_that_went_away_while_the_list_was_made_does_not_end_the_list(self):
+        bus = self.use()
+        call = bus.call
+
+        def call_with_a_vanishing_laptop(destination, path, interface, member, signature='', body=(), timeout=None):
+            if path.endswith(LAPTOP) and member == 'loadedPlugins':
+                raise OSError('org.freedesktop.DBus.Error.UnknownObject: No such object path')
+            return call(destination, path, interface, member, signature, body, timeout)
+        bus.call = call_with_a_vanishing_laptop
+        self.assertEqual([item['id'] for item in self.remote.list_devices()], [PHONE])
+        asked = len(bus.calls)
+        self.remote.list_devices()
+        self.assertEqual(len(bus.calls), asked, 'the list is kept: the laptop is not asked about again for a few seconds')
+
+    def test_a_daemon_that_goes_away_during_the_list_still_ends_it(self):
+        bus = self.use()
+        call = bus.call
+
+        def gone(destination, path, interface, member, signature='', body=(), timeout=None):
+            if member == 'loadedPlugins':
+                raise NotRunning('KDE Connect is not running')
+            return call(destination, path, interface, member, signature, body, timeout)
+        bus.call = gone
+        self.assertEqual(self.remote.list_devices(), [])
+        asked = len(bus.calls)
+        self.now[0] += kdeconnect.BACK_OFF + 1
+        self.remote.list_devices()
+        self.assertEqual(len(bus.calls), asked, 'left alone for the long back-off')
+
     def test_reset_forgets_the_back_off(self):
         bus = self.use()
         bus.fail = 'gone'
@@ -176,6 +205,32 @@ class WriteTests(Case):
             self.remote.send_action(PHONE, 'Format')
 
 
+class RaceTests(Case):
+    def test_a_read_that_began_before_a_write_is_not_kept(self):
+        bus = self.use()
+        original = bus.call
+        wrote = []
+
+        def read_while_writing(destination, path, interface, member, signature='', body=(), timeout=None):
+            answer = original(destination, path, interface, member, signature, body, timeout)
+            if member == 'GetAll' and body[0] == kdeconnect.REMOTE and not wrote:
+                wrote.append(True)
+                self.remote.write_volume(PHONE, 60)  # the write completes while the read is on its way back
+            return answer
+        bus.call = read_while_writing
+        self.assertEqual(self.remote.read_device(PHONE)['volume'], 8, 'this read shows what it found')
+        count = len([call for call in bus.calls if call[2] == 'GetAll'])
+        self.remote.read_device(PHONE)
+        self.assertEqual(len([call for call in bus.calls if call[2] == 'GetAll']), count + 1,
+                         'but it was not kept: the next one asks again and sees the new volume')
+
+    def test_without_a_write_in_between_the_read_is_kept(self):
+        bus = self.use()
+        self.remote.read_device(PHONE)
+        self.remote.read_device(PHONE)
+        self.assertEqual([call[2] for call in bus.calls].count('GetAll'), 1)
+
+
 class OpenBus(Bus):
     """A Bus whose connection is given, as a platform's _open would make it."""
 
@@ -185,6 +240,36 @@ class OpenBus(Bus):
 
     def _open(self):
         return self.made
+
+
+class HelloTests(unittest.TestCase):
+    def test_a_bus_that_never_answers_hello_is_an_oserror_and_does_not_hold_the_caller(self):
+        import socket
+        from dbus_client import open_connection
+        ours, theirs = socket.socketpair()
+        self.addCleanup(theirs.close)
+        started = time.monotonic()
+        with self.assertRaisesRegex(OSError, 'did not answer Hello within 0.3 seconds'):
+            open_connection(ours, 0.3)
+        self.assertLess(time.monotonic() - started, 5)
+        self.assertEqual(ours.fileno(), -1, 'the socket is closed, so a later call can connect again')
+
+    def test_the_deadline_is_cancelled_when_hello_is_answered(self):
+        import socket
+        from unittest.mock import patch
+        ours, theirs = socket.socketpair()
+        self.addCleanup(ours.close)
+        self.addCleanup(theirs.close)
+
+        class Connection:
+            def __init__(self, sock):
+                self.sock = sock
+        with patch('jeepney.io.blocking.DBusConnection', Connection):
+            from dbus_client import open_connection
+            connection = open_connection(ours, 0.2)
+            time.sleep(0.4)
+        self.assertIsInstance(connection, Connection)
+        self.assertNotEqual(ours.fileno(), -1, 'the timer did not shut a good connection down')
 
 
 class BusTests(unittest.TestCase):

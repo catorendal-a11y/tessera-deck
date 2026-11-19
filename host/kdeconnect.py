@@ -53,6 +53,7 @@ class KdeConnect:
         self.clock = clock
         self._cache: dict = {}
         self._failed: dict = {}  # what was asked -> until when it is left alone after a failure
+        self._writes = 0  # counts the writes: a read that began before one must not be kept, it may show the old value
 
     def _call(self, path, interface, member, signature='', body=()):
         return self.bus.call(NAME, path, interface, member, signature, body)
@@ -67,6 +68,7 @@ class KdeConnect:
         hit = self._cache.get(key)
         if hit and now - hit[0] < seconds:
             return hit[1]
+        writes = self._writes
         try:
             value = load()
         except OSError as exc:
@@ -74,8 +76,13 @@ class KdeConnect:
             self._cache.pop(key, None)
             raise
         self._failed.pop(key, None)
-        self._cache[key] = (now, value)
+        if writes == self._writes:
+            self._cache[key] = (now, value)
         return value
+
+    def _written(self, device: str) -> None:
+        self._writes += 1
+        self._cache.pop(('read', device), None)
 
     def reset(self) -> None:
         """Forget what was read and any back-off (a new connection, or a test)."""
@@ -90,10 +97,16 @@ class KdeConnect:
             ids = self._call(DAEMON[0], DAEMON[1], 'devices', 'bb', (True, True))[0]
             found = []
             for device in ids:
-                plugins = self._call(_path(device), DEVICE, 'loadedPlugins')[0]
-                if PLUGIN not in plugins:
+                try:
+                    plugins = self._call(_path(device), DEVICE, 'loadedPlugins')[0]
+                    if PLUGIN not in plugins:
+                        continue
+                    properties = self._call(_path(device), PROPERTIES, 'GetAll', 's', (DEVICE,))[0]
+                except NotRunning:
+                    raise
+                except OSError as exc:  # a device that went away while the list was made: the others are still good
+                    log.debug('KDE Connect: %s: %s', device, exc)
                     continue
-                properties = self._call(_path(device), PROPERTIES, 'GetAll', 's', (DEVICE,))[0]
                 found.append({'id': device, 'name': str(_value(properties.get('name', ('s', device)))),
                               'type': str(_value(properties.get('type', ('s', ''))))})
             return found
@@ -122,7 +135,7 @@ class KdeConnect:
         try:
             self._call(_path(device, 'mprisremote'), PROPERTIES, 'Set', 'ssv', (REMOTE, 'volume', ('i', level)))
         finally:
-            self._cache.pop(('read', device), None)  # the next read shows what the device did with it
+            self._written(device)  # the next read shows what the device did with it
 
     def send_action(self, device: str, action: str) -> None:
         """PlayPause, Play, Pause, Next, Previous or Stop for the device's selected player."""
@@ -131,4 +144,4 @@ class KdeConnect:
         try:
             self._call(_path(device, 'mprisremote'), REMOTE, 'sendAction', 's', (action,))
         finally:
-            self._cache.pop(('read', device), None)
+            self._written(device)

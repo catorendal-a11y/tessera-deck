@@ -15,7 +15,7 @@ import hashlib
 import os
 import socket
 
-from dbus_client import TIMEOUT, Bus, NotRunning
+from dbus_client import TIMEOUT, Bus, NotRunning, open_connection
 
 DAEMON = 'dbus-daemon.exe'
 KDECONNECT = 'kdeconnectd.exe'  # a dbus-daemon of another KDE program is not the one
@@ -150,12 +150,11 @@ class KdeConnectBus(Bus):
         super().__init__(timeout)
 
     def _open(self):
-        from jeepney.io.blocking import DBusConnection
         host, port = find_endpoint()
         sock = socket.create_connection((host, port), timeout=self.timeout)
         try:
             authenticate(sock, user_sid())
-            return DBusConnection(sock)  # says Hello; the socket keeps its timeout, so a silent daemon cannot hang it
+            return open_connection(sock)  # says Hello, with a deadline: a silent daemon cannot hold the host's loop
         except Exception as exc:
             sock.close()
             if isinstance(exc, OSError):

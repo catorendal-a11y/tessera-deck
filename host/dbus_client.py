@@ -6,11 +6,40 @@ as if it had worked.
 """
 from __future__ import annotations
 
+import socket
 import threading
 
 TIMEOUT = 2.0
+HELLO_SECONDS = 3.0  # jeepney waits for the bus's answer to Hello without any limit
 # What the bus says when nobody has the name: the program (KDE Connect) is not running
 ABSENT = ('org.freedesktop.DBus.Error.ServiceUnknown', 'org.freedesktop.DBus.Error.NameHasNoOwner')
+
+
+def open_connection(sock: socket.socket, hello_seconds: float = HELLO_SECONDS):
+    """A jeepney DBusConnection on `sock`, which is already signed in. jeepney says Hello at once and waits for the answer in a
+    select without a time limit, which the socket's own timeout does not shorten: a bus that stays silent would hold the host's
+    loop for ever. Past `hello_seconds` the socket is shut down, the wait ends and the caller gets an OSError."""
+    from jeepney.io.blocking import DBusConnection
+    expired = []
+
+    def abort():
+        expired.append(True)
+        try:
+            sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+    timer = threading.Timer(hello_seconds, abort)
+    timer.daemon = True
+    timer.start()
+    try:
+        return DBusConnection(sock)
+    except Exception as exc:
+        sock.close()
+        if expired:
+            raise OSError(f'the D-Bus did not answer Hello within {hello_seconds:g} seconds') from exc
+        raise
+    finally:
+        timer.cancel()
 
 
 class NotRunning(OSError):

@@ -92,8 +92,8 @@ def _device_of(fader_id: str) -> dict:
 
 def set_volume(fader_id: str, level: int) -> None:
     item = _device_of(fader_id)
-    _muted.pop(item['short'], None)
     _system().write_volume(item['id'], max(0, min(100, int(level))))
+    _muted.pop(item['short'], None)  # after the write: a failed one keeps what a mute remembered
 
 
 def toggle_mute(fader_id: str) -> None:
@@ -103,10 +103,11 @@ def toggle_mute(fader_id: str) -> None:
     if current is None:  # as for the volume keys: a device that reports no volume is not guessed at
         raise OSError(f'{item["name"]}: it does not report a volume')
     if current > 0:
-        _muted[item['short']] = current
         _system().write_volume(item['id'], 0)
+        _muted[item['short']] = current  # remembered once the device has been muted
     else:
-        _system().write_volume(item['id'], _muted.pop(item['short'], RESTORE_LEVEL))
+        _system().write_volume(item['id'], _muted.get(item['short'], RESTORE_LEVEL))
+        _muted.pop(item['short'], None)  # forgotten once it has its volume back
 
 
 def control_media(op: str, device: str = 'first', step: int = DEFAULT_STEP) -> None:
@@ -124,8 +125,8 @@ def control_media(op: str, device: str = 'first', step: int = DEFAULT_STEP) -> N
             current = _system().read_device(item['id'])['volume']
             if current is None:
                 raise OSError('it does not report a volume')
-            _muted.pop(item['short'], None)
             _system().write_volume(item['id'], max(0, min(100, current + (step if op == 'volumeup' else -step))))
+            _muted.pop(item['short'], None)
         else:
             _system().send_action(item['id'], MEDIA_OPS[op])
     except OSError as exc:
@@ -148,11 +149,11 @@ def needs_state(config) -> bool:
     return used
 
 
-def state(setting) -> dict:
-    """What PcState keeps of the first chosen device: $(remote:track), $(remote:artist), the flag `remote_playing` that a key can
-    follow (bind), and what a wide key shows (the status, how far the track is). Empty and False when no device is reachable."""
-    mode, device = _setting(setting)
-    for item in select(devices(), 'first' if mode == 'off' else mode, device)[:1]:
+def state() -> dict:
+    """What PcState keeps of the first connected device, the one a key's `"device": "first"` reaches: $(remote:track),
+    $(remote:artist), the flag `remote_playing` that a key can follow (bind), and what a wide key shows (the status, how far the
+    track is). It does not depend on the mixer's choice of devices. Empty and False when no device is reachable."""
+    for item in select(devices(), 'first')[:1]:
         try:
             read = _system().read_device(item['id'])
         except OSError:

@@ -158,6 +158,27 @@ class ControlTests(Case):
         remote.toggle_mute(remote.FADER_PREFIX + remote.devices()[0]['short'])
         self.assertEqual(system.written, [(PHONE['id'], remote.RESTORE_LEVEL)])
 
+    def test_a_failed_write_keeps_what_a_mute_remembered(self):
+        system = self.use()
+        fader = remote.FADER_PREFIX + remote.devices()[0]['short']
+        remote.toggle_mute(fader)  # 40 -> 0, 40 remembered
+        write = system.write_volume
+
+        def failing(device, level):
+            raise OSError('gone')
+        system.write_volume = failing
+        with self.assertRaises(OSError):
+            remote.toggle_mute(fader)  # the restore fails
+        with self.assertRaises(OSError):
+            remote.control_media('volumeup')
+        with self.assertRaises(OSError):
+            remote.set_volume(fader, 70)
+        self.assertEqual(remote._muted, {remote.short_id(PHONE['id']): 40}, 'still remembered')
+        system.write_volume = write
+        remote.toggle_mute(fader)
+        self.assertEqual(system.written[-1], (PHONE['id'], 40), 'the old volume comes back')
+        self.assertEqual(remote._muted, {})
+
     def test_the_mute_button_does_not_guess_at_a_device_that_reports_no_volume(self):
         system = self.use()
         system.read_device = lambda device: {'volume': None, 'playing': False, 'title': '', 'artist': ''}
@@ -221,24 +242,31 @@ class ControlTests(Case):
 class StateTests(Case):
     def test_the_title_artist_and_playing_flag_of_the_first_device(self):
         self.use(devices=(PHONE, LAPTOP))
-        self.assertEqual(remote.state({'mode': 'all'}), {'remote:track': 'Song of ce7', 'remote:artist': 'Band', 'remote_playing': True,
-                                                         'remote_status': 'PLAYING', 'remote_position': 60.0, 'remote_duration': 240.0})
-        self.assertEqual(remote.state(None)['remote:track'], 'Song of ce7')  # asking for the variable is enough
-        self.assertEqual(remote.state({'mode': 'device', 'device': LAPTOP['id']})['remote:track'], 'Song of a1b')
+        self.assertEqual(remote.state(), {'remote:track': 'Song of ce7', 'remote:artist': 'Band', 'remote_playing': True,
+                                          'remote_status': 'PLAYING', 'remote_position': 60.0, 'remote_duration': 240.0})
+
+    def test_it_follows_the_first_connected_device_whatever_the_mixer_shows(self):
+        """The same device a key's "device": "first" reaches, so the key and what it shows agree."""
+        system = self.use(devices=(PHONE, LAPTOP))
+        with patch.object(remote, 'faders', wraps=remote.faders):
+            self.assertEqual([item['name'] for item in remote.faders({'mode': 'device', 'device': LAPTOP['id']})], ['A laptop with a'])
+        self.assertEqual(remote.state()['remote:track'], 'Song of ce7')
+        remote.control_media('playpause')
+        self.assertEqual(system.actions, [(PHONE['id'], 'PlayPause')])
 
     def test_a_device_that_is_not_playing_clears_the_flag(self):
         system = self.use()
         system.read_device = lambda device: {'volume': 5, 'playing': False, 'title': 'Song', 'artist': 'Band'}
-        self.assertFalse(remote.state(None)['remote_playing'])
-        self.assertEqual(remote.state(None)['remote_status'], 'PAUSED')
+        self.assertFalse(remote.state()['remote_playing'])
+        self.assertEqual(remote.state()['remote_status'], 'PAUSED')
 
     def test_nothing_reachable_gives_empty_text_and_no_flag(self):
         empty = remote.EMPTY_STATE
         self.use(devices=())
-        self.assertEqual(remote.state(None), empty)
+        self.assertEqual(remote.state(), empty)
         system = self.use()
         system.unreachable.add(PHONE['id'])
-        self.assertEqual(remote.state(None), empty)
+        self.assertEqual(remote.state(), empty)
 
 
 class NeedsStateTests(Case):
@@ -429,6 +457,8 @@ class ValidationTests(unittest.TestCase):
         pack = next(item for item in catalog['packs'] if item['name'] == 'Remote play / pause (shows state)')
         self.assertEqual((pack['bind'], [state['label'] for state in pack['states']], [state['icon'] for state in pack['states']]),
                          ('remote_playing', ['Play', 'Pause'], ['lc:e13c', 'lc:e12e']))
+        self.assertEqual(pack['actions'], [{'type': 'remote_media', 'op': 'playpause', 'device': 'first'}],
+                         'dropped on a key that exists it adds the action; a new key takes the states (the editor does not add it twice)')
         self.assertEqual({action['type'] for state in pack['states'] for action in state['actions']}, {'remote_media'})
 
     def test_the_remote_keys_are_listed_under_media_and_under_other_devices(self):

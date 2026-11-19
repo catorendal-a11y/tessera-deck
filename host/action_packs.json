@@ -565,7 +565,13 @@
         }
       ],
       "bind": "remote_playing",
-      "actions": [],
+      "actions": [
+        {
+          "type": "remote_media",
+          "op": "playpause",
+          "device": "first"
+        }
+      ],
       "also": [
         "Other devices"
       ]

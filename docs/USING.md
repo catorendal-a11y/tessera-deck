@@ -136,7 +136,7 @@ The rail on the left of the panel switches between your keys, the AI **agents**,
 
 ### The mixer
 
-Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now. *Remote devices* adds the volume of a device paired with KDE Connect, such as a phone or a second laptop, as one more fader (see [Remote devices](#remote-devices-kde-connect)). Choose *The first one that is connected*, *Every connected device* or one device by name. The panel shows five faders, so the programs make room: the speaker, the remote devices and the microphone stay.
+Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now. *Remote devices* adds the volume of a device paired with KDE Connect, such as a phone or a second laptop, as one more fader (see [Remote devices](#remote-devices-kde-connect)). Choose *The first one that is connected*, *Every connected device* or one device by name. The panel shows five faders, so the programs make room: the speaker, the remote devices and the microphone stay. With more connected devices than places (five minus the speaker and the microphone), the devices that come last are left out.
 
 The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed, and also upload speed, uptime, CPU clock, CPU power, GPU power, GPU clock, GPU fan and FPS. The panel shows eight, so with eight ticked you untick one to choose another.
 
@@ -165,7 +165,7 @@ mixer and be controlled from keys. The host talks to KDE Connect itself, so ther
 - **Limits:** the volume is that of the device's current player, as KDE Connect reports it, and a player another app has taken over
   can show an old value for a moment. A phone sets its volume in steps (about fifteen), so the fader can settle a few percent away
   from where it was put. On Windows, Tessera joins the D-Bus that KDE Connect starts for itself; it does not start KDE Connect,
-  so after KDE Connect starts, the devices appear within about ten seconds.
+  so a device appears a few seconds after KDE Connect starts, or up to a minute when Tessera had just found KDE Connect not running.
 
 ### The agents screen and Claude Code
 
