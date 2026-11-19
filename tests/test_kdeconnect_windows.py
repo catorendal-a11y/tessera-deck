@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
-from dbus_client import Bus  # noqa: E402
+from dbus_client import Bus, NotRunning  # noqa: E402
 from platform_windows import dbus, remote  # noqa: E402
 
 STORE = 'C:\\Program Files\\WindowsApps\\KDEe.V.KDEConnect_26.802.6845.0_x64__7vt06qxq7ptv8'
@@ -47,7 +47,7 @@ class AddressTests(unittest.TestCase):
 
     def test_without_kdeconnect_running_there_is_no_bus(self):
         with patch.object(dbus, 'daemon_roots', return_value=[]):
-            with self.assertRaisesRegex(OSError, 'not running'):
+            with self.assertRaisesRegex(NotRunning, 'not running'):  # asked again only after a long while: each look scans the processes
                 dbus.find_endpoint()
 
     def test_a_dbus_daemon_of_another_program_is_not_kdeconnects(self):

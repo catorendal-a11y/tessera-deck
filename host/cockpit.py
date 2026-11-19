@@ -140,12 +140,13 @@ MAX_FADERS = 5  # DECK_FADERS_MAX in the firmware
 
 def fit_faders(local: list[dict], remote: list[dict]) -> list[dict]:
     """The speaker, the remote devices, the programs and the microphone, in that order, in the five places the panel has. When
-    they do not all fit, programs go first: the speaker, the remote devices the user chose and the microphone stay."""
+    they do not all fit, programs go first, then the devices that come last: the speaker and the microphone always stay."""
     speaker = [item for item in local if item['id'] == 'speaker']
     mic = [item for item in local if item.get('mic')]
     apps = [item for item in local if item not in speaker and item not in mic]
-    room = max(0, MAX_FADERS - len(speaker) - len(mic) - len(remote))
-    return (speaker + remote + apps[:room] + mic)[:MAX_FADERS]
+    remote = remote[:max(0, MAX_FADERS - len(speaker) - len(mic))]  # more devices than places: the microphone still stays
+    room = MAX_FADERS - len(speaker) - len(mic) - len(remote)
+    return speaker + remote + apps[:room] + mic
 
 
 def mixer_payload(faders: list[dict]) -> str:

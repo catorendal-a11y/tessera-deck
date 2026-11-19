@@ -3,11 +3,13 @@ player is read, how the volume and the media actions are sent, and that a daemon
 the shared D-Bus call (host/dbus_client.py): an error reply or a timeout is an error. The D-Bus is a fake."""
 from pathlib import Path
 import sys
+import threading
+import time
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import kdeconnect  # noqa: E402
-from dbus_client import Bus  # noqa: E402
+from dbus_client import Bus, NotRunning  # noqa: E402
 
 PHONE, LAPTOP, TABLET = 'ce7eff39_phone', 'a1b2c3_laptop', 'ffeedd_tablet'
 DEVICE = {PHONE: {'name': ('s', 'OnePlus 12'), 'type': ('s', 'phone')}, LAPTOP: {'name': ('s', 'Work laptop'), 'type': ('s', 'laptop')},
@@ -28,6 +30,8 @@ class FakeBus:
 
     def call(self, destination, path, interface, member, signature='', body=(), timeout=None):
         self.calls.append((path, interface, member, signature, body))
+        if getattr(self, 'error', None):
+            raise self.error
         if self.fail:
             raise OSError(self.fail)
         if member == 'devices':
@@ -78,13 +82,25 @@ class DeviceTests(Case):
         bus = self.use()
         bus.fail = 'org.freedesktop.DBus.Error.ServiceUnknown: no such service'
         self.assertEqual(self.remote.list_devices(), [])
-        self.assertEqual(bus.closed, 1, 'a failure drops the connection, so the next try connects again')
+        self.assertEqual(bus.closed, 0, 'the connection is the bus\'s to close (it does when it broke): a failed question leaves it')
         asked = len(bus.calls)
         self.now[0] += kdeconnect.BACK_OFF - 1
         self.assertEqual(self.remote.list_devices(), [])
         self.assertEqual(len(bus.calls), asked, 'nothing is asked during the back-off')
         bus.fail = None
         self.now[0] += 2
+        self.assertEqual(len(self.remote.list_devices()), 2)
+
+    def test_a_daemon_that_is_not_running_is_left_alone_for_longer_than_one_that_failed(self):
+        bus = self.use()
+        bus.error = NotRunning('KDE Connect is not running')
+        self.assertEqual(self.remote.list_devices(), [])
+        asked = len(bus.calls)
+        self.now[0] += kdeconnect.BACK_OFF + 5  # long enough for a failure, not for an absent daemon
+        self.assertEqual(self.remote.list_devices(), [])
+        self.assertEqual(len(bus.calls), asked, 'nothing is asked: the daemon is not there (on Windows each look scans the processes)')
+        self.now[0] += kdeconnect.ABSENT_BACK_OFF
+        bus.error = None
         self.assertEqual(len(self.remote.list_devices()), 2)
 
     def test_reset_forgets_the_back_off(self):
@@ -127,6 +143,13 @@ class ReadTests(Case):
         with self.assertRaisesRegex(OSError, 'not answering'):
             self.remote.read_device(PHONE)
         self.assertEqual(self.remote.read_device(LAPTOP)['volume'], 8)
+
+    def test_an_error_reply_about_one_device_does_not_close_the_connection_the_others_use(self):
+        bus = self.use()
+        bus.fail = 'org.freedesktop.DBus.Error.UnknownObject: No such object'
+        with self.assertRaises(OSError):
+            self.remote.read_device(PHONE)
+        self.assertEqual(bus.closed, 0, 'a bus closes itself when the connection broke; a reply is no reason to')
 
 
 class WriteTests(Case):
@@ -176,6 +199,57 @@ class BusTests(unittest.TestCase):
                 return Message(header, ('No such object',))
         with self.assertRaisesRegex(OSError, 'UnknownObject.*No such object'):
             OpenBus(Connection()).call('org.kde.kdeconnect', '/x', 'org.freedesktop.DBus.Properties', 'GetAll', 's', ('y',))
+
+    def test_nobody_having_the_name_is_not_running_and_any_other_error_reply_is_an_oserror(self):
+        from jeepney import MessageType
+        from jeepney.low_level import Endianness, Header, HeaderFields, Message, MessageFlag
+
+        def reply(name):
+            class Connection:
+                def send_and_get_reply(self, message, timeout=None):
+                    header = Header(Endianness.little, MessageType.error, MessageFlag(0), 1, 0, 1,
+                                    {HeaderFields.error_name: name, HeaderFields.reply_serial: 1})
+                    return Message(header, ('nobody',))
+            return OpenBus(Connection())
+        for name in ('org.freedesktop.DBus.Error.ServiceUnknown', 'org.freedesktop.DBus.Error.NameHasNoOwner'):
+            with self.assertRaises(NotRunning):
+                reply(name).call('org.kde.kdeconnect', '/x', 'org.kde.kdeconnect.daemon', 'devices')
+        with self.assertRaises(OSError) as raised:
+            reply('org.freedesktop.DBus.Error.UnknownObject').call('org.kde.kdeconnect', '/x', 'org.kde.kdeconnect.device', 'm')
+        self.assertNotIsInstance(raised.exception, NotRunning)
+
+    def test_two_threads_never_use_the_connection_at_the_same_moment(self):
+        class Connection:
+            inside, most, closed = 0, 0, 0
+
+            def send_and_get_reply(self, message, timeout=None):
+                self.inside += 1
+                self.most = max(self.most, self.inside)
+                time.sleep(0.002)
+                self.inside -= 1
+                return type('Reply', (), {'body': ('ok',), 'header': None})()
+
+            def close(self):
+                assert self.inside == 0, 'closed while a call was running'
+                self.closed += 1
+        connection = Connection()
+        bus = OpenBus(connection)
+        errors = []
+
+        def ask():
+            try:
+                for turn in range(10):
+                    bus.call('org.kde.kdeconnect', '/x', 'org.kde.kdeconnect.device', 'loadedPlugins')
+                    if turn == 5:
+                        bus.close()
+            except Exception as exc:  # noqa: BLE001
+                errors.append(exc)
+        threads = [threading.Thread(target=ask) for _ in range(6)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual((errors, connection.most), ([], 1))
 
     def test_a_timeout_or_a_broken_connection_is_an_oserror_and_the_next_call_connects_again(self):
         for error, message in ((TimeoutError, 'did not answer'), (ConnectionResetError, '')):

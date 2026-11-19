@@ -9,7 +9,7 @@ from platform_linux.dbus import SessionBus
 
 MPRIS = 'org.mpris.MediaPlayer2.'
 # What KDE Connect shows of a paired device's players. They are that device's, not this PC's: the remote media action and the
-# remote faders of the mixer (platform_linux/kdeconnect.py) deal with them, so the PC's media session leaves them out.
+# remote faders of the mixer (host/remote_devices.py, host/kdeconnect.py) deal with them, so the PC's media session leaves them out.
 REMOTE_PLAYERS = MPRIS + 'kdeconnect.'
 PATH = '/org/mpris/MediaPlayer2'
 PLAYER = 'org.mpris.MediaPlayer2.Player'

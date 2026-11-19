@@ -8,6 +8,7 @@ characters of its id's hash.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 
 from platform_support import load
@@ -98,7 +99,9 @@ def set_volume(fader_id: str, level: int) -> None:
 def toggle_mute(fader_id: str) -> None:
     """The panel always shows a mute button: a device has no mute, so this sets 0 and, the second time, the old volume."""
     item = _device_of(fader_id)
-    current = _system().read_device(item['id'])['volume'] or 0
+    current = _system().read_device(item['id'])['volume']
+    if current is None:  # as for the volume keys: a device that reports no volume is not guessed at
+        raise OSError(f'{item["name"]}: it does not report a volume')
     if current > 0:
         _muted[item['short']] = current
         _system().write_volume(item['id'], 0)
@@ -127,6 +130,22 @@ def control_media(op: str, device: str = 'first', step: int = DEFAULT_STEP) -> N
             _system().send_action(item['id'], MEDIA_OPS[op])
     except OSError as exc:
         raise OSError(f'{item["name"]}: {exc}') from exc
+
+
+_usage: tuple = (None, False)
+
+
+def needs_state(config) -> bool:
+    """Does anything in this configuration read the device's player every second: a label with $(remote:...), a key that
+    follows whether it plays (bind remote_playing) or a wide key that shows its music (live remote_media)? Without one the host
+    does not ask KDE Connect at all. The answer is kept for as long as the configuration is the same object."""
+    global _usage
+    if _usage[0] is config:
+        return _usage[1]
+    text = json.dumps(config, ensure_ascii=False, default=str) if isinstance(config, dict) else ''
+    used = any(mark in text for mark in ('$(remote:', '"bind": "remote_playing"', '"live": "remote_media"'))
+    _usage = (config, used)
+    return used
 
 
 def state(setting) -> dict:

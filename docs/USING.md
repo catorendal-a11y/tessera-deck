@@ -159,6 +159,9 @@ mixer and be controlled from keys. The host talks to KDE Connect itself, so ther
   `$(remote:artist)` are the title and artist of the first connected device. A wide key can show that device's music with its progress
   (*Shows → The music of a paired device*; a key with a Remote media action gets it when you make it wide), as *The music that
   plays* does for this PC.
+- **When it is asked:** KDE Connect is asked every second only while the mixer shows a remote fader or a key uses the device
+  (`$(remote:…)`, *Remote device playing*, *The music of a paired device*); otherwise the host looks at most every few seconds, and
+  only every minute while KDE Connect is not running.
 - **Limits:** the volume is that of the device's current player, as KDE Connect reports it, and a player another app has taken over
   can show an old value for a moment. A phone sets its volume in steps (about fifteen), so the fader can settle a few percent away
   from where it was put. On Windows, Tessera joins the D-Bus that KDE Connect starts for itself; it does not start KDE Connect,

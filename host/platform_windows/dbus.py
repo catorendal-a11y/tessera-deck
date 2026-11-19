@@ -15,7 +15,7 @@ import hashlib
 import os
 import socket
 
-from dbus_client import TIMEOUT, Bus
+from dbus_client import TIMEOUT, Bus, NotRunning
 
 DAEMON = 'dbus-daemon.exe'
 KDECONNECT = 'kdeconnectd.exe'  # a dbus-daemon of another KDE program is not the one
@@ -107,7 +107,7 @@ def find_endpoint() -> tuple[str, int]:
             endpoint = ('127.0.0.1', port) if port else None
         if endpoint is not None:
             return endpoint
-    raise OSError('KDE Connect is not running')
+    raise NotRunning('KDE Connect is not running')
 
 
 def user_sid() -> str:

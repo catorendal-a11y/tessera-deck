@@ -12,6 +12,8 @@ from __future__ import annotations
 import logging
 import time
 
+from dbus_client import NotRunning
+
 log = logging.getLogger(__name__)
 
 NAME = 'org.kde.kdeconnect'
@@ -23,6 +25,7 @@ PROPERTIES = 'org.freedesktop.DBus.Properties'
 ACTIONS = ('PlayPause', 'Play', 'Pause', 'Next', 'Previous', 'Stop')  # what sendAction takes
 TIMEOUT = 1.0  # seconds a call may take: the host asks from its 1 Hz loop
 BACK_OFF = 10.0  # after a failure the daemon is left alone for this long
+ABSENT_BACK_OFF = 60.0  # and when it is not running at all (on Windows each look for it scans the processes)
 LIST_SECONDS = 5.0  # devices come and go rarely
 READ_SECONDS = 1.0  # the mixer and the label variables share one read
 
@@ -55,8 +58,9 @@ class KdeConnect:
         return self.bus.call(NAME, path, interface, member, signature, body)
 
     def _cached(self, key, seconds, load):
-        """`load()` at most every `seconds`. After a failure that question is left alone for BACK_OFF seconds. Raises
-        OSError then."""
+        """`load()` at most every `seconds`. After a failure that question is left alone for BACK_OFF seconds, and for longer
+        when KDE Connect is not running. Raises OSError then. The connection is not closed here: a bus closes itself when
+        the connection broke, and an error reply of one device must not take the others' calls with it."""
         now = self.clock()
         if now < self._failed.get(key, 0.0):
             raise OSError('KDE Connect is not answering')
@@ -65,10 +69,9 @@ class KdeConnect:
             return hit[1]
         try:
             value = load()
-        except OSError:
-            self._failed[key] = now + BACK_OFF
+        except OSError as exc:
+            self._failed[key] = now + (ABSENT_BACK_OFF if isinstance(exc, NotRunning) else BACK_OFF)
             self._cache.pop(key, None)
-            self.bus.close()
             raise
         self._failed.pop(key, None)
         self._cache[key] = (now, value)

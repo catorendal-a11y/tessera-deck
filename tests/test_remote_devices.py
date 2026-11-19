@@ -115,6 +115,17 @@ class MixerTests(Case):
         self.assertEqual([item['name'] for item in fitted if item['id'].startswith('app:')], ['A'])
         self.assertEqual(len([item for item in fitted if item['id'].startswith('remote:')]), 2)
 
+    def test_more_devices_than_places_never_push_out_the_microphone_or_the_speaker(self):
+        self.use(devices=(PHONE, LAPTOP))
+        many = [{'id': f'remote:{n:010d}', 'name': f'Device {n}', 'level': n, 'muted': False, 'color': '#FF8A65'} for n in range(6)]
+        fitted = cockpit.fit_faders(self.LOCAL, many)
+        self.assertEqual(len(fitted), cockpit.MAX_FADERS)
+        self.assertEqual((fitted[0]['id'], fitted[-1]['id']), ('speaker', 'mic'))
+        self.assertEqual([item['name'] for item in fitted[1:-1]], ['Device 0', 'Device 1', 'Device 2'])
+        without_mic = cockpit.fit_faders([item for item in self.LOCAL if not item.get('mic')], many)
+        self.assertEqual([item['id'] for item in without_mic][0], 'speaker')
+        self.assertEqual(len(without_mic), cockpit.MAX_FADERS)
+
     def test_with_one_remote_device_two_programs_stay(self):
         self.use()
         fitted = cockpit.fit_faders(self.LOCAL, remote.faders({'mode': 'first'}))
@@ -146,6 +157,13 @@ class ControlTests(Case):
         system = self.use(volumes={PHONE['id']: 0})
         remote.toggle_mute(remote.FADER_PREFIX + remote.devices()[0]['short'])
         self.assertEqual(system.written, [(PHONE['id'], remote.RESTORE_LEVEL)])
+
+    def test_the_mute_button_does_not_guess_at_a_device_that_reports_no_volume(self):
+        system = self.use()
+        system.read_device = lambda device: {'volume': None, 'playing': False, 'title': '', 'artist': ''}
+        with self.assertRaisesRegex(OSError, 'OnePlus 12: it does not report a volume'):
+            remote.toggle_mute(remote.FADER_PREFIX + remote.devices()[0]['short'])
+        self.assertEqual(system.written, [])
 
     def test_a_fader_of_a_device_that_is_not_reachable_is_an_error(self):
         self.use(devices=())
@@ -221,6 +239,40 @@ class StateTests(Case):
         system = self.use()
         system.unreachable.add(PHONE['id'])
         self.assertEqual(remote.state(None), empty)
+
+
+class NeedsStateTests(Case):
+    def test_the_device_is_only_asked_every_second_when_something_in_the_configuration_uses_it(self):
+        base = {'default_profile': 'main', 'profiles': {'main': {'match': [], 'pages': {'main': [
+            {'id': 1, 'label': 'Plain', 'icon': 'ok', 'actions': [{'type': 'remote_media', 'op': 'next'}]}]}}},
+            'panel': {'remote': {'mode': 'first'}}}
+        self.assertFalse(remote.needs_state(base), 'an action reads the device when it runs, a mixer fader has its own read')
+        for name, change in (('a label', lambda key: key.update(label='$(remote:track)')),
+                             ('a state', lambda key: key.update(bind='remote_playing', states=[{'label': 'a'}, {'label': 'b'}])),
+                             ('a wide key', lambda key: key.update(span=2, live='remote_media'))):
+            config = json.loads(json.dumps(base))
+            change(config['profiles']['main']['pages']['main'][0])
+            self.assertTrue(remote.needs_state(config), name)
+        self.assertFalse(remote.needs_state(None))
+
+    def test_the_answer_is_kept_for_the_same_configuration_and_made_again_for_a_new_one(self):
+        config = {'profiles': {'main': {'pages': {'main': [{'label': 'Song $(remote:track)'}]}}}}
+        self.assertTrue(remote.needs_state(config))
+        config['profiles']['main']['pages']['main'][0]['label'] = 'Plain'
+        self.assertTrue(remote.needs_state(config), 'the same object: not read again')
+        self.assertFalse(remote.needs_state(json.loads(json.dumps(config))), 'a reloaded configuration is read again')
+
+    def test_the_host_does_not_ask_without_a_use_and_does_with_one(self):
+        from host_support import test_daemon
+        daemon = test_daemon(port='TEST', no_focus=True)
+        self.use()
+        with patch.object(remote, 'state', return_value={'remote:track': 'Song'}) as asked:
+            daemon.config = {'profiles': {}}
+            self.assertEqual(daemon.pc._remote(), remote.EMPTY_STATE)
+            asked.assert_not_called()
+            daemon.config = {'profiles': {'main': {'pages': {'main': [{'label': '$(remote:track)'}]}}}, 'panel': {}}
+            self.assertEqual(daemon.pc._remote(), {'remote:track': 'Song'})
+            asked.assert_called_once()
 
 
 class LiveTests(Case):
