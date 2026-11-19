@@ -6,7 +6,7 @@ the tool that works there:
 - **Input** goes through `ydotool`, which types on a virtual uinput keyboard and mouse; its daemon `ydotoold` must run
   (`systemctl --user enable --now ydotool`). The device sends key positions, so text is turned into keys with the
   session's own layout (xkb.py): "@" is AltGr+2 on a Norwegian keyboard and Shift+2 on a US one. Caps Lock is read
-  from the keyboard's LED, so text comes out in the case it was written in.
+  from the keyboard's LED, so text comes out in the case it was written in; with no LED to read it is taken as off.
 - **Windows** (the window in front for smart profiles, focus, minimize, ...) go through `kdotool`, which asks KWin.
   Other compositors have no such tool yet: there the window functions say so, and keys and typing still work.
 - **The clipboard** uses `wl-copy` (the "wl-clipboard" package), else Plasma's Klipper.
@@ -54,16 +54,19 @@ SHIFT_CODE, ALTGR_CODE, ENTER_CODE, TAB_CODE = 42, 100, 28, 15
 MOUSE_BUTTONS = {'left': '0xC0', 'right': '0xC1', 'middle': '0xC2'}  # 0xC0: press and release
 
 
-def caps_lock_on(leds: str = CAPS_LOCK_LEDS) -> bool:
-    """Whether Caps Lock is on. A session has one lock state for all keyboards, ydotool's included."""
+def caps_lock_on(leds: str = CAPS_LOCK_LEDS) -> bool | None:
+    """Whether Caps Lock is on; None when no keyboard has a Caps Lock LED that can be read, so nothing tells.
+    A session has one lock state for all keyboards, ydotool's included."""
+    known = None
     for path in glob.glob(leds):
         try:
             with open(path, encoding='ascii') as led:
                 if int(led.read().strip() or 0):
                     return True
+            known = False
         except (OSError, ValueError):
             continue
-    return False
+    return known
 
 
 def is_plasma(environ=None) -> bool:
@@ -129,7 +132,7 @@ class WaylandBackend(DesktopBackend):
     def text_strokes(self, text: str) -> list[list[tuple[int, bool, bool]]]:
         """The strokes of every character; ValueError naming the characters this layout cannot type."""
         keymap, strokes, missing = self.keymap(), [], []
-        caps_lock = self.caps_lock()
+        caps_lock = self.caps_lock()  # None when nothing tells: typed as with the lock off, which is the usual state
         for char in text:
             if char == '\n':
                 strokes.append([(ENTER_CODE, False, False)])

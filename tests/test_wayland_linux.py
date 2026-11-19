@@ -1,9 +1,9 @@
-"""The Wayland backend: keys and text in the session's layout, the ydotool and kdotool commands it builds."""
+"""The Wayland backend: keys and text in the session's layout, the ydotool and kdotool commands it builds.
+
+The commands and the search for the session's layout are plain logic with a fake runner, so they run on every system.
+The tests that need a real layout use libxkbcommon and skip themselves where it is missing."""
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from platform_marks import linux_only_module
-linux_only_module(__name__)
 import os
 import tempfile
 import types
@@ -111,6 +111,16 @@ class SessionLayoutTests(unittest.TestCase):
                     self.assertRaisesRegex(BackendUnavailable, 'XKB_DEFAULT_LAYOUT'):
                 xkb.session_keymap(environ=environ, group=0)
 
+    def test_with_several_layouts_and_no_way_to_tell_which_is_in_use_typing_is_refused(self):
+        keymap('us')  # skips without libxkbcommon
+        with unittest.mock.patch.object(xkb.shutil, 'which', lambda tool: None):
+            for group in (None, xkb.ASK):  # told so, or found out: nothing answers on this desktop
+                with self.assertRaisesRegex(BackendUnavailable, 'more than one keyboard layout'):
+                    xkb.session_keymap(environ={'XKB_DEFAULT_LAYOUT': 'us,no', 'XDG_CURRENT_DESKTOP': 'GNOME'}, group=group)
+            self.assertEqual(xkb.session_keymap(environ={'XKB_DEFAULT_LAYOUT': 'us,no'}, group=1).strokes('ø'), [(39, False, False)])
+            one = xkb.session_keymap(environ={'XKB_DEFAULT_LAYOUT': 'no', 'XDG_CURRENT_DESKTOP': 'GNOME'})
+            self.assertEqual(one.strokes('@'), [(3, False, True)])  # one layout needs no answer
+
     def group(self, environ, tool, out):
         with unittest.mock.patch.object(xkb.shutil, 'which', lambda name: name if name == tool else None):
             return xkb.active_group(lambda *a, **k: done(out), environ)
@@ -123,10 +133,13 @@ class SessionLayoutTests(unittest.TestCase):
         devices = '{"mice":[],"keyboards":[{"name":"at-keyboard","main":true,"active_layout_index":2}]}'
         self.assertEqual(self.group({'HYPRLAND_INSTANCE_SIGNATURE': 'x'}, 'hyprctl', devices), 2)
 
-    def test_a_desktop_that_does_not_tell_and_an_answer_that_cannot_be_read_give_the_first_layout(self):
-        self.assertEqual(self.group({'XDG_CURRENT_DESKTOP': 'GNOME'}, 'gdbus', '(uint32 1,)'), 0)
-        self.assertEqual(self.group({'SWAYSOCK': '/run/sway.sock'}, 'swaymsg', 'not json'), 0)
-        self.assertEqual(self.group({'HYPRLAND_INSTANCE_SIGNATURE': 'x'}, 'hyprctl', '{"keyboards":[{"name":"k"}]}'), 0)
+    def test_a_desktop_that_does_not_tell_and_an_answer_that_cannot_be_read_are_unknown(self):
+        self.assertIsNone(self.group({'XDG_CURRENT_DESKTOP': 'GNOME'}, 'gdbus', '(uint32 1,)'))
+        self.assertIsNone(self.group({'XDG_CURRENT_DESKTOP': 'KDE'}, 'none', '(uint32 1,)'))  # no gdbus
+        self.assertIsNone(self.group({'XDG_CURRENT_DESKTOP': 'KDE'}, 'gdbus', 'Error: no such name'))
+        self.assertIsNone(self.group({'SWAYSOCK': '/run/sway.sock'}, 'swaymsg', 'not json'))
+        # Hyprland before September 2025 has no active_layout_index
+        self.assertIsNone(self.group({'HYPRLAND_INSTANCE_SIGNATURE': 'x'}, 'hyprctl', '{"keyboards":[{"name":"k"}]}'))
 
 
 class InputTests(unittest.TestCase):
@@ -194,10 +207,19 @@ class InputTests(unittest.TestCase):
             backend.send_text('aA7')
             self.assertEqual(fake.calls[0][4:], wanted, caps_lock)
 
+    def test_an_unknown_caps_lock_state_types_as_with_the_lock_off(self):
+        backend, fake = self.backend('no', caps_lock=None)
+        backend.send_text('aA')
+        self.assertEqual(fake.calls[0][4:], ['30:1', '30:0', '42:1', '30:1', '30:0', '42:0'])
+
     def test_caps_lock_is_read_from_the_keyboard_leds(self):
         with tempfile.TemporaryDirectory() as folder:
             pattern = os.path.join(folder, '*-capslock')
-            self.assertFalse(wayland.caps_lock_on(pattern))
+            self.assertIsNone(wayland.caps_lock_on(pattern))  # no keyboard with the LED: nothing tells
+            os.mkdir(os.path.join(folder, 'input1-capslock'))  # one that cannot be read does not tell either
+            self.assertIsNone(wayland.caps_lock_on(pattern))
+            Path(folder, 'input2-capslock').write_text('0\n')
+            self.assertIs(wayland.caps_lock_on(pattern), False)
             Path(folder, 'input3-capslock').write_text('0\n')
             Path(folder, 'input9-capslock').write_text('1\n')
             self.assertTrue(wayland.caps_lock_on(pattern))

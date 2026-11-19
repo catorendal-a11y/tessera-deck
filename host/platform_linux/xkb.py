@@ -97,7 +97,8 @@ class Keymap:
             if not keymap:
                 raise BackendUnavailable('The keyboard layout of the session could not be read')
             try:
-                self.group = group if group < lib.xkb_keymap_num_layouts(keymap) else 0
+                self.layouts = lib.xkb_keymap_num_layouts(keymap)
+                self.group = group if group < self.layouts else 0
                 self.chars, self.dead, self.locked, self.locked_dead = self._read(lib, keymap)
             finally:
                 lib.xkb_keymap_unref(keymap)
@@ -180,26 +181,35 @@ class Keymap:
         return None
 
 
+ASK = object()  # session_keymap asks the desktop which layout is in use
+UNKNOWN_GROUP = ('This session has more than one keyboard layout and this desktop does not tell which one is in use, so '
+                 'nothing is typed. Keep one layout, or use a "clipboard" step and ctrl+v.')
 NO_LAYOUT = ('The keyboard layout of the session could not be read, so nothing is typed. Install xkbcomp '
              '("xorg-xkbcomp" on Arch, "x11-xkb-utils" on Debian or Ubuntu) or set XKB_DEFAULT_LAYOUT to your layout, for example "no".')
 
 
-def session_keymap(run=subprocess.run, environ=None, group: int | None = None) -> Keymap:
-    """The keymap the session types with right now, or of layout number `group`."""
+def session_keymap(run=subprocess.run, environ=None, group=ASK) -> Keymap:
+    """The keymap the session types with right now, or of layout number `group`. None for `group` says that the
+    layout in use is not known: fine with one layout, refused with more."""
     environ = os.environ if environ is None else environ
-    if group is None:
+    if group is ASK:
         group = active_group(run, environ)
+    keymap = None
     if environ.get('DISPLAY') and shutil.which('xkbcomp'):
         try:
             done = run(['xkbcomp', '-w0', environ['DISPLAY'], '-'], capture_output=True, timeout=5, check=False)
             if done.returncode == 0 and done.stdout:
-                return Keymap(keymap_text=done.stdout, group=group)
+                keymap = Keymap(keymap_text=done.stdout, group=group or 0)
         except (OSError, subprocess.SubprocessError):
             pass
-    names = layout_names(run, environ)
-    if names is None:
-        raise BackendUnavailable(NO_LAYOUT)
-    return Keymap(names=names, group=group)
+    if keymap is None:
+        names = layout_names(run, environ)
+        if names is None:
+            raise BackendUnavailable(NO_LAYOUT)
+        keymap = Keymap(names=names, group=group or 0)
+    if group is None and keymap.layouts > 1:
+        raise BackendUnavailable(UNKNOWN_GROUP)
+    return keymap
 
 
 def layout_names(run=subprocess.run, environ=None) -> dict | None:
@@ -237,31 +247,32 @@ def layout_names(run=subprocess.run, environ=None) -> dict | None:
     return found
 
 
-def active_group(run=subprocess.run, environ=None) -> int:
-    """The layout in use when the session has more than one. Plasma, sway and Hyprland tell; elsewhere the first."""
+def active_group(run=subprocess.run, environ=None) -> int | None:
+    """The number of the layout in use when the session has more than one, or None when it cannot be read. Plasma,
+    sway and Hyprland (since September 2025) tell; GNOME and the others have nothing to ask."""
     environ = os.environ if environ is None else environ
     try:
         if 'KDE' in environ.get('XDG_CURRENT_DESKTOP', '').upper().split(':') and shutil.which('gdbus'):
             done = run(['gdbus', 'call', '--session', '--dest', 'org.kde.keyboard', '--object-path', '/Layouts',
                         '--method', 'org.kde.KeyboardLayouts.getLayout'], capture_output=True, text=True, timeout=2, check=False)
             found = re.search(r'(\d+),?\)', done.stdout) if done.returncode == 0 else None  # "(uint32 1,)"
-            return int(found.group(1)) if found else 0
+            return int(found.group(1)) if found else None
         if environ.get('SWAYSOCK') and shutil.which('swaymsg'):
             done = run(['swaymsg', '-t', 'get_inputs', '--raw'], capture_output=True, text=True, timeout=2, check=False)
-            return _keyboard_group(json.loads(done.stdout), 'xkb_active_layout_index') if done.returncode == 0 else 0
+            return _keyboard_group(json.loads(done.stdout), 'xkb_active_layout_index') if done.returncode == 0 else None
         if environ.get('HYPRLAND_INSTANCE_SIGNATURE') and shutil.which('hyprctl'):
             done = run(['hyprctl', 'devices', '-j'], capture_output=True, text=True, timeout=2, check=False)
-            return _keyboard_group(json.loads(done.stdout)['keyboards'], 'active_layout_index') if done.returncode == 0 else 0
+            return _keyboard_group(json.loads(done.stdout)['keyboards'], 'active_layout_index') if done.returncode == 0 else None
     except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
         pass
-    return 0
+    return None
 
 
-def _keyboard_group(devices, field) -> int:
+def _keyboard_group(devices, field) -> int | None:
     """These compositors keep a layout per keyboard: ydotool's own keyboard is the one the keys come from."""
     groups = [(device.get('name', ''), device[field]) for device in devices
               if isinstance(device, dict) and isinstance(device.get(field), int) and device[field] >= 0]
     for name, group in groups:
         if 'ydotool' in name.lower():
             return group
-    return groups[0][1] if groups else 0
+    return groups[0][1] if groups else None

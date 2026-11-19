@@ -92,9 +92,12 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
 - **Typing follows your keyboard layout.** `ydotool` sends key positions, so the host reads the session's layout
   (`host/platform_linux/xkb.py`, through libxkbcommon) and presses the right keys: `@` is AltGr+2 on a Norwegian keyboard and
   Shift+2 on a US one. `~`, `^` and accented letters go through the dead keys. A character your layout has no key for
-  is refused before anything is typed; put it on the clipboard and paste it instead. With more than one layout, the one
-  in use is asked before every key or text (Plasma, sway and Hyprland tell; elsewhere the first is used). Caps Lock does
-  not change the case of typed text: its state is read from the keyboard's LED.
+  is refused before anything is typed; put it on the clipboard and paste it instead. Caps Lock does not change the case
+  of typed text: its state is read from the keyboard's LED, and a keyboard with no such LED is taken as having the lock off.
+- **More than one layout:** the one in use is asked before every key or text. Plasma and sway tell, and Hyprland in
+  builds from September 2025 on (`active_layout_index` in `hyprctl devices -j`). GNOME, older Hyprland and other
+  desktops do not: there typing is refused with a message while the session has more than one layout, because the
+  wrong layout would type other characters. With one layout nothing needs asking.
 - **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
   `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
   none of these names a layout, typing is refused with a message instead of typing with a guessed one.
