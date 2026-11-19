@@ -1,5 +1,7 @@
-"""Tessera.sh: what each way of starting it runs, and what the application menu entry runs. A copy of the script runs next to a
-fake virtual environment whose Python only writes down how it was called."""
+"""Tessera.sh: what each way of starting it runs, and the two application menu entries. A copy of the script runs next to a
+fake virtual environment whose Python only writes down how it was called. Both are Linux behaviour: the paths are POSIX paths."""
+from platform_marks import linux_only_module
+linux_only_module(__name__)
 import os
 import shutil
 import stat
@@ -16,7 +18,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 FAKE_PYTHON = '#!/bin/sh\necho "$*" >> "$(dirname "$0")/../../../calls.txt"\n'
 
 
-@unittest.skipUnless(sys.platform.startswith('linux') and shutil.which('bash') and shutil.which('setsid'), 'needs Linux, bash and setsid')
+@unittest.skipUnless(shutil.which('bash') and shutil.which('setsid'), 'needs bash and setsid')
 class LauncherTests(unittest.TestCase):
     def setUp(self):
         folder = tempfile.TemporaryDirectory()
