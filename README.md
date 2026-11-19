@@ -13,6 +13,7 @@
 <p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/host-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
   <img alt="Linux (X11)" src="https://img.shields.io/badge/host-Linux%20(X11)-FCC624?logo=linux&logoColor=black">
+  <a href="https://aur.archlinux.org/packages/tessera-deck"><img alt="AUR package tessera-deck" src="https://img.shields.io/aur/version/tessera-deck?logo=archlinux&logoColor=white&color=1793D1"></a>
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
   <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
@@ -68,17 +69,28 @@ If you have one of the S3 boards, [tell me how it goes](https://github.com/cator
 
 ## Quick start
 
+### Quick start on Windows
+
 The release zip has the host and the panel firmware, so you need no build tools.
 
 1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up and puts a shortcut on the Desktop. The editor opens.
    Windows SmartScreen may warn about the download because Tessera is not code-signed. You can compare the zip's SHA-256 with `SHA256SUMS` first, as [Install](docs/INSTALL.md#download-and-verify) explains. If no Python 3.11 or newer is found, the first start installs Python 3.12 for your user with winget and accepts its license terms.
-   On Linux, run `./Tessera.sh` instead. [Tessera on Linux](docs/LINUX.md) lists the tools it needs.
+   On Linux, see [Quick start on Linux](#quick-start-on-linux) below.
 2. Connect the panel with USB. The *Getting started* checklist in the editor ticks off *Host running* and *Panel connected* by itself.
 3. Open **Panel → Panel firmware and updates …** and choose the included firmware. A new board needs *Full install (new or blank panel)*, then *Install anyway*. Press *Install*. More in [Install](docs/INSTALL.md).
 4. Click an action in the list on the right. It becomes a new key. Fill it in on the **Look** and **Actions** tabs. Changes are saved automatically.
 5. Press the key on the panel. The editor says "It works" and lights up the key.
 
 Nothing runs in the editor. Keys run only when you press them on the panel.
+
+### Quick start on Linux
+
+The host runs in an X11 session. Install it in one of two ways:
+
+- **Arch Linux:** install the [`tessera-deck`](https://aur.archlinux.org/packages/tessera-deck) package from the AUR, for example `yay -S tessera-deck`. It brings the dependencies. Start *Tessera* (the tray icon and the USB host) or *Tessera Editor* (the editor, which starts the tray too when it is not running) from the application menu, or run `tessera` and `tessera --app` in a terminal. The package keeps your profiles and logs in `~/.local/share/tessera`.
+- **Any distribution:** unpack the release zip and run `./Tessera.sh`. It needs Python 3.12 or newer with `venv`, `xdotool` and `xclip`; `libpulse` (`pactl`) gives the volume actions, and a Secret Service such as GNOME Keyring stores plugin passwords. The first start creates `host/.venv` and adds the same two menu entries. The tray starts first: click its icon to open the editor, or run `./Tessera.sh --editor`.
+
+Your user must be allowed to open serial ports: add it to the group `uucp` (Arch) or `dialout` (Debian, Ubuntu) and log in again. Then continue with step 2 above. To stop Tessera from a terminal run `killall Tessera`; `tessera --uninstall` (the package) or `./Tessera.sh --uninstall` removes the autostart and menu entries. [Tessera on Linux](docs/LINUX.md) has the details: the tray menu, what differs from Windows and what stays Windows-only.
 
 To update later, open **Panel → Panel firmware and updates …** and press *Check for updates*. From 1.2.4 the editor updates Tessera itself from there, starts it again, and then offers the panel's firmware without another download. [Install](docs/INSTALL.md#update-the-windows-program) has the details.
 

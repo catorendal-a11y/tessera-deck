@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tessera Editor
+GenericName=Deck panel editor
+Comment=Edit the keys, pages and profiles of the Tessera deck panel (starts the tray too when it is not running)
+Exec=Tessera.sh --app
+Icon=tessera
+Terminal=false
+Categories=Utility;
+Keywords=deck;panel;editor;keys;profiles;
+StartupNotify=false

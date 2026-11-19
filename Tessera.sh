@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Tessera launcher for Linux (X11). With no arguments it starts everything: the tray icon, the USB host
-# and the editor. Starting it again only brings up the existing editor.
-#   --setup        first-run setup (dependencies and an application menu entry)
-#   --uninstall    remove the autostart entry and the menu entry (add --purge to delete your data too)
+# Tessera launcher for Linux (X11). With no arguments it starts the tray icon, which starts the USB host; the editor
+# opens from the tray icon (a click) or with --editor. Starting it again changes nothing.
+#   --app          the tray icon and the editor (what the *Tessera Editor* menu entry runs; the editor comes to the front)
+#   --editor [options]   only the editor
+#   --setup        first-run setup (dependencies and the application menu entries)
+#   --uninstall    remove the autostart entry and the menu entries (add --purge to delete your data too)
 #   --diagnostics  write a support bundle without button contents
 #   --terminal     the terminal editor        --tray   only the tray icon
 #   --check / --no-browser   run in this terminal
@@ -74,14 +76,16 @@ fi
 [ -n "$FIRST_RUN" ] && echo "2/3 Installing packages ..."
 "$PY" host/setup_tool.py ensure || fail
 [ -n "$FIRST_RUN" ] && "$PY" host/setup_tool.py setup >/dev/null
-[ -n "$FIRST_RUN" ] && echo "3/3 Starting Tessera. Look for the editor and the tray icon."
+[ -n "$FIRST_RUN" ] && echo "3/3 Starting Tessera. Look for the tray icon and click it to open the editor (or run ./Tessera.sh --editor)."
 check_tools
 
 case "${1:-}" in
-  ""|--app)
+  "")             background "$PY" host/tessera_tray.py ;;
+  --app)
     background "$PY" host/tessera_tray.py
     background "$PY" host/tessera_app.py --editor
     ;;
+  --editor)       background "$PY" host/tessera_app.py "$@" ;;
   --setup)        "$PY" host/setup_tool.py setup || fail ;;
   --diagnostics)  "$PY" host/setup_tool.py diagnostics ;;
   --terminal)     "$PY" host/tessera_terminal.py || fail ;;
