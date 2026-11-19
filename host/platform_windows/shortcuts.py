@@ -14,6 +14,11 @@ def desktop_shortcut_path() -> Path:
     return Path(folder or os.path.expandvars(r'%USERPROFILE%\Desktop')) / 'Tessera.lnk'
 
 
+def shortcut_files(link: Path) -> list[Path]:
+    """Every file `create_shortcut` writes for `link`."""
+    return [link]
+
+
 def create_shortcut(target: Path, link: Path) -> Path:
     """A Desktop shortcut with the Tessera icon that starts the program minimised."""
     # `powershell -Command` does not expose trailing arguments as $args, so the values travel as environment variables.

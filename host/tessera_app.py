@@ -948,6 +948,7 @@ def show_running_editor(record, build, open_if_hidden=False):
 
 
 def main():
+    load('processes').name_process('Tessera')  # so that `killall Tessera` finds it
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--terminal', action='store_true')
     parser.add_argument('--editor', action='store_true', help='Open the graphical drag-and-drop editor')

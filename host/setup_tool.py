@@ -122,9 +122,10 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
         removed.append('start with ' + load('labels').AUTOSTART_NAME)
     except OSError as exc:
         emit(f'Could not remove the autostart entry: {exc}')
-    shortcut = link or desktop_shortcut_path()
-    if shortcut.exists():
-        shortcut.unlink()
+    shortcuts = [path for path in load('shortcuts').shortcut_files(link or desktop_shortcut_path()) if path.exists()]
+    for path in shortcuts:
+        path.unlink()
+    if shortcuts:
         removed.append(load('labels').SHORTCUT_NAME)
     if purge:
         answer = confirm('This permanently deletes your profiles, icons, backups, counters and downloads. '
