@@ -13,7 +13,7 @@ from typing import Callable
 from program_name import SUFFIX
 
 POLL_SECONDS = 1.0
-FLAG_SOURCES = ('speaker_muted', 'mic_muted', 'media_playing', 'media_shuffle', 'media_repeat')
+FLAG_SOURCES = ('speaker_muted', 'mic_muted', 'media_playing', 'media_shuffle', 'media_repeat', 'remote_playing')
 EMPTY = {'volume': None, 'speaker_muted': False, 'mic_muted': False,
          'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0, 'shuffle': None, 'repeat': ''}
 
@@ -46,10 +46,11 @@ def check_media(action: dict) -> None:
 
 class PcState:
     def __init__(self, audio: Callable[[], dict] | None = None, media: Callable[[], dict] | None = None,
-                 interval: float = POLL_SECONDS):
+                 interval: float = POLL_SECONDS, remote: Callable[[], dict] | None = None):
         import system_audio  # the readers of this system, unless the caller brings its own
         self._audio = system_audio.read_audio if audio is None else audio
         self._media = system_audio.MediaReader() if media is None else media
+        self._remote = remote  # {'remote:track': ..., 'remote:artist': ..., 'remote_playing': ...} of a paired device; None: not used
         self._interval = interval
         self._lock = threading.Lock()
         self._values = dict(EMPTY)
@@ -78,7 +79,7 @@ class PcState:
     def poll(self) -> None:
         """One sampling round; a failing source keeps its last value and records the error."""
         errors = []
-        for reader in (self._audio, self._media):
+        for reader in (self._audio, self._media, *([self._remote] if self._remote else [])):
             try:
                 reading = reader()
             except Exception as exc:  # a changed pycaw/winrt API must not end the polling thread without a word
@@ -112,4 +113,5 @@ class PcState:
                 'pc:track': values['title'] or 'No music', 'pc:artist': values['artist'], 'pc:media': track,
                 'pc:playing': values['status'],
                 'pc:shuffle': '' if values['shuffle'] is None else 'ON' if values['shuffle'] else 'OFF',
-                'pc:repeat': {'none': 'OFF', 'list': 'ALL', 'track': 'ONE'}.get(values['repeat'], '')}
+                'pc:repeat': {'none': 'OFF', 'list': 'ALL', 'track': 'ONE'}.get(values['repeat'], ''),
+                'remote:track': values.get('remote:track', ''), 'remote:artist': values.get('remote:artist', '')}

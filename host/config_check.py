@@ -23,7 +23,7 @@ ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'c
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None,
                  'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None,
-                 'homeassistant': 'action', 'media': 'op'}
+                 'homeassistant': 'action', 'media': 'op', 'remote_media': 'op'}
 # A Home Assistant step comes from a profile file saved by the Wi-Fi beta, whose panel sends it. This version keeps it
 # in the file and skips it when the key runs. Like the beta, it allows one only in a key's own press, hold and double
 # lists. The beta's limits for one page (24 steps, 4,096 bytes) are not checked here.
@@ -155,6 +155,15 @@ def _check_media(action, pages, profiles):
     check_media(action)
 
 
+def _check_remote_media(action, pages, profiles):
+    import remote_devices
+    if action['op'] not in remote_devices.OPS:
+        raise ValueError(f'remote_media: op must be one of {", ".join(remote_devices.OPS)}')
+    remote_devices.check_device(action.get('device', 'first'))
+    if type(action.get('step', remote_devices.DEFAULT_STEP)) is not int or not 1 <= action.get('step', remote_devices.DEFAULT_STEP) <= 50:
+        raise ValueError('remote_media: step must be a whole number from 1 to 50')
+
+
 def _check_delay(action, pages, profiles):
     if type(action.get('ms', 100)) is not int or not 0 <= action.get('ms', 100) <= 60000:
         raise ValueError('delay must be 0..60000 ms')
@@ -196,7 +205,8 @@ def _check_state_kind(action, pages, profiles):
 ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _check_hotkey, 'open': _check_open,
                  'page': _check_page, 'folder': _check_page, 'profile': _check_profile_action, 'text': _check_text,
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
-                 'timer': _check_timer_action, 'audio': _check_audio, 'media': _check_media, 'delay': _check_delay,
+                 'timer': _check_timer_action, 'audio': _check_audio, 'media': _check_media, 'remote_media': _check_remote_media,
+                 'delay': _check_delay,
                  'shell': _check_shell, 'script': _check_script, 'http': _check_http_action, 'clipboard': _check_clipboard,
                  'window': _check_window, 'toggle': _check_toggle, 'set': _check_set, 'panel_lock': _check_panel_lock}
 
@@ -284,7 +294,7 @@ def _check_gauge(gauge):
         raise ValueError('gauge.badge must be a Lucide icon like lc:e186')
 
 
-LIVE_KINDS = re.compile(r'media|timer:[A-Za-z0-9_.-]{1,64}|' + '|'.join(widgets.WIDGETS))
+LIVE_KINDS = re.compile(r'media|remote_media|timer:[A-Za-z0-9_.-]{1,64}|' + '|'.join(widgets.WIDGETS))
 
 
 def _check_wide(button):
@@ -294,7 +304,7 @@ def _check_wide(button):
         raise ValueError('span must be 1, 2 or 3')
     live = button.get('live')
     if live is not None and (not isinstance(live, str) or not LIVE_KINDS.fullmatch(live) or span < 2):
-        raise ValueError('live must be media, timer:NAME or a widget (' + ', '.join(widgets.WIDGETS) + '), on a key that is at least 2 slots wide')
+        raise ValueError('live must be media, remote_media, timer:NAME or a widget (' + ', '.join(widgets.WIDGETS) + '), on a key that is at least 2 slots wide')
 
 
 def _check_button(button, pages, profiles):
@@ -454,8 +464,8 @@ def _check_panel(panel, pages=(), profiles=None):
     """The `panel` block: which agents, programs and readings the cockpit screens show."""
     import cockpit
     # wifi and homeassistant are the Wi-Fi beta's panel settings: kept in the file, not used by this version
-    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts', 'wifi', 'homeassistant'}:
-        raise ValueError('panel may only set agents, apps, mic, stats, screens and shortcuts')
+    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'remote', 'stats', 'screens', 'shortcuts', 'wifi', 'homeassistant'}:
+        raise ValueError('panel may only set agents, apps, mic, remote, stats, screens and shortcuts')
     if any(not isinstance(panel.get(key, {}), dict) for key in ('wifi', 'homeassistant')):
         raise ValueError('panel.wifi and panel.homeassistant must be objects')
     screens = panel.get('screens', list(cockpit.SCREENS))
@@ -485,6 +495,9 @@ def _check_panel(panel, pages=(), profiles=None):
         raise ValueError(f'panel.apps must list at most {cockpit.MAX_APPS} program names' + load('labels').PROGRAM_LIST_NOTE)
     if type(panel.get('mic', True)) is not bool:
         raise ValueError('panel.mic must be true or false')
+    if 'remote' in panel:
+        import remote_devices
+        remote_devices.check_setting(panel['remote'])
     stats = panel.get('stats', [])
     if not isinstance(stats, list) or any(item not in cockpit.STAT_IDS for item in stats):
         raise ValueError('panel.stats must list readings the panel knows')

@@ -221,6 +221,28 @@ class CockpitDaemonTests(HostCase):
             daemon.handle_job(('mute', 'mic'))
         self.assertEqual([call.args for call in audio.call_args_list], [('app:Spotify.exe', 'volume', 40), ('mic', 'toggle')])
 
+    def test_a_touch_on_a_remote_fader_reaches_that_device_and_never_the_pcs_sound(self):
+        daemon = self.cockpit_daemon()
+        import remote_devices
+        with patch.object(deck, 'control_audio') as audio, patch.object(remote_devices, 'set_volume') as volume, \
+                patch.object(remote_devices, 'toggle_mute') as mute:
+            daemon.handle_job(('fader', 'remote:0123456789', 35))
+            daemon.handle_job(('mute', 'remote:0123456789'))
+            daemon.handle_job(('fader', 'speaker', 10))
+        volume.assert_called_once_with('remote:0123456789', 35)
+        mute.assert_called_once_with('remote:0123456789')
+        self.assertEqual([call.args for call in audio.call_args_list], [('speaker', 'volume', 10)])
+
+    def test_a_remote_media_key_runs_the_action_with_its_device(self):
+        daemon = self.cockpit_daemon()
+        import remote_devices
+        with patch.object(remote_devices, 'control_media') as media:
+            daemon.run_action({'type': 'remote_media', 'op': 'next', 'device': 'ce7eff39_phone'})
+            daemon.run_action({'type': 'remote_media', 'op': 'playpause'})
+            daemon.run_action({'type': 'remote_media', 'op': 'volumeup', 'step': 10})
+        self.assertEqual([call.args for call in media.call_args_list],
+                         [('next', 'ce7eff39_phone', 5), ('playpause', 'first', 5), ('volumeup', 'first', 10)])
+
     def test_an_agent_button_brings_the_tool_to_the_front_and_is_published_as_an_event(self):
         daemon = self.cockpit_daemon()
         import daemon_ticks

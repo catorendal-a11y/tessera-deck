@@ -14,7 +14,7 @@ function category(name,items,tone,searching) {
 }
 /* The action list is four tabs, so a tab holds a handful of groups instead of eighteen. A search looks in all of them. */
 const LIBRARY_TABS=[['basics','Basics'],['widgets','Widgets'],['ready','Ready-made'],['apps','Apps']];
-const GENERAL_GROUPS=new Set(['Windows','Browser','Meetings','Media','Editing','Productivity','Window management','Ready to use']);
+const GENERAL_GROUPS=new Set(['Windows','Browser','Meetings','Media','Other devices','Editing','Productivity','Window management','Ready to use']);
 let libraryTab=(()=>{try{const stored=localStorage.getItem('tessera-library-tab');return LIBRARY_TABS.some(tab=>tab[0]===stored)?stored:'basics';}catch{return 'basics';}})();
 function renderLibrary() {
   const search=$('#action-search').value.toLocaleLowerCase();const list=$('#actions-library');list.replaceChildren();categoryOrder=0;
@@ -30,9 +30,9 @@ function renderLibrary() {
   if(('installed programs app launcher'.includes(search)||!search))put('apps',button('Installed programs …',openProgramPicker,'program-launcher'));
   const ready=WIDGETS.map(w=>{const item=make(w.name,'widget',w.sub,'widget:'+w.kind);if(item)item.querySelector('.action-symbol').innerHTML=`<svg viewBox="0 0 24 24">${w.path}</svg>`;return item;}).filter(Boolean);
   if(ready.length){if(searching)list.append(category('Widgets',ready,0,true));else if(libraryTab==='widgets')list.append(text('p','A widget is a wide key that shows something live. Drag one to a key with a free slot to its right.','hint library-note'),element('div',{class:'lib-items lib-flat'},...ready));}
-  const groups=new Map();for(const [key,k] of Object.entries(kinds)){const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':key==='plugin'?'OBS, Home Assistant and other plugins':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
+  const groups=new Map();for(const [key,k] of Object.entries(kinds)){if(k.library===false)continue;  /* a kind only the ready-made keys and the step list offer */const sub=key==='folder'?'A subpage with a Back key':key==='page'?'Switch to another page':key==='hotkey'?'Record a key combination':key==='open'?'Choose directly from the computer':key==='delay'?'Between steps in a multi-action':key==='plugin'?'OBS, Home Assistant and other plugins':'Customize as needed';const item=make(k.name,k.icon,sub,key);if(item){if(!groups.has(k.group))groups.set(k.group,[]);groups.get(k.group).push(item);}}
   [...groups].forEach(([group,items],index)=>put('basics',category(group,items,index%4,searching)));
-  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{const item=make(p.name,p.icon||'ok',p.note||(p.actions.length>1?`${p.actions.length} actions`:'Ready-made action'),'pack:'+i);if(item){if(!packed.has(p.group))packed.set(p.group,[]);packed.get(p.group).push(item);}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
+  if(actionCatalog.packs.length){const packed=new Map();actionCatalog.packs.forEach((p,i)=>{/* a pack can also be listed in other groups (`also`); a search shows it once */for(const group of [p.group,...(searching?[]:p.also||[])]){const item=make(p.name,p.icon||'ok',p.note||(p.actions.length>1?`${p.actions.length} actions`:'Ready-made action'),'pack:'+i);if(item){if(!packed.has(group))packed.set(group,[]);packed.get(group).push(item);}}});let tone=groups.size;for(const [group,items] of packed)put(GENERAL_GROUPS.has(group)?'ready':'apps',category(group,items,tone++%4,searching));}
   else {const ready=presets.map((p,i)=>make(p.name,p.icon,'Ready-made action','preset:'+i)).filter(Boolean);if(ready.length)put('ready',category('Ready to use',ready,0,searching));}
   if(!list.children.length)list.append(element('div',{class:'library-empty'},text('strong','No matches'),text('span','Try another search term.')));
 }
@@ -132,7 +132,7 @@ function renderInspector() {
   nameInput.addEventListener('input',()=>{mutate(()=>appearance().label=nameInput.value,false,editKey('label'));updateMeter();previewLabel.textContent=resolveLabel(nameInput.value)||' ';});
   updateMeter();
   const color=element('input',{type:'color',value:b.color||'#35D07F','aria-label':'Other icon color',title:'Other icon color'});
-  color.addEventListener('input',()=>{mutate(()=>appearance().color=color.value,false,editKey('color'));panel.querySelector('.prop-icon')?.replaceWith(iconVisual(current().icon,color.value,'prop-icon'));});
+  color.addEventListener('input',()=>{mutate(()=>setColor(color.value),false,editKey('color'));panel.querySelector('.prop-icon')?.replaceWith(iconVisual(current().icon,color.value,'prop-icon'));});
   const selectedIcon=packIcons.get(b.icon);
   const iconButton=button(`${selectedIcon?.name||iconNames[b.icon]||'Default icon'} · Choose …`,openIcons,'prop-field');
   const upload=element('input',{type:'file',accept:'image/png,image/jpeg,image/gif,image/webp',hidden:'hidden'});upload.onchange=()=>chooseImage(upload.files[0]).catch(showError);
@@ -146,7 +146,7 @@ function renderInspector() {
   const titleRow=row('Title',nameInput,meter);titleRow.classList.add('prop-row-title');
   const textRow=row('Text',sizeField,positionField,boldButton,pinButton);textRow.classList.add('prop-row-text');
   const swatches=element('div',{class:'color-swatches',role:'group','aria-label':'Icon color'},...ICON_COLORS.map(([value,name])=>{
-    const on=(b.color||'#35D07F').toUpperCase()===value,swatch=button('',()=>mutate(()=>appearance().color=value),'color-swatch'+(on?' on':''),name);
+    const on=(b.color||'#35D07F').toUpperCase()===value,swatch=button('',()=>mutate(()=>setColor(value)),'color-swatch'+(on?' on':''),name);
     swatch.style.setProperty('--swatch',value);swatch.setAttribute('aria-label',name);swatch.setAttribute('aria-pressed',String(on));return swatch;}),color);
   const head=element('div',{class:'prop-head'},text('b',widget?'Widget':first?kindName(first.type):'No action yet'),
     button('Test',()=>testButton().catch(showError),'outline prop-test','What this key does, and Run now'));
@@ -225,7 +225,7 @@ async function askTimerName(title,label,value) {
 function activeActionsOf(base) {return base.states?base.states[Math.min(editState,base.states.length-1)].actions||[]:base.actions||[];}
 function renderBind(panel,base) {
   if(!base.states)return;
-  const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing'],['media_shuffle','Shuffle on'],['media_repeat','Repeat on'],['__timer','A timer is running …']];
+  const choices=[['','Off · a press cycles the states'],['mic_muted','Microphone muted'],['speaker_muted','Speakers muted'],['media_playing','Media playing'],['media_shuffle','Shuffle on'],['media_repeat','Repeat on'],['remote_playing','Remote device playing'],['__timer','A timer is running …']];
   if(base.bind?.startsWith('timer-running:'))choices.splice(-1,0,[base.bind,`Timer “${base.bind.slice(14)}” is running`]);
   panel.append(field('Follow PC state',base.bind||'',value=>{
     if(value==='__timer')return askTimerName('Follow a timer','Name of the timer to follow','').then(name=>{if(name&&current()===base)mutate(()=>{base.bind=`timer-running:${name}`;});else renderInspector();});
@@ -289,7 +289,7 @@ function renderStep(action,index,count) {
   const type=element('select',{class:'step-type','aria-label':`Step ${index+1} action type`});options(type,Object.entries(kinds).map(([key,item])=>[key,item.name]),action.type);
   type.addEventListener('change',()=>{const fresh=actionTemplate(type.value)?.actions[0];if(fresh)mutate(()=>{activeActions()[index]=fresh;});});
   step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,action.type===BETA_STEP?kindName(BETA_STEP):type),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
-  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:action.type==='media'?[['shuffle','Shuffle on / off'],['repeat','Repeat: off, all, one']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):action.type==='plugin'?pluginChoices(action.plugin):null;
+  let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:action.type==='media'?[['shuffle','Shuffle on / off'],['repeat','Repeat: off, all, one']]:action.type==='remote_media'?[['playpause','Play / pause'],['play','Play'],['pause','Pause'],['next','Next track'],['previous','Previous track'],['stop','Stop'],['volumeup','Volume up'],['volumedown','Volume down']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):action.type==='plugin'?pluginChoices(action.plugin):null;
   if(action.type===BETA_STEP){step.append(text('p',`From the Wi-Fi beta: ${action.action||''}${action.entity_id?' on '+action.entity_id:''}. It is kept as it is, and this version skips it when the key runs.`,'hint'));return step;}
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
   if(action.type==='home'){step.append(text('p','Opens the first page of the default profile and keeps it selected until you switch the active program.','hint'));return step;}
@@ -305,6 +305,9 @@ function renderStep(action,index,count) {
       button('Edit',async()=>{try{toast((await api('command/edit-script',{path:input.value})).message);}catch(error){showError(error);}},'text-button'));
   }
   step.append(parameter);
+  if(action.type==='remote_media'&&['volumeup','volumedown'].includes(action.op))step.append(field('Step (1–50)',String(action.step??5),v=>editAction(index,'step',Math.max(1,Math.min(50,Math.round(Number(v))||5))),{type:'number'}));
+  if(action.type==='remote_media')step.append(field('Device',action.device||'first',v=>editAction(index,'device',v),{values:remoteDeviceChoices(action.device)}),
+    text('p','Controls the media player of a device paired with KDE Connect, such as a phone. Needs KDE Connect on this PC (Linux).','hint'));
   if(action.type==='profile')step.append(field('Page',action.page||'',v=>mutate(()=>{const a=activeActions()[index];if(v)a.page=v;else delete a.page;},true,editKey('action',index,'page')),{values:[['','First page'],...Object.keys(config.profiles[action.profile]?.pages||{}).map(name=>[name,name])]}));
   if(action.type==='shell')step.append(timeoutField(index,action));
   if(action.type==='script')step.append(field('Timeout (seconds)',String(action.timeout??30),v=>editAction(index,'timeout',Math.max(1,Math.min(300,Math.round(Number(v))||30))),{type:'number'}),
@@ -833,7 +836,11 @@ function setSpan(base, span) {
     toast('A pinned key shows on every page, and another page has a key there.');
     return renderInspector();
   }
-  mutate(() => { if (span === 1) { delete base.span; delete base.live; } else base.span = span; });
+  mutate(() => {
+    if (span === 1) { delete base.span; delete base.live; } else base.span = span;
+    // a key that controls a paired device's player shows that device's track when it is made wide (the PC's music is the other choice)
+    if (span > 1 && !base.live && [...(base.actions || []), ...(base.states || []).flatMap(state => state.actions || [])].some(a => a.type === 'remote_media')) base.live = 'remote_media';
+  });
   renderGrid(); renderInspector();
 }
 function wideRows(base, row) {
@@ -852,9 +859,9 @@ function wideRows(base, row) {
           if (name && current() === base) mutate(() => { base.live = 'timer:' + name; });
           renderGrid(); renderInspector();
         });
-      } else mutate(() => { if (v === 'media' || WIDGETS.some(w => w.kind === v)) base.live = v; else delete base.live; });
+      } else mutate(() => { if (v === 'media' || v === 'remote_media' || WIDGETS.some(w => w.kind === v)) base.live = v; else delete base.live; });
       renderGrid(); renderInspector();
-    }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['timer', 'A timer (time left, ring) …'], ...WIDGETS.map(w => [w.kind, `${w.name}: ${w.sub}`])]});
+    }, {values: [['', 'The key’s own title and icon'], ['media', 'The music that plays (title, artist, progress)'], ['remote_media', 'The music of a paired device (title, artist, progress)'], ['timer', 'A timer (time left, ring) …'], ...WIDGETS.map(w => [w.kind, `${w.name}: ${w.sub}`])]});
     shows.querySelector('span').remove(); shows.querySelector('select').setAttribute('aria-label', 'Shows');  // the row already names it
     if (!base.live) rows.push(row('Shows', shows));
     else {  // a widget key names its widget; the full list opens only on Change

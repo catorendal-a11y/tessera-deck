@@ -123,13 +123,29 @@ def app_title(process_name: str) -> str:
     return (stem[:1].upper() + stem[1:])[:15]
 
 
-def read_mixer(pinned: list | None = None, mic: bool = True) -> list[dict]:
+def read_mixer(pinned: list | None = None, mic: bool = True, remote: dict | None = None) -> list[dict]:
     """The default speaker, up to three programs and the microphone. Raises OSError without audio.
 
     `pinned` names the programs to show (those that have a sound session right now); without it the programs that
     play sound are chosen. The sound server of the system answers (platform_windows/audio.py, platform_linux/audio.py)."""
     import system_audio
-    return system_audio.read_mixer(pinned, mic)
+    faders = system_audio.read_mixer(pinned, mic)
+    import remote_devices
+    extra = remote_devices.faders(remote)
+    return fit_faders(faders, extra) if extra else faders
+
+
+MAX_FADERS = 5  # DECK_FADERS_MAX in the firmware
+
+
+def fit_faders(local: list[dict], remote: list[dict]) -> list[dict]:
+    """The speaker, the remote devices, the programs and the microphone, in that order, in the five places the panel has. When
+    they do not all fit, programs go first: the speaker, the remote devices the user chose and the microphone stay."""
+    speaker = [item for item in local if item['id'] == 'speaker']
+    mic = [item for item in local if item.get('mic')]
+    apps = [item for item in local if item not in speaker and item not in mic]
+    room = max(0, MAX_FADERS - len(speaker) - len(mic) - len(remote))
+    return (speaker + remote + apps[:room] + mic)[:MAX_FADERS]
 
 
 def mixer_payload(faders: list[dict]) -> str:

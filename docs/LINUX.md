@@ -56,6 +56,7 @@ ports it finds and keeps the one that answers like a panel.
 - **Scripts** (the *script* action) run with `python3`, `bash`, `node` and `pwsh`: `.py`, `.pyw`, `.sh`, `.js`, `.ps1`. `.bat`, `.cmd` and `.ahk` are Windows-only and give an error. *Edit script* and the tray's *Open the host log* open the file with `xdg-open`.
 - **The media action** (shuffle on/off, cycle repeat) works on MPRIS players that offer it, such as Spotify and VLC; a player without it says so instead of pretending. `$(pc:shuffle)`, `$(pc:repeat)` and keys that follow shuffle or repeat show the player's state.
 - **The Claude Code, Codex and ZCode profiles** of the Linux default start their tool in your terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`, whichever is installed).
+- **Remote devices:** see [below](#remote-devices-kde-connect).
 - **Volume** uses `pactl`; per-program volume (`app:firefox`) follows PulseAudio/PipeWire streams. The media session comes
   from MPRIS, so Spotify, browsers, VLC and mpv work.
 - **Secrets** (settings named like a password or token) go to the system keyring, and the profile keeps only
@@ -73,6 +74,31 @@ Not supported yet. On Wayland keys, typing, the clipboard and windows are refuse
 that a Wayland backend is one new file: `host/platform_linux/wayland.py` implements the `DesktopBackend` interface from
 `host/platform_linux/base.py`. Nothing else has to change. Audio, media, secrets, sensors and the launcher do not depend on the
 display server and already work there.
+
+## Remote devices (KDE Connect)
+
+A device paired with [KDE Connect](https://kdeconnect.kde.org) (a phone, a second laptop) can show its volume as a fader on the
+mixer and be controlled from keys. The host talks to `kdeconnectd` itself over D-Bus, so there is nothing to install besides
+KDE Connect.
+
+- **What you need:** `kdeconnectd` running on this PC, the device paired and connected, and the multimedia control plugin on
+  (on the phone: *Multimedia control*; in KDE Connect on this PC: *Multimedia control receiver*). A device that does not offer it is
+  not listed.
+- **The mixer:** open **Mixer** in the editor and choose *Remote devices*: *Not used* (the default), *The first one that is
+  connected*, *Every connected device* or one device by name. The fader moves the volume of the player the device has selected in
+  KDE Connect. A device has no mute, so the round button on its fader sets the volume to 0 and, the second time, back to
+  what it was. The panel shows five faders: the programs make room for the remote devices.
+- **Keys:** the action *Remote media* (in the editor's action list under *Other devices*; play/pause, play, pause, next, previous, stop) with a device choice (the first connected one, or one device by name), and the
+  ready-made keys (listed under *Media* and under *Other devices*) *Remote play / pause (shows state)* (the icon follows the device: *Play* while it is paused, *Pause* while it plays),
+  *Remote next track*, *Remote previous track*, *Remote volume +* and *Remote volume -* (the volume keys move the device's volume by 5 percent; the *Step* of the action changes that). Any key can follow the device with the *Remote device playing* state (`"bind": "remote_playing"`). `$(remote:track)` and
+  `$(remote:artist)` are the title and artist of the first connected device. A wide key can show that device's music with its progress
+  (*Shows → The music of a paired device*; a key with a Remote media action gets it when you make it wide), as *The music that
+  plays* does for this PC.
+- **Limits:** the volume is that of the device's current player, as KDE Connect reports it, and a player another app has taken over
+  can show an old value for a moment. A phone sets its volume in steps (about fifteen), so the fader can settle a few percent away
+  from where it was put. The players of a paired device are not the PC's media session: `$(pc:track)`
+  and the *shuffle / repeat* action leave them out. Windows has no remote devices. GSConnect (the GNOME Shell extension) is a
+  different program with its own D-Bus names and is not supported.
 
 ## Not on Linux
 

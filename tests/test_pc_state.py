@@ -28,6 +28,32 @@ def failing():
     raise OSError('no device')
 
 
+class RemoteVariableTests(unittest.TestCase):
+    def test_the_title_and_artist_of_a_remote_device_are_variables(self):
+        state = pc_state.PcState(audio(), media(), remote=lambda: {'remote:track': 'Home', 'remote:artist': 'Band'})
+        state.poll()
+        variables = state.variables()
+        self.assertEqual((variables['remote:track'], variables['remote:artist']), ('Home', 'Band'))
+        self.assertEqual(variables['pc:track'], 'No music', 'the PC keeps its own')
+
+    def test_a_key_can_follow_whether_the_remote_device_plays(self):
+        playing = {'remote:track': 'Home', 'remote:artist': 'Band', 'remote_playing': True}
+        state = pc_state.PcState(audio(), media(), remote=lambda: playing)
+        self.assertIn('remote_playing', pc_state.FLAG_SOURCES)
+        state.poll()
+        self.assertTrue(state.flag('remote_playing'))
+        playing['remote_playing'] = False
+        state.poll()
+        self.assertFalse(state.flag('remote_playing'))
+
+    def test_without_a_remote_reader_or_when_it_fails_they_are_empty_and_the_rest_keeps_working(self):
+        for remote in (None, failing):
+            state = pc_state.PcState(audio(50), media('Song', 'Band', 'PLAYING'), remote=remote)
+            state.poll()
+            variables = state.variables()
+            self.assertEqual((variables['remote:track'], variables['pc:track']), ('', 'Song'))
+
+
 class PcStateTests(unittest.TestCase):
     def test_flags_and_variables_follow_the_readers(self):
         state = pc_state.PcState(audio(40, mic=True), media('Song', 'Band', 'PLAYING'))

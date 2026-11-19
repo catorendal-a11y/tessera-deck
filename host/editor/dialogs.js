@@ -780,10 +780,18 @@ function renderScreen() {
     }});
     const mic = element('input', {type: 'checkbox', onchange: event => savePanel({mic: event.target.checked})});
     mic.checked = choice.mic;
+    const remote = choice.remote || {mode: 'off'};
+    const remoteMode = remote.mode === 'device' ? remote.device : remote.mode;
+    const remoteChoices = [['off', 'Not used'], ...remoteDeviceChoices(remote.mode === 'device' ? remote.device : '', true)];
+    const remoteSelect = element('select', {'aria-label': 'Remote devices in the mixer', onchange: event => {
+      const value = event.target.value;
+      savePanel({remote: value === 'off' || value === 'first' || value === 'all' ? {mode: value} : {mode: 'device', device: value}});
+    }}, ...remoteChoices.map(([value, name]) => element('option', {value, ...(value === remoteMode ? {selected: true} : {})}, name)));
     body = [...head('Mixer', 'The faders on the panel’s mixer screen, as the PC has them right now.'),
       element('div', {class: 'screen-faders'}, ...(faders.length ? faders : [text('p', 'The host has not read the sound yet.', 'hint')])),
       element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Programs'), text('small', 'Up to three. Leave empty to use the ones that are playing sound.')), apps),
-      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Microphone'), text('small', 'Include a microphone fader.')), element('label', {class: 'screen-check'}, mic, text('span', 'Show'))) ];
+      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Microphone'), text('small', 'Include a microphone fader.')), element('label', {class: 'screen-check'}, mic, text('span', 'Show'))),
+      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Remote devices'), text('small', 'The volume of a device paired with KDE Connect, such as a phone, as a fader (Linux). It takes a place of the programs: the panel shows five faders.')), remoteSelect) ];
   } else {
     const stats = dashboard.stats || {};
     const full = choice.stats.length >= PANEL_STATS_MAX;

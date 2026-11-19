@@ -136,7 +136,7 @@ The rail on the left of the panel switches between your keys, the AI **agents**,
 
 ### The mixer
 
-Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now.
+Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now. *Remote devices* adds the volume of a device paired with KDE Connect, such as a phone or a second laptop, as one more fader (Linux; see [Tessera on Linux](LINUX.md#remote-devices-kde-connect)). Choose *The first one that is connected*, *Every connected device* or one device by name. The panel shows five faders, so the programs make room: the speaker, the remote devices and the microphone stay.
 
 The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed, and also upload speed, uptime, CPU clock, CPU power, GPU power, GPU clock, GPU fan and FPS. The panel shows eight, so with eight ticked you untick one to choose another.
 
@@ -227,6 +227,7 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 | Set key state | `state` | Set a toggle key's state (`next` or a state number) |
 | Mute / unmute audio | `audio` | Mute, unmute or set the volume of the speaker, the microphone or one program (`app:NAME.exe`) |
 | Shuffle / repeat | `media` | Toggle shuffle (`"op": "shuffle"`) or cycle repeat off, all, one (`"op": "repeat"`) in the player shown in the Windows media controls. Without a player, or with one that does not offer it, the key fails and says why |
+| Remote media | `remote_media` | Play/pause, play, pause, next, previous or stop (`"op": "playpause"`, `"play"`, `"pause"`, `"next"`, `"previous"`, `"stop"`), or turn the volume up or down (`"volumeup"`, `"volumedown"`, by `"step"` percent, 1 to 50, default 5) in the player of a device paired with KDE Connect (Linux). `"device"` is `"first"` (the default) or the id of one paired device: a key reaches one device, never every one. Without a reachable device the key fails and says so |
 | Counter, Timer | `counter`, `timer` | Change a counter; start, pause, resume, stop or toggle a timer |
 | Mouse | `mouse` | Click (left, right, middle or double), scroll, or move the pointer |
 | Switch screen | `screen` | Show the clock, the keys, or switch between them |
@@ -237,13 +238,13 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 
 ### Labels and variables
 
-A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)`, `$(timer-state:name)` (IDLE, RUNNING, PAUSED or DONE) and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)`, `$(pc:playing)`, `$(pc:shuffle)` (ON or OFF) and `$(pc:repeat)` (OFF, ALL or ONE). `$(pc:track)` shows *No music* when nothing plays. `$(pc:shuffle)` and `$(pc:repeat)` are empty when the player does not report them. A counter or timer nobody has used yet shows `0` or `00:00`.
+A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)`, `$(timer-state:name)` (IDLE, RUNNING, PAUSED or DONE) and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)`, `$(pc:playing)`, `$(pc:shuffle)` (ON or OFF) and `$(pc:repeat)` (OFF, ALL or ONE). `$(pc:track)` shows *No music* when nothing plays. `$(pc:shuffle)` and `$(pc:repeat)` are empty when the player does not report them. A counter or timer nobody has used yet shows `0` or `00:00`. On Linux with KDE Connect, `$(remote:track)` and `$(remote:artist)` give the title and the artist of the first connected paired device (empty when there is none).
 
 An HTTP step can also use `$(env:NAME)` in its address, headers and body. It is filled in from the PC's environment when the key runs, so a token or a webhook address stays out of the profile. If the variable in the address or a header is not set, the key fails and names it; restart Tessera after you set one.
 
 In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`). Tessera refuses values with shell metacharacters; spaces are allowed.
 
-A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "media_shuffle" | "media_repeat" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key. In the editor: the key's **Live** tab, *Color follows a variable*, then **＋ Value …** for each value that gets a color. Other values keep the key color.
+A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "media_shuffle" | "media_repeat" | "remote_playing" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key. In the editor: the key's **Live** tab, *Color follows a variable*, then **＋ Value …** for each value that gets a color. Other values keep the key color.
 
 ### Automatic actions
 

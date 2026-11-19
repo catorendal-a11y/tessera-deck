@@ -20,6 +20,7 @@ SHARED_FUNCTIONS = {
     'shortcuts': ['desktop_shortcut_path', 'create_shortcut'],
     'dialogs': ['ask_yes_no'],
     'tray': ['prepare'],
+    'remote': ['list_devices', 'read_device', 'write_volume', 'send_action'],
     'filelock': ['lock', 'unlock'],
     'autostart': ['startup_script_path', 'is_enabled', 'enable'],
     'shell': ['scan_programs', 'shortcut_target'],
