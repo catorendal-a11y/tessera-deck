@@ -24,7 +24,7 @@ EXPECTED = {
     'platform_windows.icons': ['resolve_program_target', 'shell_item_image', 'legacy_icon_image', 'program_icon_image'],
     'platform_windows.programs': ['locate', 'program_roots', 'script_command', 'describe'],
     'platform_windows.shell': ['_powershell', 'shortcut_target', 'scan_start_menu', 'scan_programs'],
-    'platform_windows.shortcuts': ['desktop_shortcut_path', 'create_shortcut'],
+    'platform_windows.shortcuts': ['desktop_shortcut_path', 'shortcut_files', 'create_shortcut'],
     'platform_windows.autostart': ['startup_script_path', 'startup_line', 'is_enabled', 'enable'],
     'platform_windows.editor_window': ['activate_window', 'brand_taskbar_identity', 'fit_to_work_area', 'open_native_window'],
     'platform_windows.session': ['locked'],

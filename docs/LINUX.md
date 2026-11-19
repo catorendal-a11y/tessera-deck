@@ -24,9 +24,9 @@ Then, in the Tessera folder:
 ./Tessera.sh
 ```
 
-The first start creates `host/.venv`, installs `host/requirements.lock` with hashes and adds an application menu entry.
-After that it starts the tray icon, the USB host and the editor. The editor opens in your browser (`--no-browser`
-prints its address instead). The browser tab is not the editor's window, so *Quit tray* and *Quit and stop host* also stop the editor's web server. `./Tessera.sh --setup`, `--uninstall [--purge]`, `--diagnostics`, `--terminal` and `--tray`
+The first start creates `host/.venv`, installs `host/requirements.lock` with hashes and adds two application menu entries: *Tessera* (the tray and the host) and *Tessera Editor* (the editor, which starts the tray too when it is not running). Their text is in `host/linux/*.desktop`.
+After that it starts the tray icon and the USB host. Click the tray icon to open the editor in your browser; `./Tessera.sh --editor`
+opens it too (`--no-browser` prints its address instead), and `./Tessera.sh --app` starts the tray and the editor together, as the *Tessera Editor* entry does. The browser tab is not the editor's window, so *Quit tray* and *Quit and stop host* also stop the editor's web server. `./Tessera.sh --setup`, `--uninstall [--purge]`, `--diagnostics`, `--terminal` and `--tray`
 work as in `Tessera.cmd`. *Start with the desktop* in the tray menu writes `~/.config/autostart/tessera.desktop`.
 
 **Stopping it from a terminal:** the tray, the host and the editor name themselves `Tessera`, so `killall Tessera` (or `pkill Tessera`) stops all three without touching other Python programs.

@@ -17,7 +17,7 @@ SHARED_FUNCTIONS = {
     'media': ['MediaReader', 'control_media'],
     'session': ['locked', 'idle_seconds'],
     'secrets': ['seal', 'unseal'],
-    'shortcuts': ['desktop_shortcut_path', 'create_shortcut'],
+    'shortcuts': ['desktop_shortcut_path', 'shortcut_files', 'create_shortcut'],
     'dialogs': ['ask_yes_no'],
     'tray': ['prepare'],
     'filelock': ['lock', 'unlock'],
