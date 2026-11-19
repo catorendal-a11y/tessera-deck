@@ -15,7 +15,7 @@ class PageTemplateTests(unittest.TestCase):
     def test_the_catalog_loads_with_its_page_templates(self):
         tessera_app.action_pack_catalog.cache_clear()
         names = [template['name'] for template in tessera_app.action_pack_catalog()['page_templates']]
-        self.assertEqual(names, ['Meetings', 'Coding', 'Media', 'Browser', 'OBS'])
+        self.assertEqual(names, ['Meetings', 'Coding', 'Media', 'Browser', 'OBS', 'Farming Simulator'])
 
     def test_the_obs_page_uses_commands_and_names_the_obs_plugin_has(self):
         source = (Path(__file__).resolve().parents[1] / 'plugins/obs/main.py').read_text(encoding='utf-8')

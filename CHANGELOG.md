@@ -7,6 +7,7 @@
 - The tray icon has its right-click menu on Plasma Wayland too: pystray uses the X11 tray there, through XWayland.
 - Linux: installing panel firmware from the editor stopped with "Host did not stop; no new owner was started" although the host had stopped. The tray did not collect a host that had ended, and the editor took the leftover process for a running one. Fixed by joern-h.
 - A release also has its program zip as `tessera-host.zip`, so `releases/latest/download/tessera-host.zip` always gives the latest. The README has the three commands that install Tessera from a terminal with it.
+- A *Farming Simulator* page template: enter and exit, attach, lower, tool on and off, fold, cruise control, lights, worker, unload, refill, next vehicle, camera, map and shop on the FS25 default keys. Change a key on the page if you have rebound it in the game.
 
 ## 1.2.4
 

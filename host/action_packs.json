@@ -5317,6 +5317,227 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Farming Simulator",
+      "description": "FS25 default keys: tools, cruise, worker, map",
+      "page": [
+        {
+          "id": 1,
+          "label": "Enter / exit",
+          "icon": "lc:e10d",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "e"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Attach",
+          "icon": "lc:e102",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "q"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Lower / raise",
+          "icon": "lc:e046",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "v"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Tool on / off",
+          "icon": "lc:e140",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "b"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Fold",
+          "icon": "lc:e43c",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "x"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Tool group",
+          "icon": "lc:e529",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "g"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "Cruise",
+          "icon": "lc:e1bf",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "3"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "label": "Cruise -",
+          "icon": "lc:e07e",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "1"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "label": "Cruise +",
+          "icon": "lc:e081",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "2"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "label": "Lights",
+          "icon": "lc:e1c2",
+          "color": "#F2B94B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "f"
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "label": "Worker",
+          "icon": "lc:e0ee",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "h"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "label": "Unload",
+          "icon": "lc:e455",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "i"
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "label": "Refill",
+          "icon": "lc:e2af",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "r"
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "label": "Next vehicle",
+          "icon": "lc:e504",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "tab"
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "label": "Camera",
+          "icon": "lc:e1a5",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "c"
+            }
+          ]
+        },
+        {
+          "id": 16,
+          "label": "Map",
+          "icon": "lc:e110",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "9"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        },
+        {
+          "id": 18,
+          "label": "Shop",
+          "icon": "lc:e15c",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "p"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

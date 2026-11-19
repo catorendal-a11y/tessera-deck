@@ -650,7 +650,7 @@ $('#welcome-test').onclick = () => testButton(selected).catch(showError);
 // Everything is defined now: start the editor.
 start().then(showWelcome).catch(error=>{setSaveState('The editor could not start',error.message);startError=error.message;renderStatusBar();});
 
-/* Page templates: a ready-made page (Meetings, Coding, Media, Browser, OBS) is shown as it will look, then added. */
+/* Page templates: a ready-made page (Meetings, Coding, Media, Browser, OBS, Farming Simulator) is shown as it will look, then added. */
 let galleryChoice = 0;
 function galleryTemplates() {
   return [...(actionCatalog.page_templates || []), {name: 'Empty page', description: 'Start with nothing', page: []}];
