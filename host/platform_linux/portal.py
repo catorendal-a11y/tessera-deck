@@ -7,9 +7,14 @@ ever, not at every start of the host.
 
 One session lives as long as its D-Bus connection, so the host keeps one connection and one session, and all calls take
 a lock: the press threads of the host share it. `connect` is a parameter so the tests need no desktop.
+
+The session is opened by a thread of its own, because the dialog can stay open for minutes and a key press holds the
+host's state. The key that needs the session waits `START_GRACE` for it (a kept permission answers at once) and is
+then refused with a message; the session is there for the next press once the dialog is answered.
 """
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 import os
@@ -29,6 +34,9 @@ KEYBOARD, POINTER = 1, 2
 PERSIST_UNTIL_REVOKED = 2
 RESPONSE_WAIT = 10.0  # seconds a portal call may take to answer
 DIALOG_WAIT = 120.0  # seconds the user has to answer the permission dialog
+START_GRACE = 1.0  # seconds a key waits for the session before it is refused: enough where no dialog is shown
+NOT_READY = ('Keyboard and mouse control through the desktop is not ready yet. If the desktop shows a dialog that asks '
+             'for it, answer it, then press the key again.')
 BUTTONS = {'left': 0x110, 'right': 0x111, 'middle': 0x112}  # Linux input event codes (BTN_LEFT ...)
 AXIS_VERTICAL = 0
 
@@ -38,13 +46,17 @@ def _record_path() -> Path:
 
 
 def open_connection():
-    """A blocking connection to the session bus (jeepney, which the host already needs for MPRIS)."""
+    """A blocking connection to the session bus (jeepney, which the host already needs for MPRIS). Signing in and Hello
+    both have a time limit (dbus_client.open_connection): jeepney's own connection waits for Hello without one."""
     try:
-        from jeepney.io.blocking import open_dbus_connection
-        return open_dbus_connection(bus='SESSION')
+        from jeepney.bus import get_bus
+        from jeepney.io.blocking import prep_socket
     except ImportError as exc:
         raise BackendUnavailable('The jeepney package is missing: run Tessera.sh --setup') from exc
-    except OSError as exc:
+    from dbus_client import HELLO_SECONDS, open_connection as say_hello
+    try:
+        return say_hello(prep_socket(get_bus('SESSION'), timeout=HELLO_SECONDS))
+    except (OSError, KeyError) as exc:  # KeyError: no session bus is named in the environment
         raise BackendUnavailable(f'The session bus is not reachable: {exc}') from exc
 
 
@@ -60,41 +72,52 @@ def checked(reply):
     return reply
 
 
+class _Opening:
+    """A session that is being opened by its own thread. All three are read and written with RemoteDesktop's lock held."""
+    done = False
+    error = None
+    waited_for = False  # a key is waiting for it and reports the error itself
+
+
 class RemoteDesktop:
     """One RemoteDesktop session with a keyboard and a pointer, started when the first event is sent."""
 
-    def __init__(self, connect=open_connection, record: Path | None = None, clock=time.monotonic):
+    def __init__(self, connect=open_connection, record: Path | None = None, clock=time.monotonic,
+                 grace: float = START_GRACE):
         self._connect = connect
         self._record = record or _record_path()
         self._clock = clock
+        self._grace = grace
         self._lock = threading.RLock()
+        self._changed = threading.Condition(self._lock)  # an opening session is done
         self._connection = None
         self._session = None
-        self._counter = 0
+        self._opening = None  # the _Opening on its way, or None
+        self._counter = itertools.count(1)
 
     # --- the portal protocol ----------------------------------------------------------
     def _token(self) -> str:
-        self._counter += 1
-        return f'tessera{os.getpid()}x{self._counter}'
+        return f'tessera{os.getpid()}x{next(self._counter)}'
 
     def _address(self, member: str, signature: str, body: tuple):
         from jeepney import DBusAddress, new_method_call
         return new_method_call(DBusAddress(PATH, bus_name=BUS, interface=INTERFACE), member, signature, body)
 
-    def _request(self, member: str, signature: str, body_before: tuple, options: dict, wait: float):
+    def _request(self, connection, member: str, signature: str, body_before: tuple, options: dict, wait: float):
         """Call a portal method that answers with a Request: the answer is the Response signal of that request.
 
         The signal is subscribed to before the call, with the request's own path (it follows from our token), or an
-        answer that comes at once would be lost."""
+        answer that comes at once would be lost. `wait` is for that signal, which a dialog can hold back; the method
+        replies before it have RESPONSE_WAIT, and a reply that does not come is a TimeoutError for the caller."""
         from jeepney import MatchRule, message_bus
-        connection = self._connection
         token = options['handle_token'][1]
         sender = connection.unique_name.lstrip(':').replace('.', '_')
         request_path = f'/org/freedesktop/portal/desktop/request/{sender}/{token}'
         rule = MatchRule(type='signal', interface=REQUEST, member='Response', path=request_path)
-        connection.send_and_get_reply(message_bus.AddMatch(rule))
+        connection.send_and_get_reply(message_bus.AddMatch(rule), timeout=RESPONSE_WAIT)
         with connection.filter(rule) as responses:
-            checked(connection.send_and_get_reply(self._address(member, signature, (*body_before, options))))
+            checked(connection.send_and_get_reply(self._address(member, signature, (*body_before, options)),
+                                                  timeout=RESPONSE_WAIT))
             try:
                 reply = connection.recv_until_filtered(responses, timeout=wait)
             except TimeoutError as exc:
@@ -122,49 +145,90 @@ class RemoteDesktop:
         except OSError:
             log.debug('could not remember the remote desktop permission', exc_info=True)
 
-    def start(self) -> None:
-        """Open the connection and the session; shows the permission dialog the first time."""
+    def _open_session(self):
+        """A new connection with a session on it, as (connection, session); shows the permission dialog the first time.
+        It touches nothing of this object but the token counter and the record, so it runs without the lock."""
+        connection = self._connect()
+        try:
+            created = self._request(connection, 'CreateSession', 'a{sv}', (), {
+                'handle_token': ('s', self._token()), 'session_handle_token': ('s', self._token())}, RESPONSE_WAIT)
+            session = created['session_handle'][1]
+            select = {'handle_token': ('s', self._token()), 'types': ('u', KEYBOARD | POINTER),
+                      'persist_mode': ('u', PERSIST_UNTIL_REVOKED)}
+            token = self._saved_token()
+            if token:
+                select['restore_token'] = ('s', token)
+            self._request(connection, 'SelectDevices', 'oa{sv}', (session,), select, RESPONSE_WAIT)
+            started = self._request(connection, 'Start', 'osa{sv}', (session, ''),
+                                    {'handle_token': ('s', self._token())}, DIALOG_WAIT)
+            new_token = started.get('restore_token')
+            if new_token:
+                self._save_token(new_token[1])
+            granted = started.get('devices', ('u', 0))[1]
+            if not granted & KEYBOARD:
+                raise BackendUnavailable('The desktop did not give Tessera the keyboard.')
+            return connection, session
+        except BaseException:
+            self._hang_up(connection)
+            raise
+
+    @staticmethod
+    def _hang_up(connection) -> None:
+        try:
+            connection.close()
+        except OSError:
+            pass
+
+    def _open_in_background(self, opening: _Opening) -> None:
+        connection = session = error = None
+        try:
+            connection, session = self._open_session()
+        except Exception as exc:
+            error = exc
         with self._lock:
-            self.close()
-            self._connection = self._connect()
-            try:
-                created = self._request('CreateSession', 'a{sv}', (), {
-                    'handle_token': ('s', self._token()), 'session_handle_token': ('s', self._token())}, RESPONSE_WAIT)
-                self._session = created['session_handle'][1]
-                select = {'handle_token': ('s', self._token()), 'types': ('u', KEYBOARD | POINTER),
-                          'persist_mode': ('u', PERSIST_UNTIL_REVOKED)}
-                token = self._saved_token()
-                if token:
-                    select['restore_token'] = ('s', token)
-                self._request('SelectDevices', 'oa{sv}', (self._session,), select, RESPONSE_WAIT)
-                started = self._request('Start', 'osa{sv}', (self._session, ''),
-                                        {'handle_token': ('s', self._token())}, DIALOG_WAIT)
-                new_token = started.get('restore_token')
-                if new_token:
-                    self._save_token(new_token[1])
-                granted = started.get('devices', ('u', 0))[1]
-                if not granted & KEYBOARD:
-                    raise BackendUnavailable('The desktop did not give Tessera the keyboard.')
-            except BaseException:
-                self.close()
-                raise
+            wanted = self._opening is opening  # close() came in between: this session is nobody's
+            if wanted:
+                self._opening = None
+                self._connection, self._session = connection, session
+            opening.error, opening.done = error, True
+            heard = opening.waited_for
+            self._changed.notify_all()
+        if connection is not None and not wanted:
+            self._hang_up(connection)
+        if error is not None and not heard:  # the key that asked has gone: the log is where this can still be read
+            log.warning('Keyboard and mouse control through the desktop was not started: %s', error)
+
+    def _need_session(self) -> None:
+        """With the lock held: return with a session, or raise. The session is opened by a thread of its own, one at a
+        time; the key that starts it waits `grace` for it with the lock released, a key that finds it on its way does
+        not wait at all. So a press never waits for the dialog."""
+        if self._session is not None:
+            return
+        opening = self._opening
+        if opening is None:
+            opening = self._opening = _Opening()
+            threading.Thread(target=self._open_in_background, args=(opening,), name='portal-session', daemon=True).start()
+            opening.waited_for = True
+            self._changed.wait_for(lambda: opening.done, self._grace)
+            opening.waited_for = False
+        if opening.error is not None:
+            raise opening.error
+        if self._session is None:
+            raise BackendUnavailable(NOT_READY)
 
     def close(self) -> None:
         with self._lock:
+            self._opening = None  # a session on its way is closed by its own thread when it arrives
             connection, self._connection, self._session = self._connection, None, None
             if connection is not None:
-                try:
-                    connection.close()
-                except OSError:
-                    pass
+                self._hang_up(connection)
 
     # --- events -----------------------------------------------------------------------------
     def _notify(self, member: str, signature: str, *arguments) -> None:
         """Send one input event. A session that has ended (the desktop closed it, the bus dropped) is started again once."""
         with self._lock:
             for attempt in (1, 2):
-                if self._session is None:
-                    self.start()
+                self._need_session()
                 try:
                     from jeepney import DBusAddress, new_method_call
                     address = DBusAddress(PATH, bus_name=BUS, interface=INTERFACE)

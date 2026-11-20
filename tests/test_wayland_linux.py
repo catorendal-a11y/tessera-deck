@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 import os
 import tempfile
+import threading
+import time
 import types
 import unittest
 import unittest.mock
@@ -453,9 +455,10 @@ class FakeConnection:
     def __init__(self, devices=3, response=0):
         self.devices, self.response = devices, response
         self.calls, self.queue, self.closed = [], [], False
-        self.matches = []
+        self.matches, self.limits = [], []
 
     def send_and_get_reply(self, message, timeout=None):
+        self.limits.append(timeout)
         header = message.header.fields
         member = next((value for key, value in header.items() if getattr(key, 'name', '') == 'member'), '')
         if member == 'AddMatch':
@@ -575,6 +578,115 @@ class PortalTests(unittest.TestCase):
         self.assertEqual([m for m, _ in connection.calls].count('CreateSession'), 2)
         self.assertEqual(connection.calls[-1][1][2], 0x62)
 
+    def test_every_method_call_has_a_time_limit_and_only_the_dialog_gets_the_long_one(self):
+        connection = FakeConnection()
+        waits = []
+        answer = connection.recv_until_filtered
+        connection.recv_until_filtered = lambda queue, timeout=None: (waits.append(timeout), answer(queue))[1]
+        remote(connection, self.folder).keysym(0x61, True)
+        self.assertEqual(len(connection.limits), 7)  # AddMatch and the call, three times, and the key
+        self.assertEqual(set(connection.limits), {portal.RESPONSE_WAIT})
+        self.assertEqual(waits, [portal.RESPONSE_WAIT, portal.RESPONSE_WAIT, portal.DIALOG_WAIT])
+
+    def test_a_method_call_the_desktop_does_not_answer_closes_the_connection_and_the_next_key_tries_again(self):
+        connection = FakeConnection()
+        answer, silent = connection.send_and_get_reply, [True]
+
+        def send(message, timeout=None):
+            if silent[0]:
+                raise TimeoutError('no reply')
+            return answer(message, timeout)
+        connection.send_and_get_reply = send
+        rd = remote(connection, self.folder)
+        with self.assertRaises(TimeoutError):
+            rd.keysym(0x61, True)
+        self.assertTrue(connection.closed)
+        silent[0] = False
+        rd.keysym(0x61, True)
+        self.assertEqual(connection.calls[-1][0], 'NotifyKeyboardKeysym')
+
+    def held_dialog(self):
+        """A desktop whose dialog stays open until `answer` is set, and a session that does not wait for it."""
+        connection, answer = FakeConnection(), threading.Event()
+        reply = connection.recv_until_filtered
+
+        def recv(queue, timeout=None):
+            if connection.calls[-1][0] == 'Start':
+                answer.wait(5)
+            return reply(queue)
+        connection.recv_until_filtered = recv
+        rd = portal.RemoteDesktop(connect=lambda: connection, record=Path(self.folder) / 'remote-desktop.local.json', grace=0.05)
+        self.addCleanup(self.opened, rd)  # after the answer: the thread writes into the folder, which is removed next
+        self.addCleanup(answer.set)
+        return rd, connection, answer
+
+    def opened(self, rd):
+        """Wait for the thread that opens the session; True when none is left."""
+        for thread in threading.enumerate():
+            if thread.name == 'portal-session':
+                thread.join(5)
+        return rd._opening is None and not any(thread.name == 'portal-session' for thread in threading.enumerate())
+
+    def test_a_key_does_not_wait_for_the_dialog_and_works_once_it_is_answered(self):
+        rd, connection, answer = self.held_dialog()
+        began = time.monotonic()
+        with self.assertRaisesRegex(BackendUnavailable, 'not ready yet'):
+            rd.keysym(0x61, True)
+        with self.assertRaisesRegex(BackendUnavailable, 'not ready yet'):
+            rd.keysym(0x61, True)  # asked for already: no second dialog, and no wait at all
+        self.assertLess(time.monotonic() - began, 2)
+        free = []
+        other = threading.Thread(target=lambda: free.append(rd._lock.acquire(timeout=1) and (rd._lock.release() or True)))
+        other.start()
+        other.join()
+        self.assertEqual(free, [True])  # nothing holds the lock while the dialog is open
+        self.assertEqual([m for m, _ in connection.calls].count('CreateSession'), 1)
+        answer.set()
+        self.assertTrue(self.opened(rd))
+        rd.keysym(0x61, True)
+        self.assertEqual([m for m, _ in connection.calls], ['CreateSession', 'SelectDevices', 'Start', 'NotifyKeyboardKeysym'])
+
+    def test_a_dialog_refused_after_the_key_gave_up_is_logged_and_the_next_key_asks_again(self):
+        rd, connection, answer = self.held_dialog()
+        connection.devices = 2  # this dialog will be answered without the keyboard
+        with self.assertRaisesRegex(BackendUnavailable, 'not ready yet'):
+            rd.keysym(0x61, True)
+        with self.assertLogs('platform_linux.portal', 'WARNING') as logged:
+            answer.set()  # after the key has gone
+            self.assertTrue(self.opened(rd))
+        self.assertIn('keyboard', logged.output[0])
+        self.assertIsNone(rd._session)
+        connection.devices = 3
+        rd.keysym(0x61, True)
+        self.assertEqual(connection.calls[-1][0], 'NotifyKeyboardKeysym')
+
+    def test_a_session_that_arrives_after_close_is_closed_and_not_used(self):
+        rd, connection, answer = self.held_dialog()
+        with self.assertRaisesRegex(BackendUnavailable, 'not ready yet'):
+            rd.keysym(0x61, True)
+        rd.close()
+        self.assertFalse(connection.closed)  # the thread that opened it closes it
+        answer.set()
+        self.assertTrue(self.opened(rd))
+        self.assertTrue(connection.closed)
+        self.assertIsNone(rd._session)
+
+    def test_the_session_bus_is_opened_with_a_time_limit_on_hello(self):
+        from unittest import mock
+        import dbus_client
+        with mock.patch('jeepney.io.blocking.prep_socket', return_value='socket') as prepared, \
+                mock.patch('jeepney.bus.get_bus', return_value='address'), \
+                mock.patch.object(dbus_client, 'open_connection', return_value='connection') as hello:
+            self.assertEqual(portal.open_connection(), 'connection')
+        prepared.assert_called_once_with('address', timeout=dbus_client.HELLO_SECONDS)
+        hello.assert_called_once_with('socket')
+        with mock.patch('jeepney.io.blocking.prep_socket', return_value='socket'), \
+                mock.patch('jeepney.bus.get_bus', return_value='address'), \
+                mock.patch.object(dbus_client, 'open_connection', side_effect=OSError('the D-Bus did not answer Hello')):
+            with self.assertRaisesRegex(BackendUnavailable, 'not reachable.*Hello'):
+                portal.open_connection()
+        self.assertIs(gnome_windows.GnomeWindows()._connect, portal.open_connection)  # the extension is asked through it too
+
     def test_the_wheel_and_the_pointer_use_the_right_calls(self):
         connection = FakeConnection()
         rd = remote(connection, self.folder)
@@ -635,6 +747,47 @@ class GnomeWindowsTests(unittest.TestCase):
         windows = gnome_windows.GnomeWindows(connect=lambda: Connection())
         with self.assertRaisesRegex(BackendUnavailable, 'extension'):
             windows.window_op('1', 'focus')
+
+    def silent(self):
+        sent = []
+
+        class Connection:
+            def send_and_get_reply(self, message, timeout=None):
+                sent.append(next(v for k, v in message.header.fields.items() if getattr(k, 'name', '') == 'member'))
+                raise TimeoutError('no reply')
+        return gnome_windows.GnomeWindows(connect=lambda: Connection()), sent
+
+    def test_an_operation_that_got_no_answer_is_not_sent_again(self):
+        windows, sent = self.silent()
+        with self.assertRaisesRegex(OSError, 'not known whether the window was changed'):
+            windows.window_op('7', 'close')
+        self.assertEqual(sent, ['Operate'])  # the Shell may have closed it: a second send could close the next window
+
+    def test_a_question_that_got_no_answer_is_asked_once_more(self):
+        windows, sent = self.silent()
+        with self.assertRaisesRegex(OSError, 'did not answer'):
+            windows.active_window()
+        with self.assertRaisesRegex(OSError, 'did not answer'):
+            windows.find_window({1})
+        self.assertEqual(sent, ['Active', 'Active', 'Find', 'Find'])
+
+    def failing(self, failure):
+        sent = []
+
+        class Connection:
+            def send_and_get_reply(self, message, timeout=None):
+                sent.append(1)
+                raise failure
+        return gnome_windows.GnomeWindows(connect=lambda: Connection()), sent
+
+    def test_an_operation_is_sent_once_whatever_went_wrong(self):
+        for failure, said in ((BrokenPipeError('the bus went away'), 'not known whether the window was changed'),
+                              (ValueError('refused'), 'did not answer: refused')):
+            with self.subTest(failure=failure):
+                windows, sent = self.failing(failure)
+                with self.assertRaisesRegex(OSError, said):
+                    windows.window_op('7', 'focus')
+                self.assertEqual(len(sent), 1)
 
     def test_gnome_gets_the_extension_part_and_another_desktop_none(self):
         from unittest import mock
@@ -699,6 +852,33 @@ class TrayBackendTests(unittest.TestCase):
         backend, notice, _ = self.choose(env, watcher=False)
         self.assertEqual((backend, 'PYSTRAY_BACKEND' in env), ('none', False))
         self.assertIn('AppIndicator', notice.call_args.args[0])
+
+    def test_without_a_tray_host_the_tray_program_runs_with_an_icon_that_draws_nothing(self):
+        from pystray._base import Icon, Menu
+        from platform_linux import tray
+        from PIL import Image
+        image = Image.new('RGBA', (8, 8))
+        icon = tray.no_icon(Icon)('tessera', image, 'Tessera', menu=Menu(lambda: []))
+        loop = threading.Thread(target=icon.run, daemon=True)
+        loop.start()
+        deadline = time.monotonic() + 5
+        while not icon._running and time.monotonic() < deadline:  # pystray's stop does nothing before the loop runs
+            time.sleep(0.005)
+        try:
+            icon.title, icon.icon = 'Tessera — connected', image  # what the poll thread sets
+            icon.update_menu()
+            self.assertTrue(loop.is_alive())  # it waits, as a real icon's loop does
+        finally:
+            icon.stop()
+            loop.join(5)
+        self.assertFalse(loop.is_alive())
+
+    def test_the_tray_program_takes_none_as_no_icon_before_it_imports_pystray(self):
+        source = (Path(__file__).resolve().parents[1] / 'host/tessera_tray.py').read_text(encoding='utf-8')
+        chosen, imported = source.index("BACKEND == 'none'"), source.index('import pystray')
+        self.assertLess(chosen, imported)
+        self.assertNotIn("PYSTRAY_BACKEND'] = 'none'", source)
+        self.assertIn("del os.environ['PYSTRAY_BACKEND']", source)  # a tray started from this one chooses again
 
     def test_wayland_without_gi_or_the_typelib_names_the_x11_icon(self):
         # pystray's own choice would not do: with the system gi on the path its appindicator backend stops on the missing

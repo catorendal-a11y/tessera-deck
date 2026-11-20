@@ -16,8 +16,15 @@ import threading
 import time
 from pathlib import Path
 
-load('tray').choose_backend()  # before pystray is imported: it picks its backend then
-import pystray  # noqa: E402
+BACKEND = load('tray').choose_backend()  # before pystray is imported: it picks its backend then
+if BACKEND == 'none':  # a desktop that shows no tray icons: no backend is tried, and Tessera runs without an icon
+    os.environ['PYSTRAY_BACKEND'] = 'dummy'  # pystray's own name for "none"; only for the import, so nothing inherits it
+    try:
+        import pystray
+    finally:
+        del os.environ['PYSTRAY_BACKEND']
+else:
+    import pystray  # noqa: E402
 from PIL import Image, ImageDraw
 
 from deck_control import (ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart, stop_editor,
@@ -179,8 +186,8 @@ class TrayApp:
         self.restart_at = None  # when the next automatic restart runs (monotonic), while the host is down
         self.running_since = None  # since when the host has been seen running (monotonic)
         self.asked_autostart = not autostart_question_open()  # the question waits for the first panel connection
-        self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
-                                 menu=pystray.Menu(self.menu_items))
+        icon_class = load('tray').no_icon(pystray.Icon) if BACKEND == 'none' else pystray.Icon
+        self.icon = icon_class('tessera', make_icon('stopped'), 'Tessera', menu=pystray.Menu(self.menu_items))
         load('tray').prepare(self.icon, pystray.Menu.SEPARATOR)
 
     # --- actions (all run off the UI thread) ---------------------------------

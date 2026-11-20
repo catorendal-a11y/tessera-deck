@@ -23,6 +23,7 @@ MISSING = ('The Tessera extension for GNOME Shell is not installed or not enable
 ABSENT = ('org.freedesktop.DBus.Error.ServiceUnknown', 'org.freedesktop.DBus.Error.NameHasNoOwner',
           'org.freedesktop.DBus.Error.NoReply')
 TIMEOUT = 3.0
+ASKED_AGAIN = ('Active', 'Find')  # questions; anything else changes a window, and is sent once only
 
 
 class GnomeWindows:
@@ -52,7 +53,12 @@ class GnomeWindows:
                     if getattr(exc, 'name', '') in ABSENT:
                         raise BackendUnavailable(MISSING) from exc
                     self._connection = None  # a dropped connection: one more try with a new one
-                    if attempt == 2:
+                    if member not in ASKED_AGAIN and isinstance(exc, OSError):
+                        # no answer in time, or the connection went: the Shell may have carried it out all the same, and
+                        # a second send would do it twice
+                        raise OSError(f'The Tessera GNOME extension did not answer ({exc or type(exc).__name__}), so it '
+                                      'is not known whether the window was changed. It was not tried again.') from exc
+                    if attempt == 2 or member not in ASKED_AGAIN:
                         raise OSError(f'The Tessera GNOME extension did not answer: {exc}') from exc
 
     def _quiet(self, member: str, signature: str, body: tuple, empty):

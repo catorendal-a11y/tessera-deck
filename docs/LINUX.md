@@ -112,9 +112,12 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
 - **Without `ydotool`** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
   RemoteDesktop portal (`host/platform_linux/portal.py`) instead. **The desktop asks once** whether Tessera may control
-  keyboard and mouse, when the first key is pressed; the key waits up to two minutes for the answer, so press it again
-  if it timed out. The permission is kept (`host/remote-desktop.local.json`), so the question does not come again after
-  a restart. Revoke it in the desktop's settings (Privacy or Applications), or delete that file. The portal takes
+  keyboard and mouse, when the first key is pressed. That key does not wait for the answer: the press fails (the host
+  log says why), so answer the dialog and press the key again. The permission is kept
+  (`host/remote-desktop.local.json` holds the token that restores it), so the question does not come again after a
+  restart. To take the permission back, revoke it in the desktop's settings (Privacy or Applications). Deleting that
+  file does not revoke it: Tessera can then no longer restore the permission and asks again at its next start, but a
+  session that is running goes on. Stop the host to end the running session. The portal takes
   characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
   possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
 - **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.

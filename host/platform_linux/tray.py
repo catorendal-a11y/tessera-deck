@@ -95,6 +95,32 @@ def choose_backend(environ=None) -> str:
     return 'appindicator'
 
 
+def no_icon(base):
+    """An icon class for a desktop that shows no tray icons (`choose_backend` said 'none'): nothing is drawn, and `run`
+    waits until `stop`, so the tray program starts the host and keeps it running as it does behind a real icon. `base`
+    is pystray's Icon without a backend."""
+    import threading
+
+    class NoIcon(base):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._stopped = threading.Event()
+
+        def _run(self):
+            self._mark_ready()
+            self._stopped.wait()
+
+        def _stop(self):
+            self._stopped.set()
+
+        def _show(self):
+            pass
+
+        _hide = _update_icon = _update_title = _update_menu = _remove_notification = _show
+
+    return NoIcon
+
+
 def prepare(icon, separator) -> None:
     """Notices go to the desktop's notifications (notify-send), whichever tray backend pystray picked. pystray's
     legacy X11 tray has no right-click menu of its own, so one is added; it is the backend on X11, and on a Wayland
