@@ -194,7 +194,8 @@ class GtkHelperTests(unittest.TestCase):
     def setUpClass(cls):
         cls.server = subprocess.Popen(['Xvfb', '-displayfd', '1', '-screen', '0', '1280x800x24'], stdout=subprocess.PIPE,
                                       stderr=subprocess.DEVNULL, text=True)
-        cls.env = dict(os.environ, DISPLAY=':' + cls.server.stdout.readline().strip())
+        # GDK_BACKEND as x11_tray_menu.py sets it: in a Wayland session GTK would open the menu on the desktop, not here
+        cls.env = dict(os.environ, DISPLAY=':' + cls.server.stdout.readline().strip(), GDK_BACKEND='x11')
 
     @classmethod
     def tearDownClass(cls):
