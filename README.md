@@ -6,6 +6,10 @@
   <strong>A DIY Stream&nbsp;Deck: turn a 7-inch ESP32-P4 touchscreen into an open-source macro deck for Windows and Linux.</strong>
 </p>
 
+> [!NOTE]
+> This is the `esphome-beta` branch: Wi-Fi and Home Assistant on the GUITION panel. It is not in a release, and the
+> downloads below install the release from `main`. To run the beta, follow [Home Assistant (beta)](#home-assistant-beta).
+
 <p align="center">
   The <a href="https://catorendal-a11y.github.io/tessera-deck/">website</a> shows every screen and the editor. On Linux the host needs an X11 session, or KDE Plasma or GNOME on Wayland: <a href="docs/LINUX.md">Tessera on Linux</a>.
 </p>
@@ -149,11 +153,13 @@ This is not in the release yet. On the [`esphome-beta`](https://github.com/cator
 - Every key is also an event (press, hold, double press) for your automations, and there are entities for the backlight, the page, the Wi-Fi signal and whether the PC is connected.
 - The connection is encrypted. Home Assistant discovers the panel over mDNS and asks for its key. Wi-Fi and Home Assistant stay off until you turn them on in *Panel → Wi-Fi and Home Assistant*.
 
-The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it:
+The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it on a GUITION board:
 
-1. Check out the branch and start Tessera.
-2. Install the panel firmware from the branch with *Full install*. It needs the host from the same branch.
-3. Open *Panel → Wi-Fi and Home Assistant*.
+1. Get the branch with `git clone -b esphome-beta https://github.com/catorendal-a11y/tessera-deck.git` and start `Tessera.cmd` (on Linux `./Tessera.sh`) in that folder. The release host cannot talk to the beta firmware.
+2. Build the firmware with [ESP-IDF 6.1](https://docs.espressif.com/projects/esp-idf/en/v6.1/esp32p4/get-started/index.html) and flash it. Releases have no beta firmware. Stop the host first (*Stop host* in the tray menu), then run `idf.py -B build/idf6 build` and `idf.py -B build/idf6 -p COMx flash`, with `COMx` as the panel's port. [Flash from source](docs/INSTALL.md#flash-from-source) has the details.
+3. Start Tessera again and open *Panel → Wi-Fi and Home Assistant*.
+
+To update, run `git pull`, then build and flash again. *Check for updates* in the editor does not change a git checkout, and the firmware it offers is the release, which has no Wi-Fi.
 
 To go back, check out `main` again and install its firmware with *Full install*. *Update* does not work on the beta firmware, because the host on main cannot talk to it. Your profile file still loads there: it keeps the Wi-Fi and Home Assistant settings and steps, and keys skip those steps until you switch to the beta again. Main does not check the beta's limits for one page (24 Home Assistant steps and 4,096 bytes of them, pinned keys included). If you copy or pin keys with those steps on main and a page goes past them, the beta starts with an older backup instead.
 
