@@ -1,13 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Wayland without `ydotool`: keys, typing, mouse buttons, the wheel and relative moves go through the desktop's RemoteDesktop portal. The desktop asks once and the permission is kept. `ydotool` is used whenever it is installed.
+- Window actions and smart profiles on GNOME Wayland, through a small extension for GNOME Shell that `./Tessera.sh --gnome-extension` installs. While it is on, any program of your session can read window titles and focus, move or close windows.
+- The tray icon on GNOME and other Wayland desktops without an X11 tray is a StatusNotifier one (on GNOME with the *AppIndicator and KStatusNotifierItem Support* extension): it has the desktop's own menu, and a click opens that menu. It needs `libayatana-appindicator` and PyGObject. Plasma keeps the X11 icon through XWayland, where a left click opens the editor; `PYSTRAY_BACKEND=appindicator` gives it the StatusNotifier icon. A desktop that shows no tray icon gets a notification that says why, and Tessera keeps running.
+
 ## 1.2.5
 
 - Volume and media keys for devices paired with KDE Connect, a phone for example: play and pause with the state shown, next, previous and volume, on Linux and Windows. By joern-h.
 - The host runs in a Wayland session on KDE Plasma. Keys, typing and the mouse go through `ydotool`, the window in front (smart profiles) and window actions through `kdotool`, and the clipboard through `wl-copy` or Klipper. Text is typed with your own keyboard layout, so `@`, `/`, `~` and `æøå` come out right on a Norwegian keyboard; a character the layout has no key for is refused before anything is typed. On other Wayland desktops keys and typing work and window actions say why they cannot. [LINUX.md](docs/LINUX.md#wayland) has the tools.
-- Wayland without `ydotool`: keys, typing, mouse buttons, the wheel and relative moves go through the desktop's RemoteDesktop portal. The desktop asks once and the permission is kept. `ydotool` is used whenever it is installed.
-- Window actions and smart profiles on GNOME Wayland, through a small extension for GNOME Shell that `./Tessera.sh --gnome-extension` installs. While it is on, any program of your session can read window titles and focus, move or close windows.
 - On Linux the editor opens in a window of its own (WebKitGTK), like the Windows app, instead of a browser tab. Without WebKitGTK it still opens in the browser. WebKitGTK's DMA-BUF renderer is off in that window, because it draws an empty window with some GPU drivers.
-- The tray icon on Wayland is a StatusNotifier one where the desktop shows such icons (Plasma, and GNOME with the *AppIndicator and KStatusNotifierItem Support* extension): it has the desktop's own menu, and a click opens that menu. Without `libayatana-appindicator` or PyGObject the icon is the X11 one through XWayland, with its right-click menu, as on Plasma before. A desktop that shows no tray icons is told so in a notification.
+- The tray icon has its right-click menu on Plasma Wayland too: pystray uses the X11 tray there, through XWayland.
 - Linux: installing panel firmware from the editor stopped with "Host did not stop; no new owner was started" although the host had stopped. The tray did not collect a host that had ended, and the editor took the leftover process for a running one. Fixed by joern-h.
 - A release also has its program zip as `tessera-host.zip`, so `releases/latest/download/tessera-host.zip` always gives the latest. The README has the three commands that install Tessera from a terminal with it.
 - A *Farming Simulator* page template: enter and exit, attach, lower, tool on and off, fold, cruise control, lights, worker, unload, refill, next vehicle, camera, map and shop on the FS25 default keys. Change a key on the page if you have rebound it in the game.

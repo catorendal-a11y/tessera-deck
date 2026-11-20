@@ -33,6 +33,7 @@ REQUEST = 'org.freedesktop.portal.Request'
 KEYBOARD, POINTER = 1, 2
 PERSIST_UNTIL_REVOKED = 2
 RESPONSE_WAIT = 10.0  # seconds a portal call may take to answer
+EVENT_WAIT = 2.0  # seconds for one key or mouse event: the lock is held meanwhile, so a hung portal holds every press
 DIALOG_WAIT = 120.0  # seconds the user has to answer the permission dialog
 START_GRACE = 1.0  # seconds a key waits for the session before it is refused: enough where no dialog is shown
 NOT_READY = ('Keyboard and mouse control through the desktop is not ready yet. If the desktop shows a dialog that asks '
@@ -139,8 +140,10 @@ class RemoteDesktop:
     def _save_token(self, token: str) -> None:
         try:
             temporary = self._record.with_suffix('.tmp')
-            temporary.write_text(json.dumps({'restore_token': token}), encoding='utf-8')
-            os.chmod(temporary, 0o600)
+            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # private before the token is in it
+            with os.fdopen(descriptor, 'w', encoding='utf-8') as file:
+                file.write(json.dumps({'restore_token': token}))
+            os.chmod(temporary, 0o600)  # a file left over by that name keeps its old mode through O_CREAT
             os.replace(temporary, self._record)
         except OSError:
             log.debug('could not remember the remote desktop permission', exc_info=True)
@@ -233,7 +236,7 @@ class RemoteDesktop:
                     from jeepney import DBusAddress, new_method_call
                     address = DBusAddress(PATH, bus_name=BUS, interface=INTERFACE)
                     checked(self._connection.send_and_get_reply(
-                        new_method_call(address, member, f'o{signature}', (self._session, *arguments)), timeout=RESPONSE_WAIT))
+                        new_method_call(address, member, f'o{signature}', (self._session, *arguments)), timeout=EVENT_WAIT))
                     return
                 except BackendUnavailable:
                     raise

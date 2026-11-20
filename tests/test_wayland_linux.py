@@ -585,7 +585,7 @@ class PortalTests(unittest.TestCase):
         connection.recv_until_filtered = lambda queue, timeout=None: (waits.append(timeout), answer(queue))[1]
         remote(connection, self.folder).keysym(0x61, True)
         self.assertEqual(len(connection.limits), 7)  # AddMatch and the call, three times, and the key
-        self.assertEqual(set(connection.limits), {portal.RESPONSE_WAIT})
+        self.assertEqual(connection.limits, [portal.RESPONSE_WAIT] * 6 + [portal.EVENT_WAIT])
         self.assertEqual(waits, [portal.RESPONSE_WAIT, portal.RESPONSE_WAIT, portal.DIALOG_WAIT])
 
     def test_a_method_call_the_desktop_does_not_answer_closes_the_connection_and_the_next_key_tries_again(self):
@@ -828,6 +828,7 @@ class TrayBackendTests(unittest.TestCase):
         path = list(sys.path)
         self.addCleanup(lambda: sys.path.__setitem__(slice(None), path))
         with mock.patch.object(tray, 'watcher_present', return_value=watcher), \
+                mock.patch.object(tray, 'WATCHER_WAIT', 0), \
                 mock.patch.object(tray, 'system_gi_folder', return_value=folder), \
                 mock.patch.object(tray, '_typelib_available', return_value=typelib), \
                 mock.patch('platform_linux.notify.notify', return_value=True) as notice, \
@@ -846,6 +847,25 @@ class TrayBackendTests(unittest.TestCase):
         self.assertEqual((backend, env['PYSTRAY_BACKEND'], added), ('appindicator', 'appindicator', True))
         self.assertEqual(sys.path[-1], '/usr/lib/python3/site-packages')
         notice.assert_not_called()
+
+    def test_plasma_keeps_the_x11_icon_whose_left_click_opens_the_editor(self):
+        env = {'XDG_SESSION_TYPE': 'wayland', 'XDG_CURRENT_DESKTOP': 'KDE'}
+        backend, notice, added = self.choose(env, watcher=False)
+        self.assertEqual((backend, env['PYSTRAY_BACKEND'], added), ('xorg', 'xorg', False))
+        notice.assert_not_called()
+
+    def test_a_tray_host_that_comes_a_little_later_is_waited_for(self):
+        from unittest import mock
+        from platform_linux import tray
+        now = [0.0]
+
+        def sleep(seconds):
+            now[0] += seconds
+        answers = iter([False, False, True])
+        with mock.patch.object(tray, 'watcher_present', side_effect=lambda: next(answers)):
+            self.assertTrue(tray.wait_for_watcher(10, sleep=sleep, clock=lambda: now[0]))
+        with mock.patch.object(tray, 'watcher_present', return_value=False):
+            self.assertFalse(tray.wait_for_watcher(1, sleep=sleep, clock=lambda: now[0]))
 
     def test_wayland_without_a_tray_host_says_so_once_and_chooses_nothing(self):
         env = {'XDG_SESSION_TYPE': 'wayland'}

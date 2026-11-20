@@ -122,13 +122,14 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
 - **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
-- **The tray icon** uses StatusNotifier (pystray's appindicator backend) when the desktop has a StatusNotifier host,
-  which Plasma has. The icon then has the desktop's own menu, and **a left click opens that menu too**: choose
-  *Open editor* there, because this kind of icon has no click action of its own. It needs `libayatana-appindicator`
+- **The tray icon** on Plasma is the X11 one, through XWayland: Plasma shows it with `xembedsniproxy`, with the
+  same GTK right-click menu as on X11 and a left click that opens the editor. On other desktops it uses StatusNotifier
+  (pystray's appindicator backend) when the desktop has a StatusNotifier host. That icon has the desktop's own menu,
+  and **a left click opens that menu too**: choose *Open editor* there, because this kind of icon has no click action
+  of its own. `PYSTRAY_BACKEND=appindicator` gives Plasma this icon as well. It needs `libayatana-appindicator`
   with its typelib, and PyGObject for the system Python; that Python must be the same version (3.x) as the one in
-  `host/.venv`, or PyGObject cannot be loaded from it. Without those the icon is the X11 one, through XWayland: Plasma
-  shows it with `xembedsniproxy`, with the same GTK right-click menu as on X11 and a left click that opens the editor;
-  GNOME does not show such an icon. A desktop without a tray (GNOME) needs the *AppIndicator and KStatusNotifierItem
+  `host/.venv`, or PyGObject cannot be loaded from it. Without those the icon is the X11 one, which GNOME does not show.
+  At sign-in Tessera waits up to 10 seconds for the desktop's StatusNotifier host. A desktop without a tray (GNOME) needs the *AppIndicator and KStatusNotifierItem
   Support* extension; without it Tessera says so in a notification and keeps running without an icon. Setting
   `PYSTRAY_BACKEND` yourself (`xorg` for the X11 icon) overrides the choice.
 - **Other compositors** (sway, Hyprland): keys and typing work with `ydotool`, but the window functions and

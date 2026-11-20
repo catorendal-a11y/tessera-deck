@@ -5,12 +5,14 @@ import logging
 import os
 import subprocess
 import sys
+import time
 
 log = logging.getLogger(__name__)
 
 WATCHER = 'org.kde.StatusNotifierWatcher'
 NO_TRAY = ('This desktop shows no tray icons, so Tessera has no icon. Install and enable the "AppIndicator and '
            'KStatusNotifierItem Support" extension (GNOME), then sign in again. Tessera itself keeps running.')
+WATCHER_WAIT = 10.0  # seconds: at sign-in the tray may start before the desktop's StatusNotifier host
 TYPELIBS = ('AyatanaAppIndicator3', 'AppIndicator3')
 GI_PROBE = "import gi, sys; print(sys.version_info[0], sys.version_info[1]); print(gi.__file__)"
 
@@ -24,6 +26,17 @@ def watcher_present(run=subprocess.run) -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return done.returncode == 0 and done.stdout.strip().startswith('(true')
+
+
+def wait_for_watcher(seconds: float | None = None, sleep=time.sleep, clock=time.monotonic) -> bool:
+    """watcher_present, asked again for up to `seconds`: Tessera starts with the session and can come first."""
+    deadline = clock() + (WATCHER_WAIT if seconds is None else seconds)
+    while True:
+        if watcher_present():
+            return True
+        if clock() >= deadline:
+            return False
+        sleep(0.5)
 
 
 def system_gi_folder(run=subprocess.run, version=None) -> str | None:
@@ -64,7 +77,9 @@ def _x11_icon(environ) -> str:
 def choose_backend(environ=None) -> str:
     """Pick the tray backend pystray should use, before it is imported. Returns what was chosen, for the log and tests.
 
-    X11: pystray's own choice (the legacy tray, with the menu of x11_tray_menu.py). Wayland: StatusNotifier through
+    X11: pystray's own choice (the legacy tray, with the menu of x11_tray_menu.py). Plasma on Wayland: the X11 icon,
+    which Plasma shows and whose left click opens the editor (a StatusNotifier icon has no click action of its own).
+    Other Wayland desktops: StatusNotifier through
     pystray's appindicator backend, which needs `gi` from the system (the virtual environment has none: it is added to
     the end of the search path, so nothing of the environment is replaced) and a desktop that shows such icons.
     Without `gi` or the library the X11 icon is named outright (it shows through XWayland): left to itself, pystray
@@ -75,7 +90,9 @@ def choose_backend(environ=None) -> str:
         return environ['PYSTRAY_BACKEND']
     if session_type(environ) != 'wayland':
         return 'default'
-    if not watcher_present():
+    if 'KDE' in environ.get('XDG_CURRENT_DESKTOP', '').upper().split(':'):
+        return _x11_icon(environ)  # Plasma shows it through xembedsniproxy, and its left click opens the editor
+    if not wait_for_watcher():
         log.warning(NO_TRAY)
         from platform_linux.notify import notify
         notify(NO_TRAY, 'Tessera')
