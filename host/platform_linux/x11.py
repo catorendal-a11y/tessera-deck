@@ -3,59 +3,19 @@ host needs no extra Python package. A missing tool is reported with the package 
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
 import time
 
 from platform_linux import BackendUnavailable
 from platform_linux.base import DesktopBackend
+from platform_linux.keysyms import KEYSYMS, keysym_name  # noqa: F401  (KEYSYMS: kept here for the callers of this module)
+from platform_linux.tools import HINT, TIMEOUT, run  # noqa: F401  (kept here for the callers of this module)
 
-TIMEOUT = 5.0
 TYPE_CHUNK = 64  # characters per xdotool call when typing without a pause: the stop request is checked between
-
-# The host's key names (input_common.KEY_NAMES) to the X keysym names xdotool takes.
-KEYSYMS = {'ctrl': 'Control_L', 'control': 'Control_L', 'shift': 'Shift_L', 'alt': 'Alt_L',
-           'win': 'Super_L', 'meta': 'Super_L', 'enter': 'Return', 'return': 'Return', 'tab': 'Tab',
-           'esc': 'Escape', 'escape': 'Escape', 'space': 'space', 'backspace': 'BackSpace', 'delete': 'Delete',
-           'home': 'Home', 'end': 'End', 'pageup': 'Prior', 'pagedown': 'Next',
-           'left': 'Left', 'up': 'Up', 'right': 'Right', 'down': 'Down',
-           'comma': 'comma', 'period': 'period', 'slash': 'slash', 'grave': 'grave',
-           'lbracket': 'bracketleft', 'rbracket': 'bracketright', 'minus': 'minus', 'equals': 'equal',
-           'semicolon': 'semicolon', 'quote': 'apostrophe', 'backslash': 'backslash',
-           'insert': 'Insert', 'printscreen': 'Print', 'apps': 'Menu', 'capslock': 'Caps_Lock',
-           'volumemute': 'XF86AudioMute', 'volumedown': 'XF86AudioLowerVolume', 'volumeup': 'XF86AudioRaiseVolume',
-           'playpause': 'XF86AudioPlay', 'medianext': 'XF86AudioNext', 'mediaprev': 'XF86AudioPrev',
-           'mediastop': 'XF86AudioStop'}
-KEYSYMS.update({c: c for c in 'abcdefghijklmnopqrstuvwxyz0123456789'})
-KEYSYMS.update({f'numpad{i}': f'KP_{i}' for i in range(10)})
-KEYSYMS.update({f'f{i}': f'F{i}' for i in range(1, 25)})
 
 MOUSE_BUTTONS = {'left': '1', 'middle': '2', 'right': '3'}
 # xdotool windowstate takes one property per call, and its --toggle does not turn a property off again on every
 # window manager: maximize and restore are two calls each, and topmost reads the current state first.
 MAXIMIZED = ('MAXIMIZED_VERT', 'MAXIMIZED_HORZ')
-HINT = {'xdotool': 'xdotool', 'xclip': 'xclip'}
-
-
-def run(args: list[str], stdin: str | None = None, timeout: float = TIMEOUT, detach: bool = False) -> str:
-    """Run a tool and return its output. Raises BackendUnavailable when the tool is missing, OSError when it fails.
-
-    `detach`: the tool leaves a background process behind (xclip serving the clipboard), which would keep a pipe
-    open for good, so its output is not captured."""
-    if shutil.which(args[0]) is None:
-        raise BackendUnavailable(f'{args[0]} is not installed: install the "{HINT.get(args[0], args[0])}" package')
-    try:
-        if detach:
-            done = subprocess.run(args, input=stdin, text=True, timeout=timeout, check=False,
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            done.stdout = done.stderr = ''
-        else:
-            done = subprocess.run(args, input=stdin, capture_output=True, text=True, timeout=timeout, check=False)
-    except subprocess.TimeoutExpired as exc:
-        raise OSError(f'{args[0]} did not answer within {timeout:g} seconds') from exc
-    if done.returncode != 0:
-        raise OSError(f'{args[0]} failed: {(done.stderr or "").strip()[:200] or done.returncode}')
-    return done.stdout
 
 
 class X11Backend(DesktopBackend):
@@ -67,10 +27,7 @@ class X11Backend(DesktopBackend):
     # input
     @staticmethod
     def keysym(name: str) -> str:
-        try:
-            return KEYSYMS[name]
-        except KeyError:
-            raise ValueError(f'Unknown key: {name!r}') from None
+        return keysym_name(name)
 
     def send_keys(self, names):
         symbols = [self.keysym(name) for name in names]

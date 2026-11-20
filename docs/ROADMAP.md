@@ -10,5 +10,5 @@ Not built yet, in order of value. Anything shipped is in the [changelog](../CHAN
 4. **More widgets.** There are nine (clock, date, processor, graphics card, memory, network, volume, AI agents, next meeting). Weather on a key and smart lights are not built. Keys taller than one row are not built either.
 5. **Import of Stream Deck and OpenDeck profiles**, and OpenAction/OpenDeck plugin compatibility. Neither is built, so neither is claimed.
 6. **A signed Windows installer.** Releases are not signed, so SmartScreen warns; [Install](INSTALL.md) explains how to check a download.
-7. **Wayland beyond KDE Plasma.** Plasma works. On GNOME, sway and Hyprland keys and typing work, but the window in front and window actions have no reader yet. [Tessera on Linux](LINUX.md#wayland) says where it goes.
+7. **Wayland beyond KDE Plasma and GNOME.** Plasma works, and GNOME has a Shell extension for the window in front and window actions. On sway and Hyprland keys and typing work, but the window in front and window actions have no reader yet. [Tessera on Linux](LINUX.md#wayland) says where it goes.
 8. **Home Assistant over Wi-Fi in a release.** It is a beta on the `esphome-beta` branch. The [README](../README.md#home-assistant-beta) says what it does and how to try it.

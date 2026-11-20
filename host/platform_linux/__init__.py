@@ -38,8 +38,8 @@ def backend(environ=None):
             from platform_linux.x11 import X11Backend
             made = X11Backend()
         elif kind == 'wayland':
-            from platform_linux.wayland import WaylandBackend
-            made = WaylandBackend()
+            from platform_linux.wayland import session_backend
+            made = session_backend()
         else:
             from platform_linux.base import NoDesktopBackend
             made = NoDesktopBackend()

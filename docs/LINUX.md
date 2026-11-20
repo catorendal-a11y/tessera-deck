@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The host runs on Linux in an **X11 session**, and in a **Wayland session on KDE Plasma** (see [Wayland](#wayland)).
+The host runs on Linux in an **X11 session**, and in a **Wayland session on KDE Plasma or GNOME** (see [Wayland](#wayland)).
 Everything the Windows host does has a Linux counterpart, except the Windows-only pieces named under
 [Not on Linux](#not-on-linux). It is tested with the CrowPanel board on Arch Linux with Cinnamon (X11), and with the
 GUITION board on CachyOS with Plasma 6 (Wayland); other desktops should work wherever the tools below do.
@@ -17,7 +17,8 @@ You need Python 3.12 or newer with `venv`, and these tools:
 | `xclip` | `xclip` | the clipboard action |
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
-| PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional) |
+| PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional), and the tray icon on Wayland |
+| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1` | the tray icon on Wayland (see [Wayland](#wayland)) |
 | WebKitGTK (system Python) | `webkit2gtk-4.1` / `gir1.2-webkit2-4.1` | the editor's own window (optional; without it the editor opens in your browser) |
 
 Then, in the Tessera folder:
@@ -38,7 +39,7 @@ work as in `Tessera.cmd`. *Start with the desktop* in the tray menu writes `~/.c
 
 **Stopping it from a terminal:** the tray, the host and the editor name themselves `Tessera`, so `killall Tessera` (or `pkill Tessera`) stops all three without touching other Python programs.
 
-**The tray icon:** left click opens the editor; right click shows the menu (status, profiles, brightness, *Start / Restart / Stop host*, *Quit tray*, *Quit and stop host*). The X11 tray icon has no menu of its own, so Tessera shows it itself: a native GTK menu that follows your theme, closing with Esc or a click elsewhere. GTK runs in a small helper under the *system* Python, so you need PyGObject there (`python-gobject` on Arch, `python3-gi` and `gir1.2-gtk-3.0` on Debian or Ubuntu); the virtual environment needs nothing. Without it the menu falls back to a plain `tkinter` one (`TESSERA_TRAY_MENU=tk` forces that).
+**The tray icon:** left click opens the editor; right click shows the menu (status, profiles, brightness, *Start / Restart / Stop host*, *Quit tray*, *Quit and stop host*). The X11 tray icon has no menu of its own, so Tessera shows it itself: a native GTK menu that follows your theme, closing with Esc or a click elsewhere. GTK runs in a small helper under the *system* Python, so you need PyGObject there (`python-gobject` on Arch, `python3-gi` and `gir1.2-gtk-3.0` on Debian or Ubuntu); the virtual environment needs nothing. Without it the menu falls back to a plain `tkinter` one (`TESSERA_TRAY_MENU=tk` forces that). On Wayland the icon is a StatusNotifier one with a menu of its own, and any click opens that menu: see [Wayland](#wayland).
 
 Your user must be allowed to open serial ports: the group `uucp` (Arch) or `dialout` (Debian, Ubuntu).
 
@@ -80,12 +81,14 @@ ports it finds and keeps the one that answers like a panel.
 ## Wayland
 
 Wayland has no common way for a program to send keys or look at windows, so the Wayland backend
-(`host/platform_linux/wayland.py`) uses these tools instead of `xdotool` and `xclip`:
+(`host/platform_linux/wayland.py`) uses these tools instead of `xdotool` and `xclip`. The session type is read from
+`XDG_SESSION_TYPE`; `TESSERA_SESSION=x11` forces the X11 backend, for a session where only XWayland is wanted.
 
 | Tool | Package (Arch) | Used for |
 |---|---|---|
-| `ydotool` and its daemon | `ydotool`, then `systemctl --user enable --now ydotool` | keys, typing, mouse |
+| `ydotool` and its daemon | `ydotool`, then `systemctl --user enable --now ydotool` | keys, typing, mouse (without it: the RemoteDesktop portal, see below) |
 | `kdotool` | `kdotool-bin` (AUR) | the window in front (smart profiles), focus and window actions; KDE Plasma only |
+| the Tessera extension for GNOME Shell | `./Tessera.sh --gnome-extension` (see [Windows on GNOME](#windows-on-gnome)) | the same on GNOME |
 | `wl-copy` | `wl-clipboard` | the clipboard action (without it Plasma's Klipper is used) |
 
 Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group, or the package's udev rule).
@@ -98,7 +101,8 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
 - **More than one layout:** the one in use is asked before every key or text. Plasma and sway tell, and Hyprland in
   builds from September 2025 on (`active_layout_index` in `hyprctl devices -j`). GNOME, older Hyprland and other
   desktops do not: there typing is refused with a message while the session has more than one layout, because the
-  wrong layout would type other characters. With one layout nothing needs asking.
+  wrong layout would type other characters. With one layout nothing needs asking. The RemoteDesktop portal (below)
+  needs no layout, but it is only used where `ydotool` is not installed.
 - **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
   `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
   none of these names a layout, typing is refused with a message instead of typing with a guessed one.
@@ -106,14 +110,53 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   `ctrl+slash` is Ctrl+Shift+7 on a Norwegian keyboard, where `/` is Shift+7.
 - **The mouse**: `moveto` lands a little off when pointer acceleration is on, because uinput has no absolute pointer.
   Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
-- **Next monitor** uses KWin's own *Window to Next Screen* action.
+- **Without `ydotool`** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
+  RemoteDesktop portal (`host/platform_linux/portal.py`) instead. **The desktop asks once** whether Tessera may control
+  keyboard and mouse, when the first key is pressed. That key does not wait for the answer: the press fails (the host
+  log says why), so answer the dialog and press the key again. The permission is kept
+  (`host/remote-desktop.local.json` holds the token that restores it), so the question does not come again after a
+  restart. To take the permission back, revoke it in the desktop's settings (Privacy or Applications). Deleting that
+  file does not revoke it: Tessera can then no longer restore the permission and asks again at its next start, but a
+  session that is running goes on. Stop the host to end the running session. The portal takes
+  characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
+  possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
+- **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
-- **The tray icon** goes through XWayland and Plasma's `xembedsniproxy`, with the same GTK right-click menu as on X11.
-- **Other compositors** (GNOME, sway, Hyprland): keys and typing work with `ydotool`, but the window functions and
+- **The tray icon** on Plasma is the X11 one, through XWayland: Plasma shows it with `xembedsniproxy`, with the
+  same GTK right-click menu as on X11 and a left click that opens the editor. On other desktops it uses StatusNotifier
+  (pystray's appindicator backend) when the desktop has a StatusNotifier host. That icon has the desktop's own menu,
+  and **a left click opens that menu too**: choose *Open editor* there, because this kind of icon has no click action
+  of its own. `PYSTRAY_BACKEND=appindicator` gives Plasma this icon as well. It needs `libayatana-appindicator`
+  with its typelib, and PyGObject for the system Python; that Python must be the same version (3.x) as the one in
+  `host/.venv`, or PyGObject cannot be loaded from it. Without those the icon is the X11 one, which GNOME does not show.
+  At sign-in Tessera waits up to 10 seconds for the desktop's StatusNotifier host. A desktop without a tray (GNOME) needs the *AppIndicator and KStatusNotifierItem
+  Support* extension; without it Tessera says so in a notification and keeps running without an icon. Setting
+  `PYSTRAY_BACKEND` yourself (`xorg` for the X11 icon) overrides the choice.
+- **Other compositors** (sway, Hyprland): keys and typing work with `ydotool`, but the window functions and
   smart profiles are refused with a message until someone adds their window query. That goes in `wayland.py` next to the
-  `kdotool` calls.
+  `kdotool` calls, or in a part of its own like GNOME's.
 
 Audio, media, secrets, sensors and the launcher do not depend on the display server and work the same.
+
+### Windows on GNOME
+
+GNOME shows a program no other windows, so Tessera comes with a small extension for GNOME Shell
+(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51):
+
+```
+./Tessera.sh --gnome-extension          # copies it to ~/.local/share/gnome-shell/extensions
+# sign out and in again: GNOME loads new extensions at sign-in
+gnome-extensions enable tessera-windows@tessera
+```
+
+`./Tessera.sh --gnome-extension remove` (and `--uninstall`) takes it out again. While it is on, **any program of your session
+can read window titles and focus, move or close windows** (`org.tessera.Windows` on the session bus); `gnome-extensions disable
+tessera-windows@tessera` turns it off. Without the extension, the profile does not follow the program in front, and a key that
+needs a window says what to install. A program from a Flatpak or Snap runs under another process id, so a key that names it
+(by `.exe` or process name) may not find it.
+
+The window part of a desktop is separate from the rest of the backend: `gnome_windows.py` talks to the extension, and
+sway or Hyprland would add a part of their own next to it (`desktop_windows` in `wayland.py`) and change nothing else.
 
 ## Remote devices (KDE Connect)
 

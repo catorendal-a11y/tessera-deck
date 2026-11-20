@@ -2,5 +2,9 @@
 counterpart)."""
 
 
+def choose_backend() -> str:
+    return 'default'
+
+
 def prepare(icon, separator) -> None:
     return None

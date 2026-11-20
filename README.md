@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  The <a href="https://catorendal-a11y.github.io/tessera-deck/">website</a> shows every screen and the editor. On Linux the host needs an X11 session or KDE Plasma on Wayland: <a href="docs/LINUX.md">Tessera on Linux</a>.
+  The <a href="https://catorendal-a11y.github.io/tessera-deck/">website</a> shows every screen and the editor. On Linux the host needs an X11 session, or KDE Plasma or GNOME on Wayland: <a href="docs/LINUX.md">Tessera on Linux</a>.
 </p>
 
 <p align="center">
@@ -29,7 +29,7 @@
 Tessera is a macro deck for Windows and Linux that you build from one 7-inch touchscreen board. It has 18 touch keys for apps, hotkeys and macros, plus widgets, live PC gauges, an AI agents screen and a sound mixer. You set it up in a drag-and-drop editor. It needs no soldering, and a [printed console](#a-desk-console-to-print) holds it on the desk.
 
 > [!IMPORTANT]
-> You need one of the [supported boards](#supported-boards), a USB cable and a PC with Windows 10/11 or Linux (X11, or KDE Plasma on Wayland). Other boards need porting. Other Wayland desktops are partly supported, macOS not at all.
+> You need one of the [supported boards](#supported-boards), a USB cable and a PC with Windows 10/11 or Linux (X11, or KDE Plasma or GNOME on Wayland). Other boards need porting. Other Wayland desktops are partly supported, macOS not at all.
 
 <p align="center">
   <img src="docs/images/promo.gif" alt="A short loop: the Tessera logo, the Windows app and the panel joined by one USB cable, a tap on Allow on the agents screen, the editor putting a Timer key on the panel, and what you need to build one" width="760">
@@ -95,11 +95,12 @@ Nothing runs in the editor. Keys run only when you press them on the panel.
 
 ### Quick start on Linux
 
-The host runs in an X11 session, or in a Wayland session on KDE Plasma. Install it in one of two ways:
+The host runs in an X11 session, or in a Wayland session on KDE Plasma or GNOME. Install it in one of two ways:
 
 - **Arch Linux:** install the [`tessera-deck`](https://aur.archlinux.org/packages/tessera-deck) package from the AUR, for example `yay -S tessera-deck`. It brings the dependencies. Start *Tessera* (the tray icon and the USB host) or *Tessera Editor* (the editor, which starts the tray too when it is not running) from the application menu, or run `tessera` and `tessera --app` in a terminal. The package keeps your profiles and logs in `~/.local/share/tessera`.
-- **Any distribution:** unpack the release zip and run `./Tessera.sh`. It needs Python 3.12 or newer with `venv`, `xdotool` and `xclip`; `libpulse` (`pactl`) gives the volume actions, and a Secret Service such as GNOME Keyring stores plugin passwords. The first start creates `host/.venv` and adds the same two menu entries. The tray starts first: click its icon to open the editor, or run `./Tessera.sh --editor`.
+- **Any distribution:** unpack the release zip and run `./Tessera.sh`. It needs Python 3.12 or newer with `venv`, `xdotool` and `xclip`; `libpulse` (`pactl`) gives the volume actions, and a Secret Service such as GNOME Keyring stores plugin passwords. The first start creates `host/.venv` and adds the same two menu entries. The tray starts first: click its icon to open the editor, or run `./Tessera.sh --editor`. A StatusNotifier icon (the kind a Wayland desktop shows) opens its menu on a click instead: choose *Open editor* there.
 - **Wayland on KDE Plasma:** instead of `xdotool` and `xclip`, install `ydotool` (and run `systemctl --user enable --now ydotool`), `kdotool-bin` from the AUR and `wl-clipboard`. [Tessera on Linux](docs/LINUX.md#wayland) has the details.
+- **Wayland on GNOME:** install `wl-clipboard` and, for keys and typing, `ydotool` as above; without `ydotool` they go through the desktop's RemoteDesktop portal, which asks once. Window actions and smart profiles need the Tessera extension for GNOME Shell, and the tray icon needs the *AppIndicator and KStatusNotifierItem Support* extension. Install the Tessera extension with `./Tessera.sh --gnome-extension` from the folder you unpacked; after the commands below you are in the folder above it, so there it is `./Tessera/Tessera.sh --gnome-extension`. The AUR package's `tessera` command does not have this option: copy the extension from the package instead, with `mkdir -p ~/.local/share/gnome-shell/extensions && cp -r /usr/share/tessera/host/linux/gnome-extension/tessera-windows@tessera ~/.local/share/gnome-shell/extensions/`. Then sign in again and run `gnome-extensions enable tessera-windows@tessera`. [Tessera on Linux](docs/LINUX.md#windows-on-gnome) has the details.
 
   From a terminal:
 

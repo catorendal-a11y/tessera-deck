@@ -92,7 +92,17 @@ class LauncherTests(unittest.TestCase):
         self.assertIn('kdotool not found', self.notes({'ydotool': 0, 'wl-copy': 0}, XDG_SESSION_TYPE='wayland',
                                                       XDG_CURRENT_DESKTOP='KDE'))
         self.assertIn('need KDE Plasma', self.notes({'ydotool': 0, 'wl-copy': 0}, XDG_SESSION_TYPE='wayland',
-                                                    XDG_CURRENT_DESKTOP='GNOME'))
+                                                    XDG_CURRENT_DESKTOP='sway'))
+
+    def test_gnome_is_told_about_its_extension_until_it_is_installed(self):
+        tools = {'ydotool': 0, 'wl-copy': 0}
+        self.assertIn('--gnome-extension', self.notes(tools, XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='ubuntu:GNOME'))
+        (self.folder / '.local/share/gnome-shell/extensions/tessera-windows@tessera').mkdir(parents=True)
+        self.assertEqual(self.notes(tools, XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='ubuntu:GNOME'), '')
+
+    def test_without_ydotool_the_portal_is_named(self):
+        self.assertIn('RemoteDesktop portal', self.notes({'kdotool': 0, 'wl-copy': 0}, XDG_SESSION_TYPE='wayland',
+                                                         XDG_CURRENT_DESKTOP='KDE'))
 
     def test_an_x11_session_still_asks_for_xdotool_and_xclip(self):
         self.assertIn('xdotool xclip not found', self.notes({}, XDG_SESSION_TYPE='x11'))
