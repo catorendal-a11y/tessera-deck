@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Volume and media keys for devices paired with KDE Connect, a phone for example: play and pause with the state shown, next, previous and volume, on Linux and Windows. By joern-h.
 - The host runs in a Wayland session on KDE Plasma. Keys, typing and the mouse go through `ydotool`, the window in front (smart profiles) and window actions through `kdotool`, and the clipboard through `wl-copy` or Klipper. Text is typed with your own keyboard layout, so `@`, `/`, `~` and `æøå` come out right on a Norwegian keyboard; a character the layout has no key for is refused before anything is typed. On other Wayland desktops keys and typing work and window actions say why they cannot. [LINUX.md](docs/LINUX.md#wayland) has the tools.
 - On Linux the editor opens in a window of its own (WebKitGTK), like the Windows app, instead of a browser tab. Without WebKitGTK it still opens in the browser. WebKitGTK's DMA-BUF renderer is off in that window, because it draws an empty window with some GPU drivers.
 - The tray icon has its right-click menu on Plasma Wayland too: pystray uses the X11 tray there, through XWayland.
