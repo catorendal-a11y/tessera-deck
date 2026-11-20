@@ -192,7 +192,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
         self.pc = PcState(audio=read_audio, media=MediaReader(),
-                          remote=lambda: remote_devices.state() if remote_devices.needs_state(self.config) else dict(remote_devices.EMPTY_STATE))
+                          remote=lambda: remote_devices.poll(self.config))
         self.calendar = calendar_feed.Feed()
         self.events = EventLog()
         self.plugins = None
@@ -269,7 +269,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'), 'reset': self.device_info.get('reset'),
                  'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer,
-                 'remote_devices': [{'id': item['id'], 'name': item['name']} for item in remote_devices.devices()], 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
+                 'remote_devices': [{'id': item['id'], 'name': item['name']} for item in remote_devices.known()], 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}

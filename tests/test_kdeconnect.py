@@ -168,6 +168,15 @@ class ReadTests(Case):
         self.assertEqual(self.remote.read_device(PHONE), {'volume': None, 'playing': False, 'title': '', 'artist': '',
                                                            'position': 0.0, 'duration': 0.0})
 
+    def test_an_answer_that_cannot_be_read_is_an_oserror_and_is_backed_off(self):
+        bus = self.use(player=['not', 'a', 'dict'])
+        with self.assertRaisesRegex(OSError, 'AttributeError'):
+            self.remote.read_device(PHONE)
+        count = len(bus.calls)
+        with self.assertRaises(OSError):
+            self.remote.read_device(PHONE)
+        self.assertEqual(len(bus.calls), count, 'not asked again during the back-off')
+
     def test_the_mixer_and_the_variables_share_one_read_a_second(self):
         bus = self.use()
         self.remote.read_device(PHONE)

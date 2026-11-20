@@ -70,6 +70,26 @@ class SelectTests(Case):
         self.assertRegex(fader, r'^remote:[0-9a-f]{10}$')
 
 
+class KnownTests(Case):
+    def test_the_status_lists_what_the_poll_found_without_asking_again(self):
+        system = self.use(devices=(PHONE, LAPTOP))
+        remote.poll({'profiles': {}})
+        system.found = []  # the status must not ask KDE Connect: it still shows what the poll found
+        self.assertEqual([item['id'] for item in remote.known()], [PHONE['id'], LAPTOP['id']])
+
+    def test_the_poll_reads_the_player_only_when_the_configuration_uses_it(self):
+        self.use()
+        self.assertEqual(remote.poll({'profiles': {}}), remote.EMPTY_STATE)
+        self.assertEqual(remote.poll({'label': '$(remote:track)'})['remote:track'], f'Song of {PHONE["id"][:3]}')
+
+    def test_a_failed_list_empties_what_is_known(self):
+        system = self.use()
+        remote.devices()
+        system.list_devices = lambda: (_ for _ in ()).throw(OSError('gone'))
+        remote.devices()
+        self.assertEqual(remote.known(), [])
+
+
 class FaderTests(Case):
     def test_off_gives_no_faders_and_a_device_gives_one_with_its_volume(self):
         self.use(devices=(PHONE, LAPTOP))

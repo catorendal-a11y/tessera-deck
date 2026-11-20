@@ -26,6 +26,7 @@ DEVICE_ID = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 NO_DEVICE = 'No paired device with media control is reachable. Is KDE Connect running and the device connected?'
 
 _muted: dict[str, int] = {}  # short id -> the volume before it was muted
+_known: list[dict] = []  # what devices() found last, for the editor's list without asking KDE Connect again
 EMPTY_STATE = {'remote:track': '', 'remote:artist': '', 'remote_playing': False, 'remote_status': '', 'remote_position': 0.0,
                'remote_duration': 0.0}
 
@@ -40,11 +41,25 @@ def short_id(device_id: str) -> str:
 
 def devices() -> list[dict]:
     """The reachable, paired devices that can be controlled: [{'id', 'short', 'name', 'type'}]."""
+    global _known
     try:
-        found = _system().list_devices()
+        found = [dict(device, short=short_id(device['id'])) for device in _system().list_devices()]
     except OSError:
-        return []
-    return [dict(device, short=short_id(device['id'])) for device in found]
+        found = []
+    _known = found
+    return found
+
+
+def known() -> list[dict]:
+    """The devices the last devices() found. The host's status, written every 1.5 s on its own loop, takes them from here:
+    asking KDE Connect there could hold the panel link for as long as the bus takes to answer."""
+    return list(_known)
+
+
+def poll(config) -> dict:
+    """One round of the PcState thread: the device list for known(), and the player's state when the configuration reads it."""
+    found = devices()
+    return state(found) if needs_state(config) else dict(EMPTY_STATE)
 
 
 def select(found: list[dict], mode: str = 'first', device: str | None = None) -> list[dict]:
@@ -149,11 +164,11 @@ def needs_state(config) -> bool:
     return used
 
 
-def state() -> dict:
+def state(found: list[dict] | None = None) -> dict:
     """What PcState keeps of the first connected device, the one a key's `"device": "first"` reaches: $(remote:track),
     $(remote:artist), the flag `remote_playing` that a key can follow (bind), and what a wide key shows (the status, how far the
     track is). It does not depend on the mixer's choice of devices. Empty and False when no device is reachable."""
-    for item in select(devices(), 'first')[:1]:
+    for item in select(devices() if found is None else found, 'first')[:1]:
         try:
             read = _system().read_device(item['id'])
         except OSError:

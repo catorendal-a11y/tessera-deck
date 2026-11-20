@@ -60,7 +60,8 @@ class KdeConnect:
 
     def _cached(self, key, seconds, load):
         """`load()` at most every `seconds`. After a failure that question is left alone for BACK_OFF seconds, and for longer
-        when KDE Connect is not running. Raises OSError then. The connection is not closed here: a bus closes itself when
+        when KDE Connect is not running. Raises OSError then, also for an answer of the wrong type or a missing module, so
+        the callers' handlers catch whatever goes wrong here. The connection is not closed here: a bus closes itself when
         the connection broke, and an error reply of one device must not take the others' calls with it."""
         now = self.clock()
         if now < self._failed.get(key, 0.0):
@@ -71,10 +72,12 @@ class KdeConnect:
         writes = self._writes
         try:
             value = load()
-        except OSError as exc:
+        except Exception as exc:
             self._failed[key] = now + (ABSENT_BACK_OFF if isinstance(exc, NotRunning) else BACK_OFF)
             self._cache.pop(key, None)
-            raise
+            if isinstance(exc, OSError):
+                raise
+            raise OSError(f'KDE Connect: {type(exc).__name__}: {exc}') from exc
         self._failed.pop(key, None)
         if writes == self._writes:
             self._cache[key] = (now, value)
