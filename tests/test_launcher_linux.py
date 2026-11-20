@@ -62,6 +62,41 @@ class LauncherTests(unittest.TestCase):
     def test_the_options_after_editor_reach_the_editor(self):
         self.assertEqual(self.launch('--editor', '--port', '4711', expect=1), ['host/tessera_app.py --editor --port 4711'])
 
+    def notes(self, tools, **env):
+        """What the launcher says about the desktop tools when only `tools` ({name: exit status}) are on the PATH."""
+        bin_ = self.folder / 'bin'
+        for old in bin_.iterdir():
+            if old.name != 'setsid':
+                old.unlink()  # each call has only the tools it names
+        for name in ('dirname', 'readlink'):
+            (bin_ / name).symlink_to(shutil.which(name))
+        for name, status in tools.items():
+            fake = bin_ / name
+            fake.write_text(f'#!/bin/sh\nexit {status}\n')
+            fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+        done = subprocess.run([shutil.which('bash'), str(self.folder / 'Tessera.sh'), '--tray'], capture_output=True,
+                              text=True, timeout=30, env={'PATH': str(self.folder / 'bin'), 'HOME': str(self.folder), **env})
+        self.assertEqual(done.returncode, 0, done.stderr)
+        return done.stderr
+
+    def test_a_plasma_wayland_session_with_its_tools_needs_no_note(self):
+        self.assertEqual(self.notes({'ydotool': 0, 'kdotool': 0, 'wl-copy': 0},
+                                    XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='KDE'), '')
+
+    def test_a_wayland_session_names_what_is_missing(self):
+        self.assertIn('ydotool', self.notes({}, XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='KDE'))
+        self.assertIn('ydotoold is not running', self.notes({'ydotool': 2, 'kdotool': 0, 'wl-copy': 0},
+                                                            XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='KDE'))
+
+    def test_kdotool_is_asked_for_on_plasma_and_other_desktops_are_told_what_works(self):
+        self.assertIn('kdotool not found', self.notes({'ydotool': 0, 'wl-copy': 0}, XDG_SESSION_TYPE='wayland',
+                                                      XDG_CURRENT_DESKTOP='KDE'))
+        self.assertIn('need KDE Plasma', self.notes({'ydotool': 0, 'wl-copy': 0}, XDG_SESSION_TYPE='wayland',
+                                                    XDG_CURRENT_DESKTOP='GNOME'))
+
+    def test_an_x11_session_still_asks_for_xdotool_and_xclip(self):
+        self.assertIn('xdotool xclip not found', self.notes({}, XDG_SESSION_TYPE='x11'))
+
 
 class MenuEntryTests(unittest.TestCase):
     """The two application menu entries are made from the files in linux/, which the Arch package installs as well."""

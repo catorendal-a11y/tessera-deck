@@ -88,15 +88,21 @@ class ClickTests(unittest.TestCase):
         handler(types.SimpleNamespace(detail=2, root_x=1, root_y=1))
         self.assertEqual((calls, opened), (['default'], [(40, 50)]))
 
-    def test_only_an_x11_session_gets_the_menu_of_its_own(self):
+    def test_the_x11_tray_gets_its_menu_in_either_session(self):
+        # on Plasma Wayland pystray still uses the X11 tray (through XWayland), which has no menu of its own
         from platform_linux import tray
-        for session, attached in (('x11', True), ('wayland', False)):
+        for session in ('x11', 'wayland'):
             with self.subTest(session=session), unittest.mock.patch('platform_linux.session_type', return_value=session), \
                     unittest.mock.patch.object(tray_menu, 'attach') as attach:
                 icon = fake_icon([])
                 tray.prepare(icon, pystray.Menu.SEPARATOR)
-                self.assertEqual(attach.called, attached)
+                self.assertTrue(attach.called)
                 self.assertTrue(callable(icon.notify))  # notices go to notify-send in either session
+
+    def test_an_icon_with_a_menu_of_its_own_is_left_alone(self):
+        icon = fake_icon([])
+        icon.HAS_MENU = True
+        self.assertFalse(tray_menu.attach(icon, pystray.Menu.SEPARATOR))
 
     def test_an_icon_that_has_a_menu_is_left_alone(self):
         self.assertFalse(tray_menu.attach(fake_icon([], has_menu=True), pystray.Menu.SEPARATOR))

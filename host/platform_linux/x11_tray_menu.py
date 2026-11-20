@@ -131,8 +131,10 @@ class TrayMenu:
         if not python:
             return None
         try:
+            # the menu opens at a place on the X root window, so on Wayland GTK has to use XWayland
             done = subprocess.run([python, str(HELPER)], input=json.dumps({'x': x, 'y': y, 'rows': plain(rows)}),
-                                  capture_output=True, text=True, timeout=POPUP_SECONDS + 15)
+                                  capture_output=True, text=True, timeout=POPUP_SECONDS + 15,
+                                  env={**os.environ, 'GDK_BACKEND': 'x11'})
         except (OSError, subprocess.SubprocessError):
             return None
         if done.returncode != 0:  # 3: no GTK here; anything else: the helper failed. Either way the Tk menu takes over

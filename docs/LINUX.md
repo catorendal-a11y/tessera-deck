@@ -2,9 +2,10 @@
 
 [Back to the README](../README.md)
 
-The host runs on Linux in an **X11 session**. Everything the Windows host does has a Linux counterpart, except the
-Windows-only pieces named under [Not on Linux](#not-on-linux). It is tested with the CrowPanel board on Arch Linux with
-Cinnamon (X11); other desktops should work wherever the tools below do.
+The host runs on Linux in an **X11 session**, and in a **Wayland session on KDE Plasma** (see [Wayland](#wayland)).
+Everything the Windows host does has a Linux counterpart, except the Windows-only pieces named under
+[Not on Linux](#not-on-linux). It is tested with the CrowPanel board on Arch Linux with Cinnamon (X11), and with the
+GUITION board on CachyOS with Plasma 6 (Wayland); other desktops should work wherever the tools below do.
 
 ## Install
 
@@ -17,6 +18,7 @@ You need Python 3.12 or newer with `venv`, and these tools:
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
 | PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional) |
+| WebKitGTK (system Python) | `webkit2gtk-4.1` / `gir1.2-webkit2-4.1` | the editor's own window (optional; without it the editor opens in your browser) |
 
 Then, in the Tessera folder:
 
@@ -25,8 +27,13 @@ Then, in the Tessera folder:
 ```
 
 The first start creates `host/.venv`, installs `host/requirements.lock` with hashes and adds two application menu entries: *Tessera* (the tray and the host) and *Tessera Editor* (the editor, which starts the tray too when it is not running). Their text is in `host/linux/*.desktop`.
-After that it starts the tray icon and the USB host. Click the tray icon to open the editor in your browser; `./Tessera.sh --editor`
-opens it too (`--no-browser` prints its address instead), and `./Tessera.sh --app` starts the tray and the editor together, as the *Tessera Editor* entry does. The browser tab is not the editor's window, so *Quit tray* and *Quit and stop host* also stop the editor's web server. `./Tessera.sh --setup`, `--uninstall [--purge]`, `--diagnostics`, `--terminal` and `--tray`
+After that it starts the tray icon and the USB host. Click the tray icon to open the editor; `./Tessera.sh --editor`
+opens it too (`--no-browser` prints its address instead), and `./Tessera.sh --app` starts the tray and the editor together, as the *Tessera Editor* entry does.
+The editor opens in a window of its own, like the Windows app: it has its own entry in the task bar, closing it closes the
+editor, and the USB host keeps running in the background with the tray. A second start brings the open window to the front.
+The window is GTK with WebKitGTK under the *system* Python, like the tray menu; without WebKitGTK, or with
+`TESSERA_EDITOR=browser`, the editor opens in your browser instead. A browser tab is not the editor's window, so then
+*Quit tray* and *Quit and stop host* also stop the editor's web server. `./Tessera.sh --setup`, `--uninstall [--purge]`, `--diagnostics`, `--terminal` and `--tray`
 work as in `Tessera.cmd`. *Start with the desktop* in the tray menu writes `~/.config/autostart/tessera.desktop`.
 
 **Stopping it from a terminal:** the tray, the host and the editor name themselves `Tessera`, so `killall Tessera` (or `pkill Tessera`) stops all three without touching other Python programs.
@@ -71,10 +78,41 @@ ports it finds and keeps the one that answers like a panel.
 
 ## Wayland
 
-Not supported yet. On Wayland keys, typing, the clipboard and windows are refused with a message. The code is split so
-that a Wayland backend is one new file: `host/platform_linux/wayland.py` implements the `DesktopBackend` interface from
-`host/platform_linux/base.py`. Nothing else has to change. Audio, media, secrets, sensors and the launcher do not depend on the
-display server and already work there.
+Wayland has no common way for a program to send keys or look at windows, so the Wayland backend
+(`host/platform_linux/wayland.py`) uses these tools instead of `xdotool` and `xclip`:
+
+| Tool | Package (Arch) | Used for |
+|---|---|---|
+| `ydotool` and its daemon | `ydotool`, then `systemctl --user enable --now ydotool` | keys, typing, mouse |
+| `kdotool` | `kdotool-bin` (AUR) | the window in front (smart profiles), focus and window actions; KDE Plasma only |
+| `wl-copy` | `wl-clipboard` | the clipboard action (without it Plasma's Klipper is used) |
+
+Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group, or the package's udev rule).
+
+- **Typing follows your keyboard layout.** `ydotool` sends key positions, so the host reads the session's layout
+  (`host/platform_linux/xkb.py`, through libxkbcommon) and presses the right keys: `@` is AltGr+2 on a Norwegian keyboard and
+  Shift+2 on a US one. `~`, `^` and accented letters go through the dead keys. A character your layout has no key for
+  is refused before anything is typed; put it on the clipboard and paste it instead. Caps Lock does not change the case
+  of typed text: its state is read from the keyboard's LED, and a keyboard with no such LED is taken as having the lock off.
+- **More than one layout:** the one in use is asked before every key or text. Plasma and sway tell, and Hyprland in
+  builds from September 2025 on (`active_layout_index` in `hyprctl devices -j`). GNOME, older Hyprland and other
+  desktops do not: there typing is refused with a message while the session has more than one layout, because the
+  wrong layout would type other characters. With one layout nothing needs asking.
+- **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
+  `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
+  none of these names a layout, typing is refused with a message instead of typing with a guessed one.
+- **Punctuation in a hotkey** means the key that types it: `ctrl+minus` presses the `-` key of your layout, and
+  `ctrl+slash` is Ctrl+Shift+7 on a Norwegian keyboard, where `/` is Shift+7.
+- **The mouse**: `moveto` lands a little off when pointer acceleration is on, because uinput has no absolute pointer.
+  Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
+- **Next monitor** uses KWin's own *Window to Next Screen* action.
+- **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
+- **The tray icon** goes through XWayland and Plasma's `xembedsniproxy`, with the same GTK right-click menu as on X11.
+- **Other compositors** (GNOME, sway, Hyprland): keys and typing work with `ydotool`, but the window functions and
+  smart profiles are refused with a message until someone adds their window query. That goes in `wayland.py` next to the
+  `kdotool` calls.
+
+Audio, media, secrets, sensors and the launcher do not depend on the display server and work the same.
 
 ## Not on Linux
 

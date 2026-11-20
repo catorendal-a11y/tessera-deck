@@ -2,12 +2,10 @@
 
 
 def prepare(icon, separator) -> None:
-    """Notices go to the desktop's notifications (notify-send), whichever tray backend pystray picked. Only an X11
-    session adds the right-click menu: the legacy X11 tray has none of its own. A Wayland session gets its tray from
-    StatusNotifier, which draws the icon's own menu."""
-    from platform_linux import session_type
+    """Notices go to the desktop's notifications (notify-send), whichever tray backend pystray picked. pystray's
+    legacy X11 tray has no right-click menu of its own, so one is added; it is the backend on X11, and also on a
+    Wayland desktop through XWayland (Plasma shows it with xembedsniproxy). An icon with a menu is left alone."""
     from platform_linux.notify import notify
+    from platform_linux import x11_tray_menu
     icon.notify = lambda message, title=None: notify(message, title or 'Tessera')
-    if session_type() == 'x11':
-        from platform_linux import x11_tray_menu
-        x11_tray_menu.attach(icon, separator)
+    x11_tray_menu.attach(icon, separator)

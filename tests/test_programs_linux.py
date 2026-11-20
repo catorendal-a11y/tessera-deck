@@ -105,10 +105,10 @@ class DescribeTests(unittest.TestCase):
             with self.subTest(target=target), self.assertRaisesRegex(ValueError, 'application menu'):
                 programs.describe(target)
 
-    def test_the_editor_has_no_native_window_and_a_shortcut_is_its_own_target(self):
+    def test_only_the_editor_window_is_raised_and_a_shortcut_is_its_own_target(self):
+        # the editor's own window is tested in test_editor_window_linux.py
         from platform_linux import editor_window, shell
-        self.assertFalse(editor_window.activate_window(1))
-        self.assertFalse(editor_window.open_native_window('http://x', None, None, None, None))
+        self.assertFalse(editor_window.activate_window(1))  # a process without the window helper is never raised
         self.assertEqual(shell.shortcut_target(Path('/a/b.lnk')), '/a/b.lnk')
 
 
