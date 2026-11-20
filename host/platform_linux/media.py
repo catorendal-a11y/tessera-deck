@@ -5,7 +5,12 @@ needs, so there is no extra system tool.
 """
 from __future__ import annotations
 
+from platform_linux.dbus import SessionBus
+
 MPRIS = 'org.mpris.MediaPlayer2.'
+# What KDE Connect shows of a paired device's players. They are that device's, not this PC's: the remote media action and the
+# remote faders of the mixer (host/remote_devices.py, host/kdeconnect.py) deal with them, so the PC's media session leaves them out.
+REMOTE_PLAYERS = MPRIS + 'kdeconnect.'
 PATH = '/org/mpris/MediaPlayer2'
 PLAYER = 'org.mpris.MediaPlayer2.Player'
 EMPTY = {'title': '', 'artist': '', 'status': '', 'position': 0.0, 'duration': 0.0, 'shuffle': None, 'repeat': ''}
@@ -42,38 +47,24 @@ class MediaReader:
     """Reads the current media session; raises OSError when there is no session bus."""
 
     def __init__(self):
-        self._connection = None
+        self._bus = SessionBus()
 
     def close(self) -> None:
-        if self._connection is not None:
-            self._connection.close()
-            self._connection = None
-
-    def _connect(self):
-        try:
-            from jeepney.io.blocking import open_dbus_connection
-        except ImportError as exc:
-            raise OSError(f'media control needs the "jeepney" package: {exc}') from exc
-        if self._connection is None:
-            try:
-                self._connection = open_dbus_connection(bus='SESSION')
-            except (OSError, KeyError) as exc:  # no session bus (no DBUS_SESSION_BUS_ADDRESS)
-                raise OSError(f'no D-Bus session bus: {exc}') from exc
-        return self._connection
+        self._bus.close()
 
     def _call(self, destination, path, interface, member, signature='', body=()):
-        from jeepney import DBusAddress, new_method_call
-        address = DBusAddress(path, bus_name=destination, interface=interface)
-        reply = self._connect().send_and_get_reply(new_method_call(address, member, signature, body), timeout=2)
-        return reply.body
+        return self._bus.call(destination, path, interface, member, signature, body)
+
+    @staticmethod
+    def players(names) -> list[str]:
+        """The MPRIS names that are this PC's players."""
+        return [name for name in names if name.startswith(MPRIS) and not name.startswith(REMOTE_PLAYERS)]
 
     def __call__(self) -> dict:
         try:
             names = self._call('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus', 'ListNames')[0]
             sessions = []
-            for name in names:
-                if not name.startswith(MPRIS):
-                    continue
+            for name in self.players(names):
                 try:
                     properties = self._call(name, PATH, 'org.freedesktop.DBus.Properties', 'GetAll', 's', (PLAYER,))[0]
                 except Exception:  # a player that quit between the list and the question
@@ -109,8 +100,8 @@ def control_media(operation: str, reader: 'MediaReader | None' = None) -> None:
     check_media({'op': operation})
     reader = reader or MediaReader()
     try:
-        names = [name for name in reader._call('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
-                                               'ListNames')[0] if name.startswith(MPRIS)]
+        names = MediaReader.players(reader._call('org.freedesktop.DBus', '/org/freedesktop/DBus', 'org.freedesktop.DBus',
+                                                 'ListNames')[0])
         best = None
         for name in names:  # the player that plays wins, then a paused one, as for the status screen
             status = STATUS.get(_property(reader, name, 'PlaybackStatus') or '', '')

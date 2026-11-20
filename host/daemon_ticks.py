@@ -287,7 +287,7 @@ class BackgroundMixin:
         if getattr(self, 'panel_view', None) == 2 or now - getattr(self, 'mixer_at', 0.0) >= 5:
             self.mixer_at = now
             try:
-                self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True))
+                self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True), choice.get('remote'))
                 lines['AD_MIXER'] = cockpit.mixer_payload(self.cockpit_mixer)
             except (OSError, ImportError):
                 pass  # no sound device or no audio library: the mixer screen keeps what it had

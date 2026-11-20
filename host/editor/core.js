@@ -21,6 +21,7 @@ const kinds = {
   press:{name:'Trigger another key',icon:'loop',field:'id',label:'Key number (1–18)',group:'Advanced'},
   audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
   media:{name:'Shuffle / repeat',icon:'loop',field:'op',label:'Media player option',group:'On the computer'},
+  remote_media:{name:'Remote media',icon:'play',field:'op',label:'Media control of a paired device',group:'Other devices',library:false},
   counter:{name:'Counter',icon:'plus',field:'name',label:'Counter name',placeholder:'for example laps',group:'On the computer'},
   mouse:{name:'Mouse',icon:'settings',field:'op',label:'Mouse operation',group:'On the computer'},
   screen:{name:'Switch screen',icon:'home',field:'show',label:'Show on the panel',group:'More actions'},
@@ -209,6 +210,13 @@ function visibleButtons() {const values=new Map(buttons().map(b=>[b.id,b]));for(
 function current() {return visibleButtons().find(b=>b.id===selected);}
 function owner(id=selected) {const pins=config.profiles[profile].pinned||[];return pins.some(b=>b.id===id)?pins:buttons();}
 function appearance(b=current()) {return b?.states?.[editState]||b;}
+/* A new icon color for the state being edited. A toggle key whose states share one color (Play and Pause) keeps sharing it: the
+   other states that have the old color follow, the ones with a color of their own (Mic live green, Mic muted red) stay. */
+function setColor(value) {
+  const b=current(),target=appearance(b),old=target.color;
+  target.color=value;
+  if(b.states)for(const holder of [b,...b.states])if(holder!==target&&holder.color===old)holder.color=value;
+}
 /* Which action list of the key the steps below edit: a normal press, a long press or a double press. */
 let editList='actions',editListFor='';
 /* The Held/Double-press tab belongs to the key it was opened on: any other key, page or profile starts on Pressed,
@@ -645,14 +653,22 @@ function moveToPage(id,name) {
   mutate(()=>{buttons().splice(buttons().indexOf(b),1);b.id=slot;p.pages[name].push(b);});
   toast(`Moved key ${id} to page “${name}”, slot ${slot}.`,true);
 }
+/* The choices for the device of a remote media key (the first connected one, or one device) or of the mixer (also every
+   connected one): the first connected one, or one of the
+   paired devices the host sees right now (a saved device that is not connected stays in the list). */
+function remoteDeviceChoices(current,allowAll=false) {
+  const found=(dashboard.remote_devices||[]).map(d=>[d.id,d.name]);
+  const saved=current&&current!=='first'&&!(allowAll&&current==='all')&&!found.some(d=>d[0]===current)?[[current,`${current} (not connected)`]]:[];
+  return [['first','The first one that is connected'],...(allowAll?[['all','Every connected device']]:[]),...found,...saved];
+}
 function actionTemplate(key) {
   if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.label||pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',...(pack.confirm?{confirm:true}:{}),...(pack.states?{states:clone(pack.states)}:{}),...(pack.bind?{bind:pack.bind}:{}),actions:clone(pack.actions||[])};}
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',script:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',media:'shuffle',clipboard:'',window:'minimize',toggle:'mode',plugin:''}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',script:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',media:'shuffle',remote_media:'playpause',clipboard:'',window:'minimize',toggle:'mode',plugin:''}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
-    ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{}),...(key==='plugin'?{command:'',args:{}}:{})};
+    ...(key==='remote_media'?{device:'first'}:{}),...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{}),...(key==='plugin'?{command:'',args:{}}:{})};
   // The long list names do not fit on a key (24 bytes).
   const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':key==='folder'?'Folder':key==='page'?'Go to page':k.name;
   return {label,icon:k.icon,actions:[action]};
@@ -732,7 +748,7 @@ const WIDGETS = [
   {kind: 'agents', name: 'AI agents', sub: 'Who works and who waits for you', icon: 'lc:e1bb', span: 3, color: '#58E09B', path: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'},
   {kind: 'calendar', name: 'Next meeting', sub: 'Your next meeting from your calendar (set it in Program settings)', icon: 'lc:e304', span: 3, color: '#64B5F6', path: '<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>'}
 ];
-function liveName(live) {return live==='media'?'Music':String(live).startsWith('timer:')?`Timer “${live.slice(6)}”`:WIDGETS.find(w=>w.kind===live)?.name||String(live);}
+function liveName(live) {return live==='media'?'Music':live==='remote_media'?'Music of a paired device':String(live).startsWith('timer:')?`Timer “${live.slice(6)}”`:WIDGETS.find(w=>w.kind===live)?.name||String(live);}
 /* What a widget key shows: the host's text while the panel shows this page, otherwise a stand-in. */
 function widgetText(b) {
   const shown=deviceShowsSelection()&&dashboard.device?.widgets?.[b.id];if(shown)return shown;

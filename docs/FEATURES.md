@@ -31,7 +31,7 @@ This page lists what the latest release does, as it works on Windows. [Tessera o
 | Keys | A fixed 6 × 3 grid drawn by LVGL. Values and labels update in place, so a key is not rebuilt under your finger. The grid is rebuilt only when the page changes. |
 | Rail | The buttons down the left edge: the Keys, Agents, Mixer and Status screens, then up to three shortcuts to your own pages. You choose the screens, their order and the shortcuts under **Panel → Rail …**. |
 | Agents screen | Shows what Claude Code, Codex and ZCode are doing: each tool's icon, since when it has worked or waited, what it does and its project folder. A permission question from Claude Code shows here and is never covered by the clock or a dark screen. Touch *Allow* or *Deny* to answer, *Open* to bring the tool's window forward, or *Stop* while it works. |
-| Mixer screen | Faders for the speakers, up to three programs and the microphone. |
+| Mixer screen | Faders for the speakers, up to three programs and the microphone, and the volume of devices paired with KDE Connect. |
 | Status screen | Live gauges for the PC. |
 | Clock screen | An idle clock made of brand-colored tiles, with optional weather from Open-Meteo for a city you choose and an icon for sun, cloud, fog, drizzle, rain, snow or thunder. The clock is 24-hour or 12-hour with AM/PM; *Clock format* in Panel → Display follows Windows by default. |
 | Offline layout | The panel keeps the last layout (up to 8 KB, with the previous one as a backup) and shows it when the PC is off or the host is not running. |
@@ -55,7 +55,7 @@ This page lists what the latest release does, as it works on Windows. [Tessera o
 ### Keys and widgets
 
 - A key can cover two or three slots (wide keys).
-- Widgets on wide keys: clock, date, processor, graphics card, memory, network speed, volume, AI agents and next meeting. A wide key can also show the music that plays or a timer's countdown.
+- Widgets on wide keys: clock, date, processor, graphics card, memory, network speed, volume, AI agents and next meeting. A wide key can also show the music that plays, the music of a device paired with KDE Connect, or a timer's countdown.
 - Real app icons come from the Windows shell at 256 px (Store apps, shortcuts and aliases included). You can also use 1,895 bundled [Lucide](https://lucide.dev) icons and your own PNG, JPEG, GIF and WebP images.
 - The panel's 8 MiB image cache holds about 33 animated icons of 12 frames, the most the host sends. If the pages you switch between hold more than that, a page change waits while the host sends them again, about 0.65 s per 12-frame icon and about 10 s for 15. Use still icons for most keys.
 - Live gauges cover CPU, GPU, VRAM, RAM, disk, network, uptime, temperatures, power, fan speed and FPS. The panel shows the value in the gauge's color, amber and red at the thresholds.

@@ -32,6 +32,7 @@ import permission
 from deck_assets import Assets
 from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
 from pc_state import PcState
+import remote_devices
 from system_audio import MediaReader, control_audio, control_media, read_audio
 from host_runtime import DEFAULT_PORT, InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
@@ -190,7 +191,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.agents = {'codex': False, 'claude': False, 'zcode': False}
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
-        self.pc = PcState(audio=read_audio, media=MediaReader())
+        self.pc = PcState(audio=read_audio, media=MediaReader(),
+                          remote=lambda: remote_devices.state() if remote_devices.needs_state(self.config) else dict(remote_devices.EMPTY_STATE))
         self.calendar = calendar_feed.Feed()
         self.events = EventLog()
         self.plugins = None
@@ -266,7 +268,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'), 'reset': self.device_info.get('reset'),
-                 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
+                 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer,
+                 'remote_devices': [{'id': item['id'], 'name': item['name']} for item in remote_devices.devices()], 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}
@@ -344,6 +347,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             result = {'label': (media['title'] or 'No music')[:24], 'sub': (media['artist'] or media['status'].capitalize() or 'Nothing playing')[:40]}
             if media.get('duration', 0) > 0:
                 result['progress'] = max(0, min(100, round(media['position'] / media['duration'] * 100)))
+            return result
+        if live == 'remote_media':  # the same, for the player of a paired device (KDE Connect)
+            remote = self.pc.snapshot()
+            result = {'label': (remote.get('remote:track') or 'No music')[:24],
+                      'sub': (remote.get('remote:artist') or remote.get('remote_status', '').capitalize() or 'Nothing playing')[:40]}
+            if remote.get('remote_duration', 0) > 0:
+                result['progress'] = max(0, min(100, round(remote.get('remote_position', 0) / remote['remote_duration'] * 100)))
             return result
         if isinstance(live, str) and live.startswith('timer:'):
             name = live[6:]
@@ -625,6 +635,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.push_page()
         elif kind == 'media':
             control_media(action['op'])
+        elif kind == 'remote_media':
+            remote_devices.control_media(action['op'], action.get('device', 'first'), action.get('step', remote_devices.DEFAULT_STEP))
         elif kind == 'clipboard':
             with self.input_turn():  # the paste must not land in the middle of another key's typing
                 set_clipboard(self.substitute(action['text']))
@@ -866,9 +878,15 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind in ('fader', 'mute', 'agent'):
             self.last_activity = time.monotonic()
             if kind == 'fader':
-                control_audio(job[1], 'volume', job[2])
+                if remote_devices.is_fader(job[1]):
+                    remote_devices.set_volume(job[1], job[2])
+                else:
+                    control_audio(job[1], 'volume', job[2])
             elif kind == 'mute':
-                control_audio(job[1], 'toggle')
+                if remote_devices.is_fader(job[1]):
+                    remote_devices.toggle_mute(job[1])
+                else:
+                    control_audio(job[1], 'toggle')
                 self.cockpit_at = 0.0  # show the new state on the panel at once
             else:
                 self.agent_action(job[1], job[2])

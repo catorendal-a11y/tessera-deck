@@ -375,6 +375,7 @@ body {
 }
 .lib-cat[data-category="On the computer"] > summary span::before { content: "▦"; }
 .lib-cat[data-category="Navigation"] > summary span::before { content: "◇"; }
+.lib-cat[data-category="Other devices"] > summary span::before { content: "☎"; }
 .lib-cat[data-category="More actions"] > summary span::before { content: "⧉"; }
 .lib-cat[data-category="Advanced"] > summary span::before { content: "⚙"; }
 .lib-cat[data-category="Windows"] > summary span::before { content: "⊞"; }

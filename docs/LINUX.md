@@ -65,6 +65,7 @@ ports it finds and keeps the one that answers like a panel.
 - **Scripts** (the *script* action) run with `python3`, `bash`, `node` and `pwsh`: `.py`, `.pyw`, `.sh`, `.js`, `.ps1`. `.bat`, `.cmd` and `.ahk` are Windows-only and give an error. *Edit script* and the tray's *Open the host log* open the file with `xdg-open`.
 - **The media action** (shuffle on/off, cycle repeat) works on MPRIS players that offer it, such as Spotify and VLC; a player without it says so instead of pretending. `$(pc:shuffle)`, `$(pc:repeat)` and keys that follow shuffle or repeat show the player's state.
 - **The Claude Code, Codex and ZCode profiles** of the Linux default start their tool in your terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`, whichever is installed).
+- **Remote devices** (KDE Connect): see [below](#remote-devices-kde-connect).
 - **Volume** uses `pactl`; per-program volume (`app:firefox`) follows PulseAudio/PipeWire streams. The media session comes
   from MPRIS, so Spotify, browsers, VLC and mpv work.
 - **Secrets** (settings named like a password or token) go to the system keyring, and the profile keeps only
@@ -113,6 +114,13 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   `kdotool` calls.
 
 Audio, media, secrets, sensors and the launcher do not depend on the display server and work the same.
+
+## Remote devices (KDE Connect)
+
+[Remote devices](USING.md#remote-devices-kde-connect) work as on Windows. On Linux the host finds `kdeconnectd` on the session
+bus, so `kdeconnectd` must run in your desktop session. The players KDE Connect shows for a paired device are that device's, not
+this PC's: `$(pc:track)` and the *shuffle / repeat* action leave them out. GSConnect (the GNOME Shell extension) is a different
+program with its own D-Bus names and is not supported.
 
 ## Not on Linux
 

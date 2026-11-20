@@ -197,6 +197,7 @@ class Controller:
             result['agents'] = runtime.get('agents', {})
             result['agent_states'] = runtime.get('agent_states', {})
             result['mixer'] = runtime.get('mixer', [])
+            result['remote_devices'] = runtime.get('remote_devices', [])
             result['notices'] = runtime.get('notices', [])
             result['variables'] = runtime.get('variables', {})
             result['plugins'] = runtime.get('plugins', [])

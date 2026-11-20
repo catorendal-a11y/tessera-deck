@@ -115,6 +115,13 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         return True, f'{op.capitalize()} {who}'
     if kind == 'media':
         return True, 'Toggle shuffle in the media player' if action['op'] == 'shuffle' else 'Cycle repeat in the media player'
+    if kind == 'remote_media':
+        device = action.get('device', 'first')
+        who = 'the first paired device that is reachable' if device == 'first' else 'a paired device'
+        words = {'playpause': 'Play or pause', 'play': 'Play', 'pause': 'Pause', 'next': 'Skip to the next track', 'previous': 'Go back to the previous track', 'stop': 'Stop'}
+        if action['op'] in ('volumeup', 'volumedown'):
+            return True, f'Turn the volume of {who} {action["op"][6:]} by {action.get("step", 5)}% (KDE Connect)'
+        return True, f'{words[action["op"]]} on {who} (KDE Connect)'
     if kind == 'mouse':
         op = action['op']
         words = {'left': 'Click the left mouse button', 'right': 'Click the right mouse button',
