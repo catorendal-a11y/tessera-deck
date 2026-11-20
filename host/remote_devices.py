@@ -103,8 +103,8 @@ def toggle_mute(fader_id: str) -> None:
     if current is None:  # as for the volume keys: a device that reports no volume is not guessed at
         raise OSError(f'{item["name"]}: it does not report a volume')
     if current > 0:
+        _muted[item['short']] = current  # before the write: it may reach the device and still raise (the reply was lost)
         _system().write_volume(item['id'], 0)
-        _muted[item['short']] = current  # remembered once the device has been muted
     else:
         _system().write_volume(item['id'], _muted.get(item['short'], RESTORE_LEVEL))
         _muted.pop(item['short'], None)  # forgotten once it has its volume back

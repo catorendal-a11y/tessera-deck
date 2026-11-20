@@ -37,6 +37,11 @@ def open_connection(sock: socket.socket, hello_seconds: float = HELLO_SECONDS):
         raise OSError(f'the D-Bus refused Hello: {exc}') from exc
 
 
+class DBusError(OSError):
+    """The bus answered with an error reply (no such object, no such method ...): the connection is fine, this one question is
+    not. A timeout or a lost connection is a plain OSError."""
+
+
 class NotRunning(OSError):
     """The program that was asked is not running (as opposed to one that failed): worth asking again only after a while."""
 
@@ -94,5 +99,5 @@ class Bus:
             from jeepney.low_level import HeaderFields
             name = header.fields.get(HeaderFields.error_name, 'D-Bus error')
             message = f'{name}: {reply.body[0] if reply.body else ""}'
-            raise (NotRunning if name in ABSENT else OSError)(message)  # a reply: the connection is fine
+            raise (NotRunning if name in ABSENT else DBusError)(message)  # a reply: the connection is fine
         return reply.body

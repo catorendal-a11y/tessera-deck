@@ -179,6 +179,23 @@ class ControlTests(Case):
         self.assertEqual(system.written[-1], (PHONE['id'], 40), 'the old volume comes back')
         self.assertEqual(remote._muted, {})
 
+    def test_a_mute_that_reached_the_device_but_raised_can_still_be_undone(self):
+        system = self.use()
+        fader = remote.FADER_PREFIX + remote.devices()[0]['short']
+        write = system.write_volume
+
+        def applied_then_lost(device, level):
+            write(device, level)
+            raise OSError('the reply was lost')
+        system.write_volume = applied_then_lost
+        with self.assertRaises(OSError):
+            remote.toggle_mute(fader)
+        self.assertEqual(system.volumes[PHONE['id']], 0, 'the device is muted')
+        self.assertEqual(remote._muted, {remote.short_id(PHONE['id']): 40}, 'and the volume to come back to is remembered')
+        system.write_volume = write
+        remote.toggle_mute(fader)
+        self.assertEqual(system.written[-1], (PHONE['id'], 40))
+
     def test_the_mute_button_does_not_guess_at_a_device_that_reports_no_volume(self):
         system = self.use()
         system.read_device = lambda device: {'volume': None, 'playing': False, 'title': '', 'artist': ''}

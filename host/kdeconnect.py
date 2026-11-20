@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import time
 
-from dbus_client import NotRunning
+from dbus_client import DBusError, NotRunning
 
 log = logging.getLogger(__name__)
 
@@ -102,11 +102,9 @@ class KdeConnect:
                     if PLUGIN not in plugins:
                         continue
                     properties = self._call(_path(device), PROPERTIES, 'GetAll', 's', (DEVICE,))[0]
-                except NotRunning:
-                    raise
-                except OSError as exc:  # a device that went away while the list was made: the others are still good
+                except DBusError as exc:  # no such object: the device went away while the list was made, the others are still good
                     log.debug('KDE Connect: %s: %s', device, exc)
-                    continue
+                    continue  # (a timeout, a lost connection or an absent daemon ends the list and is backed off by _cached)
                 found.append({'id': device, 'name': str(_value(properties.get('name', ('s', device)))),
                               'type': str(_value(properties.get('type', ('s', ''))))})
             return found

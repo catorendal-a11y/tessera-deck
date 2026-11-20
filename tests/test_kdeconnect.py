@@ -9,7 +9,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import kdeconnect  # noqa: E402
-from dbus_client import Bus, NotRunning  # noqa: E402
+from dbus_client import Bus, DBusError, NotRunning  # noqa: E402
 
 PHONE, LAPTOP, TABLET = 'ce7eff39_phone', 'a1b2c3_laptop', 'ffeedd_tablet'
 DEVICE = {PHONE: {'name': ('s', 'OnePlus 12'), 'type': ('s', 'phone')}, LAPTOP: {'name': ('s', 'Work laptop'), 'type': ('s', 'laptop')},
@@ -109,13 +109,27 @@ class DeviceTests(Case):
 
         def call_with_a_vanishing_laptop(destination, path, interface, member, signature='', body=(), timeout=None):
             if path.endswith(LAPTOP) and member == 'loadedPlugins':
-                raise OSError('org.freedesktop.DBus.Error.UnknownObject: No such object path')
+                raise DBusError('org.freedesktop.DBus.Error.UnknownObject: No such object path')
             return call(destination, path, interface, member, signature, body, timeout)
         bus.call = call_with_a_vanishing_laptop
         self.assertEqual([item['id'] for item in self.remote.list_devices()], [PHONE])
         asked = len(bus.calls)
         self.remote.list_devices()
         self.assertEqual(len(bus.calls), asked, 'the list is kept: the laptop is not asked about again for a few seconds')
+
+    def test_a_timeout_or_a_lost_connection_during_the_list_ends_it_and_is_backed_off(self):
+        bus = self.use()
+        call = bus.call
+
+        def slow(destination, path, interface, member, signature='', body=(), timeout=None):
+            if path.endswith(LAPTOP) and member == 'loadedPlugins':
+                raise OSError('org.kde.kdeconnect did not answer')  # what Bus.call raises for a timeout
+            return call(destination, path, interface, member, signature, body, timeout)
+        bus.call = slow
+        self.assertEqual(self.remote.list_devices(), [], 'no half list: the phone is not shown either')
+        asked = len(bus.calls)
+        self.remote.list_devices()
+        self.assertEqual(len(bus.calls), asked, 'left alone for the back-off, not asked every second')
 
     def test_a_daemon_that_goes_away_during_the_list_still_ends_it(self):
         bus = self.use()
@@ -306,7 +320,7 @@ class BusTests(unittest.TestCase):
         for name in ('org.freedesktop.DBus.Error.ServiceUnknown', 'org.freedesktop.DBus.Error.NameHasNoOwner'):
             with self.assertRaises(NotRunning):
                 reply(name).call('org.kde.kdeconnect', '/x', 'org.kde.kdeconnect.daemon', 'devices')
-        with self.assertRaises(OSError) as raised:
+        with self.assertRaises(DBusError) as raised:
             reply('org.freedesktop.DBus.Error.UnknownObject').call('org.kde.kdeconnect', '/x', 'org.kde.kdeconnect.device', 'm')
         self.assertNotIsInstance(raised.exception, NotRunning)
 
