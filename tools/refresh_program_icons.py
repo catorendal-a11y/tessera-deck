@@ -16,7 +16,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 from tesserad import validate_config  # noqa: E402
-from deck_assets import Assets, resolve_program_target  # noqa: E402
+from deck_assets import Assets  # noqa: E402
+from platform_windows.icons import resolve_program_target  # noqa: E402
 
 PROGRAM_SUFFIXES = ('.exe', '.lnk')
 

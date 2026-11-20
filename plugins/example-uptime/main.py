@@ -26,6 +26,15 @@ def call(method, path, data=None, timeout=35):
         return json.loads(reply.read())
 
 
+def newest_event():
+    """The id to read events after, so only events from now on count. A reply holds at most 100 events, oldest
+    first, so a full one is followed until the last page."""
+    reply = call('GET', '/v1/events')
+    while len(reply['events']) >= 100:
+        reply = call('GET', f"/v1/events?since={reply['last']}")
+    return reply['last']
+
+
 def clock_text(seconds):
     hours, rest = divmod(int(seconds), 3600)
     return f'{hours}:{rest // 60:02d}:{rest % 60:02d}'
@@ -33,7 +42,7 @@ def clock_text(seconds):
 
 def main():
     started = time.monotonic()
-    since = call('GET', '/v1/events')['last']  # only react to events from now on
+    since = newest_event()
     next_update, failures = 0.0, 0
     while failures < MAX_FAILURES:
         try:

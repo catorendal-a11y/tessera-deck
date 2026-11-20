@@ -36,6 +36,23 @@ mountBrand();
 
 /* Panel firmware: list verified packages, install with progress. */
 let firmwareTimer = null;
+/* -1, 0 or 1 for two versions such as 1.2.3 and 1.10.0; a missing or unreadable one compares as 0 (unknown). */
+function versionOrder(a, b) {
+  const parts = text => /^\d+(\.\d+)*$/.test(String(text || '')) ? String(text).split('.').map(Number) : null, x = parts(a), y = parts(b);
+  if (!x || !y) return 0;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0) ? -1 : 1;
+  return 0;
+}
+/* What to know before Install: the chosen package against the panel's firmware, and whether a package for this
+   Tessera is here at all. Without it the dialog offered an older package and Install went back to it in silence. */
+function firmwareNote(chosen, device, host, newest = chosen) {
+  if (!chosen) return '';
+  const lines = [], has = device.connected && device.firmware;
+  if (has && versionOrder(chosen.version, device.firmware) < 0) lines.push(`This package is older than the firmware on the panel (${device.firmware}). Installing it goes back to ${chosen.version}.`);
+  else if (has && versionOrder(chosen.version, device.firmware) === 0) lines.push(`The panel already has ${chosen.version}.`);
+  if (versionOrder(newest.version, host) < 0) lines.push(`There is no firmware package for Tessera ${host} here. Check for updates downloads it.`);
+  return lines.join(' ');
+}
 async function openFirmware() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
   // "Install anyway" is for the one attempt after a panel that did not answer; never carry it over.
@@ -51,16 +68,25 @@ async function refreshFirmware() {
   const info = await api('command/firmware-list', {});
   const select = $('#firmware-package'), good = info.packages.filter(p => !p.error);
   select.replaceChildren();
-  for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} · ${Math.round(p.bytes / 1024)} KiB`}));
+  for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} for ${p.board || 'tessera-p4'} · ${Math.round(p.bytes / 1024)} KiB`}));
   for (const p of info.packages.filter(item => item.error)) select.append(element('option', {value: '', disabled: 'true', text: `${p.path.split(/[\\/]/).pop()} · ${p.error}`}));
   if (!info.packages.length) select.append(element('option', {value: '', text: 'No package found in dist/ or firmware/'}));
-  const device = info.device, newest = good[0];
+  const device = info.device;
+  // The release has one package per board: preselect the connected board's. A panel that does not say which board it is
+  // gets no guess, even when only one board's packages are here: both P4 boards have the same chip, and nothing refuses
+  // the other board's package on a panel that does not answer.
+  const newest = good.find(p => (p.board || 'tessera-p4') === device.board);
+  if (good.length && !newest) select.prepend(element('option', {value: '', text: 'Choose the package for your board'}));
+  select.value = newest ? newest.path : '';
+  const note = () => { const text = firmwareNote(good.find(p => p.path === select.value), device, info.host, newest); $('#firmware-note').textContent = text; $('#firmware-note').hidden = !text; };
+  select.onchange = () => { $('#firmware-install').disabled = !select.value; note(); };
+  note();
   // The protocol number only matters to the user when it differs from the newest package's.
   const protocol = newest && device.protocol != null && newest.protocol !== device.protocol ? ` · protocol ${device.protocol}, package needs ${newest.protocol}` : '';
   $('#firmware-device').textContent = device.connected
     ? `Panel connected · firmware ${device.firmware || 'unknown'}${protocol} · Tessera ${info.host || '?'}`
     : `The panel is not connected · Tessera ${info.host || '?'}`;
-  $('#firmware-install').disabled = !good.length;
+  $('#firmware-install').disabled = !select.value;
   if (info.job.state === 'running') pollFirmware();
 }
 async function installFirmware() {
@@ -81,18 +107,21 @@ async function pollFirmware() {
   $('#firmware-bar').value = job.percent || 0;
   const label = $('#firmware-state');
   if (job.state === 'running') {
+    delete label.dataset.refreshed;
     label.textContent = `${job.stage === 'checking' ? 'Checking the panel' : 'Writing'} … ${job.percent || 0}%`;
     firmwareTimer = setTimeout(pollFirmware, 700);
   } else if (job.state === 'done') {
     label.textContent = `Installed ${job.result.installed}${job.result.previous ? ` (was ${job.result.previous})` : ''}.`
       + (job.restarted ? ' The host has started again.' : job.restart_error ? ` The host did not start again: ${job.restart_error}` : '');
+    // the line at the top still names the firmware from before: read it again when the host has found the panel
+    if (!label.dataset.refreshed) { label.dataset.refreshed = '1'; setTimeout(() => refreshFirmware().catch(() => {}), 5000); }
   } else if (job.state === 'failed') {
     label.textContent = job.error || 'The installation failed.';
     const silent = (job.error || '').includes('did not answer');
     $('.firmware-force').hidden = !silent;
     if (silent) $('#firmware-mode').value = 'full';  // a panel that does not answer needs everything written
   }
-  $('#firmware-install').disabled = job.state === 'running';
+  $('#firmware-install').disabled = job.state === 'running' || !$('#firmware-package').value;
 }
 $('#firmware-open').onclick = openFirmware;
 $('#firmware-close').onclick = () => $('#firmware-dialog').close();
@@ -137,7 +166,7 @@ async function testButton(id = selected) {
 }
 /* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */
 async function runKey(id, actions) {
-  const risky = {shell: 'runs a command', http: 'sends a web request', text: 'types text'};
+  const risky = {shell: 'runs a command', script: 'runs a script', http: 'sends a web request', plugin: 'sends a plugin command', text: 'types text'};
   const effects = [...new Set(actions.map(a => risky[a.type]).filter(Boolean))];
   if (effects.length && !await confirmDialog('Run this key now?', `This key ${effects.join(', ')} on this PC.`, {ok: 'Run now'})) return;
   await save();  // the host runs what is saved
@@ -155,19 +184,21 @@ function displaySettings() {
     {name: 'brightness', label: 'Panel brightness', options: displayChoices(brightnessChoices, display.brightness, v => `${v}%`), value: String(display.brightness)},
     {name: 'dimAfter', label: 'Dim the panel after', options: displayChoices(dimAfterChoices, display.dim_after, v => `${Math.round(v / 60)} min`), value: String(display.dim_after), note: 'The first touch on a dimmed panel only wakes it; it does not press a key.'},
     {name: 'dimLevel', label: 'Brightness when dimmed', options: displayChoices(dimLevelChoices, display.dim_level, v => v ? `${v}%` : 'Off'), value: String(display.dim_level)},
-    {name: 'nightWindow', label: 'Quiet hours', options: nightChoices(display.night), value: nightWindowValue(display.night), note: 'Between these times the panel uses the lower brightness below instead of the normal one.'},
+    {name: 'nightOn', label: 'Quiet hours', type: 'checkbox', value: !!display.night, note: 'Between the times below the panel uses the lower brightness instead of the normal one. The window can run past midnight.'},
+    {name: 'nightFrom', label: 'From', type: 'time', value: display.night?.from || '22:00'},
+    {name: 'nightTo', label: 'To', type: 'time', value: display.night?.to || '07:00'},
     {name: 'nightLevel', label: 'Brightness during quiet hours', options: displayChoices(nightLevelChoices, display.night?.brightness || 10, v => `${v}%`), value: String(display.night?.brightness || 10)},
-    {name: 'clock', label: 'Clock format', options: [['auto', 'Same as Windows'], ['24h', '24-hour (14:32)'], ['12h', '12-hour (2:32 PM)']], value: display.clock || 'auto', note: 'For the idle clock and the clock on the rail.'},
+    {name: 'clock', label: 'Clock format', options: [['auto', hostRules.platform === 'linux' ? 'Same as the system' : 'Same as Windows'], ['24h', '24-hour (14:32)'], ['12h', '12-hour (2:32 PM)']], value: display.clock || 'auto', note: 'For the idle clock and the clock on the rail.'},
     {name: 'enabled', label: 'Show a big clock when the panel has been idle', type: 'checkbox', value: ambient.enabled, note: 'Touch the panel to get your keys back. Needs the firmware that ships with this version.'},
     {name: 'after', label: 'Show it after', options: afterChoices, value: String(ambient.after)},
     {name: 'city', label: 'Weather for (city, optional)', value: weather?.name || '', note: `${where}Weather comes from open-meteo.com every 15 minutes. Leave the city empty for no weather and no internet use.`},
     {name: 'unit', label: 'Temperature unit', options: [['celsius', 'Celsius'], ['fahrenheit', 'Fahrenheit']], value: weather?.unit || 'celsius'}
   ], values => {
     const city = values.city.trim(), keep = weather && weather.name === city;
+    const night = nightFromValues(values.nightOn, values.nightFrom, values.nightTo, values.nightLevel);
     mutate(() => {
       config.display = {brightness: Number(values.brightness), dim_after: Number(values.dimAfter), dim_level: Number(values.dimLevel)};
       if (values.clock !== 'auto') config.display.clock = values.clock;
-      const night = nightFromValues(values.nightWindow, values.nightLevel);
       if (night) config.display.night = night;
       config.ambient = {enabled: values.enabled, after: Number(values.after)};
       // A new city keeps the old weather until the lookup succeeds (choose() replaces it); only an empty city drops it.
@@ -318,10 +349,16 @@ async function openBackups() {
   if (!backups.length) list.append(text('p', 'No backups yet. The first one is made when you change something.', 'hint'));
   for (const item of backups) {
     list.append(element('div', {class: 'backup-row'},
-      element('div', {}, text('strong', item.saved), text('small', `${item.profiles} profiles · ${item.buttons} keys · ${Math.max(1, Math.round(item.bytes / 1024))} KiB`)),
+      element('div', {}, text('strong', item.saved), text('small', backupDetail(item))),
+      button(item.kept ? 'Stop keeping' : 'Keep', () => keepBackup(item).catch(showError), 'outline', 'A kept backup is not removed when newer ones come.'),
       button('Restore', () => restoreBackup(item).catch(showError), 'outline')));
   }
   $('#backup-dialog').showModal();
+}
+const backupDetail = item => `${item.profiles} profiles · ${item.buttons} keys · ${Math.max(1, Math.round(item.bytes / 1024))} KiB${item.kept ? ' · kept' : ''}`;
+async function keepBackup(item) {
+  await api('command/keep-backup', {name: item.name, keep: !item.kept});
+  await openBackups();
 }
 async function restoreBackup(item) {
   if (!await confirmDialog('Restore this backup?', `The current configuration is replaced by the backup from ${item.saved}. The current one is kept as a backup.`, {ok: 'Restore'})) return;
@@ -340,6 +377,8 @@ async function checkUpdates() {
   label.textContent = 'Checking GitHub …';
   const info = await api('command/update-check', {});
   $('#firmware-download').hidden = !(info.firmware && info.sums);  // also for a new panel on the latest version
+  $('#host-update').hidden = !(info.newer && info.host && info.sums);
+  $('#host-update').textContent = `Update Tessera to ${info.latest}`;
   label.textContent = info.newer
     ? `Version ${info.latest} is available (you have ${info.current}).${info.firmware ? '' : ' It has no firmware package.'}`
     : `You have the latest version (${info.current}).${info.firmware ? ' Its firmware can still be downloaded for the panel.' : ''}`;
@@ -349,10 +388,21 @@ async function checkUpdates() {
 async function downloadFirmware() {
   const result = await api('command/update-download-firmware', {});
   toast(result.message);
+  $('#firmware-latest').textContent = result.message;  // the toast goes after a few seconds: keep what was fetched in view
   await refreshFirmware();
 }
 $('#firmware-check').onclick = () => checkUpdates().catch(error => { $('#firmware-latest').textContent = error.message; });
 $('#firmware-download').onclick = () => downloadFirmware().catch(showError);
+/* The program itself: the release's zip, checked like the firmware, unpacked over this folder. */
+async function updateHost() {
+  if (!await confirmDialog('Update Tessera now?', 'Your profiles, icons and backups stay. Tessera closes and starts again by itself when the new version is in place.', {ok: 'Update'})) return;
+  const label = $('#firmware-latest'), button = $('#host-update');
+  button.disabled = true; label.textContent = 'Downloading and checking the new version …';
+  try { const result = await api('command/update-install-host', {}); label.textContent = result.message; button.hidden = true; }
+  catch (error) { label.textContent = error.message; }
+  finally { button.disabled = false; }
+}
+$('#host-update').onclick = updateHost;
 $('#diagnostics-export').onclick = async () => { document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; }); try { await command('diagnostics'); } catch (error) { showError(error); } };
 /* Host log: a live tail of the host's own log, like a serial monitor for the whole product. */
 let logTimer = null;
@@ -374,6 +424,50 @@ $('#log-open').onclick = () => openLog().catch(showError);
 $('#log-close').onclick = () => $('#log-dialog').close();
 $('#log-dialog').addEventListener('close', () => clearInterval(logTimer));
 
+/* Live tab: the key color follows a variable (status), which a script sets with deckctl var or the agent hooks set. */
+function renderStatusColor(panel, base) {
+  const status = base.status;
+  let relabel = () => {};  // names a renamed variable in the rows below, which a rename does not redraw
+  // A valid name is saved as it is typed. An empty field turns it off only when it is left empty: emptying it on
+  // the way to another name keeps the colors.
+  const variable = element('input', {type: 'text', maxlength: '64', placeholder: 'Off · for example claude',
+    oninput: () => {
+      const name = variable.value.trim();
+      if (!name || !VARIABLE_NAME.test(name) || name === base.status?.var) return;
+      mutate(() => { base.status = {...base.status, var: name, colors: base.status?.colors || {}}; }, !base.status, editKey('status-var'));
+      relabel();
+    },
+    onchange: () => {
+      const name = variable.value.trim();
+      if (!name) { if (base.status) mutate(() => { delete base.status; }); }
+      else if (!VARIABLE_NAME.test(name)) { variable.value = base.status?.var || ''; toast('A variable name has letters, digits, dots, dashes or underscores.'); }
+    }});
+  variable.value = status?.var || '';
+  panel.append(element('label', {}, text('span', 'Color follows a variable'), variable));
+  if (!status) return;
+  const colors = status.colors || {}, swatches = [];
+  for (const [value, color] of Object.entries(colors)) {
+    const swatch = element('input', {type: 'color', value: color});
+    swatches.push([swatch, value]);
+    swatch.addEventListener('input', () => mutate(() => { base.status.colors[value] = swatch.value.toUpperCase(); }, false, editKey('status-color', value)));
+    panel.append(element('div', {class: 'status-color'}, text('span', value || '(empty)'), swatch,
+      element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': `Remove the color for ${value}`, onclick: () => mutate(() => { delete base.status.colors[value]; })}, '✕')));
+  }
+  panel.append(button('＋ Value …', async () => {
+    const value = (await promptDialog('Color for a value', `The value of ${base.status?.var} that gives this key a color, for example waiting`) ?? '').trim();
+    if (!value || current() !== base || !base.status) return;
+    if (Object.hasOwn(colors, value)) { toast(`${value} has a color already.`); return; }
+    mutate(() => { base.status.colors = {...base.status.colors, [value]: '#FFB74D'}; });
+  }, 'prop-field'));
+  const hint = text('p', '', 'hint');
+  relabel = () => {
+    const name = base.status?.var, now = dashboard?.vars?.[name];
+    for (const [swatch, value] of swatches) swatch.setAttribute('aria-label', `Color while ${name} is ${value}`);
+    hint.textContent = `${name} is ${now === undefined ? 'not set yet' : `“${now}” now`}. Other values keep the key color.`;
+  };
+  relabel();
+  panel.append(hint);
+}
 /* Wi-Fi: the panel joins the network (protocol 5). The password goes to the panel over USB and is never stored here. */
 const WIFI_PROTOCOL = 5;
 const WIFI_FAILED = {auth: 'Wrong password', no_ap: 'Network not found', no_ip: 'Joined the network, but got no address',
@@ -382,7 +476,7 @@ const WIFI_FAILED = {auth: 'Wrong password', no_ap: 'Network not found', no_ip: 
 let wifiTimer = null;
 function wifiReady() {
   const device = dashboard?.device || {};
-  return !!device.connected && (device.protocol || 0) >= WIFI_PROTOCOL;
+  return !!device.connected && (device.protocol || 0) >= WIFI_PROTOCOL && device.has_wifi !== false;  // only the GUITION board has Wi-Fi
 }
 function wifiStatusText(wifi) {
   if (!wifi) return 'Waiting for the panel to report its Wi-Fi …';
@@ -397,7 +491,7 @@ async function refreshWifi() {
   $('#wifi-fields').disabled = !ready;
   $('#wifi-gate').hidden = ready;
   $('#wifi-firmware').hidden = !device.connected;
-  $('#wifi-gate-text').textContent = !device.connected ? 'Connect the panel over USB.' : 'Update the panel firmware to use Wi-Fi.';
+  $('#wifi-gate-text').textContent = !device.connected ? 'Connect the panel over USB.' : device.has_wifi === false ? 'This board has no Wi-Fi. Only the GUITION board has the C6 Wi-Fi chip.' : 'Update the panel firmware to use Wi-Fi.';
   $('#wifi-status').textContent = ready ? wifiStatusText(wifi) : !device.connected ? 'The panel is not connected' : 'This firmware has no Wi-Fi';
   $('#wifi-forget').disabled = !ready || !wifi || (wifi.state === 'off' && !wifi.ssid);
   const ssid = $('#wifi-ssid');
@@ -448,6 +542,7 @@ const HA_PAGE_BYTES = 4096;
 /* What stops Home Assistant keys from working right now, in plain words, or ''. */
 function haNotice() {
   const device = dashboard?.device || {};
+  if (device.connected && device.has_wifi === false) return 'This board has no Wi-Fi, so it cannot run Home Assistant keys. Only the GUITION board can.';
   if (device.connected && !device.ha) return 'The panel firmware does not run Home Assistant keys yet: update the panel firmware. Until then nothing happens on a press.';
   if (config?.panel?.homeassistant?.enabled !== true) return 'Home Assistant is off on the panel: turn it on under Panel, Wi-Fi and Home Assistant.';
   return '';
@@ -547,50 +642,6 @@ function renderFollow(panel, base) {
   if (notice) panel.append(notice);
   const page = haPageNotice();
   if (page) panel.append(page);
-}
-/* Live tab: the key color follows a variable (status), which a script sets with deckctl var or the agent hooks set. */
-function renderStatusColor(panel, base) {
-  const status = base.status;
-  let relabel = () => {};  // names a renamed variable in the rows below, which a rename does not redraw
-  // A valid name is saved as it is typed. An empty field turns it off only when it is left empty: emptying it on
-  // the way to another name keeps the colors.
-  const variable = element('input', {type: 'text', maxlength: '64', placeholder: 'Off · for example claude',
-    oninput: () => {
-      const name = variable.value.trim();
-      if (!name || !VARIABLE_NAME.test(name) || name === base.status?.var) return;
-      mutate(() => { base.status = {...base.status, var: name, colors: base.status?.colors || {}}; }, !base.status, editKey('status-var'));
-      relabel();
-    },
-    onchange: () => {
-      const name = variable.value.trim();
-      if (!name) { if (base.status) mutate(() => { delete base.status; }); }
-      else if (!VARIABLE_NAME.test(name)) { variable.value = base.status?.var || ''; toast('A variable name has letters, digits, dots, dashes or underscores.'); }
-    }});
-  variable.value = status?.var || '';
-  panel.append(element('label', {}, text('span', 'Color follows a variable'), variable));
-  if (!status) return;
-  const colors = status.colors || {}, swatches = [];
-  for (const [value, color] of Object.entries(colors)) {
-    const swatch = element('input', {type: 'color', value: color});
-    swatches.push([swatch, value]);
-    swatch.addEventListener('input', () => mutate(() => { base.status.colors[value] = swatch.value.toUpperCase(); }, false, editKey('status-color', value)));
-    panel.append(element('div', {class: 'status-color'}, text('span', value || '(empty)'), swatch,
-      element('button', {class: 'rail-remove', type: 'button', title: 'Remove', 'aria-label': `Remove the color for ${value}`, onclick: () => mutate(() => { delete base.status.colors[value]; })}, '✕')));
-  }
-  panel.append(button('＋ Value …', async () => {
-    const value = (await promptDialog('Color for a value', `The value of ${base.status?.var} that gives this key a color, for example waiting`) ?? '').trim();
-    if (!value || current() !== base || !base.status) return;
-    if (Object.hasOwn(colors, value)) { toast(`${value} has a color already.`); return; }
-    mutate(() => { base.status.colors = {...base.status.colors, [value]: '#FFB74D'}; });
-  }, 'prop-field'));
-  const hint = text('p', '', 'hint');
-  relabel = () => {
-    const name = base.status?.var, now = dashboard?.vars?.[name];
-    for (const [swatch, value] of swatches) swatch.setAttribute('aria-label', `Color while ${name} is ${value}`);
-    hint.textContent = `${name} is ${now === undefined ? 'not set yet' : `“${now}” now`}. Other values keep the key color.`;
-  };
-  relabel();
-  panel.append(hint);
 }
 function saveHomeAssistant(event) {
   event?.preventDefault();
@@ -699,8 +750,9 @@ async function openPlugins() {
 }
 async function renderPlugins() {
   const {plugins, problems} = await api('command/plugins', {}), list = $('#plugins-list');
+  setPluginChoices(plugins);  // the Plugin field of a plugin step shows the same list, on or off
   list.replaceChildren();
-  if (!plugins.length) list.append(text('p', 'No plugins installed. Put a plugin folder in the plugins folder next to Tessera.cmd.', 'hint'));
+  if (!plugins.length) list.append(text('p', `No plugins installed. Put a plugin folder in the plugins folder next to ${hostRules.platform === 'linux' ? 'Tessera.sh' : 'Tessera.cmd'}.`, 'hint'));
   for (const plugin of plugins) {
     const box = element('div', {class: 'plugin-row'});
     const toggle = element('label', {class: 'check-option'}, element('input', {type: 'checkbox'}), element('span', {},
@@ -725,7 +777,10 @@ async function renderPlugins() {
       } else {
         // a secret comes back encrypted from the host: hide it, and typing a new one replaces it
         const type = spec.type === 'number' ? 'number' : SECRET_SETTING.test(key) ? 'password' : 'text';
-        box.append(field(spec.label || key, String(value), v => setPlugin(plugin, {settings: {[key]: spec.type === 'number' ? Number(v) : v}}), {type}));
+        const row = field(spec.label || key, String(value), v => setPlugin(plugin, {settings: {[key]: spec.type === 'number' ? Number(v) : v}}), {type});
+        // the stored form is not text to edit: the first key press clears it, or the new secret would be added to its end
+        if (type === 'password') row.querySelector('input')?.addEventListener('beforeinput', event => { if (/^\$\((dpapi|keyring):/.test(event.target.value)) event.target.value = ''; });
+        box.append(row);
       }
     }
     list.append(box);
@@ -734,7 +789,8 @@ async function renderPlugins() {
 }
 const SECRET_SETTING = /token|secret|password|api.?key/i;  // as import_review.py
 const PLUGIN_RIGHTS = {vars: 'set values shown on keys (names starting with the plugin id)', press: 'press keys',
-  feedback: 'flash keys green or red', state: 'change the state of keys', events: 'read key presses, page changes and its commands',
+  feedback: 'flash keys green or red', state: 'change the state of keys', notify: 'show short messages on the panel',
+  events: 'read key presses, page changes and its commands',
   read: 'read the panel state and all values'};
 /* Ask once per plugin id, version, command and permissions before it first runs: a changed manifest may ask for more under the same version. */
 async function pluginConsent(plugin) {
@@ -744,7 +800,7 @@ async function pluginConsent(plugin) {
   if (given[plugin.id] === seal) return true;
   const rights = plugin.permissions.map(name => `• ${PLUGIN_RIGHTS[name] || name}`).join('\n') || '• nothing in Tessera';
   if (!await confirmDialog(`Turn on ${plugin.name} ${plugin.version}?`, `In Tessera it may:\n${rights}\n\nIt runs this program: ${(plugin.command || []).join(' ')}\n\n`
-    + 'The program runs with your own Windows rights: it can use the network and read your files. Only turn it on if you trust where it came from.',
+    + 'The program runs with your own user rights: it can use the network and read your files. Only turn it on if you trust where it came from.',
     {ok: 'Turn on'})) return false;
   try { localStorage.setItem('tessera-plugin-consent', JSON.stringify({...given, [plugin.id]: seal})); } catch {}
   return true;
@@ -771,7 +827,9 @@ $('#iconify-query').addEventListener('keydown', event => { if (event.key === 'En
 
 /* The agents and readings the panel's agents and status screens can show (chosen on those screens in the rail). */
 const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', 'ZCode']];
-const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed']];
+const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed'],
+  ['net_up', 'Upload speed'], ['uptime', 'Uptime'], ['cpu_clock', 'CPU clock'], ['cpu_power', 'CPU power'], ['gpu_power', 'GPU power'], ['gpu_clock', 'GPU clock'], ['gpu_fan', 'GPU fan'], ['fps', 'FPS']];
+const PANEL_STATS_MAX = 8;  // the panel shows eight, and the host refuses more
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
 async function claudeSettings() {
@@ -865,7 +923,7 @@ $('#welcome-test').onclick = () => testButton(selected).catch(showError);
 // Everything is defined now: start the editor.
 start().then(showWelcome).catch(error=>{setSaveState('The editor could not start',error.message);startError=error.message;renderStatusBar();});
 
-/* Page templates: a ready-made page (Meetings, Coding, Media, Browser) is shown as it will look, then added. */
+/* Page templates: a ready-made page (Meetings, Coding, Media, Browser, OBS, Farming Simulator) is shown as it will look, then added. */
 let galleryChoice = 0;
 function galleryTemplates() {
   return [...(actionCatalog.page_templates || []), {name: 'Empty page', description: 'Start with nothing', page: []}];
@@ -913,7 +971,7 @@ const RAIL = [
 ];
 let editorView = 'keys', hooksState = null;
 function panelChoice() {
-  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.map(s => s[0]), ...(config?.panel || {})};
+  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.slice(0, PANEL_STATS_MAX).map(s => s[0]), ...(config?.panel || {})};
 }
 function savePanel(change) {
   mutate(() => { config.panel = {...panelChoice(), ...change}; });
@@ -995,18 +1053,28 @@ function renderScreen() {
     }});
     const mic = element('input', {type: 'checkbox', onchange: event => savePanel({mic: event.target.checked})});
     mic.checked = choice.mic;
+    const remote = choice.remote || {mode: 'off'};
+    const remoteMode = remote.mode === 'device' ? remote.device : remote.mode;
+    const remoteChoices = [['off', 'Not used'], ...remoteDeviceChoices(remote.mode === 'device' ? remote.device : '', true)];
+    const remoteSelect = element('select', {'aria-label': 'Remote devices in the mixer', onchange: event => {
+      const value = event.target.value;
+      savePanel({remote: value === 'off' || value === 'first' || value === 'all' ? {mode: value} : {mode: 'device', device: value}});
+    }}, ...remoteChoices.map(([value, name]) => element('option', {value, ...(value === remoteMode ? {selected: true} : {})}, name)));
     body = [...head('Mixer', 'The faders on the panel’s mixer screen, as the PC has them right now.'),
       element('div', {class: 'screen-faders'}, ...(faders.length ? faders : [text('p', 'The host has not read the sound yet.', 'hint')])),
       element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Programs'), text('small', 'Up to three. Leave empty to use the ones that are playing sound.')), apps),
-      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Microphone'), text('small', 'Include a microphone fader.')), element('label', {class: 'screen-check'}, mic, text('span', 'Show'))) ];
+      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Microphone'), text('small', 'Include a microphone fader.')), element('label', {class: 'screen-check'}, mic, text('span', 'Show'))),
+      element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Remote devices'), text('small', 'The volume of a device paired with KDE Connect, such as a phone, as a fader. It takes a place of the programs: the panel shows five faders.')), remoteSelect) ];
   } else {
     const stats = dashboard.stats || {};
+    const full = choice.stats.length >= PANEL_STATS_MAX;
     const cards = PANEL_STATS.map(([id, name]) => {
       const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: PANEL_STATS.map(s => s[0]).filter(key => key === id ? event.target.checked : choice.stats.includes(key))})});
       box.checked = choice.stats.includes(id);
+      box.disabled = !box.checked && full;
       return element('label', {class: 'screen-stat' + (box.checked ? '' : ' off')}, text('small', name), text('strong', stats[id] === undefined ? '--' : String(stats[id])), element('span', {class: 'screen-check'}, box, text('span', 'Show')));
     });
-    body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), element('div', {class: 'screen-stats'}, ...cards)];
+    body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), ...(full ? [text('p', `The panel shows ${PANEL_STATS_MAX} readings. Untick one to choose another.`, 'hint')] : []), element('div', {class: 'screen-stats'}, ...cards)];
   }
   area.replaceChildren(element('div', {class: 'screens-inner'}, ...body));
 }
@@ -1064,7 +1132,8 @@ function drawRail() {
   // shortcuts: open a page, or run steps like a key; any icon from the library
   const targets = Object.entries(config.profiles).map(([profileName, item]) => element('optgroup', {label: profileName}, ...Object.keys(item.pages).map(pageName => element('option', {value: profileName + '\u0001' + pageName}, `${profileName} › ${pageName}`))));
   const sources = Object.entries(config.profiles).flatMap(([profileName, item]) => Object.entries(item.pages).flatMap(([pageName, keys]) =>
-    keys.filter(key => key.actions?.length).map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
+    keys.filter(key => key.actions?.length && !key.actions.some(a => a.type === HA_STEP))  // Home Assistant steps stay on their key
+      .map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
   $('#rail-shortcuts').replaceChildren(...d.shortcuts.map((s, index) => {
     const runs = s.type === 'actions';
     const kind = element('select', {'aria-label': `Shortcut ${index + 1}: what it does`, class: 'rail-kind', onchange: event => {
@@ -1116,6 +1185,12 @@ $('#rail-apply').onclick = () => {
  * steps are copied from a key, so the key editor stays the one place where steps are built. */
 const AUTO_KINDS = [['startup', 'When the host starts'], ['interval', 'Every …'], ['daily', 'Every day at …'], ['file', 'When a file changes'], ['variable', 'When a variable changes']];
 const AUTO_DEFAULTS = {startup: {}, interval: {seconds: 300}, daily: {at: '08:00'}, file: {path: ''}, variable: {name: ''}};
+const AUTO_DAYS = [['mon', 'Mon'], ['tue', 'Tue'], ['wed', 'Wed'], ['thu', 'Thu'], ['fri', 'Fri'], ['sat', 'Sat'], ['sun', 'Sun']];
+// All seven or none means every day: no days key
+function setAutoDays(when, ticked) {
+  const days = AUTO_DAYS.map(day => day[0]).filter(day => ticked.includes(day));
+  if (days.length && days.length < 7) when.days = days; else delete when.days;
+}
 const VARIABLE_NAME = /^[A-Za-z0-9_.-]{1,64}$/;  // as the host checks a variable name
 let autoDraft = [];
 function autoSettings() {
@@ -1126,9 +1201,9 @@ function autoSettings() {
 }
 // focus: the data-auto name of the control to focus after the redraw, so a keyboard user keeps their place
 function drawAuto(focus = document.activeElement?.dataset?.auto) {
-  // a key's pressed steps; the host refuses Home Assistant steps here, since only the panel runs them, from a key
+  // a key's pressed steps; a key with a Home Assistant step is left out, since only the panel runs those, from a key
   const sources = Object.entries(config.profiles).flatMap(([profileName, item]) => Object.entries(item.pages).flatMap(([pageName, keys]) =>
-    keys.filter(key => key.actions?.length && !key.actions.some(action => action.type === 'homeassistant'))
+    keys.filter(key => key.actions?.length && !key.actions.some(a => a.type === HA_STEP))
       .map(key => [`${profileName}\u0001${pageName}\u0001${key.id}`, `${profileName} › ${pageName} › ${key.label || 'Key ' + key.id}`, key])));
   $('#auto-list').replaceChildren(...autoDraft.map((rule, index) => {
     const when = rule.when, number = index + 1, name = what => `Automatic action ${number}: ${what}`;
@@ -1142,7 +1217,11 @@ function drawAuto(focus = document.activeElement?.dataset?.auto) {
         const seconds = clockToSeconds(value);
         if (Number.isInteger(seconds) && seconds <= 604800) when.seconds = seconds;
         else { node.value = secondsToClock(when.seconds); toast('Write how often as mm:ss or h:mm:ss, at most a week.'); } })],
-      daily: () => [input({type: 'time', value: when.at, required: true, 'aria-label': name('time of day')}, value => { if (/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) when.at = value; })],
+      daily: () => [input({type: 'time', value: when.at, required: true, 'aria-label': name('time of day')}, value => { if (/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) when.at = value; }),
+        element('div', {class: 'auto-days', role: 'group', 'aria-label': name('only on these days')}, text('span', 'Only on'), ...AUTO_DAYS.map(([day, label]) => {
+          const box = element('input', {type: 'checkbox', 'data-day': day, 'aria-label': name(label), onchange: event => setAutoDays(when, [...event.target.closest('.auto-days').querySelectorAll('input:checked')].map(item => item.dataset.day))});
+          box.checked = !!when.days?.includes(day);
+          return element('label', {}, box, label); }))],
       file: () => [input({value: when.path || '', placeholder: 'The file to watch, for example C:\\Notes\\todo.txt', 'aria-label': name('file to watch')}, value => { when.path = value; })],
       variable: () => [input({value: when.name || '', maxlength: '64', placeholder: 'Variable, for example claude', 'aria-label': name('variable')}, value => { when.name = value; }),
         input({value: when.value ?? '', placeholder: 'Only when it becomes … (empty: on every change)', 'aria-label': name('only when the variable becomes this value')}, value => { if (value) when.value = value; else delete when.value; })]

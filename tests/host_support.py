@@ -17,6 +17,25 @@ sys.path.insert(0, str(ROOT / 'host'))
 import agent_activity  # noqa: E402
 import tesserad as deck  # noqa: E402
 
+
+class _NoRemoteDevices:
+    """KDE Connect as seen by the host tests: no paired device. A test daemon must not read (or press) the phone of the
+    developer who runs the tests; test_remote_devices.py and test_kdeconnect*.py bring their own fakes."""
+
+    @staticmethod
+    def list_devices():
+        return []
+
+    @staticmethod
+    def read_device(*args):
+        raise OSError('no remote devices in the tests')
+
+    write_volume = send_action = read_device
+
+
+import remote_devices  # noqa: E402
+patch.object(remote_devices, '_system', return_value=_NoRemoteDevices).start()
+
 FOLDER = Path(tempfile.mkdtemp(prefix='tessera-tests-'))
 atexit.register(shutil.rmtree, FOLDER, True)
 PROFILES = FOLDER / 'profiles.default.json'
@@ -39,10 +58,21 @@ def args(path=PROFILES, port='TEST', no_focus=True):
 def test_daemon(path=PROFILES, port='TEST', no_focus=True):
     daemon = deck.Daemon(args(path, port=port, no_focus=no_focus))
     daemon.activity = agent_activity.AgentActivity(FOLDER / 'claude', FOLDER / 'codex')
+    daemon.pc_idle = lambda: float('inf')  # the PC running the tests is not idle; tests that need it set their own
     return daemon
 
 
 class HostCase(unittest.TestCase):
+    def setUp(self):
+        """A test never opens a real file, folder or program (the host log in an editor, the data folder in the file
+        manager): the two launchers of the systems are replaced; `self.opened` lists what a test asked to open."""
+        super().setUp()
+        self.opened = Mock(name='opened')
+        for target in ('platform_linux.programs.launch', 'platform_windows.processes.open_path'):
+            patcher = patch(target, self.opened)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
     def daemon(self, config=None):
         daemon = test_daemon()
         daemon.panel = Mock()

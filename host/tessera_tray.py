@@ -5,6 +5,9 @@ and opens the editor on a click.
 """
 
 import json
+from desktop import open_path
+from platform_support import IS_WINDOWS, load
+from venv_paths import venv_python
 import logging
 import os
 import subprocess
@@ -13,10 +16,20 @@ import threading
 import time
 from pathlib import Path
 
-import pystray
+BACKEND = load('tray').choose_backend()  # before pystray is imported: it picks its backend then
+if BACKEND == 'none':  # a desktop that shows no tray icons: no backend is tried, and Tessera runs without an icon
+    os.environ['PYSTRAY_BACKEND'] = 'dummy'  # pystray's own name for "none"; only for the import, so nothing inherits it
+    try:
+        import pystray
+    finally:
+        del os.environ['PYSTRAY_BACKEND']
+else:
+    import pystray  # noqa: E402
 from PIL import Image, ImageDraw
 
-from deck_control import ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart
+from deck_control import (ROOT, Controller, autostart_enabled, firmware_installing, save_profiles, set_autostart, stop_editor,
+                          startup_script_path)
+from process_flags import DETACHED, NO_WINDOW
 from host_runtime import InstanceLock
 
 log = logging.getLogger(__name__)
@@ -144,6 +157,17 @@ def set_notifications(enabled: bool, path: Path | None = None) -> None:
     save_profiles(config, path or PROFILES_PATH)
 
 
+def autostart_question_open():
+    """True while this folder has not been asked about autostart: no record yet, or a record copied over from another
+    folder whose copy Start with Windows still starts."""
+    try:
+        asked = json.loads(FIRST_RUN_PATH.read_text(encoding='utf-8'))
+        elsewhere = startup_script_path().is_file() and not autostart_enabled()
+    except (OSError, ValueError):
+        return True
+    return elsewhere and (not isinstance(asked, dict) or asked.get('root') != str(ROOT))
+
+
 class TrayApp:
     def __init__(self, controller: Controller | None = None):
         self.controller = controller or Controller()
@@ -161,9 +185,10 @@ class TrayApp:
         self.restarts = 0  # automatic restarts in this burst
         self.restart_at = None  # when the next automatic restart runs (monotonic), while the host is down
         self.running_since = None  # since when the host has been seen running (monotonic)
-        self.asked_autostart = FIRST_RUN_PATH.exists()  # the question waits for the first panel connection
-        self.icon = pystray.Icon('tessera', make_icon('stopped'), 'Tessera',
-                                 menu=pystray.Menu(self.menu_items))
+        self.asked_autostart = not autostart_question_open()  # the question waits for the first panel connection
+        icon_class = load('tray').no_icon(pystray.Icon) if BACKEND == 'none' else pystray.Icon
+        self.icon = icon_class('tessera', make_icon('stopped'), 'Tessera', menu=pystray.Menu(self.menu_items))
+        load('tray').prepare(self.icon, pystray.Menu.SEPARATOR)
 
     # --- actions (all run off the UI thread) ---------------------------------
     def background(self, work, *args):
@@ -180,9 +205,9 @@ class TrayApp:
         if now - getattr(self, 'editor_asked', -10.0) < 2.0:  # a double click is one request
             return
         self.editor_asked = now
-        pythonw = ROOT / 'host/.venv/Scripts/pythonw.exe'
+        pythonw = venv_python(ROOT, True)
         executable = str(pythonw if pythonw.is_file() else sys.executable)
-        flags = (subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS) if os.name == 'nt' else 0
+        flags = NO_WINDOW | DETACHED
         subprocess.Popen([executable, str(ROOT / 'host/tessera_app.py'), '--editor'], cwd=ROOT, creationflags=flags)
 
     def host(self, *steps):
@@ -236,7 +261,7 @@ class TrayApp:
     # --- help: what a user needs to report a problem ---------------------------
     def open_log(self, *_):
         if LOG_PATH.is_file():
-            os.startfile(LOG_PATH)  # noqa: S606 - the user's own log in their text editor
+            open_path(LOG_PATH)  # the user's own log in their text editor
         else:
             self.icon.notify('There is no host log yet. It is written once the host has run.', 'Tessera')
 
@@ -249,18 +274,21 @@ class TrayApp:
             return
         PROBLEMS_PATH.write_text('Recent problems in the Tessera host log (newest last)\n\n' + '\n'.join(problems) + '\n',
                                  encoding='utf-8')
-        os.startfile(PROBLEMS_PATH)  # noqa: S606 - our own text file in the user's text editor
+        open_path(PROBLEMS_PATH)  # our own text file in the user's text editor
 
     def save_diagnostics(self, *_):
         def work():
             import setup_tool
             path = setup_tool.diagnostics()
-            subprocess.Popen(['explorer', '/select,', str(path)])  # noqa: S603,S607
+            if IS_WINDOWS:
+                subprocess.Popen(['explorer', '/select,', str(path)])  # noqa: S603,S607
+            else:
+                open_path(path.parent)
             self.icon.notify(f'Saved {path.name}. User names and credentials are left out.', 'Tessera')
         self.background(work)
 
     def open_data_folder(self, *_):
-        os.startfile(ROOT / 'host')  # noqa: S606 - profiles, icons and backups live here
+        open_path(ROOT / 'host')  # profiles, icons and backups live here
 
     def check_for_updates(self, *_):
         def work():
@@ -268,28 +296,38 @@ class TrayApp:
             current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
             release = updates.check(current)
             if release.get('newer'):
-                notes = release.get('notes') or 'Open the editor: Panel → Panel firmware and updates …'
-                self.icon.notify(notes[:250], f"Update available: {release['latest']}")
+                how = f"You have {current}. Get the new version from the Releases page on GitHub."
+                self.icon.notify((how + '\n' + (release.get('notes') or '')).strip()[:250], f"Update available: {release['latest']}")
             else:
                 self.icon.notify(f'Tessera {current} is the newest version.', 'Tessera')
         self.background(work)
 
     def ask_about_autostart(self):
-        """Once, at the first panel connection: the panel does nothing after a restart until Tessera runs, so ask."""
-        if FIRST_RUN_PATH.exists() or os.name != 'nt':
+        """Once per folder, at the first panel connection: the panel does nothing after a restart until Tessera runs, so
+        ask. A record copied over with the *.local.json files from the folder before an update does not count while
+        Start with Windows still starts that folder."""
+        if not load('labels').ASKS_ABOUT_AUTOSTART:
             return
-        write_command({'asked': 'autostart'}, FIRST_RUN_PATH)
+        try:
+            elsewhere = startup_script_path().is_file() and not autostart_enabled()
+            asked = json.loads(FIRST_RUN_PATH.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            asked = None
+        if asked is not None and not (elsewhere and (not isinstance(asked, dict) or asked.get('root') != str(ROOT))):
+            return
+        write_command({'asked': 'autostart', 'root': str(ROOT)}, FIRST_RUN_PATH)
         if autostart_enabled():
             return
-        import ctypes
-        answer = ctypes.windll.user32.MessageBoxW(
-            None, 'Start Tessera when you sign in to Windows?\n\nThe panel then works after every restart. '
-                  'You can change this later in the tray menu: Start with Windows.', 'Tessera', 0x4 | 0x20 | 0x10000 | 0x40000)
-        if answer == 6:  # IDYES
+        if elsewhere:  # left by a copy in another folder, such as the version before an update
+            question = f'Start with Windows starts Tessera from another folder. Start this copy instead?\n\n{ROOT}'
+        else:
+            question = 'Start Tessera when you sign in to Windows?\n\nThe panel then works after every restart.'
+        if load('dialogs').ask_yes_no(question + '\n\nYou can change this later in the tray menu: Start with Windows.', 'Tessera'):
             set_autostart(True)
 
     def quit(self, *_):
         self.stop.set()
+        stop_editor()  # an editor in a browser tab has no window to close: do not leave its web server running
         self.icon.stop()
 
     def quit_and_stop_host(self, *_):
@@ -336,7 +374,7 @@ class TrayApp:
         yield pystray.MenuItem('Restart host', self.restart_host, enabled=running)
         yield pystray.MenuItem('Stop host', self.stop_host, enabled=running)
         yield pystray.Menu.SEPARATOR
-        yield pystray.MenuItem('Start with Windows', self.toggle_autostart, checked=lambda item: autostart_enabled())
+        yield pystray.MenuItem('Start with ' + load('labels').AUTOSTART_NAME, self.toggle_autostart, checked=lambda item: autostart_enabled())
         yield pystray.MenuItem('Show notifications', self.toggle_notifications, checked=lambda item: notifications_enabled())
         yield pystray.MenuItem('Help', pystray.Menu(
             pystray.MenuItem('Open the host log', self.open_log),
@@ -452,6 +490,7 @@ class TrayApp:
 
 
 def main():
+    load('processes').name_process('Tessera')  # so that `killall Tessera` finds it
     lock = InstanceLock(Path(__file__).with_name('deck-tray.local.lock'))
     if not lock.acquire():
         print('The Tessera tray is already running.')

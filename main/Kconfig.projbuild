@@ -1,0 +1,50 @@
+menu "Tessera board"
+
+    choice TESSERA_P4_BOARD
+        prompt "ESP32-P4 board"
+        depends on IDF_TARGET_ESP32P4
+        default TESSERA_BOARD_P4_GUITION
+        help
+            Picks the screen controller, pins and host link of the ESP32-P4 build.
+
+        config TESSERA_BOARD_P4_GUITION
+            bool "GUITION JC1060P470C (1024 x 600, JD9165, native USB)"
+        config TESSERA_BOARD_P4_CROWPANEL7
+            bool "Elecrow CrowPanel Advance 7.0 (1024 x 600, EK79007, USB-UART bridge)"
+    endchoice
+
+    choice TESSERA_BOARD
+        prompt "Board"
+        depends on IDF_TARGET_ESP32S3
+        default TESSERA_BOARD_S3_WS7
+        help
+            Picks the pins and host link of the ESP32-S3 build.
+
+        config TESSERA_BOARD_S3_WS7
+            bool "Waveshare ESP32-S3-Touch-LCD-7 (800 x 480, native USB)"
+        config TESSERA_BOARD_S3_8048S070
+            bool "Sunton/Guition ESP32-8048S070 (800 x 480, CH340 on UART0)"
+    endchoice
+
+    # The id the panel reports in get_info. The Guition P4 keeps "tessera-p4", the id of every release so far.
+    config TESSERA_BOARD_ID
+        string
+        default "tessera-p4" if TESSERA_BOARD_P4_GUITION
+        default "tessera-p4-crowpanel7" if TESSERA_BOARD_P4_CROWPANEL7
+        default "tessera-s3-ws7" if TESSERA_BOARD_S3_WS7
+        default "tessera-s3-8048s070" if TESSERA_BOARD_S3_8048S070
+
+    # Wi-Fi through the board's ESP32-C6 (ESP-Hosted over SDIO) and the Home Assistant API on top of it. Only the
+    # GUITION P4 has it; the other boards report no "wifi", "api" or "ha" in get_info.
+    config TESSERA_WIFI
+        bool
+        default y if TESSERA_BOARD_P4_GUITION
+
+    config TESSERA_IMAGE_CACHE_KB
+        int "Key image cache (KiB)"
+        depends on IDF_TARGET_ESP32S3
+        range 512 8192
+        default 2048
+        help
+            Decoded key images kept in PSRAM. The P4 keeps 8 MiB; the S3 boards have 8 MB of PSRAM in all.
+endmenu

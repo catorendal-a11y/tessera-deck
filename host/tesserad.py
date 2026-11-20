@@ -2,17 +2,19 @@
 """Tessera action engine and sole USB owner."""
 import argparse
 import collections
+import http.client
 import itertools
 import json
 import os
 from pathlib import Path
 import queue
 import shutil
-import subprocess
+import subprocess  # noqa: F401  (the tests patch deck.subprocess)
 import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from ambient import Weather
 import calendar_feed
@@ -21,7 +23,7 @@ from config_store import migrate
 from plugins import EventLog, PluginManager
 from live_state import LiveState
 import widgets
-from action_runner import Busy, CommandFailed, run_command
+from action_runner import Busy, CommandFailed, run_command, run_script
 from action_preview import toggled
 from control_api import ControlServer
 import agent_activity
@@ -29,18 +31,20 @@ from datetime import datetime
 import cockpit
 import permission
 from deck_assets import Assets
-from program_locator import locate
-from substitution import check_web_url, expand_environment, substitute
-from pc_state import PcState, control_audio
-from host_runtime import InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
+from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
+from pc_state import PcState
+import remote_devices
+from system_audio import MediaReader, control_audio, control_media, read_audio
+from host_runtime import DEFAULT_PORT, InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
 from system_stats import SystemStats, gauge_state
 
 # The engine's building blocks live in their own modules; the names stay importable from here for the apps,
 # the tools and the tests.
-from win_input import (CHILD_NAMES_SECONDS, IS_WINDOWS, VK, bring_to_front, child_names, dry_hotkey,  # noqa: F401
-                       focus_existing_process, foreground_context, is_neutral_window,
-                       matches_foreground, parse_hotkey, real_app_exe, send_hotkey, send_mouse, send_text,
-                       set_clipboard, window_action)
+from input_common import CHILD_NAMES_SECONDS, IS_WINDOWS, child_names, dry_hotkey  # noqa: F401
+from default_profile import seed_path
+from platform_support import load
+from desktop import (bring_to_front, focus_existing_process, foreground_context, is_neutral_window,  # noqa: F401
+                     matches_foreground, open_target, send_hotkey, send_mouse, send_text, set_clipboard, window_action)
 from config_check import _check_display, in_quiet_hours, validate_config  # noqa: F401
 from daemon_display import DisplayMixin
 from daemon_presses import DOUBLE_PRESS_SECONDS, PressMixin  # noqa: F401
@@ -58,6 +62,22 @@ LOG_KEEP_BYTES = 5 * 1024 * 1024
 
 
 LOG_FILES = 3  # older logs kept as deck.local.log.1 (newest) .. .3
+
+
+class SafeRedirects(urllib.request.HTTPRedirectHandler):
+    """urllib copies the request headers, an Authorization header too, to wherever a redirect points.
+    As in curl, a redirect to another host goes there without them, and https never falls back to http."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        old, new = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(newurl)
+        if new.scheme not in ('http', 'https') or (old.scheme == 'https' and new.scheme != 'https'):
+            raise CommandFailed(f'The web request was redirected to {new.scheme}://{new.hostname}, which is not allowed')
+        request = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if request is not None and new.hostname != old.hostname:
+            request.headers.clear()
+        return request
+
+
+WEB_OPENER = urllib.request.build_opener(SafeRedirects)
 
 
 def shift_logs(path=None, keep=LOG_FILES):
@@ -177,7 +197,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         self.agents = {'codex': False, 'claude': False, 'zcode': False}
         self.agent_scan_at = 0.0
         self.stats = SystemStats()
-        self.pc = PcState()
+        self.pc = PcState(audio=read_audio, media=MediaReader(),
+                          remote=lambda: remote_devices.poll(self.config))
         self.calendar = calendar_feed.Feed()
         self.events = EventLog()
         self.plugins = None
@@ -210,7 +231,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
     def load_profiles(path):
         path = Path(path)
         if not path.exists():
-            seed = path.with_name('profiles.default.json')
+            seed = seed_path(path.parent)
             if seed.exists():
                 path.write_bytes(seed.read_bytes())
         with open(path, encoding='utf-8') as stream:
@@ -252,10 +273,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                  'dimmed': self.dimmed,
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
-                 'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'),
-                 'wifi': self.wifi, 'api': self.device_info.get('api') if type(self.device_info.get('api')) is int else None,
+                 'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'), 'reset': self.device_info.get('reset'),
+                 'wifi': self.wifi, 'has_wifi': isinstance(self.device_info.get('wifi'), str),  # GUITION board only
+                 'api': self.device_info.get('api') if type(self.device_info.get('api')) is int else None,
                  'ha': self.device_info.get('ha') if type(self.device_info.get('ha')) is int else None,
-                 'api_state': self.api_state, 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer, 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
+                 'api_state': self.api_state,
+                 'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer,
+                 'remote_devices': [{'id': item['id'], 'name': item['name']} for item in remote_devices.known()], 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),
                  'plugins': self.plugins.status(self.config.get('plugins')) if self.plugins else [],
                  'last_action': self.last_action}
@@ -330,9 +354,16 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         """What a wide key shows: the music that plays (title, artist, how far it is) or a timer (time left, ring)."""
         if live == 'media':
             media = self.pc.snapshot()
-            result = {'label': (media['title'] or 'No music')[:24], 'sub': (media['artist'] or media['status'].capitalize())[:40]}
+            result = {'label': (media['title'] or 'No music')[:24], 'sub': (media['artist'] or media['status'].capitalize() or 'Nothing playing')[:40]}
             if media.get('duration', 0) > 0:
                 result['progress'] = max(0, min(100, round(media['position'] / media['duration'] * 100)))
+            return result
+        if live == 'remote_media':  # the same, for the player of a paired device (KDE Connect)
+            remote = self.pc.snapshot()
+            result = {'label': (remote.get('remote:track') or 'No music')[:24],
+                      'sub': (remote.get('remote:artist') or remote.get('remote_status', '').capitalize() or 'Nothing playing')[:40]}
+            if remote.get('remote_duration', 0) > 0:
+                result['progress'] = max(0, min(100, round(remote.get('remote_position', 0) / remote['remote_duration'] * 100)))
             return result
         if isinstance(live, str) and live.startswith('timer:'):
             name = live[6:]
@@ -346,7 +377,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         if live == 'calendar':
             now = datetime.now()
             events, error = self.calendar.events(self.config.get('calendar'), now)
-            return calendar_feed.content(events, now, error)
+            return calendar_feed.content(events, now, error, self.clock_format() == '12h')
         if live in widgets.WIDGETS:
             return widgets.content(live, datetime.now(), self.stats.raw, self.pc.snapshot(),
                                    {name: self.agent_seen.get(key, '') for key, name, _ in cockpit.AGENTS},
@@ -441,6 +472,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         self.events.add('page', profile=self.profile, page=page)
         return True
 
+    def push_first_page(self):
+        """The page a panel gets when it connects. A layout or picture the panel refuses is that page's problem and
+        not the link's, so the host stays connected and another page can still be shown."""
+        try:
+            self.push_page(force=True)
+        except ValueError as exc:
+            self.log(f'The panel refused the page {self.profile} / {self.page}: {exc}')
+
     def switch_profile(self, profile, auto=False, page=None):
         if not getattr(self, 'rail_moving', False):
             self.before_shortcut = None
@@ -448,6 +487,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
             raise ValueError(f'Unknown profile: {profile}')
         resume, self.resume_view = self.resume_view, None
         if profile != self.profile:
+            before = (self.profile, self.page, list(self.folder_stack))
             self.folder_stack.clear()
             self.profile = profile
             pages = self.config['profiles'][profile]['pages']
@@ -457,8 +497,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                 self.folder_stack.extend(name for name in resume[2] if name in pages)
             if page in pages:  # straight to this page: the profile's first page is never sent in between
                 self.page = page
+            try:
+                self.push_page(force=True)  # an identical-looking page must still send the new profile name and path
+            except ValueError:  # the panel refused the layout (too large): it still shows the old profile
+                self.profile, self.page, self.folder_stack[:] = before
+                raise
             self.events.add('profile', profile=profile, page=self.page)
-            self.push_page(force=True)  # an identical-looking page must still send the new profile name and path
         if not auto:
             self.auto_profile = None
             self.manual_focus_exe = self.foreground.get('exe', '')
@@ -466,13 +510,32 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
 
     def go_home(self):
         profile = self.config.get('default_profile', next(iter(self.config['profiles'])))
+        moved = profile != self.profile
         self.switch_profile(profile)
+        if moved:  # switch_profile already pushed the first page
+            return True
         first_page = next(iter(self.config['profiles'][profile]['pages']))
         if self.page != first_page:
             self.switch_page(first_page)
         else:
             self.push_page(force=True)
         return True
+
+    def check_plugin(self, plugin_id):
+        """A plugin step fails when no running plugin can read it, so the key flashes red instead of green."""
+        manager = self.plugins
+        if manager is None:  # the plugin manager starts with the main loop
+            return
+        manifest = manager.manifests.get(plugin_id)
+        if manifest is None:
+            raise ValueError(f'The {plugin_id} plugin is not installed')
+        if not (self.config.get('plugins') or {}).get(plugin_id, {}).get('enabled'):
+            raise ValueError(f'{manifest.name} is off: turn it on in More → Plugins')
+        state = manager.history.get(plugin_id, {}).get('state')
+        if state == 'failed':
+            raise ValueError(f'{manifest.name} has stopped: turn it off and on in More → Plugins')
+        if state == 'crashed':
+            raise ValueError(f'{manifest.name} has stopped')
 
     def run_action(self, action):
         kind = action['type']
@@ -489,13 +552,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                     send_text(text)
         elif kind == 'open':
             target = self.substitute(action['target'])
-            if IS_WINDOWS:
-                process = action.get('process', '')
-                if not (action.get('reuse', False) and focus_existing_process(process)):
-                    expanded = os.path.expandvars(target)
-                    os.startfile(expanded if os.path.exists(expanded) else locate(expanded) or expanded)
-            else:
-                subprocess.Popen(['xdg-open', target])
+            if not (action.get('reuse', False) and focus_existing_process(action.get('process', ''))):
+                open_target(target)
         elif kind == 'shell':
             command, timeout = self.substitute(action['command'], 'shell'), action.get('timeout', 30)
             with self.state_lock.suspended():  # the panel and API stay responsive while it runs
@@ -503,21 +561,34 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                     run_command(command, timeout, self.stop)
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
+        elif kind == 'script':
+            with self.state_lock.suspended():
+                try:
+                    run_script(action['path'], action.get('timeout', 30), self.stop)
+                except CommandFailed as exc:
+                    raise RuntimeError(str(exc)) from exc
         elif kind == 'http':
             # $(env:NAME) is expanded before the variables, so a variable's value can never pull in a secret
+            # the address and the headers carry the credential; a value in the body may be left empty on purpose
+            used = ' '.join([action['url'], *action.get('headers', {}).values()])
+            missing = [name for name in dict.fromkeys(ENV_REFERENCE.findall(used)) if not os.environ.get(name)]
+            if missing:  # sent empty, it failed as "must start with http://" or as HTTP 404
+                raise CommandFailed(f'The environment variable {missing[0]} is not set (restart Tessera after setting it)')
             headers = {name: self.substitute(self.expand_environment(value))
                        for name, value in action.get('headers', {}).items()}
+            if not any(name.lower() == 'user-agent' for name in headers):  # some services (Discord) refuse Python-urllib
+                headers['User-Agent'] = 'Tessera-Deck'
             request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
                 method=action.get('method', 'GET'), headers=headers,
                 data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
             with self.state_lock.suspended():
                 try:
-                    with urllib.request.urlopen(request, timeout=action.get('timeout', 5)) as response:
+                    with WEB_OPENER.open(request, timeout=action.get('timeout', 5)) as response:
                         response.read(65536)
                 except urllib.error.HTTPError as exc:  # the server answered, but with an error page
                     raise CommandFailed(f'The web request failed with HTTP {exc.code} {exc.reason}'.strip()) from exc
-        elif kind == ha_keys.KIND:  # dispatch_press calls this only for a touch the panel ran: never twice
-            self.log(f'Home Assistant {action["action"]}: run by the panel')
+                except http.client.InvalidURL:  # its message quotes the path, which can hold a webhook token
+                    raise CommandFailed('The web address is not valid') from None
         elif kind == 'delay':
             with self.state_lock.suspended():
                 self.stop.wait(action.get('ms', 100)/1000)
@@ -532,7 +603,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         elif kind == 'home':
             self.go_home()
         elif kind == 'profile':
-            self.switch_profile(action['profile'])
+            self.switch_profile(action['profile'], page=action.get('page'))
+            if action.get('page') in self.config['profiles'][self.profile]['pages'] and self.page != action['page']:
+                self.switch_page(action['page'])  # the profile was already the current one
         elif kind == 'profile_lock':
             self.profile_locked = not self.profile_locked
             self.manual_focus_exe = ''
@@ -543,15 +616,18 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
             if self.panel is not None:
                 self.panel.send_line(f'AD_PANEL_LOCK {int(self.panel_locked)}')
         elif kind == 'press':
-            if not self.dispatch_press(int(action['id'])):
-                raise ValueError('The child button failed')
+            if not self.dispatch_press(int(action['id'])):  # the child's own reason says more than that it failed
+                raise ValueError((self.last_action or {}).get('error') or 'The child button failed')
         elif kind == 'state':
             self.set_button_state(action['button'], action.get('state', 'next'))
         elif kind == 'mouse':
             with self.input_turn():
                 send_mouse(action['op'], action.get('x', 0), action.get('y', 0), action.get('amount', 0))
         elif kind == 'plugin':
-            self.events.add('command', plugin=action['plugin'], command=action['command'], args=action.get('args', {}))
+            self.check_plugin(action['plugin'])
+            key = {'button': self.active_press[-1][2]} if self.active_press else {}  # lets the plugin flash the key
+            self.events.add('command', plugin=action['plugin'], command=action['command'], args=action.get('args', {}),
+                            **key)
         elif kind == 'counter':
             self.live.apply_counter(action)
             self.push_page()
@@ -570,6 +646,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         elif kind == 'toggle':
             self.custom_vars[action['variable']] = toggled(action, self.custom_vars.get(action['variable']))
             self.push_page()
+        elif kind == 'media':
+            control_media(action['op'])
+        elif kind == 'remote_media':
+            remote_devices.control_media(action['op'], action.get('device', 'first'), action.get('step', remote_devices.DEFAULT_STEP))
         elif kind == 'clipboard':
             with self.input_turn():  # the paste must not land in the middle of another key's typing
                 set_clipboard(self.substitute(action['text']))
@@ -579,6 +659,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
             with self.input_turn():
                 if not window_action(action['op'], action.get('process', '')):
                     raise ValueError('There is no such window')
+        elif kind == ha_keys.KIND:  # dispatch_press calls this only for a touch the panel ran: never twice
+            self.log(f'Home Assistant {action["action"]}: run by the panel')
         else:
             raise ValueError(f'Unknown action: {kind}')
         return True
@@ -802,6 +884,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
             self.dim_display('by request')
         elif kind == 'wake':
             self.wake_display()
+        elif kind == 'notify':  # not a PANEL_JOB: without a panel it becomes a Windows notification
+            self.show_notice(job[1], job[2], job[3])
         elif kind == 'screen-deck':
             # A touch on the ambient screen already returned the panel to the deck.
             self.last_activity = time.monotonic()
@@ -826,9 +910,15 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
         elif kind in ('fader', 'mute', 'agent'):
             self.last_activity = time.monotonic()
             if kind == 'fader':
-                control_audio(job[1], 'volume', job[2])
+                if remote_devices.is_fader(job[1]):
+                    remote_devices.set_volume(job[1], job[2])
+                else:
+                    control_audio(job[1], 'volume', job[2])
             elif kind == 'mute':
-                control_audio(job[1], 'toggle')
+                if remote_devices.is_fader(job[1]):
+                    remote_devices.toggle_mute(job[1])
+                else:
+                    control_audio(job[1], 'toggle')
                 self.cockpit_at = 0.0  # show the new state on the panel at once
             else:
                 self.agent_action(job[1], job[2])
@@ -974,10 +1064,10 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         self.device_info = getattr(self.panel, 'info', {}) or {}
                         self.note_panel_restart(previous_boot)
                         self.cockpit_sent = {}
-                        if self.question_open():
-                            self.enqueue(('question',))
                         remember_port(self.port, self.device_state_path)
                         self.connection_failed.clear()
+                        if self.question_open():  # after the flag: the worker skips a question while the link is down
+                            self.enqueue(('question',))
                         connect_error = None
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
                         self.clock_sent_at = float('-inf')
@@ -987,13 +1077,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
                         with self.state_lock:
                             self.last_activity = time.monotonic()
                             self.apply_brightness()
+                            self.locked = False  # the panel is lit again: lock_tick dims it once more if the PC is locked
                             if self.panel_locked:  # a restarted panel boots unlocked
                                 self.panel.send_line('AD_PANEL_LOCK 1')
-                            self.push_page(force=True)
+                            self.push_first_page()
                             if (self.device_info.get('protocol') or 1) >= 3:
                                 self.panel.send_line('AD_SCREEN deck')  # a restarted host may find the ambient clock showing
                         self.wifi = None  # another panel, or a restarted one, reports its own
-                        if (self.device_info.get('protocol') or 1) >= WIFI_PROTOCOL:
+                        if (self.device_info.get('protocol') or 1) >= WIFI_PROTOCOL and 'wifi' in self.device_info:
                             self.panel.send_line('AD_WIFI_STATUS')  # the answer arrives as a {"type":"wifi"} line
                         self.api_connected()  # "api":1 panels report their Home Assistant state
                         self.publish_runtime(True, force=True)
@@ -1050,8 +1141,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin, HomeAssistantMixin):
 
 
 def main():
+    load('processes').name_process('Tessera')  # so that `killall Tessera` finds it
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--port', default='COM4')
+    parser.add_argument('--port', default=DEFAULT_PORT)
     parser.add_argument('--profiles', default=str(Path(__file__).with_name('profiles.json')))
     parser.add_argument('--no-focus', action='store_true')
     parser.add_argument('--selftest', '--validate', dest='validate', action='store_true',

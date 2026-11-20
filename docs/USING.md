@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-This guide covers daily use of the editor and the panel. [Install](INSTALL.md) covers setup and flashing.
+This guide covers daily use of the editor and the panel. [Install](INSTALL.md) covers setup and flashing. The steps and commands are written for Windows. [Tessera on Linux](LINUX.md) lists what differs there; where this page says `python host\deckctl.py`, use `host/.venv/bin/python host/deckctl.py`.
 
 ## The editor at a glance
 
@@ -31,7 +31,7 @@ Nothing runs in the editor: keys run only when you press them on the panel, or w
 | **Profile** | New profile, *Profile from a template …*, Duplicate, *Profile settings …*, *Delete this profile* |
 | **Page** | New page, *Page from a template …*, Duplicate, *Page settings …*, *Delete this page* |
 | **Panel** | *Display …*, *Panel firmware and updates …*, *Rail …*, *Key colors …* |
-| **More** | *Getting started*, *Connect Claude Code …*, *Plugins …*, *Export to a file*, *Import from a file …*, *Restore a backup …*, *Host log …*, *Save diagnostics* |
+| **More** | *Getting started*, *Connect Claude Code …*, *Plugins …*, *Automatic actions …*, *Export to a file*, *Import from a file …*, *Restore a backup …*, *Host log …*, *Save diagnostics* |
 
 **Program settings** in the top bar holds only what the PC does: starting the host at sign-in, Windows notifications, switching profiles by program, and the calendar for the Next meeting widget.
 
@@ -70,7 +70,7 @@ A widget is a wide key that shows something live. Open the **Widgets** tab and d
 | Widget | Shows |
 |---|---|
 | Clock | The time, the weekday and date, and how far the day is |
-| Date | The date, the week number and the day of the year |
+| Date | The date, the weekday and the week number |
 | Processor, Graphics card | Load with a bar, temperature, clock speed or frames per second |
 | Memory | How much memory is in use |
 | Network | Download and upload speed |
@@ -91,7 +91,7 @@ A widget does nothing when pressed until you give it steps on the **Actions** ta
 A key runs its steps in order.
 
 1. Select the key and open the **Actions** tab.
-2. Pick **Pressed**, **Held** or **Double-press** for when the steps run. A held key runs after about half a second.
+2. Pick **Pressed**, **Held** or **Double-press** for when the steps run. A held key runs after about 0.4 seconds.
 3. Add steps with **＋ Step …**, or drop an action from the list on the key.
 4. Drag a step to reorder it, or use its ↑ and ↓ buttons. A step's type is a menu in its title.
 5. Put **Wait** steps between steps that need time.
@@ -107,6 +107,7 @@ For a toggle, set *Key type* to **Toggle key**. Each press runs the current stat
 | Drag a key to a slot | Moves it; a key there changes places with it |
 | Drag a key onto a page tab | Moves it to that page |
 | Alt+arrow, or *Move to slot* | Moves it to the next slot |
+| *Move to page …* in the key menu (Shift+F10) | Moves it to another page of the profile |
 | Ctrl+C, Ctrl+V | Copies and pastes; pasting onto a used slot says "Replaced key N" with Undo |
 | Ctrl+D | Duplicates the key to a free slot |
 | Pin (Look tab) | Shows the key on every page |
@@ -123,6 +124,8 @@ A profile can switch in by itself when a program is in front.
 
 Rules look like `chrome.exe`, `process:claude.exe` or `title:codex`. Turn the whole feature off with *Switch profile automatically by active program* in **Program settings**. The *Lock profile* action locks or unlocks automatic switching from a key. **Profile → Profile from a template …** gives you ready-made profiles for browsers, Windows and AI tools.
 
+To keep the panel on the profile it shows, hold **Home** for about half a second. Home turns orange, and the panel stays on that profile while you switch programs. Hold Home again to unlock. A tap still goes home, and the lock ends when the host restarts. New installs have this on Home. In a setup made with 1.2.2 or earlier, select Home, open the **Actions** tab, pick **Held** and add a *Lock profile* step. Any other key can carry the step too.
+
 ### The rail and the panel's screens
 
 The rail on the left of the panel switches between your keys, the AI **agents**, a sound **mixer** and the PC's **status**.
@@ -133,9 +136,36 @@ The rail on the left of the panel switches between your keys, the AI **agents**,
 
 ### The mixer
 
-Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now.
+Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now. *Remote devices* adds the volume of a device paired with KDE Connect, such as a phone or a second laptop, as one more fader (see [Remote devices](#remote-devices-kde-connect)). Choose *The first one that is connected*, *Every connected device* or one device by name. The panel shows five faders, so the programs make room: the speaker, the remote devices and the microphone stay. With more connected devices than places (five minus the speaker and the microphone), the devices that come last are left out.
 
-The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed.
+The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed, and also upload speed, uptime, CPU clock, CPU power, GPU power, GPU clock, GPU fan and FPS. The panel shows eight, so with eight ticked you untick one to choose another.
+
+### Remote devices (KDE Connect)
+
+A device paired with [KDE Connect](https://kdeconnect.kde.org) (a phone, a second laptop) can show its volume as a fader on the
+mixer and be controlled from keys. The host talks to KDE Connect itself, so there is nothing to install besides KDE Connect.
+
+- **What you need:** KDE Connect running on this PC (on Windows from the Microsoft Store or kdeconnect.kde.org; on Linux
+  `kdeconnectd`, see [Tessera on Linux](LINUX.md#remote-devices-kde-connect)), the device paired and connected, and the
+  multimedia control plugin on (on the phone: *Multimedia control*; in KDE Connect on this PC: *Multimedia control receiver*).
+  A device that does not offer it is not listed.
+- **The mixer:** open **Mixer** in the editor and choose *Remote devices*: *Not used* (the default), *The first one that is
+  connected*, *Every connected device* or one device by name. The fader moves the volume of the player the device has selected in
+  KDE Connect. A device has no mute, so the round button on its fader sets the volume to 0 and, the second time, back to
+  what it was. The panel shows five faders: the programs make room for the remote devices.
+- **Keys:** the action *Remote media* (in the editor's action list under *Other devices*; play/pause, play, pause, next, previous, stop) with a device choice (the first connected one, or one device by name), and the
+  ready-made keys (listed under *Media* and under *Other devices*) *Remote play / pause (shows state)* (the icon follows the device: *Play* while it is paused, *Pause* while it plays),
+  *Remote next track*, *Remote previous track*, *Remote volume +* and *Remote volume -* (the volume keys move the device's volume by 5 percent; the *Step* of the action changes that). Any key can follow the device with the *Remote device playing* state (`"bind": "remote_playing"`). `$(remote:track)` and
+  `$(remote:artist)` are the title and artist of the first connected device. A wide key can show that device's music with its progress
+  (*Shows → The music of a paired device*; a key with a Remote media action gets it when you make it wide), as *The music that
+  plays* does for this PC.
+- **When it is asked:** KDE Connect is asked every second only while the mixer shows a remote fader or a key uses the device
+  (`$(remote:…)`, *Remote device playing*, *The music of a paired device*); otherwise the host looks at most every few seconds, and
+  only every minute while KDE Connect is not running.
+- **Limits:** the volume is that of the device's current player, as KDE Connect reports it, and a player another app has taken over
+  can show an old value for a moment. A phone sets its volume in steps (about fifteen), so the fader can settle a few percent away
+  from where it was put. On Windows, Tessera joins the D-Bus that KDE Connect starts for itself; it does not start KDE Connect,
+  so a device appears a few seconds after KDE Connect starts, or up to a minute when Tessera had just found KDE Connect not running.
 
 ### The agents screen and Claude Code
 
@@ -169,20 +199,20 @@ Open **Panel → Display …** (or the tray's *Brightness* menu).
 | *Panel brightness* | The normal level |
 | *Dim the panel after* | How long without a press before it dims, or *Never*. It also dims when Windows locks. |
 | *Brightness when dimmed* | The level while dimmed, or *Off* |
-| *Quiet hours* and *Brightness during quiet hours* | A lower level between two times, for example at night |
+| *Quiet hours*, *From*, *To* and *Brightness during quiet hours* | A lower level between any two times, for example at night. The window can run past midnight |
 | *Clock format* | *Same as Windows* (the default), *24-hour* or *12-hour* with AM/PM, for the idle clock and the rail |
-| *Show a big clock when the panel has been idle* and *Show it after* | The idle clock. Touch the panel to get the keys back. |
+| *Show a big clock when the panel has been idle* and *Show it after* | The idle clock. It waits until both the panel and the PC's keyboard and mouse have been idle that long, and the keys come back when you touch the panel or use the PC. A clock you asked for with a *Switch screen* key stays until you touch the panel. |
 | *Weather for (city, optional)* and *Temperature unit* | Weather on the idle clock from open-meteo.com every 15 minutes, with an icon for sun, moon (after sunset there), cloud, fog, drizzle, rain, snow or thunder. Leave the city empty for no weather and no internet use. |
 
 The first touch on a dimmed panel only wakes it; it does not press a key. A long press on the panel's logo opens an About sheet with a brightness slider. The panel keeps its brightness across restarts.
 
-Windows notifications (panel connected or disconnected, a host that stopped, an agent waiting or done, a timer that ends) can be switched off with *Show Windows notifications* in **Program settings** or *Show notifications* in the tray menu. Answers to what you click in the tray still show.
+Windows notifications (panel connected or disconnected, a host that stopped, an agent waiting or done, a timer that ends, a message from `deckctl say` or a plugin when the panel cannot show it) can be switched off with *Show Windows notifications* in **Program settings** or *Show notifications* in the tray menu. Answers to what you click in the tray still show.
 
 **Panel → Key colors …** sets the default background, text and outline for every key without colors of its own.
 
 ### Wi-Fi and Home Assistant
 
-The panel can join your Wi-Fi so Home Assistant finds it as an ESPHome device. It needs panel firmware with Wi-Fi (protocol 5); on older firmware the dialog says so and offers **Panel firmware …**. USB to the PC keeps working as before, and Wi-Fi stays off until you set it up.
+The panel can join your Wi-Fi so Home Assistant finds it as an ESPHome device. It needs the GUITION board, whose ESP32-C6 chip handles the Wi-Fi, and panel firmware with Wi-Fi (protocol 5). On older firmware the dialog says so and offers **Panel firmware …**; the other boards have no Wi-Fi. USB to the PC keeps working as before, and Wi-Fi stays off until you set it up.
 
 1. Connect the panel over USB and start the host.
 2. Open **Panel → Wi-Fi and Home Assistant …**, type the network name and password (or tick *Open network*), and choose **Connect**.
@@ -215,7 +245,7 @@ To check the API from the PC without Home Assistant, `tools/esphome_check.py` co
 
 ### Back up, export and import
 
-- Tessera keeps the latest 30 automatic backups while you edit. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.
+- Tessera keeps the latest 30 automatic backups while you edit, at most one every 10 minutes. *Keep* on a backup holds on to it: a kept backup is not removed when newer ones come. **More → Restore a backup …** goes back to an earlier save and keeps the current one as a backup too.
 - **More → Export to a file** writes your profiles and keys. It leaves out secrets: the calendar address, plugin passwords and web request credentials.
 - **More → Import from a file …** first shows the file's profiles, pages and keys and the risky actions in it, including the host each web request goes to and every automatic rule. Then choose *Add as new profiles* (your profiles stay; rules, rail and settings in the file are not used) or *Replace the configuration*. You can undo an import.
 
@@ -247,14 +277,17 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 |---|---|---|
 | Hotkey | `hotkey` | Press a key combination or media key |
 | Type text | `text` | Type text |
-| Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program |
-| Run command, HTTP request | `shell`, `http` | Run a command or call an address; an error status (4xx, 5xx) fails the action |
+| Open program / file | `open` | Open a program, file, folder or URL, optionally focusing a running program. `%NAME%` is filled in from the environment in paths, not in addresses |
+| Run command, HTTP request | `shell`, `http` | Run a command or call an address. Both have a *Timeout* (1 to 300 seconds; a command gets 30 and a request 5 without one), and a request has *Headers*, one `Name: value` per line; an error status (4xx, 5xx) fails the action, and so does a redirect from https to http. A redirect to another host goes there without the step's headers |
+| Run script | `script` | Run a script file without a window, in the script's own folder, with the same timeout and error report as a command. Supported: `.py`, `.pyw` (py launcher), `.ps1` (PowerShell with `-NoProfile`; the execution policy is bypassed for that one process only, and a policy set by an administrator still applies), `.bat`, `.cmd`, `.ahk` (the program Windows has registered for the type, else AutoHotkey from App Paths or PATH) and `.js` (Node.js). The path must be a full path. It can start with a variable such as `%USERPROFILE%`, and quotes around it (as from Explorer's *Copy as path*) are ignored. A variable that is not set on the PC fails the key, with the variable's name as the reason. A `.bat` or `.cmd` path cannot contain a `%` sign after that first variable. Batch files on a network path (`\\server\share`) start in the Windows folder, because cmd.exe does not accept a network folder as its working folder. The editor has Choose file and Edit buttons, and the dry run reports whether the file and its interpreter were found. Import review flags it like a command |
 | Wait | `delay` | Wait between steps |
-| Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate |
+| Open folder (with Back key), Back, Go home, Go to page (no Back key), Switch profile | `folder`, `back`, `home`, `page`, `profile` | Navigate. *Switch profile* goes to the profile's first page, or to the page you choose (`"page"`) |
 | Trigger another key | `press` | Run another key |
 | Set variable, Toggle variable | `set`, `toggle` | Set a variable, or switch it between two values |
 | Set key state | `state` | Set a toggle key's state (`next` or a state number) |
 | Mute / unmute audio | `audio` | Mute, unmute or set the volume of the speaker, the microphone or one program (`app:NAME.exe`) |
+| Shuffle / repeat | `media` | Toggle shuffle (`"op": "shuffle"`) or cycle repeat off, all, one (`"op": "repeat"`) in the player shown in the Windows media controls. Without a player, or with one that does not offer it, the key fails and says why |
+| Remote media | `remote_media` | Play/pause, play, pause, next, previous or stop (`"op": "playpause"`, `"play"`, `"pause"`, `"next"`, `"previous"`, `"stop"`), or turn the volume up or down (`"volumeup"`, `"volumedown"`, by `"step"` percent, 1 to 50, default 5) in the player of a device paired with KDE Connect. `"device"` is `"first"` (the default) or the id of one paired device: a key reaches one device, never every one. Without a reachable device the key fails and says so |
 | Counter, Timer | `counter`, `timer` | Change a counter; start, pause, resume, stop or toggle a timer |
 | Mouse | `mouse` | Click (left, right, middle or double), scroll, or move the pointer |
 | Switch screen | `screen` | Show the clock, the keys, or switch between them |
@@ -262,19 +295,21 @@ If `host/profiles.json` is broken at start, Tessera restores the newest good bac
 | Copy to clipboard | `clipboard` | Put text on the clipboard and optionally paste it |
 | Window | `window` | Minimize, maximize, restore or close a window, toggle always on top, move it to the next monitor or bring a program to the front |
 | Home Assistant | `homeassistant` | The panel calls a Home Assistant action (`action`, optional `entity_id` and `data`), also with the PC off; needs panel firmware with `"ha":1` (see [Wi-Fi and Home Assistant](#wi-fi-and-home-assistant)) |
-| Plugin (no editor name; added by plugins) | `plugin` | Send a command to a [plugin](PLUGINS.md) |
+| Plugin command | `plugin` | Send a command and its arguments (a JSON object) to a [plugin](PLUGINS.md). The step fails when the plugin is not installed, off or stopped |
 
 ### Labels and variables
 
-A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)` and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)` and `$(pc:playing)`. `$(pc:track)` shows *No music* when nothing plays.
+A key's title and text steps can use `$(time)`, `$(date)`, `$(profile)`, `$(page)`, `$(profile_lock)`, `$(agent:claude)`, `$(var:name)`, `$(stat:cpu_temp)`, `$(counter:name)`, `$(timer:name)`, `$(timer-state:name)` (IDLE, RUNNING, PAUSED or DONE) and the live PC values `$(pc:mic)`, `$(pc:speaker)`, `$(pc:volume)`, `$(pc:track)`, `$(pc:artist)`, `$(pc:media)`, `$(pc:playing)`, `$(pc:shuffle)` (ON or OFF) and `$(pc:repeat)` (OFF, ALL or ONE). `$(pc:track)` shows *No music* when nothing plays. `$(pc:shuffle)` and `$(pc:repeat)` are empty when the player does not report them. A counter or timer nobody has used yet shows `0` or `00:00`. With KDE Connect, `$(remote:track)` and `$(remote:artist)` give the title and the artist of the first connected paired device (empty when there is none).
+
+An HTTP step can also use `$(env:NAME)` in its address, headers and body. It is filled in from the PC's environment when the key runs, so a token or a webhook address stays out of the profile. If the variable in the address or a header is not set, the key fails and names it; restart Tessera after you set one.
 
 In a `shell` command, put a value in double quotes (`notify.exe "$(pc:track)"`). Tessera refuses values with shell metacharacters; spaces are allowed.
 
-A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key. In the editor: the key's **Live** tab, *Color follows a variable*, then **＋ Value …** for each value that gets a color. Other values keep the key color.
+A toggle key can follow the PC with `"bind": "mic_muted" | "speaker_muted" | "media_playing" | "media_shuffle" | "media_repeat" | "remote_playing" | "timer-running:NAME"` (state 1 is off, state 2 is on). A key can change color with a variable: `"status": { "var": "claude", "colors": { "working": "#FFB74D" } }`. The Claude Code profile does this on its first key. In the editor: the key's **Live** tab, *Color follows a variable*, then **＋ Value …** for each value that gets a color. Other values keep the key color.
 
 ### Automatic actions
 
-In the editor: **More → Automatic actions …**. Each one runs the steps it copies from a key. They run in every profile, while the host runs.
+In the editor: **More → Automatic actions …**. Each one runs the steps it copies from a key. They run in every profile, while the host runs. The host log has a line each time one runs, except for the ones on an interval.
 
 `triggers` at the top of `profiles.json` is a list of `{"when": {...}, "actions": [...]}`. `when` is one of:
 
@@ -282,8 +317,8 @@ In the editor: **More → Automatic actions …**. Each one runs the steps it co
 |---|---|
 | `{"type": "startup"}` | When the host starts |
 | `{"type": "interval", "seconds": 60}` | Every 60 seconds |
-| `{"type": "daily", "at": "08:30"}` | Every day at that time |
-| `{"type": "file", "path": "..."}` | When the file changes |
+| `{"type": "daily", "at": "08:30"}` | Every day at that time. With `"days": ["mon", "tue", "wed", "thu", "fri"]` only on those days (*Only on* in the editor) |
+| `{"type": "file", "path": "..."}` | When the file changes. The path may start with `~` or an environment variable |
 | `{"type": "variable", "name": "claude"}` | When the variable changes |
 | `{"type": "variable", "name": "claude", "value": "waiting"}` | When the variable becomes `waiting` |
 
@@ -306,7 +341,7 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 | Source | Needs | Provides |
 |---|---|---|
 | Windows | Nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
-| Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power, fan speed, clock |
+| Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power and clock; fan speed on AMD only |
 | Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks |
 | HWiNFO | Running with shared memory enabled (`host\Enable-HWiNFO.ps1`, as administrator, turns it on) | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
@@ -322,8 +357,12 @@ python host\deckctl.py state 3 next           # set a toggle key's state
 python host\deckctl.py page main status       # show a page
 python host\deckctl.py press 5                # press key 5
 python host\deckctl.py ok 5                   # flash key 5 green (alert 5: red)
-python host\deckctl.py status                 # also: wake, dim
+python host\deckctl.py say Build passed --level ok   # a short message on the panel
+python host\deckctl.py get claude             # print one variable; exit code 1 when it is not set
+python host\deckctl.py status                 # everything as JSON, with the profiles and their pages; also: wake, dim
 ```
+
+`say` takes 1 to 100 characters on one line; longer text or a line break is refused and `deckctl` exits with 1. It shows the text in a banner at the top of the panel for `--seconds` (1 to 30, default 6), with a colored edge for `--level` `info`, `ok`, `warn` or `error`. A tap on the banner closes it. A `warn` or `error` message wakes a dimmed panel, except while Windows is locked. Without a panel that can show it (none connected, or firmware older than the banner), the message becomes a tray notification that follows the *Show Windows notifications* setting, and is otherwise dropped.
 
 Each token is limited to 20 calls a second (bursts of 40, then `429`), and every change is logged with the caller's name.
 
@@ -345,8 +384,8 @@ Start with **More → Host log …**. It shows what the USB host does: connectio
 
 | Symptom | Fix |
 |---|---|
+| A page change takes several seconds | The panel's image cache holds about 33 animated icons of 12 frames. With more on the pages you switch between, the host sends them again on a page change, about 0.65 s each. Use still icons for most keys. |
 | The panel stays black but touch works | A touch wakes a dimmed panel. If it stays black, restart the host; it wakes the backlight on connect. |
 | Gauges show `--` | CPU temperature and power need Libre Hardware Monitor (`tools\setup_sensors.ps1`). FPS needs HWiNFO with PresentMon. |
-| A key makes only a program's taskbar button flash | Update to 0.6.0 or later and restart the host. It then brings the window to the front. |
 | A key does nothing | Check the key for a yellow dot (unfinished). **Test** the key and read the steps. Then read the host log. |
 | An action list click made a key on the wrong slot | A click uses the selected slot if it is empty, else the first free one. Select the empty slot first, or drag the action to it. |

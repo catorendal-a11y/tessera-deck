@@ -80,6 +80,215 @@
       ]
     },
     {
+      "group": "Windows",
+      "name": "Shut down",
+      "icon": "stop",
+      "color": "#FF7070",
+      "confirm": true,
+      "note": "Hold to confirm",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "shutdown /s /t 0"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Restart",
+      "icon": "refresh",
+      "color": "#FFB74D",
+      "confirm": true,
+      "note": "Hold to confirm",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "shutdown /r /t 0"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Sleep",
+      "icon": "pause",
+      "color": "#7AA2F7",
+      "confirm": true,
+      "note": "Sleeps, never hibernates",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "start \"\" /min powershell -NoProfile -WindowStyle Hidden -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)\""
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Sign out",
+      "icon": "close",
+      "color": "#FF7070",
+      "confirm": true,
+      "note": "Hold to confirm",
+      "actions": [
+        {
+          "type": "shell",
+          "command": "shutdown /l"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Game Bar",
+      "icon": "play",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "win+g"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "New folder",
+      "icon": "folder",
+      "note": "In File Explorer",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+n"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "Rename",
+      "icon": "edit",
+      "note": "Renames the selected file",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "f2"
+        }
+      ]
+    },
+    {
+      "group": "Windows",
+      "name": "System info",
+      "icon": "list",
+      "actions": [
+        {
+          "type": "open",
+          "target": "msinfo32.exe"
+        }
+      ]
+    },
+    {
+      "group": "Browser",
+      "name": "New window",
+      "icon": "plus",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+n"
+        }
+      ]
+    },
+    {
+      "group": "Browser",
+      "name": "Private window",
+      "icon": "lock",
+      "note": "Chrome and Edge",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+n"
+        }
+      ]
+    },
+    {
+      "group": "Browser",
+      "name": "Private (Firefox)",
+      "icon": "lock",
+      "note": "Firefox",
+      "actions": [
+        {
+          "type": "hotkey",
+          "keys": "ctrl+shift+p"
+        }
+      ]
+    },
+    {
+      "group": "Media",
+      "name": "Shuffle",
+      "icon": "loop",
+      "note": "Any player in the Windows media controls",
+      "actions": [
+        {
+          "type": "media",
+          "op": "shuffle"
+        }
+      ]
+    },
+    {
+      "group": "Media",
+      "name": "Repeat",
+      "icon": "refresh",
+      "note": "Cycles off, all, one",
+      "actions": [
+        {
+          "type": "media",
+          "op": "repeat"
+        }
+      ]
+    },
+    {
+      "group": "Productivity",
+      "name": "Discord message",
+      "icon": "upload",
+      "note": "Set DISCORD_WEBHOOK_URL in Windows",
+      "actions": [
+        {
+          "type": "http",
+          "method": "POST",
+          "url": "$(env:DISCORD_WEBHOOK_URL)",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\"content\": \"Hello from Tessera Deck\"}"
+        }
+      ]
+    },
+    {
+      "group": "Productivity",
+      "name": "Telegram message",
+      "icon": "upload",
+      "note": "Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in Windows",
+      "actions": [
+        {
+          "type": "http",
+          "method": "POST",
+          "url": "https://api.telegram.org/bot$(env:TELEGRAM_BOT_TOKEN)/sendMessage",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "body": "{\"chat_id\": \"$(env:TELEGRAM_CHAT_ID)\", \"text\": \"Hello from Tessera Deck\"}"
+        }
+      ]
+    },
+    {
+      "group": "Productivity",
+      "name": "ntfy message",
+      "icon": "upload",
+      "note": "Set NTFY_URL in Windows, for example https://ntfy.sh/your-topic",
+      "actions": [
+        {
+          "type": "http",
+          "method": "POST",
+          "url": "$(env:NTFY_URL)",
+          "body": "Hello from Tessera Deck"
+        }
+      ]
+    },
+    {
       "group": "Window management",
       "name": "Always on top",
       "icon": "upload",
@@ -319,6 +528,117 @@
         {
           "type": "hotkey",
           "keys": "mediaprev"
+        }
+      ]
+    },
+    {
+      "group": "Media",
+      "name": "Remote play / pause (shows state)",
+      "icon": "lc:e13c",
+      "color": "#35D07F",
+      "label": "Remote",
+      "note": "A paired device (KDE Connect)",
+      "states": [
+        {
+          "label": "Play",
+          "icon": "lc:e13c",
+          "color": "#35D07F",
+          "actions": [
+            {
+              "type": "remote_media",
+              "op": "playpause",
+              "device": "first"
+            }
+          ]
+        },
+        {
+          "label": "Pause",
+          "icon": "lc:e12e",
+          "color": "#35D07F",
+          "actions": [
+            {
+              "type": "remote_media",
+              "op": "playpause",
+              "device": "first"
+            }
+          ]
+        }
+      ],
+      "bind": "remote_playing",
+      "actions": [
+        {
+          "type": "remote_media",
+          "op": "playpause",
+          "device": "first"
+        }
+      ],
+      "also": [
+        "Other devices"
+      ]
+    },
+    {
+      "group": "Media",
+      "name": "Remote next track",
+      "icon": "lc:e160",
+      "note": "A paired device (KDE Connect)",
+      "actions": [
+        {
+          "type": "remote_media",
+          "op": "next",
+          "device": "first"
+        }
+      ],
+      "also": [
+        "Other devices"
+      ]
+    },
+    {
+      "group": "Media",
+      "name": "Remote previous track",
+      "icon": "lc:e15f",
+      "note": "A paired device (KDE Connect)",
+      "actions": [
+        {
+          "type": "remote_media",
+          "op": "previous",
+          "device": "first"
+        }
+      ],
+      "also": [
+        "Other devices"
+      ]
+    },
+    {
+      "group": "Media",
+      "also": [
+        "Other devices"
+      ],
+      "name": "Remote volume +",
+      "icon": "plus",
+      "label": "Remote vol +",
+      "note": "A paired device (KDE Connect)",
+      "actions": [
+        {
+          "type": "remote_media",
+          "op": "volumeup",
+          "device": "first"
+        }
+      ]
+    },
+    {
+      "group": "Media",
+      "also": [
+        "Other devices"
+      ],
+      "name": "Remote volume -",
+      "icon": "minus",
+      "label": "Remote vol -",
+      "note": "A paired device (KDE Connect)",
+      "actions": [
+        {
+          "type": "remote_media",
+          "op": "volumedown",
+          "device": "first"
         }
       ]
     },
@@ -1029,6 +1349,92 @@
       ]
     },
     {
+      "group": "Meetings",
+      "name": "Mic mute (shows state)",
+      "icon": "lc:e119",
+      "color": "#FFB74D",
+      "label": "Mic",
+      "states": [
+        {
+          "label": "Mic live",
+          "icon": "lc:e118",
+          "color": "#35D07F",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "mic",
+              "op": "toggle"
+            }
+          ]
+        },
+        {
+          "label": "Mic muted",
+          "icon": "lc:e119",
+          "color": "#FF5252",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "mic",
+              "op": "toggle"
+            }
+          ]
+        }
+      ],
+      "bind": "mic_muted",
+      "actions": []
+    },
+    {
+      "group": "Media",
+      "name": "Speaker mute (shows state)",
+      "icon": "lc:e1ac",
+      "color": "#FFB74D",
+      "label": "Speaker",
+      "states": [
+        {
+          "label": "Sound on",
+          "icon": "lc:e1ab",
+          "color": "#35D07F",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "speaker",
+              "op": "toggle"
+            }
+          ]
+        },
+        {
+          "label": "Muted",
+          "icon": "lc:e1ac",
+          "color": "#FF5252",
+          "actions": [
+            {
+              "type": "audio",
+              "target": "speaker",
+              "op": "toggle"
+            }
+          ]
+        }
+      ],
+      "bind": "speaker_muted",
+      "actions": []
+    },
+    {
+      "group": "Productivity",
+      "name": "Pomodoro 25 min",
+      "icon": "play",
+      "color": "#FF7070",
+      "label": "$(timer:pomodoro)",
+      "actions": [
+        {
+          "type": "timer",
+          "name": "pomodoro",
+          "op": "toggle",
+          "seconds": 1500,
+          "notify": "Pomodoro done. Time for a break."
+        }
+      ]
+    },
+    {
       "group": "Productivity",
       "name": "Start work session",
       "icon": "play",
@@ -1418,7 +1824,7 @@
     },
     {
       "group": "GitHub Desktop",
-      "name": "Fetch (pull)",
+      "name": "Pull",
       "icon": "download",
       "color": "#8B7CFF",
       "actions": [
@@ -1430,7 +1836,7 @@
     },
     {
       "group": "GitHub Desktop",
-      "name": "Send (push)",
+      "name": "Push",
       "icon": "upload",
       "color": "#8B7CFF",
       "actions": [
@@ -1679,7 +2085,7 @@
             },
             {
               "id": 14,
-              "label": "Snip",
+              "label": "Clipboard history",
               "icon": "list",
               "color": "#35D07F",
               "actions": [
@@ -1777,7 +2183,7 @@
             },
             {
               "id": 5,
-              "label": "Power menu",
+              "label": "Quick settings",
               "icon": "settings",
               "color": "#35D07F",
               "actions": [
@@ -4898,6 +5304,347 @@
           "actions": [
             {
               "type": "back"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "OBS",
+      "description": "Record, stream, replay and the scene. Turn on the OBS plugin in More → Plugins first.",
+      "page": [
+        {
+          "id": 1,
+          "label": "Record",
+          "icon": "lc:e345",
+          "color": "#64B5F6",
+          "status": {
+            "var": "obs.recording",
+            "colors": {
+              "ON": "#FF7070"
+            }
+          },
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "record"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Stream",
+          "icon": "lc:e404",
+          "color": "#64B5F6",
+          "status": {
+            "var": "obs.streaming",
+            "colors": {
+              "ON": "#FF7070"
+            }
+          },
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "stream"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Pause",
+          "icon": "lc:e07f",
+          "color": "#64B5F6",
+          "status": {
+            "var": "obs.paused",
+            "colors": {
+              "ON": "#FFB74D"
+            }
+          },
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "pause"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Save replay",
+          "icon": "lc:e147",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "replay"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Virtual cam",
+          "icon": "lc:e205",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "virtualcam"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Transition",
+          "icon": "lc:e417",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "plugin",
+              "plugin": "obs",
+              "command": "transition"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "$(var:obs.scene)",
+          "icon": "lc:e29b",
+          "color": "#35D07F",
+          "actions": []
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Farming Simulator",
+      "description": "FS25 default keys: tools, cruise, worker, map",
+      "page": [
+        {
+          "id": 1,
+          "label": "Enter / exit",
+          "icon": "lc:e10d",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "e"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "label": "Attach",
+          "icon": "lc:e102",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "q"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "label": "Lower / raise",
+          "icon": "lc:e046",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "v"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "label": "Tool on / off",
+          "icon": "lc:e140",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "b"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "label": "Fold",
+          "icon": "lc:e43c",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "x"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "label": "Tool group",
+          "icon": "lc:e529",
+          "color": "#FFB74D",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "g"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "label": "Cruise",
+          "icon": "lc:e1bf",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "3"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "label": "Cruise -",
+          "icon": "lc:e07e",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "1"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "label": "Cruise +",
+          "icon": "lc:e081",
+          "color": "#64B5F6",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "2"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "label": "Lights",
+          "icon": "lc:e1c2",
+          "color": "#F2B94B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "f"
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "label": "Worker",
+          "icon": "lc:e0ee",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "h"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "label": "Unload",
+          "icon": "lc:e455",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "i"
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "label": "Refill",
+          "icon": "lc:e2af",
+          "color": "#4DD0E1",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "r"
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "label": "Next vehicle",
+          "icon": "lc:e504",
+          "color": "#58E09B",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "tab"
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "label": "Camera",
+          "icon": "lc:e1a5",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "c"
+            }
+          ]
+        },
+        {
+          "id": 16,
+          "label": "Map",
+          "icon": "lc:e110",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "9"
+            }
+          ]
+        },
+        {
+          "id": 17,
+          "label": "Back",
+          "icon": "lc:e048",
+          "color": "#A3B2BC",
+          "actions": [
+            {
+              "type": "back"
+            }
+          ]
+        },
+        {
+          "id": 18,
+          "label": "Shop",
+          "icon": "lc:e15c",
+          "color": "#B388FF",
+          "actions": [
+            {
+              "type": "hotkey",
+              "keys": "p"
             }
           ]
         }

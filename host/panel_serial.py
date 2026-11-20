@@ -3,6 +3,8 @@ from collections import OrderedDict
 import hashlib
 import json
 import re
+
+from platform_support import load
 import threading
 import time
 import zlib
@@ -12,7 +14,7 @@ try:
 except ImportError:
     serial = None
 
-BOARD_ID = 'tessera-p4'
+BOARD_IDS = ('tessera-p4', 'tessera-p4-crowpanel7', 'tessera-s3-ws7', 'tessera-s3-8048s070')
 # 1: original, 2: hold events + protocol field, 3: key colors + ambient screen, 4: cockpit screens (agents, mixer, status),
 # 5: Wi-Fi (AD_WIFI_SET, AD_WIFI_CLEAR, AD_WIFI_STATUS, {"type":"wifi"} and "wifi" in get_info)
 SUPPORTED_PROTOCOLS = (1, 2, 3, 4, 5)
@@ -26,7 +28,16 @@ _HEX64 = re.compile(r'[0-9A-Fa-f]{64}')
 _IPV4 = re.compile(r'(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})', re.ASCII)
 _MAC = re.compile(r'[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5}')
 HANDSHAKE_SECONDS = 2.5
-PANEL_CACHE_BYTES = 8 * 1024 * 1024  # decoded images the panel keeps; CacheLimit in main/deck_images.cpp
+# On Linux the kernel raises DTR and RTS when the port opens, before pyserial can lower them. The UART boards wire
+# those lines to EN and IO0, so opening the port restarts the panel and it needs about 3 s to answer. Wait longer
+# and ask again every second: a request sent while it boots is lost.
+RESETS_ON_OPEN = load('labels').RESETS_ON_OPEN
+RESET_HANDSHAKE_SECONDS = 10.0
+ASK_AGAIN_SECONDS = 1.0
+# It answers get_info before its boot screen has finished; a layout sent in that moment can lose bytes on the UART.
+SETTLE_AFTER_RESET_SECONDS = 1.5
+PANEL_CACHE_BYTES = 8 * 1024 * 1024  # what firmware without "imgCache" in get_info keeps; CacheLimit in main/deck_images.cpp
+PANEL_SIZE = (1024, 600)  # what firmware without "w"/"h" in get_info has
 OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
 OTA_CHUNK = 512  # image bytes per AD_OTA_DATA line; OTA_CHUNK in main/main.cpp
 OTA_WINDOW = 2048  # the panel acknowledges every OTA_WINDOW bytes; OTA_ACK_BYTES in main/main.cpp
@@ -201,14 +212,15 @@ class DeviceRejected(ValueError):
     """The port answers, but it is not a compatible Tessera panel."""
     kind = 'other'  # 'silent' (no answer), 'board' (another device) or 'protocol' (incompatible firmware)
 
-    def __init__(self, message, kind='other'):
+    def __init__(self, message, kind='other', info=None):
         super().__init__(message)
         self.kind = kind
+        self.info = info  # the panel's get_info answer when it was a Tessera panel with another protocol
 
 
 class PanelSerial:
     """Serialized writes and byte-based framing retain split UTF-8 and newlines."""
-    def __init__(self, port, log):
+    def __init__(self, port, log, baud=None):
         if serial is None:
             raise RuntimeError('Install host/requirements.txt first')
         self.log = log
@@ -224,9 +236,12 @@ class PanelSerial:
         self.api_key_reply = ''  # holds the key for a moment: never log it
         self.assets_sent = OrderedDict()  # name -> decoded bytes on the panel, oldest first
         self.ser = serial.Serial()
-        self.ser.port, self.ser.baudrate = port, 115200
+        if baud is None:
+            from host_runtime import port_baud
+            baud = port_baud(port)
+        self.ser.port, self.ser.baudrate = port, baud
         self.ser.timeout, self.ser.write_timeout = 0.1, 2
-        self.ser.dtr = self.ser.rts = False
+        self.ser.dtr = self.ser.rts = False  # on the UART boards these lines drive EN and IO0
         self.ser.open()
         self.info = {}
         try:
@@ -242,8 +257,13 @@ class PanelSerial:
         """
         self.ser.reset_input_buffer()
         self.send_line('{"cmd":"get_info"}')
-        deadline = time.monotonic() + HANDSHAKE_SECONDS
+        started = time.monotonic()
+        deadline = started + (max(HANDSHAKE_SECONDS, RESET_HANDSHAKE_SECONDS) if self.resets_on_open() else HANDSHAKE_SECONDS)
+        asked = started
         while time.monotonic() < deadline:
+            if self.resets_on_open() and time.monotonic() - asked >= ASK_AGAIN_SECONDS:
+                asked = time.monotonic()
+                self.send_line('{"cmd":"get_info"}')
             for line in self.read_lines():
                 try:
                     message = json.loads(line) if line.startswith('{') else None
@@ -251,17 +271,33 @@ class PanelSerial:
                     continue
                 if isinstance(message, dict) and message.get('type') == 'info':
                     self.accept(message)
+                    if self.resets_on_open():
+                        time.sleep(SETTLE_AFTER_RESET_SECONDS)
+                        self.ser.reset_input_buffer()  # the boot log and the answers to the repeated questions
                     return
         raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel', 'silent')
 
+    def resets_on_open(self):
+        return RESETS_ON_OPEN and str(getattr(getattr(self, 'ser', None), 'port', '')).startswith('/dev/')
+
     def accept(self, info):
-        if info.get('boardId') != BOARD_ID:
+        if info.get('boardId') not in BOARD_IDS:
             raise DeviceRejected(f'{self.ser.port} is a different device (board {info.get("boardId")!r})', 'board')
         protocol = info.get('protocol', 1)
         if type(protocol) is not int or protocol not in SUPPORTED_PROTOCOLS:
             raise DeviceRejected(f'Firmware protocol {protocol!r} is not supported (this host speaks '
-                                 f'{SUPPORTED_PROTOCOLS[0]}-{SUPPORTED_PROTOCOLS[-1]}); update the firmware or the host', 'protocol')
+                                 f'{SUPPORTED_PROTOCOLS[0]}-{SUPPORTED_PROTOCOLS[-1]}); update the firmware or the host', 'protocol', info)
         self.info = dict(info, protocol=protocol)
+
+    @property
+    def cache_bytes(self):
+        value = self.info.get('imgCache')
+        return value if type(value) is int and value > 0 else PANEL_CACHE_BYTES
+
+    @property
+    def screen_size(self):
+        w, h = self.info.get('w'), self.info.get('h')
+        return (w, h) if type(w) is int and type(h) is int and w > 0 and h > 0 else PANEL_SIZE
 
     def close(self):
         self.ser.close()
@@ -314,8 +350,9 @@ class PanelSerial:
     ack_seconds = 4
 
     def supports_wifi(self) -> bool:
+        """Protocol 5 and the "wifi" field: a board without Wi-Fi (all but the GUITION P4) leaves the field out."""
         protocol = self.info.get('protocol', 1)
-        return type(protocol) is int and protocol >= WIFI_PROTOCOL
+        return type(protocol) is int and protocol >= WIFI_PROTOCOL and isinstance(self.info.get('wifi'), str)
 
     def _wifi_command(self, command, line) -> None:
         """Send `line`, wait for `command OK`; OSError with the panel's answer otherwise. The line is never logged."""
@@ -388,8 +425,12 @@ class PanelSerial:
             raise ValueError(f'The button layout is too large ({len(payload.encode()):,} of {OFFLINE_LAYOUT_BYTES:,} bytes)')
         try:
             self.push_payload(payload)
-        except TimeoutError:
-            self.log('The panel did not acknowledge the button layout; sending it once more')
+        except (TimeoutError, ValueError) as exc:  # lost on the way (timeout) or damaged (INVALID): same port, once more
+            # An INVALID answer is a refusal and is not retried, except on the Linux UART link, where it is almost
+            # always a damaged line, and failing here would close and reopen the port, which restarts the panel.
+            if isinstance(exc, ValueError) and not (self.resets_on_open() and str(exc).startswith('AD_CFG_END INVALID')):
+                raise
+            self.log('The panel did not accept the button layout; sending it once more')
             self.push_payload(payload)  # the layout replaces the old one, so sending it twice is harmless
 
     def push_payload(self, payload):
@@ -463,9 +504,9 @@ class PanelSerial:
                 self.send_line('AD_IMG_END')
                 self._image_answer('AD_IMG_END OK ' + name, 'the image')
                 self.assets_sent[name] = raw[4] * raw[5] * 4 * raw[6]  # width x height x RGBA x frames
-            # The panel keeps PANEL_CACHE_BYTES of decoded images and drops the oldest ones no key shows; forget
+            # The panel keeps cache_bytes of decoded images and drops the oldest ones no key shows; forget
             # those here too, so they are sent again when a page needs them.
-            while sum(self.assets_sent.values()) > PANEL_CACHE_BYTES:
+            while sum(self.assets_sent.values()) > self.cache_bytes:
                 oldest = next((key for key in self.assets_sent if key not in shown), None)
                 if oldest is None:
                     break

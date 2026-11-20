@@ -16,18 +16,19 @@ from pathlib import Path
 LOG_LINES = 400
 MAX_LOG_BYTES = 256 * 1024
 USER_PATH = re.compile(r'(?i)([A-Z]:[\\/]+Users[\\/]+)[^\\/"\r\n]+')  # a user name may contain spaces
+HOME_PATH = re.compile(r'(/home/)[^/\s"\']+')  # the same on Linux
 BEARER = re.compile(r'(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]+')
 SECRET = re.compile(r'(?i)(token|secret|password|passwd|authorization|api[_-]?key|bearer)(["\']?\s*[:=]?\s*["\']?)([^\s"\',;]+)')
 PAGE = re.compile(r'^(\[[^\]\n]*\] ).+ / .+(: \d+ buttons acknowledged)$', re.M)  # tesserad logs each page push
 PROBLEM = re.compile(r'(?i)fail|error|exception|traceback|timed? ?out|did not finish|could not')
 PROBLEM_LINES = 20
 PRESS = re.compile(r'(?m)(\bButton \d+: ).*?((?: \((?:hold|double)\))?)$')  # the host logs every press with its label
-PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', 'pycaw', 'esptool', 'textual')
+PACKAGES = ('pyserial', 'psutil', 'Pillow', 'pywebview', 'pywin32', 'pystray', 'pycaw', 'keyring', 'jeepney', 'esptool', 'textual')
 
 
 def clean(text: str) -> str:
     """Remove the user's name from paths and anything that looks like a credential (the live log view uses this too)."""
-    text = USER_PATH.sub(r'\1<user>', BEARER.sub(r'\1 <hidden>', text))
+    text = HOME_PATH.sub(r'\1<user>', USER_PATH.sub(r'\1<user>', BEARER.sub(r'\1 <hidden>', text)))
     return SECRET.sub(lambda match: f'{match.group(1)}{match.group(2)}<hidden>', text)
 
 
@@ -111,10 +112,13 @@ def build(folder: Path, config: dict | None, status: dict, version: str, log_pat
     report = {'tessera': version, 'python': sys.version.split()[0], 'platform': platform.platform(),
               'packages': _versions(), 'configuration': {'readable': False} if config is None else _counts(config),
               'host': {'running': bool(status.get('running')), 'connection': status.get('connection'),
-                       'device': {key: device.get(key) for key in ('connected', 'firmware', 'protocol', 'profile',
-                                                                   'page', 'buttons', 'error')}
+                       'device': {key: device.get(key) for key in ('connected', 'board', 'firmware', 'protocol', 'reset',
+                                                                   'profile', 'page', 'buttons', 'error')}
                        | {'wifi': redact_wifi(device.get('wifi')), 'api': device.get('api'),
                           'api_state': redact_api(device.get('api_state'))},
+                       # which plugins run and why one stopped; never their settings
+                       'plugins': [{key: plugin.get(key) for key in ('id', 'state', 'error', 'crashes')}
+                                   for plugin in status.get('plugins') or [] if isinstance(plugin, dict)],
                        'queue': status.get('queue')},
               'recent_problems': [_no_labels(line) for line in recent_problems(log_path)],
               'created': time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(now()))}

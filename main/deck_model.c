@@ -790,6 +790,47 @@ bool deck_model_take_line(char *out, size_t size)
     return found;
 }
 
+/* ---- Messages from the host --------------------------------------------------------------------- */
+static char s_notice[DECK_NOTICE_MAX + 1];
+static int s_notice_level, s_notice_seconds;
+static bool s_notice_pending;
+
+bool deck_model_notice_from_line(const char *args)
+{
+    static const char *const levels[] = {"info", "ok", "warn", "error"};
+    const char *space = args ? strchr(args, ' ') : NULL;
+    if (!space) return false;
+    int level = -1;
+    for (int i = 0; i < 4; ++i)
+        if ((size_t)(space - args) == strlen(levels[i]) && !strncmp(args, levels[i], (size_t)(space - args))) level = i;
+    int seconds = 0;
+    const char *at = space + 1;
+    for (; *at >= '0' && *at <= '9' && seconds <= DECK_NOTICE_SECONDS_MAX; ++at) seconds = seconds * 10 + (*at - '0');
+    if (level < 0 || at == space + 1 || *at != ' ' || seconds < 1 || seconds > DECK_NOTICE_SECONDS_MAX || !at[1])
+        return false;
+    model_lock();
+    copy_text(s_notice, sizeof(s_notice), at + 1); /* cut on a character boundary, control characters flattened */
+    s_notice_level = level;
+    s_notice_seconds = seconds;
+    s_notice_pending = true;
+    model_unlock();
+    return true;
+}
+
+bool deck_model_take_notice(char *text, size_t size, int *level, int *seconds)
+{
+    model_lock();
+    const bool fresh = s_notice_pending && text && size;
+    if (fresh) {
+        copy_text(text, size, s_notice);
+        if (level) *level = s_notice_level;
+        if (seconds) *seconds = s_notice_seconds;
+        s_notice_pending = false;
+    }
+    model_unlock();
+    return fresh;
+}
+
 /* ---- The rail ----------------------------------------------------------------------------------- */
 static deck_rail_item_t s_rail[DECK_RAIL_MAX];
 static int s_rail_count;

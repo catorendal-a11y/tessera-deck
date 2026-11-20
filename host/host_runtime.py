@@ -5,7 +5,14 @@ import os
 from pathlib import Path
 import threading
 
-ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4
+from platform_support import IS_LINUX, load
+
+ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4 and of the native-USB S3 board
+CH340_VID = 0x1A86  # the UART bridge of the ESP32-8048S070 board
+PANEL_VIDS = (ESPRESSIF_VID, CH340_VID)
+UART_BAUD = 921600  # firmware UART speed on the CH340 board; USB Serial/JTAG ignores the baud rate
+DEFAULT_BAUD = 115200
+DEFAULT_PORT = load('labels').DEFAULT_PORT  # Linux has no fixed port name: the panel is found by its USB id
 
 
 class SuspendableRLock:
@@ -61,6 +68,15 @@ class SuspendableRLock:
             self._owner, self._count = threading.get_ident(), saved
 
 
+def filelock():
+    """The file-lock module of this system."""
+    if IS_LINUX:
+        from platform_linux import filelock as module
+    else:
+        from platform_windows import filelock as module
+    return module
+
+
 class InstanceLock:
     """OS-level exclusive lock; released automatically when the process dies."""
 
@@ -71,13 +87,7 @@ class InstanceLock:
     def acquire(self):
         handle = open(self.path, 'a+')
         try:
-            if os.name == 'nt':
-                import msvcrt
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            filelock().lock(handle)
         except OSError:
             handle.close()
             return False
@@ -92,10 +102,7 @@ class InstanceLock:
         if self.handle is None:
             return
         try:
-            if os.name == 'nt':
-                import msvcrt
-                self.handle.seek(0)
-                msvcrt.locking(self.handle.fileno(), msvcrt.LK_UNLCK, 1)
+            filelock().unlock(self.handle)
         except OSError:
             pass
         finally:
@@ -104,19 +111,17 @@ class InstanceLock:
 
 
 def session_locked() -> bool:
-    """True while the Windows lock screen (the secure desktop) has the input."""
-    if os.name != 'nt':
-        return False
-    import ctypes
-    user32 = ctypes.WinDLL('user32', use_last_error=True)
-    user32.OpenInputDesktop.argtypes = [ctypes.c_uint32, ctypes.c_bool, ctypes.c_uint32]
-    user32.OpenInputDesktop.restype = ctypes.c_void_p
-    user32.CloseDesktop.argtypes = [ctypes.c_void_p]
-    desktop = user32.OpenInputDesktop(0, False, 0x0100)  # DESKTOP_SWITCHDESKTOP
-    if not desktop:
-        return True
-    user32.CloseDesktop(desktop)
-    return False
+    """True while the lock screen has the input (Windows: the secure desktop; Linux: logind and the screensaver)."""
+    if IS_LINUX:
+        from platform_linux import session
+    else:
+        from platform_windows import session
+    return session.locked()
+
+
+def pc_idle_seconds() -> float:
+    """Seconds since the last keyboard or mouse input on this PC; infinity where the system cannot tell."""
+    return load('session').idle_seconds()
 
 
 def _installed_ports():
@@ -127,11 +132,20 @@ def _installed_ports():
 
 def _espressif_ports():
     from serial.tools import list_ports
-    return [port.device for port in list_ports.comports() if port.vid == ESPRESSIF_VID]
+    return [port.device for port in list_ports.comports() if port.vid in PANEL_VIDS]
+
+
+def port_baud(port):
+    try:
+        from serial.tools import list_ports
+        uart = any(item.device == port and item.vid == CH340_VID for item in list_ports.comports())
+    except Exception:  # no pyserial tools, or a driver that cannot be listed: the USB default works for the P4
+        uart = False
+    return UART_BAUD if uart else DEFAULT_BAUD
 
 
 def candidate_ports(requested, state_path, installed=None, espressif=None):
-    """Ports to try, best first: the remembered/requested port, then other Espressif USB devices.
+    """Ports to try, best first: the remembered/requested port, then other Espressif and CH340 USB devices.
 
     Every candidate is verified with a handshake before it is configured, so a second ESP32 is never touched.
     """
@@ -140,15 +154,19 @@ def candidate_ports(requested, state_path, installed=None, espressif=None):
         others = espressif if espressif is not None else _espressif_ports()
     except (ImportError, OSError):
         others = []
-    return [first] + [device for device in sorted(others) if device != first]
+    return ([first] if first else []) + [device for device in sorted(others) if device != first]
 
 
-def remembered_serial(state_path):
+def _remembered(state_path, key):
     try:
-        value = json.loads(Path(state_path).read_text(encoding='utf-8')).get('serial')
+        value = json.loads(Path(state_path).read_text(encoding='utf-8')).get(key)
     except (OSError, ValueError, AttributeError):
         return None
     return value if isinstance(value, str) and value else None
+
+
+def remembered_serial(state_path):
+    return _remembered(state_path, 'serial')
 
 
 def resolve_port(requested, state_path, installed=None):
@@ -158,28 +176,40 @@ def resolve_port(requested, state_path, installed=None):
     Other boards (for example a second ESP32 on another port) are never touched.
     """
     serial = remembered_serial(state_path)
-    if not serial:
+    named = _remembered(state_path, 'port')  # a CH340 bridge often has no serial number: its port name is remembered
+    if not serial and not named:
         return requested
     try:
         ports = installed if installed is not None else _installed_ports()
     except (ImportError, OSError):
         return requested
+    if not serial:
+        return named if named in ports else requested
     if ports.get(requested) == serial:
         return requested
     return next((device for device, number in sorted(ports.items()) if number == serial), requested)
 
 
 def remember_port(port, state_path, installed=None):
-    """Store the serial number of the port we connected to; no-op if unknown."""
+    """Store the serial number of the port we connected to, or the port name when it has none."""
     try:
-        serial = (installed if installed is not None else _installed_ports()).get(port)
+        ports = installed if installed is not None else _installed_ports()
     except (ImportError, OSError):
         return
-    if not serial or serial == remembered_serial(state_path):
+    if port not in ports:
         return
+    serial = ports[port]
+    if serial:
+        if serial == remembered_serial(state_path):
+            return
+        state = {'serial': serial}
+    else:
+        if port == _remembered(state_path, 'port') and not remembered_serial(state_path):
+            return
+        state = {'port': port}
     temporary = Path(state_path).with_suffix('.tmp')
     try:
-        temporary.write_text(json.dumps({'serial': serial}), encoding='utf-8')
+        temporary.write_text(json.dumps(state), encoding='utf-8')
         os.replace(temporary, state_path)
     except OSError:
         pass

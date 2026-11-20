@@ -3,24 +3,24 @@
 [Back to the README](../README.md)
 
 > [!IMPORTANT]
-> Tessera is made for one board: the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
+> This page is written for the main board: the **GUITION 7-inch IPS display dev board** (ESP32-P4 + ESP32-C6, 1024 × 600
 > capacitive touch screen), bought from [this AliExpress listing](https://www.aliexpress.com/item/1005010022828767.html).
 > The firmware runs on Espressif's ESP32-P4 Function EV Board support package, and the pin setup and screen layout
-> are written for this kit. Other ESP32 boards or displays need a port.
+> are written for this kit. Three more boards have firmware in the releases: the Elecrow CrowPanel Advance 7.0 ([CrowPanel Advance 7.0](CROWPANEL.md)) and, as an experiment, two ESP32-S3 boards ([ESP32-S3 boards](S3.md)). Those pages say what differs from the steps here. Any other board or display needs a port.
 
 <p align="center">
   <img src="images/board.jpg" alt="The GUITION 7-inch ESP32-P4 display dev board Tessera is made for" width="420"><br>
-  <sub>The board Tessera is made for (image from the seller's listing).</sub>
+  <sub>The GUITION board (image from the seller's listing).</sub>
 </p>
 
 ## Requirements
 
 | Part | Notes |
 |---|---|
-| Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C |
+| Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C. Other sellers also list the board under this model number. |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Cable | USB cable from the PC to the board's USB Serial/JTAG port. No Wi-Fi is needed. |
-| PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. |
+| PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
 
 ## Download and verify
 
@@ -28,12 +28,14 @@
 2. Compare the zip's SHA-256 with its line in `SHA256SUMS`. The two hashes must match (letter case does not matter).
 
    ```powershell
-   Get-FileHash .\tessera-host-v0.8.0.zip -Algorithm SHA256
+   Get-FileHash .\tessera-host-v1.2.5.zip -Algorithm SHA256
    Get-Content .\SHA256SUMS
    ```
 
-3. Optional, with the GitHub CLI: `gh attestation verify tessera-host-v0.8.0.zip --repo catorendal-a11y/tessera-deck` checks that the release workflow built the zip.
-4. Unpack the zip. It holds the host, the editor and the firmware package in `firmware/`.
+3. Optional, with the GitHub CLI: `gh attestation verify tessera-host-v1.2.5.zip --repo catorendal-a11y/tessera-deck` checks that the release workflow built the zip.
+4. Unpack the zip. It holds the host, the editor and the firmware packages in `firmware/`.
+
+The release also has the same file as `tessera-host.zip`, without the version in its name, so one address always gives the latest: `https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip`. The README's terminal commands use it. `SHA256SUMS` lists both names with the same checksum.
 
 Windows SmartScreen may warn about the download. Tessera is not signed with a paid code-signing certificate (a signed
 installer is on the [roadmap](ROADMAP.md)), so the warning says nothing about this file. If the hashes match, choose
@@ -42,7 +44,7 @@ installer is on the [roadmap](ROADMAP.md)), so the warning says nothing about th
 ## First 5 minutes
 
 1. Double-click `Tessera.cmd`. The tray icon, the USB host and the editor start.
-2. Plug the panel into the PC's USB port with the cable on the panel's USB Serial/JTAG port.
+2. Plug the panel into the PC's USB port with the cable on the panel's USB Serial/JTAG port. On the GUITION board that is the USB-C port marked *Full-speed Type-C* (number 7 in GUITION's interface drawing); the *High-speed Type-C* port next to it gives the panel power but no link to the PC.
 3. A new panel needs firmware. Open **Panel → Panel firmware and updates …**, choose the included package, choose *Full install (new or blank panel)*, tick *Install anyway* and press *Install*.
 4. Follow the *Getting started* checklist in the editor. It ticks each step off by itself: Host running, Panel connected, Firmware up to date, Put an action on a key, Press it on the panel.
 5. For the fourth step, click an action in the action list on the right. It makes a new key. Fill it in on the **Look** and **Actions** tabs.
@@ -83,6 +85,8 @@ the board if Windows renumbers the port. Set the environment variable `TESSERA_P
 | `Tessera.cmd --no-browser` | Start without opening a browser window and print the editor address |
 | `Tessera.cmd --uninstall` | See [Uninstall](#uninstall) |
 
+On Linux, `./Tessera.sh` takes the same options, apart from `--sensors` and `--sensors-off`. [Tessera on Linux](LINUX.md) has the rest.
+
 ## Flash the panel
 
 Use **Panel → Panel firmware and updates …** in the editor. The installer checks the package, the board and the
@@ -93,10 +97,13 @@ protocol before it writes anything, stops the host while it writes and starts it
 | *Full install (new or blank panel)* | A new or blank board, and the first install of firmware with A/B slots. It writes the bootloader, the partition table and the app. |
 | *Update (keeps settings)* | Every later update. It writes only the app, over the panel's own USB connection. |
 
+Under the package list the dialog says when the panel already has that version, when the package is older than the firmware on the panel (installing it goes back), and when the folder has no package for this Tessera version. *Check for updates* then downloads it.
+
 - A new board without Tessera firmware does not answer. The dialog then chooses *Full install* and shows *Install anyway*. Tick it. The chip type is still checked.
 - The release zip includes a firmware package. *Check for updates* asks GitHub for the latest release and can download the package; it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder and choose it in the dialog.
-- The flash has two 6 MB app slots for rollback. If a new firmware never reaches the host, the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
+- The flash has two 6 MB app slots for rollback. If a new firmware crashes or hangs before its first handshake with the host (or before it has run for 60 s), the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
 - On a panel with old single-slot firmware, the first update to A/B firmware must be a *Full install*. The installer says so.
+- A panel with firmware this host cannot talk to, such as a newer release, also needs a *Full install*. The installer says so.
 
 ### Update the panel firmware
 
@@ -124,13 +131,19 @@ The OTA data image makes the bootloader start `ota_0` again, even if an update o
 
 ## Update the Windows program
 
-Replace the program folder with the new `tessera-host` zip, or run `git pull` in a source checkout. Copy your data
+From version 1.2.4 the editor does it. Open **Panel → Panel firmware and updates …**, press *Check for updates* and then *Update Tessera to …*. It downloads the release's program zip, keeps it only if its SHA-256 matches `SHA256SUMS`, and unpacks it over the program folder. Your profiles, icons and backups are not in a release, so they stay where they are. Tessera then closes and starts again by itself: the tray, the host and the editor. The zip has the firmware for every board, so the same dialog then offers the panel's update without another download. A source checkout is left alone: update it with `git pull`.
+
+To do it by hand: replace the program folder with the new `tessera-host` zip, or run `git pull` in a source checkout. Copy your data
 over first: from `host/`, copy `profiles.json`, `assets/`, `backups/` and the `*.local.json` files (counters, timers,
 your icon library and the panel you used last). [Releasing](RELEASING.md) lists them by name. Then check **Panel → Panel firmware and updates …** for newer firmware. The tray menu has **Help → Check for updates**.
 
+If you unpacked the new version to a new folder and Start with Windows was on, start the new copy once with `Tessera.cmd`. When the panel connects, its tray asks whether Start with Windows should start the new copy instead.
+
+On Linux the steps are the same, with `./Tessera.sh`.
+
 ## Autostart
 
-Choose **Start with Windows** in the tray menu, or tick *Start the USB host automatically when I sign in* in **Program settings** in the editor. After the panel first connects, the tray asks once whether to start with Windows.
+Choose **Start with Windows** in the tray menu, or tick *Start the USB host automatically when I sign in* in **Program settings** in the editor. After the panel first connects, the tray asks once whether to start with Windows. On Linux the tray entry is *Start with the desktop*.
 
 ## Uninstall
 
@@ -157,9 +170,9 @@ When something blocks you, a bar at the bottom of the editor names the cause and
 | The USB host has stopped, so the panel does not react to presses. | Press *Start host*, or use the tray. *Show the host log* says why it stopped. Edits are still saved. The tray restarts a host that dies by itself after 5 s, 15 s, 60 s, then every 5 minutes. |
 | The host could not start: … | Press *Show the host log*. |
 | Another program is using the panel's USB port. | Close Arduino IDE, PuTTY, Thonny or any other serial program. The panel connects by itself. Flashing from source also needs the host stopped. |
-| The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port. |
+| The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port). On a CrowPanel, use the USB-C port marked UART. |
 | The panel firmware is too old for this Tessera. | Press *Panel firmware …* and update. |
-| No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
+| No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port, not the high-speed one), or on a CrowPanel the USB-C port marked UART. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
 | The panel firmware (x) is older than Tessera (y). | Press *Update firmware …*, or *Not now*. |
 
 More symptoms:

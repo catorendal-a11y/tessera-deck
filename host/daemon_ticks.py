@@ -1,4 +1,5 @@
 """What the host does on its own every second: triggers, timers, plugins, sensors and reloading the configuration."""
+from datetime import date
 import json
 import re
 import os
@@ -10,8 +11,10 @@ import psutil
 
 import agent_activity
 import cockpit
-from win_input import IS_WINDOWS, focus_existing_process
+from desktop import focus_existing_process
+from platform_support import load
 
+from config_check import WEEKDAYS
 from config_store import write_atomic
 
 IDLE_SETTLE = 45  # seconds a file-guessed idle must last before an agent counts as finished
@@ -22,9 +25,9 @@ class BackgroundMixin:
     """Methods of the Daemon; they use its state."""
 
     def fire_trigger(self, when):
-        for trigger in self.config.get('triggers', []):
-            if trigger['when'] == when:
-                self.enqueue(('actions', trigger.get('actions', [])))
+        for index, trigger in enumerate(self.config.get('triggers', [])):
+            if trigger['when'] == when and self.enqueue(('actions', trigger.get('actions', []))):
+                self.log(f'Automatic action {index + 1} ({when.get("type")}) ran')
 
     def daily_runs(self):
         """trigger key -> the day a daily trigger last ran (or was marked done), from triggers.local.json."""
@@ -57,7 +60,8 @@ class BackgroundMixin:
                     value, fire = now, True
             elif kind == 'daily':
                 today = time.strftime('%Y-%m-%d')
-                due = time.strftime('%H:%M') >= spec['at']
+                listed = 'days' not in spec or WEEKDAYS[date.fromisoformat(today).weekday()] in spec['days']
+                due = listed and time.strftime('%H:%M') >= spec['at']
                 runs, key = self.daily_runs(), f'{index}:{spec["at"]}'
                 if before is None:
                     # No state yet (the host just started, or the trigger is new). The day it last ran is kept in
@@ -75,7 +79,7 @@ class BackgroundMixin:
                     value, fire = today, True
             elif kind == 'file':
                 try:
-                    value = os.stat(spec['path']).st_mtime_ns
+                    value = os.stat(os.path.expanduser(os.path.expandvars(spec['path']))).st_mtime_ns
                 except FileNotFoundError:
                     value = 0 if before is None else before  # 0: missing at start, so the file appearing fires
                 except (OSError, ValueError):
@@ -86,8 +90,11 @@ class BackgroundMixin:
                 # with a value: only when the variable becomes that value, not on every change
                 fire = value is not None and before != value and ('value' not in spec or str(value) == spec['value'])
             # Each trigger fires once; triggers of the same type are independent.
-            if fire and not self.enqueue(('actions', trigger.get('actions', []))) and kind == 'daily':
+            ran = fire and self.enqueue(('actions', trigger.get('actions', [])))
+            if fire and not ran and kind == 'daily':
                 value = before  # a full queue dropped today's run: try again next second, and do not save it as done
+            if ran and kind != 'interval':  # an interval can be every second: it would fill the log
+                self.log(f'Automatic action {index + 1} ({kind}) ran')
             self.trigger_state[index] = value
             if kind == 'daily' and value == today and runs.get(key) != today:
                 self.save_daily_run(key, today)
@@ -104,18 +111,21 @@ class BackgroundMixin:
                     names.add(name.lower())
         except (psutil.Error, OSError):
             return
-        self.agents = {'codex': 'codex.exe' in names,
-                       'claude': 'claude.exe' in names,
-                       'zcode': 'zcode.exe' in names}
+        names |= {name[:-4] for name in names if name.endswith('.exe')}  # Linux programs have no .exe
+        self.agents = {'codex': 'codex.exe' in names or 'codex' in names,
+                       'claude': 'claude.exe' in names or 'claude' in names,
+                       'zcode': 'zcode.exe' in names or 'zcode' in names}
 
     def live_tick(self):
         """Announce timers that ran out: a notice for the tray, an optional sound and the timer's own actions."""
         for done in self.live.tick():
             self.log(f'Timer {done["name"]} finished')
             self.notices.append({'id': int(time.time() * 1000), 'title': 'Tessera timer', 'message': done['message']})
-            if done['sound'] and IS_WINDOWS:
-                import winsound
-                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            if done['sound']:
+                try:
+                    load('processes').notification_beep()
+                except (OSError, RuntimeError, ImportError):  # no sound device: the other timers still run
+                    pass
             if done['actions']:
                 self.enqueue(('actions', done['actions']))
             self.enqueue(('push',))
@@ -227,7 +237,10 @@ class BackgroundMixin:
             self.before_shortcut = remember
 
     def _go_to(self, profile, page):
-        self.switch_profile(profile)
+        moved = profile != self.profile
+        self.switch_profile(profile, page=page)  # straight to the page: the profile's first page is never shown
+        if moved:
+            return
         if self.page != page:
             self.switch_page(page)
         else:
@@ -252,11 +265,12 @@ class BackgroundMixin:
             asking = self.permissions.current()
             if asking:
                 self.wake_display()
-                self.panel.send_line('AD_VIEW agents')
             payload = cockpit.agents_payload(self.agent_view(), self.agents, asking, self.config.get('panel', {}).get('agents'),
                                              self.agent_times())
             self.panel.send_line(f'AD_AGENTS {payload}')
             self.cockpit_sent['AD_AGENTS'] = payload
+            if asking:  # after the lanes: a panel that opens the screen first finds no question there and goes back
+                self.panel.send_line('AD_VIEW agents')
 
     def cockpit_tick(self, now):
         """Keep the agents, mixer and status screens of a cockpit panel current: once a second, only what changed."""
@@ -273,7 +287,7 @@ class BackgroundMixin:
         if getattr(self, 'panel_view', None) == 2 or now - getattr(self, 'mixer_at', 0.0) >= 5:
             self.mixer_at = now
             try:
-                self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True))
+                self.cockpit_mixer = cockpit.read_mixer(choice.get('apps'), choice.get('mic', True), choice.get('remote'))
                 lines['AD_MIXER'] = cockpit.mixer_payload(self.cockpit_mixer)
             except (OSError, ImportError):
                 pass  # no sound device or no audio library: the mixer screen keeps what it had

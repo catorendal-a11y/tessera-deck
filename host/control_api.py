@@ -14,9 +14,9 @@ import os
 import re
 import secrets
 import socket
-import subprocess
 import threading
 import time
+from platform_support import load
 from action_runner import Busy
 import permission
 from dataclasses import dataclass
@@ -38,6 +38,11 @@ MAX_CONNECTIONS = 64
 # Calls without a valid token are logged at most this often, so a flood of them cannot push the audit trail out.
 UNKNOWN_LOG_SECONDS = 10
 MAX_NONCE = 128
+# A message on the panel: two lines of the banner hold about this many characters; it shows for 1 to 30 seconds.
+NOTIFY_LEVELS = ('info', 'ok', 'warn', 'error')
+NOTIFY_MAX_TEXT = 100
+NOTIFY_SECONDS = (1, 30)
+NOTIFY_DEFAULT_SECONDS = 6
 
 
 def proof(token: str, nonce: str) -> str:
@@ -78,21 +83,7 @@ class Grant:
 
 def make_private(path) -> None:
     """Let only the owner read the token file: other accounts on a shared PC must not be able to drive the panel."""
-    try:
-        if os.name != 'nt':
-            os.chmod(path, 0o600)
-            return
-        # *S-1-3-4 is "owner rights": no user name to look up, and it follows the file's owner.
-        flags = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
-        subprocess.run(['icacls', str(path), '/inheritance:r', '/grant:r', '*S-1-3-4:F'], check=True, timeout=10,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
-        try:
-            Path(path).read_bytes()
-        except OSError:  # never leave a file its own user cannot read
-            subprocess.run(['icacls', str(path), '/reset'], check=False, timeout=10, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, creationflags=flags)
-    except (OSError, subprocess.SubprocessError):
-        pass  # the file then keeps the folder's permissions, as before
+    load('files').make_private(path)
 
 
 def _button(data) -> int:
@@ -126,6 +117,14 @@ class ExclusiveServer(ThreadingHTTPServer):
         super().server_bind()
 
 
+def write_private(path, text: str) -> None:
+    """Write `text` to a file only this account can read. The file is private before the text is in it."""
+    path = Path(path)
+    path.write_text('', encoding='utf-8')
+    make_private(path)
+    path.write_text(text, encoding='utf-8')
+
+
 class ControlServer:
     def __init__(self, daemon, info_path):
         self.daemon = daemon
@@ -139,7 +138,8 @@ class ControlServer:
         self.unknown_logged, self.unknown_skipped = float('-inf'), 0
         self.routes = {'var': self.set_variable, 'vars': self.set_variables, 'press': self.press, 'page': self.show_page,
                        'state': self.set_state, 'feedback': self.feedback, 'display': self.display,
-                       'permission': self.ask_permission, 'wifi': self.wifi, 'api': self.homeassistant}
+                       'permission': self.ask_permission, 'notify': self.notify, 'wifi': self.wifi,
+                       'api': self.homeassistant}
 
     # --- scoped tokens for plugins -----------------------------------------------------
     def add_grant(self, name, routes, prefix=None, events=False, read=False) -> str:
@@ -240,10 +240,10 @@ class ControlServer:
         config = self.daemon.config['profiles']
         profile = data.get('profile', self.daemon.profile)
         if profile not in config:
-            raise ApiError(f'Unknown profile: {profile}')
+            raise ApiError(f'Unknown profile: {profile}. Profiles: {", ".join(config)}')
         page = data.get('page', next(iter(config[profile]['pages'])))
         if page not in config[profile]['pages']:
-            raise ApiError(f'Unknown page: {page}')
+            raise ApiError(f'Unknown page: {page}. Pages of {profile}: {", ".join(config[profile]["pages"])}')
         self.daemon.submit(('wake',), ('profile', profile), ('page', page))
 
     def set_state(self, data):
@@ -262,6 +262,18 @@ class ControlServer:
         if action not in ('wake', 'dim'):
             raise ApiError("action must be 'wake' or 'dim'")
         self.daemon.submit((action,))
+
+    def notify(self, data):
+        # One line of text: a newline would end the panel's command early, and lone surrogates cannot be sent as UTF-8.
+        text, level = data.get('text'), data.get('level', 'info')
+        seconds = data.get('seconds', NOTIFY_DEFAULT_SECONDS)
+        if not isinstance(text, str) or not text.strip() or len(text) > NOTIFY_MAX_TEXT or not text.isprintable():
+            raise ApiError(f'text must be 1 to {NOTIFY_MAX_TEXT} printable characters on one line')
+        if level not in NOTIFY_LEVELS:
+            raise ApiError(f'level must be one of {", ".join(NOTIFY_LEVELS)}')
+        if type(seconds) is not int or not NOTIFY_SECONDS[0] <= seconds <= NOTIFY_SECONDS[1]:
+            raise ApiError(f'seconds must be a whole number from {NOTIFY_SECONDS[0]} to {NOTIFY_SECONDS[1]}')
+        self.daemon.submit(('notify', text.strip(), level, seconds))
 
     def ask_permission(self, data):
         # Unlike the other routes this one waits: the answer is a touch on the panel (or nobody answers).
@@ -321,6 +333,8 @@ class ControlServer:
         return {'profile': daemon.profile, 'page': daemon.page, 'connected': daemon.panel is not None
                 and not daemon.connection_failed.is_set(), 'dimmed': daemon.dimmed, 'locked': daemon.locked,
                 'variables': dict(daemon.custom_vars), 'agents': dict(daemon.agents),
+                'profile_locked': daemon.profile_locked is True,
+                'profiles': {name: list(profile.get('pages', {})) for name, profile in daemon.config.get('profiles', {}).items()},
                 'queue': {'pending': daemon.jobs.qsize(), 'capacity': daemon.jobs.maxsize,
                           'dropped': daemon.dropped_jobs, 'slow_running': len(daemon.slow_running)}}
 
@@ -435,8 +449,7 @@ class ControlServer:
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         info = {'pid': os.getpid(), 'port': self.server.server_port, 'token': self.token}
         temporary = self.info_path.with_suffix('.tmp')
-        temporary.write_text(json.dumps(info), encoding='utf-8')
-        make_private(temporary)
+        write_private(temporary, json.dumps(info))
         os.replace(temporary, self.info_path)
         atexit.register(self.remove_own_info)  # a normal exit without stop() leaves no stale file
 

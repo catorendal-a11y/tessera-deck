@@ -4,11 +4,24 @@ dependencies:
   lvgl/lvgl:
     version: 9.6.*
     public: true
-  espressif/esp_lcd_jd9165: "*"
+  espressif/esp_lcd_jd9165:
+    version: "*"
+    rules:
+      - if: "target in [esp32p4]"
   espressif/esp_lvgl_port: "^2.9.0"
   espressif/esp_lcd_touch_gt911: "^1"
   # Wi-Fi through the ESP32-C6 over SDIO (docs/design/esphome.md, stage A). Off until credentials are set.
-  espressif/esp_wifi_remote: "^1.6.5"
-  espressif/esp_hosted: ">=3.0.10"
+  # P4 only: the GUITION board has the C6 (main/CMakeLists.txt builds the Wi-Fi code only for it).
+  espressif/esp_wifi_remote:
+    version: "^1.6.5"
+    rules:
+      - if: "target in [esp32p4]"
+  espressif/esp_hosted:
+    version: ">=3.0.10"
+    rules:
+      - if: "target in [esp32p4]"
   # Home Assistant native API (docs/design/esphome.md, stage B): _esphomelib._tcp discovery.
-  espressif/mdns: "^1.8.2"
+  espressif/mdns:
+    version: "^1.8.2"
+    rules:
+      - if: "target in [esp32p4]"

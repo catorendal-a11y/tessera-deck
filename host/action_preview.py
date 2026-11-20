@@ -6,9 +6,11 @@ import re
 import shutil
 
 import ha_keys
-from program_locator import locate
-from win_input import parse_hotkey
+from action_runner import script_path
+from desktop import locate, script_command
+from input_common import split_hotkey
 from substitution import ENV_REFERENCE, check_web_url, expand_environment, substitute
+
 
 MAX_TEXT = 90
 URI_SCHEME = re.compile(r'(?i)[a-z][a-z0-9+.-]+:')  # two or more letters, so a drive letter is not a scheme
@@ -33,7 +35,7 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
     kind = action.get('type')
     if kind == 'hotkey':
         try:
-            parse_hotkey(action['keys'])
+            split_hotkey(action['keys'])
         except (ValueError, KeyError) as exc:
             return False, f'Unknown key combination: {exc}'
         return True, f'Press {action["keys"]}'
@@ -41,9 +43,10 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         slow = f' at {action["delay_ms"]} ms per character' if action.get('delay_ms') else ''
         return True, f'Type "{_clip(substitute(action["text"], variables))}"{slow}'
     if kind == 'open':
-        target = os.path.expandvars(substitute(action['target'], variables))
+        target = substitute(action['target'], variables)
         if URI_SCHEME.match(target):
             return True, f'Open {_clip(target)}'
+        target = os.path.expandvars(target)
         # os.startfile also finds a bare name (notepad, mmsys.cpl, code) through PATH and App Paths (winword)
         found = target if os.path.exists(target) or shutil.which(target, mode=os.F_OK) else locator(target)
         if found is None and not os.path.splitext(target)[1]:
@@ -57,6 +60,17 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         except ValueError as exc:
             return False, str(exc)
         return True, f'Run the command: {_clip(command)} (timeout {action.get("timeout", 30)} s)'
+    if kind == 'script':
+        try:
+            path = script_path(action['path'])
+        except ValueError as exc:
+            return False, f'Run the script {_clip(action["path"])}: {_clip(str(exc))}'
+        try:
+            command = script_command(path)
+            program = 'cmd' if isinstance(command, str) else os.path.basename(command[0])
+        except ValueError as exc:
+            return False, f'Run the script {_clip(path)}: {exc}'
+        return True, f'Run the script {_clip(path)} with {program} (timeout {action.get("timeout", 30)} s)'
     if kind == 'http':
         url = substitute(action['url'], variables, 'url')
         names = sorted({name for part in (url, *action.get('headers', {}).values(), action.get('body', ''))
@@ -76,7 +90,7 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
     if kind in ('page', 'folder'):
         return True, f'{"Open folder" if kind == "folder" else "Go to page"} "{action["page"]}"'
     if kind == 'profile':
-        return True, f'Switch to profile "{action["profile"]}"'
+        return True, f'Switch to profile "{action["profile"]}"' + (f', page "{action["page"]}"' if action.get('page') else '')
     if kind == 'back':
         return True, 'Go back one level'
     if kind == 'home':
@@ -100,6 +114,15 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
         if op in ('up', 'down'):
             return True, f'Turn the volume of {who} {op} by {action.get("step", 5)}%'
         return True, f'{op.capitalize()} {who}'
+    if kind == 'media':
+        return True, 'Toggle shuffle in the media player' if action['op'] == 'shuffle' else 'Cycle repeat in the media player'
+    if kind == 'remote_media':
+        device = action.get('device', 'first')
+        who = 'the first paired device that is reachable' if device == 'first' else 'a paired device'
+        words = {'playpause': 'Play or pause', 'play': 'Play', 'pause': 'Pause', 'next': 'Skip to the next track', 'previous': 'Go back to the previous track', 'stop': 'Stop'}
+        if action['op'] in ('volumeup', 'volumedown'):
+            return True, f'Turn the volume of {who} {action["op"][6:]} by {action.get("step", 5)}% (KDE Connect)'
+        return True, f'{words[action["op"]]} on {who} (KDE Connect)'
     if kind == 'mouse':
         op = action['op']
         words = {'left': 'Click the left mouse button', 'right': 'Click the right mouse button',
@@ -138,12 +161,29 @@ def _step(action: dict, variables: dict[str, str], environment, locator) -> tupl
     return False, f'Unknown action type {kind!r}'
 
 
-def preview(actions: list[dict], variables: dict[str, str], environment=None, locator=locate) -> dict:
-    """What `actions` would do, step by step, using the panel's current variable values."""
+def _plugin_problem(plugin_id, plugins) -> str:
+    """Why a step for this plugin would fail, in the words the press itself uses; '' when it can run."""
+    known = next((item for item in plugins if isinstance(item, dict) and item.get('id') == plugin_id), None)
+    if known is None:
+        return f'The plugin {plugin_id} is not installed: put its folder in the plugins folder'
+    name = known.get('name') or plugin_id
+    if not known.get('enabled'):
+        return f'{name} is off: turn it on in More → Plugins'
+    if known.get('state') == 'failed':
+        return f'{name} has stopped: turn it off and on in More → Plugins'
+    return f'{name} has stopped' if known.get('state') == 'crashed' else ''
+
+
+def preview(actions: list[dict], variables: dict[str, str], environment=None, locator=locate, plugins=None) -> dict:
+    """What `actions` would do, step by step, using the panel's current variable values. `plugins` is the host's
+    list of plugins and their states; None when the host is not running and nothing is known."""
     steps, waited = [], 0.0
     for index, action in enumerate(actions, 1):
         try:
             ok, text = _step(action, variables, environment, locator)
+            if ok and plugins is not None and action.get('type') == 'plugin':
+                problem = _plugin_problem(action.get('plugin'), plugins)
+                ok, text = (False, problem) if problem else (ok, text)
         except (ValueError, KeyError, TypeError, AttributeError) as exc:
             ok, text = False, f'Cannot run this step: {exc}'
         if ok and action.get('type') == 'delay':

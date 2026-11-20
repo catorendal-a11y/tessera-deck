@@ -19,9 +19,10 @@ Plugins and AI tools         --control API------> host
 ## Project layout
 
 ```text
-main/            ESP32-P4 firmware: USB console, button model, LVGL UI, fonts, image decoder
-components/      Board support package for the ESP32-P4 Function EV Board
-host/            Windows host
+main/            Panel firmware: USB console, button model, LVGL UI, fonts, image decoder
+components/      Board support package for the ESP32-P4 Function EV Board (the GUITION board and the CrowPanel)
+boards/          Build settings for the CrowPanel and the two S3 boards, and the S3 board support
+host/            The host, for Windows and Linux
   tesserad.py          USB daemon: owns the panel, the job queue and the actions
   daemon_presses.py    Key presses: fast lane, slow lane, double taps
   daemon_display.py    Backlight, dimming, quiet hours, ambient screen
@@ -29,7 +30,11 @@ host/            Windows host
   config_check.py      Validation of profiles.json
   config_store.py      Configuration versions and backups
   panel_serial.py      USB link: handshake, layout and image transfer
-  win_input.py         Keys, mouse, foreground window and focus on Windows
+  input_common.py      The key names and operation lists every system shares
+  platform_support.py  The one place that reads sys.platform; `load('name')` gives the module of this system's package
+  platform_windows/    Windows-specific code (input and windows, audio, secrets, sensors, ...); platform_linux/ is its Linux counterpart
+  desktop.py, system_audio.py, process_flags.py        What the shared modules import for input, sound and processes
+  script_files.py, lhm_reader.py                       Script types and paths; the Libre Hardware Monitor reader
   tessera_app.py       Local editor server and WebView2 window
   tessera_terminal.py  Terminal UI
   tessera_tray.py      Tray app
@@ -48,21 +53,21 @@ host/            Windows host
   import_review.py     Import approval
   action_preview.py    Dry run (Test)
   setup_tool.py        Setup, uninstall, diagnostics, dependency sync
-  system_stats.py, sensor_sources.py, gpu_sources.py   Gauge values
+  system_stats.py, gpu_sources.py                      Gauge values (Windows sensor readers: platform_windows/)
   live_state.py, pc_state.py, ambient.py               Counters, timers, PC state, idle screen
   deck_assets.py       Icons and images
   editor/              Editor front end (index.html, core.js, app.js, dialogs.js, CSS)
 plugins/         Plugins (example-uptime is the working reference, see PLUGINS.md)
 docs/            User guides, features, protocol, plugin guide, release process, roadmap, images
 tests/           Host tests, native LVGL tests, editor smoke test, hardware smoke test
-tools/           Packaging, screen rendering, demo GIF, icon and sensor tooling
+tools/           Packaging, screen rendering, icon and sensor tooling
 vendor/          Lucide icon pack (ISC)
-hardware/        The printable desk console
+hardware/        The printable desk consoles and the dock
 ```
 
 ## Host
 
-Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`.
+Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`. On Linux, `./Tessera.sh --setup` creates `host/.venv`; use `host/.venv/bin/python` in the commands below. The Linux tests that drive X11 start their own Xvfb server and are skipped without `Xvfb`, `xdotool`, `xterm` and `xclip`.
 
 | Task | Command |
 |---|---|
@@ -74,6 +79,23 @@ Use the virtual environment that `Tessera.cmd --setup` creates in `host\.venv`.
 | JavaScript syntax | `foreach ($f in 'core','app','dialogs') { node --check host/editor/$f.js }` in PowerShell (`node --check` reads only its first file) |
 
 Ruff and coverage are not in `requirements.txt`. Install them with `pip install ruff==0.17.2 coverage==7.17.0`. [CONTRIBUTING.md](../CONTRIBUTING.md) has the exact CI commands.
+
+### Platforms
+
+Windows code lives in `host/platform_windows/` and Linux code in `host/platform_linux/`. Shared modules never test
+`os.name` or `sys.platform`: they import `IS_WINDOWS` / `IS_LINUX` or call `platform_support.load('name')`, which gives
+`platform_<system>.name`. `platform_support` raises `UnsupportedPlatform` on any other system, so the host does not start
+on macOS. Both packages have a module of the same name with the same functions (`autostart`, `processes`, `sensors`,
+`secrets`, `shortcuts`, `labels` ...). `labels` holds the constants the shared code reads (program-name rule, default port,
+the words "Windows" / "the desktop" in messages). On a system other than the one a module is
+written for, the unit tests that need real files, processes or system libraries run only on their own system (Windows in CI).
+
+To add a system: add `platform_<name>/` with the same modules, name it in `platform_support.detect`, and run
+`tests/test_platform_support.py`. Its parity test lists the functions and constants the shared code uses, and its isolation
+test imports every shared module with the other package blocked. [PLATFORM_AUDIT.md](PLATFORM_AUDIT.md) is the audit the split was checked against.
+
+Tests that exercise one system's behaviour carry `@windows_only` / `@linux_only` from `tests/platform_marks.py`; the rest
+run everywhere.
 
 The tests use fake serial ports, fake HTTP and a fake esptool. None of them needs the panel.
 
@@ -101,14 +123,14 @@ It talks to a connected panel: identity, layout push, 21 synthetic presses, boot
 
 ## Firmware
 
-The firmware builds with ESP-IDF 6.1 for the ESP32-P4. In an ESP-IDF 6.1 shell:
+The firmware builds with ESP-IDF 6.1. The commands here build it for the GUITION board (ESP32-P4); [CrowPanel Advance 7.0](CROWPANEL.md) and [ESP32-S3 boards](S3.md) have the commands for the other boards. In an ESP-IDF 6.1 shell:
 
 ```powershell
 idf.py -B build/idf6 build
 python tools/package_firmware.py build/idf6 dist    # writes dist/tessera-firmware-<version>.zip
 ```
 
-The first build downloads LVGL and the other components into `managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
+The first build downloads LVGL and the other components into `managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). The screen is drawn by one thread (`CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1` in `sdkconfig.defaults`); two threads garbled text and icons, see [VERIFICATION.md](../VERIFICATION.md#screen-speed). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
 
 ## Native LVGL tests and render tools
 
@@ -122,14 +144,13 @@ build\native\test_ui.exe build\previews
 
 `test_ui` asserts on the model and the UI: image cache limits, key colors, the ambient screen, hold events, the rail, the agents, mixer and status screens, wide keys and text contrast. It writes 1024 x 600 frames as `.ppm` files to the folder you give.
 
-Two Python tools build on the native build:
+One Python tool builds on the native build:
 
 | Tool | What it does | Command |
 |---|---|---|
 | `tools/render_screens.py` | Draws every page of every profile with the real UI as PNG files, plus `all-screens.png`. It only reads the profile file and sends nothing to the panel. | `host\.venv\Scripts\python.exe tools\render_screens.py host\profiles.json build\screens build\native\render_screens.exe` |
-| `tools/make_demo_gif.py` | Builds `docs/images/demo.gif` from those screens, the `test_ui` frames and the editor images in `docs/images/`. | `host\.venv\Scripts\python.exe tools\make_demo_gif.py build\screens build\previews docs\images\demo.gif` |
 
-Run `render_screens.py` and `test_ui` before the GIF tool. Both tools use the folders in the commands above when you leave the arguments out (`host/profiles.json` is the profile default).
+It uses the folders in the command above when you leave the arguments out (`host/profiles.json` is the profile default).
 
 The brand assets have their own generators, which need no native build: `tools/make_logo.py` writes `logo-mark.svg`, `logo.svg` and `logo.png` in `docs/images`, and `tools/make_icon.py` writes `host/tessera.ico` from the tray mark. Run them with `host\.venv\Scripts\python.exe` after a change to the logo.
 
@@ -172,9 +193,11 @@ GitHub Actions runs these on every pull request and every push to main:
 | Workflow, job | What it checks |
 |---|---|
 | `ci.yml`, host | Lint, tests with the 73 % coverage floor, terminal check and dependency audit, on Windows with Python 3.11, 3.12 and 3.14 |
+| `ci.yml`, host-linux | The tests that are not Windows-only, on Linux under Xvfb (Python 3.11 and 3.14) |
 | `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock` (Python 3.11 and 3.14) |
 | `ci.yml`, firmware-analysis | `cppcheck` on the firmware sources |
 | `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests, and the image cache benchmark with `--check`, with and without `--old-firmware` |
+| `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the two S3 boards, each with its board file |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 
 [VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).

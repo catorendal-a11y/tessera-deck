@@ -1,15 +1,13 @@
-"""Live Windows and HWiNFO sensor values for Tessera."""
+"""Live sensor values for Tessera: the CPU, the graphics card, memory, disk and network."""
 from __future__ import annotations
 
-import ctypes
-import os
-import struct
+from lhm_reader import LibreHardwareMonitorReader
+from platform_support import load
 import time
 from pathlib import Path
 
 import psutil
 from gpu_sources import GpuReaders
-from sensor_sources import LibreHardwareMonitorReader, WindowsCounters
 
 
 LHM_EXE = Path(__file__).resolve().parent / 'sensors' / 'LibreHardwareMonitor' / 'LibreHardwareMonitor.exe'
@@ -18,89 +16,6 @@ HINT_NOT_RUNNING = ('CPU temperature and power need Libre Hardware Monitor, whic
 HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. '
                       'In the Tessera folder run powershell -ExecutionPolicy Bypass -File tools\\setup_sensors.ps1, '
                       'then Tessera.cmd --sensors.')
-
-
-def _text(raw: bytes) -> str:
-    raw = raw.split(b'\0', 1)[0]
-    for encoding in ('utf-8', 'cp1252'):
-        try:
-            return raw.decode(encoding).strip()
-        except UnicodeDecodeError:
-            pass
-    return raw.decode('utf-8', 'replace').strip()
-
-
-class HWiNFOReader:
-    """Read the documented HWiNFO shared-memory sensor table."""
-
-    MAP_NAME = 'Global\\HWiNFO_SENS_SM2'
-    FILE_MAP_READ = 0x0004
-
-    def read(self) -> list[dict]:
-        if os.name != 'nt':
-            return []
-        kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
-        kernel32.OpenFileMappingW.argtypes = [ctypes.c_uint32, ctypes.c_bool,
-                                               ctypes.c_wchar_p]
-        kernel32.OpenFileMappingW.restype = ctypes.c_void_p
-        kernel32.MapViewOfFile.argtypes = [ctypes.c_void_p, ctypes.c_uint32,
-                                           ctypes.c_uint32, ctypes.c_uint32,
-                                           ctypes.c_size_t]
-        kernel32.MapViewOfFile.restype = ctypes.c_void_p
-        kernel32.UnmapViewOfFile.argtypes = [ctypes.c_void_p]
-        kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
-        handle = kernel32.OpenFileMappingW(self.FILE_MAP_READ, False, self.MAP_NAME)
-        if not handle:
-            return []
-        view = None
-        try:
-            view = kernel32.MapViewOfFile(handle, self.FILE_MAP_READ, 0, 0, 0)
-            if not view:
-                return []
-            header = ctypes.string_at(view, 48)
-            if header[:4] != b'HWiS':
-                return []
-            (_, _, _, _, sensor_offset, sensor_size, sensor_count,
-             reading_offset, reading_size, reading_count, _) = struct.unpack(
-                 '<IIIqIIIIIII', header)
-            if not (264 <= sensor_size <= 4096 and 316 <= reading_size <= 4096
-                    and sensor_count <= 4096 and reading_count <= 65536):
-                return []
-            total = max(sensor_offset + sensor_size * sensor_count,
-                        reading_offset + reading_size * reading_count)
-            if total > 32 * 1024 * 1024:
-                return []
-            data = ctypes.string_at(view, total)
-            sensors = []
-            for index in range(sensor_count):
-                offset = sensor_offset + index * sensor_size
-                original = _text(data[offset + 8:offset + 136])
-                user = _text(data[offset + 136:offset + 264])
-                sensors.append(user or original)
-            result = []
-            for index in range(reading_count):
-                offset = reading_offset + index * reading_size
-                kind, sensor_index, reading_id = struct.unpack_from('<III', data, offset)
-                original = _text(data[offset + 12:offset + 140])
-                user = _text(data[offset + 140:offset + 268])
-                unit = _text(data[offset + 268:offset + 284])
-                current, minimum, maximum, average = struct.unpack_from('<dddd', data, offset + 284)
-                result.append({
-                    'type': kind,
-                    'sensor': sensors[sensor_index] if sensor_index < len(sensors) else '',
-                    'id': reading_id,
-                    'label': user or original,
-                    'unit': unit,
-                    'value': current,
-                    'min': minimum,
-                    'max': maximum,
-                    'avg': average,
-                })
-            return result
-        finally:
-            if view:
-                kernel32.UnmapViewOfFile(view)
-            kernel32.CloseHandle(handle)
 
 
 # Sensor names that identify a graphics card on any vendor; integrated ones are demoted below.
@@ -193,10 +108,12 @@ def _uptime(seconds: float) -> str:
 
 class SystemStats:
     def __init__(self, hwinfo=None, lhm=None, counters=None, gpu=None):
-        self.hwinfo = hwinfo or HWiNFOReader()
+        sensors = load('sensors')
+        self.hwinfo = hwinfo or sensors.hwinfo_reader()
         self.lhm = lhm or LibreHardwareMonitorReader()
         frequency = psutil.cpu_freq()
-        self.counters = counters or WindowsCounters(frequency.max if frequency else None)
+        self.native_sensors = counters is None and sensors.NATIVE_SENSORS  # Linux: hwmon, the amdgpu files and nvidia-smi
+        self.counters = counters or sensors.native_counters(frequency.max if frequency else None)
         # Tests that inject their own counters get no real graphics-driver readings unless they ask for them.
         self.gpu = gpu if gpu is not None else (GpuReaders() if counters is None else GpuReaders([]))
         self.raw: dict[str, float] = {}
@@ -214,7 +131,7 @@ class SystemStats:
         now = time.monotonic()
         cpu = psutil.cpu_percent(None)
         ram = psutil.virtual_memory().percent
-        drive = os.environ.get('SystemDrive', 'C:') + '\\'
+        drive = load('sensors').disk_root()
         try:
             disk = psutil.disk_usage(drive).percent
         except OSError:
@@ -250,7 +167,7 @@ class SystemStats:
         self.display['net_up'] = _rate(up)
         self.display['uptime'] = _uptime(time.time() - psutil.boot_time())
         self.display['sensor_status'] = 'LIVE' if readings else 'BASIC'
-        self.hint = '' if readings else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED
+        self.hint = '' if readings or self.native_sensors else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED
         return dict(self.display)
 
 
@@ -275,7 +192,9 @@ def _format_gauge_text(value: float, spec: dict) -> str:
         return 'LIVE' if value >= 1 else 'BASIC'
     if fmt == 'uptime':
         days, remainder = divmod(max(0, int(value)), 86400)
-        return f'{days}d' if days else f'{remainder // 3600}h'
+        if days:
+            return f'{days}d'
+        return f'{remainder // 3600}h' if remainder >= 3600 else f'{remainder // 60}m'
     return f'{value:.0f}{unit}'
 
 

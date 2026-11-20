@@ -45,6 +45,14 @@ class ReviewTests(unittest.TestCase):
         self.assertFalse(any("button 1 'Safe'" in where for where in locations))
         self.assertFalse(any('https://example.com' in f['detail'] for f in findings if f['kind'] == 'open'))
 
+    def test_an_http_action_that_sends_an_environment_variable_in_a_header_is_high_risk(self):
+        action = {'type': 'http', 'url': 'https://example.com/hook',
+                  'headers': {'Authorization': 'Bearer $(env:GITHUB_TOKEN)'}}
+        config = {'profiles': {'P': {'pages': {'A': [{'id': 1, 'label': 'X', 'actions': [action]}]}}}}
+        finding = [f for f in review(config) if f['kind'] == 'http'][0]
+        self.assertEqual(finding['risk'], 'high')
+        self.assertIn('sends $(env:GITHUB_TOKEN)', finding['detail'])
+
     def test_the_bundled_default_profiles_have_no_web_calls_no_automatic_rules_and_only_launch_commands(self):
         config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
         findings = review(config)
@@ -199,7 +207,7 @@ class SubstitutionTests(unittest.TestCase):
             return response
 
         with patch.dict(os.environ, {'TESSERA_TOKEN': 'tok-1'}), \
-                patch.object(deck.urllib.request, 'urlopen', fake_urlopen):
+                patch.object(deck.WEB_OPENER, 'open', fake_urlopen):
             daemon.run_action({'type': 'http', 'url': 'http://127.0.0.1/x', 'method': 'POST',
                                'headers': {'Authorization': 'Bearer $(env:TESSERA_TOKEN)'},
                                'body': '{"k":"$(env:TESSERA_TOKEN)","missing":"$(env:NOPE_NOT_SET)"}'})

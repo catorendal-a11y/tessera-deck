@@ -31,9 +31,11 @@ MAC = 'AA:BB:CC:DD:EE:42'
 
 
 class FakeSerial:
-    """A panel on a scripted port: answers get_info with `protocol`, and AD_WIFI_* lines with `answers`."""
+    """A panel on a scripted port: answers get_info with `protocol`, and AD_WIFI_* lines with `answers`.
+    `wifi` False is a board without Wi-Fi: protocol 5 with no "wifi" field."""
     protocol = 5
     answers = {}
+    wifi = True
 
     def __init__(self):
         self.port, self.baudrate, self.timeout, self.write_timeout = None, 0, 0, 0
@@ -60,6 +62,8 @@ class FakeSerial:
             self.written.extend(raw)
             if b'get_info' in raw:
                 info = {'type': 'info', 'boardId': 'tessera-p4', 'firmwareVersion': '9.9.9', 'bootId': 1, 'protocol': self.protocol}
+                if self.protocol >= 5 and self.wifi:
+                    info['wifi'] = 'off'
                 self.pending.extend((json.dumps(info) + '\n').encode())
             for command, answer in self.answers.items():
                 if raw.startswith(command.encode()):
@@ -76,8 +80,8 @@ class FakeSerial:
         return data
 
 
-def open_panel(protocol=5, answers=None):
-    FakeSerial.protocol, FakeSerial.answers = protocol, answers or {}
+def open_panel(protocol=5, answers=None, wifi=True):
+    FakeSerial.protocol, FakeSerial.answers, FakeSerial.wifi = protocol, answers or {}, wifi
     with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=FakeSerial)), \
             patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.5):
         return panel_serial.PanelSerial('COM9', Mock())
@@ -155,6 +159,15 @@ class PanelCommands(unittest.TestCase):
         panel = open_panel(5)
         self.assertEqual(panel.info['protocol'], 5)
         self.assertTrue(panel.supports_wifi())
+
+    def test_a_board_without_wifi_gets_nothing_written(self):
+        panel = open_panel(5, wifi=False)  # CrowPanel and the S3 boards: protocol 5, no "wifi" field
+        self.assertFalse(panel.supports_wifi())
+        before = bytes(panel.ser.written)
+        for call in (lambda: panel.wifi_set(SSID, CANARY), panel.wifi_clear, panel.wifi_status):
+            with self.assertRaises(RuntimeError):
+                call()
+        self.assertEqual(bytes(panel.ser.written), before)
 
     def test_older_firmware_gets_nothing_written(self):
         panel = open_panel(4)

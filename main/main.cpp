@@ -5,6 +5,7 @@
 #include "bsp/esp-bsp.h"
 #include "bsp/display.h"
 
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <cstdio>
@@ -17,8 +18,14 @@
 #include "esp_timer.h"
 #include "deck_images.h"
 #include "protocol_version.h"
+#include "sdkconfig.h"
+#ifdef CONFIG_ESP_CONSOLE_UART
+#include "driver/uart.h"
+#include "driver/uart_vfs.h"
+#else
 #include "driver/usb_serial_jtag.h"
 #include "driver/usb_serial_jtag_vfs.h"
+#endif
 #include "esp_system.h"
 #include "esp_random.h"
 #include "nvs.h"
@@ -27,6 +34,7 @@
 #include "esp_spiffs.h"
 #include "esp_task_wdt.h"
 #include "psa/crypto.h"
+#include <algorithm>
 #include <atomic>
 #include <ctime>
 #include <sys/stat.h>
@@ -36,16 +44,58 @@ extern "C" {
 #include "deck_model.h"
 #include "deck_ha.h"
 #include "time_service.h"
+#if CONFIG_TESSERA_WIFI
 #include "wifi_service.h"
 #include "api/api_server.h"
+#endif
 #include "ui/ui.h"
 }
 
 static const char *TAG = "tessera";
+#ifdef CONFIG_TESSERA_BOARD_ID
+static const char *const BOARD_ID = CONFIG_TESSERA_BOARD_ID;  /* see main/Kconfig.projbuild */
+#else
+static const char *const BOARD_ID = "tessera-p4";
+#endif
+
+/* The host link is USB Serial/JTAG, or UART0 through the CH340 on boards without native USB (921600 baud, set in
+ * boards/tessera-s3-8048s070.defaults). Replies and logs share it through stdout either way. */
+#ifdef CONFIG_ESP_CONSOLE_UART
+static constexpr uart_port_t HOST_UART = static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM);
+#endif
+
+static void host_link_start(void)
+{
+#ifdef CONFIG_ESP_CONSOLE_UART
+    ESP_ERROR_CHECK(uart_driver_install(HOST_UART, 8192, 8192, 0, nullptr, 0));
+    uart_vfs_dev_use_driver(HOST_UART);
+#else
+    usb_serial_jtag_driver_config_t usb = {};
+    usb.rx_buffer_size = 8192;
+    usb.tx_buffer_size = 8192;
+    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
+    usb_serial_jtag_vfs_use_driver();
+#endif
+}
+
+/* Waits up to 20 ms for input. uart_read_bytes waits for the whole count, so it asks only for what has arrived. */
+static int host_link_read(uint8_t *buffer, size_t size)
+{
+#ifdef CONFIG_ESP_CONSOLE_UART
+    size_t ready = 0;
+    uart_get_buffered_data_len(HOST_UART, &ready);
+    return uart_read_bytes(HOST_UART, buffer, static_cast<uint32_t>(ready ? std::min(ready, size) : 1), pdMS_TO_TICKS(20));
+#else
+    return usb_serial_jtag_read_bytes(buffer, size, pdMS_TO_TICKS(20));
+#endif
+}
+
 /* Backlight level restored by AD_DISPLAY_WAKE; set by the host with AD_BRIGHTNESS
  * and kept in NVS so the panel boots at the chosen level, not at full power. */
 static int s_brightness = 100;
 static const char *SETTINGS_NAMESPACE = "tessera";
+/* Set once the boot screen's first frame is on the glass; the backlight waits for it. */
+static std::atomic<bool> s_boot_drawn{false};
 
 static void load_brightness(void)
 {
@@ -376,6 +426,18 @@ static void lvgl_watchdog(lv_timer_t *)
     if (subscribed) esp_task_wdt_reset();
 }
 
+/* Screen updates since the last get_info, and how long the slowest took to draw and send to the panel.
+ * The host and the docs read these to tell how busy the screen is. */
+static std::atomic<uint32_t> s_draws{0}, s_draw_max_us{0};
+static void draw_timing(lv_event_t *event)
+{
+    static int64_t started = 0;
+    if (lv_event_get_code(event) == LV_EVENT_RENDER_START) { started = esp_timer_get_time(); return; }
+    const uint32_t took = static_cast<uint32_t>(esp_timer_get_time() - started);
+    ++s_draws;
+    if (took > s_draw_max_us) s_draw_max_us = took;
+}
+
 /* Parse "<digits>" within [low, high]; returns false for anything else. */
 static bool parse_percent(const char *text, long low, long high, int *out)
 {
@@ -385,8 +447,9 @@ static bool parse_percent(const char *text, long low, long high, int *out)
     *out = static_cast<int>(value);
     return true;
 }
-/* USB console: line protocol with the Windows host. The panel has no network
- * stack; USB is the only transport. */
+/* USB console: line protocol with the Windows host. The host link (USB, or UART on the Sunton board) is the only
+ * transport to the PC. Wi-Fi, on the GUITION board only (CONFIG_TESSERA_WIFI), carries the Home Assistant API. */
+#if CONFIG_TESSERA_WIFI
 /* Wi-Fi status as one {"type":"wifi"} line: AD_WIFI_STATUS answers it, and the console sends it unsolicited
  * when wifi_service_version() changes. Built with cJSON, so the SSID is escaped; it never holds the password. */
 static void wifi_status_line(void)
@@ -443,6 +506,7 @@ static void wifi_command(char *line)
     }
     fflush(stdout);
 }
+#endif
 
 static void usb_console_task(void *)
 {
@@ -460,10 +524,12 @@ static void usb_console_task(void *)
     const uint32_t boot_id = esp_random();
     const char *const reset_reason = reset_reason_name();
     uint32_t wake_seen = deck_model_wake_sequence();
+#if CONFIG_TESSERA_WIFI
     uint32_t wifi_seen = wifi_service_version();
     int64_t wifi_sent_at = 0;
     uint32_t api_seen = api_server_status_version();
     int64_t api_sent_at = 0;
+#endif
     /* A hung loop restarts the panel (CONFIG_ESP_TASK_WDT_TIMEOUT_S); every read below returns within 20 ms. */
     const bool watched = esp_task_wdt_add(nullptr) == ESP_OK;
     for (;;) {
@@ -476,12 +542,16 @@ static void usb_console_task(void *)
         const uint32_t wake = deck_model_wake_sequence();
         if (wake != wake_seen) {
             wake_seen = wake;
+            /* An AD_DISPLAY_DIM that was already in the buffer may have dimmed again after the touch: the panel is lit
+             * now, so it is not dimmed, or the next tap would only "wake" it. */
+            deck_model_set_dimmed(false);
             bsp_display_brightness_set(s_brightness);
             printf("{\"type\":\"wake\"}\n");
             fflush(stdout);
         }
         layout_flush_if_due();
         brightness_flush_if_due();
+#if CONFIG_TESSERA_WIFI
         /* Wi-Fi changes, at most one line a second; the last change wins. */
         const int64_t now_us = esp_timer_get_time();
         if (wifi_service_version() != wifi_seen && now_us - wifi_sent_at >= 1000000) {
@@ -496,6 +566,7 @@ static void usb_console_task(void *)
             api_sent_at = now_us;
             api_server_status_line();
         }
+#endif
         /* "Backlight off" from Home Assistant: dark and dimmed, so the next touch wakes it as the PC's dim does. */
         if (deck_model_take_backlight_off() && bsp_display_brightness_set(0) == ESP_OK) deck_model_set_dimmed(true);
         /* The about sheet's slider: apply at once, save and tell the host when the finger lifts. */
@@ -541,7 +612,7 @@ static void usb_console_task(void *)
             }
             fflush(stdout);
         }
-            rx_size = usb_serial_jtag_read_bytes(received, sizeof(received), pdMS_TO_TICKS(20));
+            rx_size = host_link_read(received, sizeof(received));
             rx_at = 0;
             if (rx_size <= 0) continue;
         }
@@ -560,6 +631,7 @@ static void usb_console_task(void *)
             used = 0;
             continue;
         }
+#if CONFIG_TESSERA_WIFI
         if (!overflow && strncmp(line, "AD_WIFI_", 8) == 0) {
             wifi_command(line);
             memset(line, 0, sizeof(line)); /* AD_WIFI_SET carried the password */
@@ -572,6 +644,7 @@ static void usb_console_task(void *)
             used = 0;
             continue;
         }
+#endif
         if (!overflow && deck_image_command(line, image_reply)) {
             if (!image_reply.empty()) {printf("%s\n", image_reply.c_str());fflush(stdout);}
             used=0;overflow=false;
@@ -582,16 +655,24 @@ static void usb_console_task(void *)
             const cJSON *cmd=cJSON_GetObjectItemCaseSensitive(request,"cmd");
             if(cJSON_IsString(cmd)&&!strcmp(cmd->valuestring,"get_info")) {
                 cJSON *reply=cJSON_CreateObject();const esp_app_desc_t *app=esp_app_get_description();
-                cJSON_AddStringToObject(reply,"type","info");cJSON_AddStringToObject(reply,"boardId","tessera-p4");
+                cJSON_AddStringToObject(reply,"type","info");cJSON_AddStringToObject(reply,"boardId",BOARD_ID);
                 cJSON_AddStringToObject(reply,"firmwareVersion",app->version);cJSON_AddNumberToObject(reply,"protocol",TESSERA_PROTOCOL);cJSON_AddNumberToObject(reply,"bootId",boot_id);
                 cJSON_AddNumberToObject(reply,"uptime",esp_timer_get_time()/1000000);cJSON_AddNumberToObject(reply,"heap",heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
                 cJSON_AddNumberToObject(reply,"psramFree",heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+                /* Screen and image cache size; a host that finds none assumes 1024 x 600 and 8 MiB. */
+                cJSON_AddNumberToObject(reply,"w",BSP_LCD_H_RES);cJSON_AddNumberToObject(reply,"h",BSP_LCD_V_RES);
+                cJSON_AddNumberToObject(reply,"imgCache",static_cast<double>(deck_image_cache_limit()));
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
                 cJSON_AddNumberToObject(reply,"imgAck",1);  /* "AD_IMG_BEGIN <id> <bytes> <crc> ack", see deck_images.cpp */
+                cJSON_AddNumberToObject(reply,"notify",1);  /* shows AD_NOTIFY as a banner; older firmware gets a Windows notification */
+#if CONFIG_TESSERA_WIFI  /* a board without Wi-Fi leaves out "wifi", "api" and "ha", so the host offers none of them */
                 wifi_svc_status_t wifi;wifi_service_status(&wifi);cJSON_AddStringToObject(reply,"wifi",wifi_service_state_name(wifi.state));
                 cJSON_AddNumberToObject(reply,"api",1);
                 cJSON_AddNumberToObject(reply,"ha",1);  /* stage C: the layout's "ha"/"hs" key fields */
+#endif
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
+                cJSON_AddNumberToObject(reply,"draws",s_draws.exchange(0));
+                cJSON_AddNumberToObject(reply,"drawMaxMs",s_draw_max_us.exchange(0)/1000.0);
                 app_confirm();  /* the host can talk to this firmware: keep it */
                 char *text=cJSON_PrintUnformatted(reply);
                 if(text){printf("%s\n",text);cJSON_free(text);}cJSON_Delete(reply);fflush(stdout);
@@ -731,6 +812,11 @@ static void usb_console_task(void *)
             printf("{\"type\":\"screen\",\"queued\":true}\n");
             fflush(stdout);
         }
+        if (!overflow && strncmp(line, "AD_NOTIFY ", 10) == 0) {
+            /* "AD_NOTIFY <level> <seconds> <text>": the UI shows it on its own timer. The text is never echoed. */
+            printf("AD_NOTIFY %s\n", deck_model_notice_from_line(line + 10) ? "OK" : "INVALID");
+            fflush(stdout);
+        }
         if (!overflow && strncmp(line, "AD_AMBIENT", 10) == 0 && (line[10] == '\0' || line[10] == ' ')) {
             deck_model_set_ambient(line[10] == ' ' ? line + 11 : "");
             printf("AD_AMBIENT OK\n");
@@ -767,10 +853,13 @@ static void usb_console_task(void *)
             fflush(stdout);
         }
         if (!overflow && strcmp(line, "AD_DISPLAY_WAKE") == 0) {
+            /* The host sends this with every page and every key's feedback. Only a dimmed panel needs the full
+             * redraw: on an awake one it drew the whole screen twice more on each page change. */
+            const bool was_dimmed = deck_model_dimmed();
             esp_err_t result = bsp_display_brightness_set(s_brightness);
             deck_model_set_dimmed(false);
             bool queued = false;
-            if (result == ESP_OK && bsp_display_lock(200)) {
+            if (result == ESP_OK && was_dimmed && bsp_display_lock(200)) {
                 queued = lv_async_call([](void *) {
                     if (lv_screen_active()) lv_obj_invalidate(lv_screen_active());
                 }, nullptr) == LV_RESULT_OK;
@@ -801,11 +890,7 @@ extern "C" void app_main(void)
 {
     // Keep the scarce internal/DMA heap for the panel and SDIO driver.
     heap_caps_malloc_extmem_enable(16);
-    usb_serial_jtag_driver_config_t usb = {};
-    usb.rx_buffer_size = 8192;
-    usb.tx_buffer_size = 8192;
-    ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
-    usb_serial_jtag_vfs_use_driver();
+    host_link_start();
     deck_model_init();
     /* Idempotent; the stored brightness must be readable before the display starts. A full or newer-format
        partition is erased and set up again (the usual ESP-IDF recovery): otherwise nothing is ever stored again. */
@@ -824,9 +909,11 @@ extern "C" void app_main(void)
         }
     }
     store_mount();
+#if CONFIG_TESSERA_WIFI
     /* Never blocks: without stored credentials it only reads NVS and parks a task; the C6 is left alone. */
     if (nvs == ESP_OK) (void)api_server_init(); /* settings only; the API task starts later, with Wi-Fi */
     if (nvs == ESP_OK && wifi_service_init() != ESP_OK) ESP_LOGW(TAG, "Wi-Fi service unavailable");
+#endif
     layout_restore();
     deck_model_set_brightness(s_brightness);
     ui_set_firmware_version(esp_app_get_description()->version);
@@ -834,10 +921,12 @@ extern "C" void app_main(void)
 
     bsp_display_cfg_t cfg = {};
     cfg.lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
+#if CONFIG_IDF_TARGET_ESP32P4
     // CSI and PPA share DW-GDMA's private interrupt group. Allocate/start
     // their channels on the same core in UI, capture and USB maintenance.
     cfg.lvgl_port_cfg.task_affinity = 0;
-    cfg.buffer_size = 1024 * 240;
+#endif
+    cfg.buffer_size = BSP_LCD_H_RES * 240;
     /* The vendor BSP's BSP_LCD_DRAW_BUFF_DOUBLE is misleadingly defined as
      * (0), so asking for it explicitly still selects single buffering; the
      * double_buffer flag below is what actually enables the second buffer. */
@@ -868,7 +957,12 @@ extern "C" void app_main(void)
         // app_main retains its small housekeeping stack and never builds widgets.
         const lv_result_t queued = lv_async_call([](void *) {
             ui_init();
+            ui_boot_start();
+            lv_refr_now(nullptr);
+            s_boot_drawn = true;
             lv_timer_create(lvgl_watchdog, 1000, nullptr);
+            lv_display_add_event_cb(lv_display_get_default(), draw_timing, LV_EVENT_RENDER_START, nullptr);
+            lv_display_add_event_cb(lv_display_get_default(), draw_timing, LV_EVENT_RENDER_READY, nullptr);
         }, nullptr);
         bsp_display_unlock();
         if (queued != LV_RESULT_OK) {
@@ -885,6 +979,8 @@ extern "C" void app_main(void)
     /* The BSP intentionally initializes PWM at 0% and requires applications
      * to enable the backlight. Touch and USB can otherwise keep working while
      * the physical panel looks completely black. */
+    /* Lit any sooner, the panel flashes LVGL's default screen: wait for the boot screen's first frame, 2 s at most. */
+    for (int wait = 0; ui_loaded && wait < 200 && !s_boot_drawn; ++wait) vTaskDelay(pdMS_TO_TICKS(10));
     ESP_ERROR_CHECK(bsp_display_brightness_set(s_brightness));
 
     ESP_LOGI(TAG, "Tessera UI running");

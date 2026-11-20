@@ -441,10 +441,17 @@ esp_err_t bsp_display_brightness_init(void)
     };
     const ledc_timer_config_t LCD_backlight_timer = {
         .speed_mode = LEDC_LOW_SPEED_MODE,
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+        .duty_resolution = LEDC_TIMER_11_BIT,  /* Elecrow: 30 kHz, above hearing */
+        .timer_num = 1,
+        .freq_hz = 30000,
+        .clk_cfg = LEDC_USE_PLL_DIV_CLK
+#else
         .duty_resolution = LEDC_TIMER_10_BIT,
         .timer_num = 1,
         .freq_hz = 5000,
         .clk_cfg = LEDC_AUTO_CLK
+#endif
     };
 
     BSP_ERROR_CHECK_RETURN_ERR(ledc_timer_config(&LCD_backlight_timer));
@@ -474,7 +481,11 @@ esp_err_t bsp_display_brightness_set(int brightness_percent)
     }
 
     ESP_LOGI(TAG, "Setting LCD backlight: %d%%", brightness_percent);
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+    uint32_t duty_cycle = (2047 * brightness_percent) / 100; // 11 bits, 100% = 2047
+#else
     uint32_t duty_cycle = (1023 * brightness_percent) / 100; // LEDC resolution set to 10bits, thus: 100% = 1023
+#endif
     BSP_ERROR_CHECK_RETURN_ERR(ledc_set_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH, duty_cycle));
     BSP_ERROR_CHECK_RETURN_ERR(ledc_update_duty(LEDC_LOW_SPEED_MODE, LCD_LEDC_CH));
     return ESP_OK;
@@ -490,15 +501,40 @@ esp_err_t bsp_display_backlight_on(void)
     return bsp_display_brightness_set(100);
 }
 
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+static esp_ldo_channel_handle_t io_pwr_chan = NULL;
+
+/* Give the 3.3 V IO rail back: on every failure after it was taken, and when the display is deleted. */
+static void bsp_release_io_power(void)
+{
+    if (io_pwr_chan) {
+        esp_ldo_release_channel(io_pwr_chan);
+        io_pwr_chan = NULL;
+    }
+}
+#else
+static inline void bsp_release_io_power(void) {}
+#endif
+
 static esp_err_t bsp_enable_dsi_phy_power(void)
 {
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+    /* The CrowPanel feeds its 3.3 V IO domain from LDO4; Elecrow's examples acquire it before the display. */
+    esp_ldo_channel_config_t io_cfg = {.chan_id = 4, .voltage_mv = 3300};
+    ESP_RETURN_ON_ERROR(esp_ldo_acquire_channel(&io_cfg, &io_pwr_chan), TAG, "Acquire LDO4 failed");
+#endif
 #if BSP_MIPI_DSI_PHY_PWR_LDO_CHAN > 0
     // Turn on the power for MIPI DSI PHY, so it can go from "No Power" state to "Shutdown" state
     esp_ldo_channel_config_t ldo_cfg = {
         .chan_id = BSP_MIPI_DSI_PHY_PWR_LDO_CHAN,
         .voltage_mv = BSP_MIPI_DSI_PHY_PWR_LDO_VOLTAGE_MV,
     };
-    ESP_RETURN_ON_ERROR(esp_ldo_acquire_channel(&ldo_cfg, &disp_phy_pwr_chan), TAG, "Acquire LDO channel for DPHY failed");
+    esp_err_t phy_err = esp_ldo_acquire_channel(&ldo_cfg, &disp_phy_pwr_chan);
+    if (phy_err != ESP_OK) {
+        ESP_LOGE(TAG, "Acquire LDO channel for DPHY failed");
+        bsp_release_io_power();  // LDO4 was taken above: do not leave it on
+        return phy_err;
+    }
     ESP_LOGI(TAG, "MIPI DSI PHY Powered on");
 #endif // BSP_MIPI_DSI_PHY_PWR_LDO_CHAN > 0
 
@@ -517,6 +553,7 @@ esp_err_t bsp_display_new(const bsp_display_config_t *config, esp_lcd_panel_hand
 
     return ret;
 }
+#if !CONFIG_TESSERA_BOARD_P4_CROWPANEL7  /* the CrowPanel panel (EK79007) needs no init table */
 static const jd9165_lcd_init_cmd_t lcd_cmd[] = {
 
     {0x30, (uint8_t[]){0x00}, 1, 0},
@@ -581,6 +618,7 @@ static const jd9165_lcd_init_cmd_t lcd_cmd[] = {
     {0x11, (uint8_t[]){0x00}, 1, 120},
     {0x29, (uint8_t[]){0x00}, 1, 20},
 };
+#endif
 
 esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_lcd_handles_t *ret_handles)
 {
@@ -597,7 +635,12 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
         .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
         .lane_bit_rate_mbps = 750,
     };
-    ESP_RETURN_ON_ERROR(esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus), TAG, "New DSI bus init failed");
+    esp_err_t bus_err = esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
+    if (bus_err != ESP_OK) {
+        ESP_LOGE(TAG, "New DSI bus init failed");
+        bsp_release_io_power();
+        return bus_err;
+    }
 
     ESP_LOGI(TAG, "Install MIPI DSI LCD control panel");
     // we use DBI interface to send LCD commands and parameters
@@ -610,9 +653,53 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     ESP_GOTO_ON_ERROR(esp_lcd_new_panel_io_dbi(mipi_dsi_bus, &dbi_config, &io), err, TAG, "New panel IO failed");
 
     esp_lcd_panel_handle_t disp_panel = NULL;
-#if CONFIG_BSP_LCD_TYPE_1024_600
-    // create EK79007 control panel
-    ESP_LOGI(TAG, "Install EK79007 LCD control panel");
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+    // EK79007 needs no init table: the driver's built-in sequence is what Elecrow's examples use.
+    ESP_LOGI(TAG, "Install EK79007 LCD control panel (CrowPanel 7.0)");
+    esp_lcd_dpi_panel_config_t dpi_config = {
+        .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+        .dpi_clock_freq_mhz = 51,
+        .virtual_channel = 0,
+#if CONFIG_BSP_LCD_COLOR_FORMAT_RGB888
+        .in_color_format = LCD_COLOR_FMT_RGB888,
+        .out_color_format = LCD_COLOR_FMT_RGB888,
+#else
+        .in_color_format = LCD_COLOR_FMT_RGB565,
+        .out_color_format = LCD_COLOR_FMT_RGB565,
+#endif
+        .num_fbs = CONFIG_BSP_LCD_DPI_BUFFER_NUMS,
+        .video_timing = {
+            .h_size = 1024,
+            .v_size = 600,
+            .hsync_back_porch = 160,
+            .hsync_pulse_width = 70,
+            .hsync_front_porch = 160,
+            .vsync_back_porch = 23,
+            .vsync_pulse_width = 10,
+            .vsync_front_porch = 12,
+        },
+    };
+    ek79007_vendor_config_t vendor_config = {
+        .mipi_config = {
+            .dsi_bus = mipi_dsi_bus,
+            .dpi_config = &dpi_config,
+        },
+    };
+    esp_lcd_panel_dev_config_t lcd_dev_config = {
+        .bits_per_pixel = 16,
+        .rgb_ele_order = BSP_LCD_COLOR_SPACE,
+        .reset_gpio_num = BSP_LCD_RST,
+        .vendor_config = &vendor_config,
+    };
+    ESP_GOTO_ON_ERROR(esp_lcd_new_panel_ek79007(io, &lcd_dev_config, &disp_panel), err, TAG, "New LCD panel EK79007 failed");
+    ESP_GOTO_ON_ERROR(esp_lcd_panel_reset(disp_panel), err, TAG, "LCD panel reset failed");
+    ESP_GOTO_ON_ERROR(esp_lcd_panel_init(disp_panel), err, TAG, "LCD panel init failed");
+    ESP_GOTO_ON_ERROR(esp_lcd_dpi_panel_enable_dma2d(disp_panel), err, TAG, "LCD DMA2D init failed");
+    /* No esp_lcd_panel_disp_on_off here: the EK79007 driver does not support it and returns ESP_ERR_NOT_SUPPORTED.
+     * Its init ends with Sleep Out and the panel shows video without Display On, as in Elecrow's code. */
+#elif CONFIG_BSP_LCD_TYPE_1024_600
+    // create JD9165 control panel
+    ESP_LOGI(TAG, "Install JD9165 LCD control panel");
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
             .dpi_clock_freq_mhz = 52,
@@ -712,6 +799,7 @@ err:
     if (mipi_dsi_bus) {
         esp_lcd_del_dsi_bus(mipi_dsi_bus);
     }
+    bsp_release_io_power();
     return ret;
 }
 void bsp_display_delete(void)
@@ -743,6 +831,7 @@ void bsp_display_delete(void)
         esp_ldo_release_channel(disp_phy_pwr_chan);
         disp_phy_pwr_chan = NULL;
     }
+    bsp_release_io_power();
 
     bsp_display_brightness_deinit();
 }
@@ -771,7 +860,20 @@ esp_err_t bsp_touch_new(const bsp_touch_config_t *config, esp_lcd_touch_handle_t
     };
     esp_lcd_panel_io_i2c_config_t tp_io_config = ESP_LCD_TOUCH_IO_I2C_GT911_CONFIG();
     ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(i2c_handle, &tp_io_config, &tp_io_handle), TAG, "");
+#if CONFIG_TESSERA_BOARD_P4_CROWPANEL7
+    /* Depending on the INT level at reset the GT911 answers at 0x5D or 0x14: try the backup address too. */
+    esp_err_t touch_ret = esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, ret_touch);
+    if (touch_ret != ESP_OK) {
+        esp_lcd_panel_io_del(tp_io_handle);
+        tp_io_handle = NULL;  // deleted: a failed re-create below must not leave a dangling pointer for bsp_touch_delete
+        tp_io_config.dev_addr = ESP_LCD_TOUCH_IO_I2C_GT911_ADDRESS_BACKUP;
+        ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i2c(i2c_handle, &tp_io_config, &tp_io_handle), TAG, "");
+        touch_ret = esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, ret_touch);
+    }
+    return touch_ret;
+#else
     return esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, ret_touch);
+#endif
 }
 
 void bsp_touch_delete(void)

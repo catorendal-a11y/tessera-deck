@@ -4,10 +4,12 @@ import json
 import threading
 import time
 
+from daemon_display import banner_text
 import ha_keys
 
-BLOCKING_ACTIONS = ('shell', 'http', 'delay')  # run on the slow lane so key input stays responsive
+BLOCKING_ACTIONS = ('shell', 'script', 'http', 'delay')  # run on the slow lane so key input stays responsive
 DOUBLE_PRESS_SECONDS = 0.35  # a key with double_actions waits this long for a second tap
+FAILURE_BANNER_SECONDS = 6  # how long the panel shows why a key failed
 
 
 def action_list_name(hold, double=False):
@@ -48,7 +50,7 @@ class PressMixin:
         return self.waits(self.resolved_button(button).get(action_list_name(hold, double), []))
 
     def waits(self, actions, depth=0):
-        """Whether the list waits (shell, HTTP, delay, slow typing), following presses of other keys."""
+        """Whether the list waits (shell, script, HTTP, delay, slow typing), following presses of other keys."""
         for action in actions:
             if action.get('type') in BLOCKING_ACTIONS or (action.get('type') == 'text' and action.get('delay_ms')):
                 return True
@@ -59,7 +61,7 @@ class PressMixin:
         return False
 
     def start_press(self, button_id, hold=False, double=False, from_panel=False):
-        """Run a press now, or on the slow lane when it waits (shell, HTTP, delay) so other keys keep working.
+        """Run a press now, or on the slow lane when it waits (shell, script, HTTP, delay) so other keys keep working.
 
         A button that is still running ignores further presses instead of running twice. from_panel: a touch on the
         panel, which sends the key's Home Assistant steps itself; a press from the control API or a plugin cannot.
@@ -97,7 +99,7 @@ class PressMixin:
             self.slow_slots.release()
 
     def start_actions(self, actions):
-        """Trigger and timer actions: a list that waits (shell, HTTP, delay) runs on the slow lane, like a slow key.
+        """Trigger and timer actions: a list that waits (shell, script, HTTP, delay) runs on the slow lane, like a slow key.
 
         Otherwise one slow trigger would hold up every key press behind it. A list that is still running is skipped.
         """
@@ -156,11 +158,13 @@ class PressMixin:
         ok, error = False, ''
         try:
             self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ' (double)' if double else ''))
-            for action in actions:
+            steps, done = actions, 0
+            for action in steps:
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
                 if action.get('type') != ha_keys.KIND or panel_ran:
                     self.run_action(action)
+                done += 1
             if ha_steps and not panel_ran:  # nobody sent them: never report a press as done
                 raise RuntimeError(ha_keys.UNSUPPORTED if not panel_ready else ha_keys.NOT_FROM_PANEL)
             if (button.get('states') and not hold and not double and not button.get('bind')
@@ -169,8 +173,9 @@ class PressMixin:
                 self.push_page()
             ok = True
         except Exception as exc:
-            error = str(exc)[:180]
-            self.log(f'Action failed: {exc}')
+            # with several steps, which one: "There is no such window" alone does not say where a macro stopped
+            error = (f'Step {done + 1}: {exc}' if len(steps) > 1 and done < len(steps) else str(exc))[:180]
+            self.log(f'Action failed: {error}')
         finally:
             self.active_press.pop()
             self.last_action = {'id': button_id, 'label': button['label'], 'ok': ok,
@@ -178,8 +183,13 @@ class PressMixin:
             self.events.add('press', button=button_id, label=button['label'], profile=self.profile, page=self.page,
                             ok=ok, hold=hold, double=double)
             try:
-                if not (panel_ran and ok):
+                if not (panel_ran and ok):  # the panel flashes its own result for Home Assistant steps
                     self.give_feedback(button_id, ok)
+                # the reason on the panel too, from the outermost key only (it carries a child key's reason), and never
+                # more than the editor's toast shows; without a banner it stays quiet, no Windows notification
+                reason = banner_text(error)
+                if reason and not self.active_press and not self.stop.is_set():
+                    self.panel_notice(reason, 'error', FAILURE_BANNER_SECONDS)
             finally:
                 self.publish_runtime(True, force=True)
         return ok

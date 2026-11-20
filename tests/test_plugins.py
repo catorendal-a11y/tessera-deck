@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+from platform_marks import windows_only  # noqa: E402
 import deckctl
 import plugins
 import tesserad as deck
@@ -42,6 +43,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(manifest.routes(), frozenset({'var', 'vars'}))
         self.assertEqual(plugins.resolve_command(manifest, 'PY')[0], 'PY')
 
+    @windows_only
     def test_invalid_manifests_are_refused_with_a_reason(self):
         cases = ({'api': 2}, {'id': 'Bad Id'}, {'id': 'other-name'}, {'name': ''}, {'version': 5},
                  {'command': []}, {'command': 'python main.py'}, {'command': [5]}, {'permissions': ['root']},
@@ -56,6 +58,13 @@ class ManifestTests(unittest.TestCase):
         (self.root / 'broken' / 'plugin.json').write_text('{not json')
         with self.assertRaises(plugins.ManifestError):
             plugins.load_manifest(self.root / 'broken')
+
+    def test_the_notify_permission_grants_only_the_notify_route(self):
+        manifest = plugins.load_manifest(write_plugin(self.root, permissions=['notify']))
+        self.assertEqual((manifest.permissions, manifest.routes()), (frozenset({'notify'}), frozenset({'notify'})))
+        self.assertNotIn('notify', plugins.load_manifest(write_plugin(self.root, 'other')).routes())
+        # The editor names it when it asks for consent, and a new permission asks again.
+        self.assertIn("notify: 'show short messages on the panel'", (ROOT / 'host/editor/dialogs.js').read_text(encoding='utf-8'))
 
     def test_programs_must_live_inside_the_plugin_folder(self):
         folder = write_plugin(self.root, command=['tool.exe', '--x'])
@@ -273,6 +282,17 @@ class ManagerTests(unittest.TestCase):
         self.manager.sync(self.enabled())
         self.assertEqual(len(self.spawned), plugins.MAX_QUICK_CRASHES + 1,
                          'turning it off and on gives a fresh start')
+
+    def test_a_crash_report_ends_with_the_plugins_own_last_line(self):
+        self.manager.sync(self.enabled())
+        self.manager.log_dir.mkdir(parents=True, exist_ok=True)
+        with open(self.manager.log_dir / 'demo.log', 'a', encoding='utf-8') as log:
+            log.write('Traceback (most recent call last):\nConnectionRefusedError: OBS is not on port 4455\n\n')
+        self.spawned[-1][2].code = 1
+        self.now[0] += 1
+        self.manager.sync(self.enabled())  # notices the crash
+        error = self.manager.status(self.enabled())[0]['error']
+        self.assertTrue(error.endswith(': ConnectionRefusedError: OBS is not on port 4455'), error)
 
     def test_a_plugin_that_gave_up_starts_again_when_its_settings_change(self):
         for _ in range(plugins.MAX_QUICK_CRASHES):

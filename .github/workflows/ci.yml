@@ -44,6 +44,27 @@ jobs:
       - name: Dependency audit
         run: python -m pip_audit -r host/requirements.txt
 
+  host-linux:
+    name: "Linux host (Python ${{ matrix.python }}: tests that are not Windows-only)"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.11', '3.14']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: host/requirements.txt
+      - name: Install host dependencies
+        run: python -m pip install -r host/requirements.txt
+      - name: Install a virtual display (the tray tests start an X11 icon)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+      - name: Platform-independent and Linux tests (Windows tests skip themselves; see tests/platform_marks.py)
+        run: xvfb-run -a python -m unittest discover -s tests -v
+
   host-lock:
     name: "Windows host from the lock file (Python ${{ matrix.python }}, clean venv)"
     runs-on: windows-latest
@@ -111,3 +132,31 @@ jobs:
           /tmp/bench/bin/pip install --quiet pyserial==3.5 psutil==7.2.2 Pillow==13.0.0  # the versions in host/requirements.lock
           /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --check
           /tmp/bench/bin/python tests/cache_bench.py --exe build/native/cache_bench --old-firmware --check
+
+  firmware-boards:
+    name: Firmware build for ${{ matrix.board }}
+    runs-on: ubuntu-latest
+    container: espressif/idf:v6.1
+    strategy:
+      fail-fast: false
+      matrix:  # the boards with a board file; the GUITION P4 build is the firmware job above
+        include:
+          - {board: tessera-s3-ws7, target: esp32s3, defaults: boards/tessera-s3-ws7.defaults}
+          - {board: tessera-s3-8048s070, target: esp32s3, defaults: boards/tessera-s3-8048s070.defaults}
+          - {board: tessera-p4-crowpanel7, target: esp32p4, defaults: boards/crowpanel-p4-7.defaults}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build firmware
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py -B build/${{ matrix.board }} -DSDKCONFIG=build/${{ matrix.board }}/sdkconfig -DIDF_TARGET=${{ matrix.target }} \
+            -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;${{ matrix.defaults }}" build
+          ls -l build/${{ matrix.board }}/tessera.bin
+      - name: Package firmware
+        shell: bash
+        run: python3 tools/package_firmware.py build/${{ matrix.board }} dist --board ${{ matrix.board }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tessera-firmware-${{ matrix.board }}
+          path: dist/

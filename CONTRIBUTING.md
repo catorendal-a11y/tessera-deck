@@ -14,7 +14,7 @@ Thanks for wanting to help. Bug reports, ideas, ports to other boards and pull r
 
 ## Set up
 
-You need Windows 10 or 11 and Python 3.11 or newer. `Tessera.cmd --setup` creates `host\.venv` with the host's packages. For firmware work you also need ESP-IDF 6.1. For the native UI tests you need CMake and a C/C++ compiler such as MinGW. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) describes the project layout and every tool.
+You need Windows 10 or 11 and Python 3.11 or newer. `Tessera.cmd --setup` creates `host\.venv` with the host's packages. On Linux you need an X11 session and Python 3.12 or newer, and `./Tessera.sh --setup` creates `host/.venv` ([Tessera on Linux](docs/LINUX.md)). For firmware work you also need ESP-IDF 6.1. For the native UI tests you need CMake and a C/C++ compiler such as MinGW. [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) describes the project layout and every tool.
 
 ## Run the checks
 
@@ -53,6 +53,8 @@ cd host
 
 Commit both files. CI installs from the lock file on Python 3.11 and 3.14, so a lock that does not install fails there.
 
+**Linux entries in the lock.** `pip-compile` on Windows does not list the Linux-only packages (`keyring`, `jeepney`, `secretstorage`, `python-xlib` and what they need). They are appended at the end of `requirements.lock` with `; sys_platform == "linux"`, and the Windows-only packages carry `; sys_platform == "win32"`, so that `pip install --require-hashes` works on both. To refresh them, run `pip-compile --generate-hashes --strip-extras -c <the Windows lock without hashes> requirements.txt` on Linux and copy the new Linux-only blocks over.
+
 ## What makes a pull request easy to merge
 
 - One change per pull request, with a test that fails without it.
@@ -64,6 +66,6 @@ Commit both files. CI installs from the lock file on Python 3.11 and 3.14, so a 
 
 ## Port to another board
 
-Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and new layout constants in `main/ui/ui.cpp` if the resolution differs. Open an issue with the board's name and resolution and we can work out what it takes.
+Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and a board id of its own. The UI scales its 1024 x 600 layout to the screen size at start. The [CrowPanel Advance 7.0 port](docs/CROWPANEL.md) shows what that takes for another ESP32-P4 board. It adds a board choice and its id to `main/Kconfig.projbuild`, puts its pins, power and screen setup behind `CONFIG_TESSERA_BOARD_P4_CROWPANEL7` in `components/espressif__esp32_p4_function_ev_board`, keeps its build settings in `boards/crowpanel-p4-7.defaults` and adds the id to `BOARD_IDS` in `host/panel_serial.py` and `BOARD_CHIPS` in `host/firmware_update.py`. `tests/test_boards.py` checks that the two lists match. Open an issue with the board's name and resolution and we can work out what it takes.
 
 By contributing you agree that your work is released under the [MIT License](LICENSE).

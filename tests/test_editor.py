@@ -312,7 +312,7 @@ class EditorTests(unittest.TestCase):
         self.assertEqual(catalog['version'], 1)
         self.assertGreaterEqual(len(catalog['packs']), 119)
         self.assertGreaterEqual(len(catalog['templates']), 10)
-        self.assertTrue(all(pack['actions'] for pack in catalog['packs']))
+        self.assertTrue(all(pack['actions'] or pack.get('states') for pack in catalog['packs']))  # a key that shows state keeps its steps in its states
         template_names = {template['name'] for template in catalog['templates']}
         self.assertTrue({'Windows control', 'GitHub Desktop', 'PowerToys',
                          'Codex', 'Claude Code', 'ZCode'} <= template_names)
@@ -415,15 +415,35 @@ class MarkupTests(unittest.TestCase):
                  {'type': 'counter', 'name': 'laps', 'min': 5, 'max': 1}, {'type': 'timer', 'name': 'tea', 'seconds': 1.5},
                  {'type': 'press', 'id': 18}, {'type': 'delay', 'ms': 0}, {'type': 'hotkey', 'keys': 'ctrl+shift+b'},
                  {'type': 'http', 'url': 'https://example.com'}, {'type': 'http', 'url': '$(var:hook)'},
-                 {'type': 'counter', 'name': 'laps', 'min': 1, 'max': 5}, {'type': 'set', 'variable': 'mode.1', 'value': 'x'}]
+                 {'type': 'counter', 'name': 'laps', 'min': 1, 'max': 5}, {'type': 'set', 'variable': 'mode.1', 'value': 'x'},
+                 {'type': 'script', 'path': 'C:\\scripts\\backup'}, {'type': 'script', 'path': 'scripts\\a.ps1'},
+                 {'type': 'script', 'path': 'C:\\100%\\a.cmd'},
+                 {'type': 'script', 'path': 'C:\\scripts\\a.ps1'}, {'type': 'script', 'path': '%USERPROFILE%\\a.cmd'},
+                 {'type': 'script', 'path': ' "C:\\scripts\\a.ps1" '}]
         script = kinds + rules + f'console.log(JSON.stringify({json.dumps(steps)}.map(s=>!!stepProblem(s))));'
         result = subprocess.run([node, '-e', script], capture_output=True, text=True, encoding='utf-8', timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7)
+        self.assertEqual(json.loads(result.stdout), [True] * 11 + [False] * 7 + [True] * 3 + [False] * 3)
 
 
 class EditorScriptTests(unittest.TestCase):
     """The editor's own functions, run in node (run_editor)."""
+
+    def test_a_power_pack_keeps_its_hold_to_confirm(self):
+        found = run_editor(self, r'''
+const power = {name: 'Shut down', icon: 'power', confirm: true, actions: [{type: 'shell', command: 'shutdown /s /t 0'}]};
+const result = {};
+for (const where of ['new', 'empty', 'hold']) {
+  config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: []}}}}; profile = 'Main'; page = 'First'; selected = 1;
+  actionCatalog.packs = [power];
+  if (where === 'empty') config.profiles.Main.pages.First.push({id: 1, label: '', icon: 'ok', actions: []});
+  if (where === 'hold') config.profiles.Main.pages.First.push({id: 1, label: 'X', icon: 'ok', actions: [], hold_actions: [{type: 'delay', ms: 1}]});
+  addAction('pack:0', where === 'new' ? null : 1);
+  result[where] = config.profiles.Main.pages.First.find(b => b.id === selected).confirm === true;
+}
+return result;
+''')
+        self.assertEqual(found, {'new': True, 'empty': True, 'hold': False})
 
     def test_editor_edits_never_leave_a_value_the_host_refuses(self):
         found = run_editor(self, r'''
@@ -578,6 +598,72 @@ return {{first, kept: config.plugins[plugin.id].settings.url}};
         self.assertEqual(found['first'], {'enabled': True, 'settings': {
             'url': 'http://homeassistant.local:8123', 'token': 'abc', 'entities': '', 'interval': 10}})
         self.assertEqual(found['kept'], 'http://ha.lan:8123', 'a stored value wins over the default')
+
+    def test_the_editor_and_the_host_agree_on_plugin_steps(self):
+        """config_check measures args with Python's json.dumps: spaces after , and : and non-ASCII as \\uXXXX."""
+        pad = 'x' * (1024 - len(json.dumps({'k': ['', 'y']})))
+        steps = [{'plugin': 'obs', 'command': 'record'}, {'plugin': 'obs', 'command': 'scene', 'args': {'name': 'Gaming'}},
+                 {'plugin': 'home-assistant', 'command': 'call', 'args': {'service': 'scene.turn_on', 'n': None, 'b': True, 'f': 1.5}},
+                 {'plugin': 'obs', 'command': 'volume-up', 'args': {'k': [pad, 'y']}},
+                 {'plugin': 'obs', 'command': 'x', 'args': {'t': '\U0001F600' * 84}},
+                 {'plugin': '', 'command': 'record'}, {'plugin': 'OBS', 'command': 'record'}, {'plugin': 'o', 'command': 'record'},
+                 {'plugin': 'obs'}, {'plugin': 'obs', 'command': ''}, {'plugin': 'obs', 'command': 'rec ord'},
+                 {'plugin': 'obs', 'command': 'x' * 65}, {'plugin': 'obs', 'command': 'x', 'args': []},
+                 {'plugin': 'obs', 'command': 'x', 'args': 'name'}, {'plugin': 'obs', 'command': 'x', 'args': {'k': [pad + 'x', 'y']}},
+                 {'plugin': 'obs', 'command': 'x', 'args': {'t': 'æ' * 200}}, {'plugin': 'obs', 'command': 'x', 'args': {'t': '\U0001F600' * 85}},
+                 {'plugin': 'obs', 'command': 'x', 'args': {'t': '\x7f' * 170}}]
+        steps = [{'type': 'plugin', **step} for step in steps]
+
+        def host_takes(step):
+            try:
+                tessera_app.validate_config({'default_profile': 'p', 'profiles': {'p': {'match': [], 'pages': {
+                    'page': [{'id': 1, 'label': 'Key', 'actions': [step]}]}}}})
+                return True
+            except ValueError:
+                return False
+
+        expected = [host_takes(step) for step in steps]
+        self.assertEqual(expected, [True] * 5 + [False] * 13, 'the cases cover both sides of each rule')
+        self.assertEqual(run_editor(self, f'return {json.dumps(steps)}.map(step => !stepProblem(step));'), expected)
+
+    def test_a_plugin_step_has_its_own_fields_and_refuses_bad_arguments(self):
+        found = run_editor(self, r'''
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [{id: 1, label: 'Rec', icon: 'ok',
+  actions: [{type: 'plugin', plugin: 'obs', command: 'record'}]}]}}}};
+profile = 'Main'; page = 'First'; selected = 1; editState = 0;
+const step = config.profiles.Main.pages.First[0].actions[0];
+const result = {template: actionTemplate('plugin').actions[0], name: kindName('plugin'), detail: stepDetail(step), types: Object.keys(kinds).includes('plugin')};
+const fields = {}, toasts = [], realField = field, realElement = element;
+const area = {value: '', attrs: {}, setAttribute(key, value) { this.attrs[key] = value; }, addEventListener(type, fn) { this.change = fn; }};
+field = (label, value, handler, options) => { fields[label] = {value, handler, values: options?.values ?? null}; return realField(label, value, handler, options); };
+element = (tag, ...rest) => tag === 'textarea' ? area : realElement(tag, ...rest);
+toast = message => toasts.push(message);
+setPluginChoices([{id: 'obs', name: 'OBS Studio', enabled: true}, {id: 'home-assistant', name: 'Home Assistant', enabled: false}]);
+renderStep(step, 0, 1);
+result.listed = fields.Plugin.values;
+step.plugin = 'my-plugin'; renderStep(step, 0, 1); result.unlisted = fields.Plugin.values.at(-1);
+setPluginChoices([]); renderStep(step, 0, 1); result.typed = fields.Plugin.values;
+fields.Command.handler(' scene ');
+area.value = '{"name": "Gaming"}'; area.change();
+result.saved = clone(step); result.valid = area.attrs['aria-invalid'];
+for (const bad of ['{"name": ', '[1]', JSON.stringify({text: 'x'.repeat(1100)})]) { area.value = bad; area.change(); }
+field = realField; element = realElement;
+result.after = clone(step); result.invalid = area.attrs['aria-invalid']; result.toasts = toasts;
+return result;
+''')
+        self.assertEqual(found['template'], {'type': 'plugin', 'plugin': '', 'command': '', 'args': {}})
+        self.assertEqual((found['name'], found['detail'], found['types']), ('Plugin command', 'Plugin command: obs record', True))
+        self.assertEqual(found['listed'], [['', 'Choose a plugin'], ['obs', 'OBS Studio'], ['home-assistant', 'Home Assistant (off)']])
+        self.assertEqual(found['unlisted'], ['my-plugin', 'my-plugin'], 'a plugin that is not installed stays selectable')
+        self.assertIsNone(found['typed'], 'with no plugin installed the id is typed')
+        self.assertEqual(found['saved'], {'type': 'plugin', 'plugin': 'my-plugin', 'command': 'scene', 'args': {'name': 'Gaming'}})
+        self.assertEqual(found['valid'], 'false')
+        self.assertEqual(found['after'], found['saved'], 'refused arguments never reach the key')
+        self.assertEqual(found['invalid'], 'true')
+        self.assertEqual(len(found['toasts']), 3)
+        self.assertIn('JSON', found['toasts'][0])
+        self.assertIn('object', found['toasts'][1])
+        self.assertIn('1024', found['toasts'][2])
 
 if __name__ == '__main__':
     unittest.main()

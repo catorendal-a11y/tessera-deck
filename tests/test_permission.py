@@ -118,6 +118,8 @@ class PanelQuestionTests(HostCase):
             daemon.handle_job(('question',))
         sent = [call.args[0] for call in daemon.panel.send_line.call_args_list]
         self.assertIn('AD_VIEW agents', sent)
+        # the lanes first: a panel that opened the screen before the question was there went straight back to the keys
+        self.assertLess(next(index for index, line in enumerate(sent) if line.startswith('AD_AGENTS ')), sent.index('AD_VIEW agents'))
         lanes = json.loads(next(line for line in sent if line.startswith('AD_AGENTS ')).split(' ', 1)[1])['agents']
         self.assertEqual((lanes[0]['id'], lanes[0]['state'], lanes[0]['text']), ('claude', 'waiting', 'Bash: npm test'))
 

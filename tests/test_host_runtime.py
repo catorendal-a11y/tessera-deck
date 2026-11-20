@@ -1,4 +1,5 @@
 """Host tests, part two: runtime status, sensors, toggle keys, the control API, focus, reloads and triggers."""
+from platform_windows import input as win_input
 import copy
 import json
 from pathlib import Path
@@ -13,11 +14,12 @@ from unittest.mock import Mock, call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+from platform_marks import windows_only  # noqa: E402
 import psutil
 import tesserad as deck
 from system_stats import select_hwinfo_metrics
 from deck_assets import Assets
-from deck_control import Controller, autostart_enabled, set_autostart
+from deck_control import Controller, autostart_enabled, set_autostart, startup_line
 from host_support import HostCase, test_daemon
 
 
@@ -59,7 +61,7 @@ class HostRuntimeTests(HostCase):
             self.assertRegex(widgets['1']['label'], r'^\d\d:\d\d$')
 
     def test_libre_hardware_monitor_tree_maps_to_the_right_cpu_and_gpu_metrics(self):
-        from sensor_sources import flatten_sensor_tree
+        from lhm_reader import flatten_sensor_tree
         def sensor(text, sensor_id, value):
             return {'Text': text, 'SensorId': sensor_id, 'Value': value, 'Children': []}
         tree = {'Text': 'Sensor', 'Children': [{'Text': 'PC', 'Children': [
@@ -440,6 +442,14 @@ class HostRuntimeTests(HostCase):
         self.assertEqual((daemon.profile, daemon.page, daemon.folder_stack), ('main', 'main', []))
         daemon.panel.push_buttons.assert_called()
 
+    def test_home_from_another_profile_sends_the_first_page_once(self):
+        daemon = self.daemon()
+        daemon.switch_profile('coding')
+        daemon.panel.reset_mock()
+        daemon.run_action({'type': 'home'})
+        self.assertEqual((daemon.profile, daemon.page), ('main', 'main'))
+        daemon.panel.push_buttons.assert_called_once()
+
     def test_auto_profile_switching_can_be_disabled(self):
         daemon = self.daemon()
         daemon.args.no_focus = False
@@ -458,6 +468,16 @@ class HostRuntimeTests(HostCase):
             daemon.run_action(action)
         focus.assert_called_once_with('example.exe')
         start.assert_not_called()
+
+    @windows_only
+    def test_open_action_expands_environment_variables_in_paths_only(self):
+        daemon = self.daemon()
+        with patch.dict(deck.os.environ, {'TESSERA_TEST_SECRET': 'secret123'}), patch.object(deck, 'IS_WINDOWS', True), \
+             patch.object(deck.os, 'startfile', create=True) as start:
+            daemon.run_action({'type': 'open', 'target': 'https://example.com/?t=%TESSERA_TEST_SECRET%'})
+            daemon.run_action({'type': 'open', 'target': r'%TESSERA_TEST_SECRET%\notes.txt'})
+        self.assertEqual([call.args[0] for call in start.call_args_list],
+                         ['https://example.com/?t=%TESSERA_TEST_SECRET%', r'secret123\notes.txt'])
 
     def test_terminal_profiles_match_child_process_or_title(self):
         context = {'exe': 'windowsterminal.exe', 'title': 'Claude - prosjekt',
@@ -590,13 +610,14 @@ class HostRuntimeTests(HostCase):
             controller.processes = Mock(return_value=[process])
             controller.runtime_path.write_text(json.dumps({
                 'pid': 77, 'updated': __import__('time').time(), 'connected': True,
-                'port': 'COM4', 'profile': 'main', 'page': 'apps', 'buttons': 8,
+                'port': 'COM4', 'profile': 'main', 'page': 'apps', 'buttons': 8, 'board': 'tessera-p4-crowpanel7',
                 'last_action': {'id': 2, 'label': 'ChatGPT', 'ok': True, 'at': 10},
                 'vars': {'claude': 'working'}, 'stats': {'cpu_temp': '58'}}))
             status = controller.status()
             self.assertTrue(status['device']['connected'])
             self.assertEqual((status['device']['profile'], status['device']['page']), ('main', 'apps'))
             self.assertEqual(status['device']['last_action']['label'], 'ChatGPT')
+            self.assertEqual(status['device']['board'], 'tessera-p4-crowpanel7')  # the update check picks its package
             # The editor previews $(var:…) and $(stat:…) labels with these values.
             self.assertEqual((status['vars'], status['stats']), ({'claude': 'working'}, {'cpu_temp': '58'}))
 
@@ -608,6 +629,7 @@ class HostRuntimeTests(HostCase):
             controller.runtime_path.write_text(json.dumps({'pid': 77, 'updated': 1, 'connected': True}))
             self.assertFalse(controller.status()['device']['connected'])
 
+    @windows_only
     def test_windows_autostart_script_can_be_enabled_and_removed(self):
         with tempfile.TemporaryDirectory() as directory:
             fake_root = Path(directory) / 'program'
@@ -620,6 +642,79 @@ class HostRuntimeTests(HostCase):
                 self.assertIn('pythonw.exe', path.read_text(encoding='utf-16'))
                 set_autostart(False, directory)
                 self.assertFalse(autostart_enabled(directory))
+
+    @windows_only
+    def test_start_with_windows_counts_only_a_script_for_this_folder(self):
+        with tempfile.TemporaryDirectory() as directory:
+            old_root, new_root = Path(directory) / 'tessera-1.0', Path(directory) / 'tessera-1.1'
+            for root in (old_root, new_root):
+                (root / 'host/.venv/Scripts').mkdir(parents=True)
+                (root / 'host/.venv/Scripts/pythonw.exe').write_bytes(b'')
+            with patch('deck_control.os.name', 'nt'):
+                with patch('deck_control.ROOT', old_root):
+                    path = set_autostart(True, directory)
+                    self.assertTrue(autostart_enabled(directory))
+                with patch('deck_control.ROOT', new_root):
+                    self.assertFalse(autostart_enabled(directory))  # the tray menu does not tick a script for the old folder
+                    set_autostart(True, directory)
+                    self.assertTrue(autostart_enabled(directory))
+                    self.assertNotIn(str(old_root / 'host'), path.read_text(encoding='utf-16'))
+                    path.write_bytes(b'\x00')  # an unreadable script counts as off
+                    self.assertFalse(autostart_enabled(directory))
+                    path.write_text(f'{startup_line()}\r\n', encoding='utf-8')  # as 0.5-0.6.1 wrote it
+                    self.assertTrue(autostart_enabled(directory))
+
+    @windows_only
+    def test_the_tray_asks_before_start_with_windows_moves_from_another_folder(self):
+        try:
+            import tessera_tray
+        except ImportError:
+            self.skipTest('pystray is not installed')
+        from host_support import tray_app
+        with tempfile.TemporaryDirectory() as directory:
+            first_run = Path(directory) / 'tray-first-run.local.json'
+            script = Path(directory) / 'Microsoft/Windows/Start Menu/Programs/Startup/Tessera.vbs'
+            script.parent.mkdir(parents=True)
+            script.write_text('a copy in another folder', encoding='utf-16')
+            box = Mock(return_value=7)  # IDNO
+            app = tray_app(Mock())
+            with patch.object(tessera_tray, 'FIRST_RUN_PATH', first_run), patch('deck_control.os.name', 'nt'), \
+                    patch.dict('os.environ', {'APPDATA': directory}), \
+                    patch('ctypes.windll', Mock(user32=Mock(MessageBoxW=box)), create=True), \
+                    patch.object(tessera_tray, 'set_autostart') as set_autostart:
+                app.ask_about_autostart()
+                app.ask_about_autostart()  # once per folder
+                self.assertEqual(box.call_count, 1)
+                self.assertIn('another folder. Start this copy instead?', box.call_args.args[1])
+                self.assertIn(str(tessera_tray.ROOT), box.call_args.args[1])
+                set_autostart.assert_not_called()
+                self.assertEqual(script.read_text(encoding='utf-16'), 'a copy in another folder')
+                first_run.write_text('{"asked": "autostart"}', encoding='utf-8')  # copied from the folder before
+                app.ask_about_autostart()
+                self.assertEqual(box.call_count, 2)
+                first_run.unlink()
+                box.return_value = 6  # IDYES
+                app.ask_about_autostart()
+                set_autostart.assert_called_once_with(True)
+                first_run.unlink()
+                script.unlink()
+                app.ask_about_autostart()
+                self.assertTrue(box.call_args.args[1].startswith('Start Tessera when you sign in to Windows?'))
+
+    def test_the_tray_start_leaves_start_with_windows_alone(self):
+        try:
+            import tessera_tray
+        except ImportError:
+            self.skipTest('pystray is not installed')
+        from host_support import tray_app
+        app = tray_app(Mock())
+        app.start_host, app.icon = Mock(), Mock()
+        app.stop.set()  # the status poll ends at once
+        with patch.object(tessera_tray, 'set_autostart') as set_autostart:
+            app.run()
+        set_autostart.assert_not_called()
+        app.start_host.assert_called_once_with()
+        app.icon.run.assert_called_once_with()
 
     def test_trigger_targets_must_be_text_so_a_bad_one_cannot_stop_the_host(self):
         config = json.loads((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'))
@@ -856,11 +951,11 @@ class HostRuntimeTests(HostCase):
         user32 = Mock()
         user32.IsIconic.return_value = False  # maximized or normal: SW_RESTORE would un-maximize it
         user32.GetForegroundWindow.return_value = 7  # Windows let it through
-        deck.bring_to_front(user32, 7)
+        win_input.bring_to_front(user32, 7)
         user32.ShowWindow.assert_not_called()
         user32.SetForegroundWindow.assert_called_once_with(7)
         user32.IsIconic.return_value = True  # minimized: restore it first
-        deck.bring_to_front(user32, 7)
+        win_input.bring_to_front(user32, 7)
         user32.ShowWindow.assert_called_once_with(7, 9)
 
     def test_a_refused_focus_is_retried_instead_of_leaving_the_taskbar_flashing(self):
@@ -868,7 +963,7 @@ class HostRuntimeTests(HostCase):
         user32.IsIconic.return_value = False
         user32.GetForegroundWindow.return_value = 3  # another window stays in front: Windows refused
         user32.GetWindowThreadProcessId.return_value = 55
-        deck.bring_to_front(user32, 7)
+        win_input.bring_to_front(user32, 7)
         user32.BringWindowToTop.assert_called_once_with(7)
         self.assertEqual(user32.AttachThreadInput.call_args_list[0].args[1:], (55, True))
         self.assertEqual(user32.AttachThreadInput.call_args_list[-1].args[1:], (55, False), 'the threads are detached again')

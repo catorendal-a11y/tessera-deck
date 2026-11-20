@@ -101,6 +101,19 @@ class TerminalAppTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn('EditorPage', pages)
             self.assertEqual(pages['First'][0]['label'], 'Changed')
 
+    async def test_a_home_assistant_step_is_edited_in_the_graphical_editor_and_kept(self):
+        data, step = config(), {'type': 'homeassistant', 'action': 'light.toggle', 'entity_id': 'light.kitchen'}
+        data['profiles']['Main']['pages']['First'][0]['actions'] = [step]
+        self.write(data)
+        app = self.app()
+        async with app.run_test(size=(140, 48)) as pilot:
+            await pilot.pause()
+            await self.press(pilot, app.query_one(DeckPane).query_one('#deck-slot-1', Button))
+            await self.press(pilot, app.screen.query_one('#step-edit', Button))
+            self.assertEqual(str(app.screen.query_one('#button-error').content), 'Edit this step in the graphical editor')
+            await self.press(pilot, app.screen.query_one('#button-save', Button))
+            self.assertEqual(self.saved()['profiles']['Main']['pages']['First'][0]['actions'], [step])
+
     async def test_renaming_a_page_keeps_its_place_and_points_every_action_and_shortcut_at_it(self):
         data = config()
         data['panel'] = {'shortcuts': [{'profile': 'Main', 'page': 'First', 'icon': 'lc:e0ff'}]}

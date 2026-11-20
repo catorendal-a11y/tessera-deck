@@ -1256,6 +1256,19 @@ CONFIG_PARTITION_TABLE_MD5=y
 # end of Partition Table
 
 #
+# Tessera board
+#
+# default:
+CONFIG_TESSERA_BOARD_P4_GUITION=y
+# default:
+# CONFIG_TESSERA_BOARD_P4_CROWPANEL7 is not set
+# default:
+CONFIG_TESSERA_BOARD_ID="tessera-p4"
+# default:
+CONFIG_TESSERA_WIFI=y
+# end of Tessera board
+
+#
 # Compiler options
 #
 # CONFIG_COMPILER_OPTIMIZATION_DEBUG is not set
@@ -3963,25 +3976,6 @@ CONFIG_ESP_WIFI_REMOTE_IDF_SPECIFIC_ADDED=y
 # end of Wi-Fi configuration
 
 #
-# LZ4 Configurations
-#
-# default:
-# CONFIG_LZ4_USE_PSRAM is not set
-# default:
-# CONFIG_LZ4_FAST_DEC_LOOP is not set
-# default:
-# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_1KB is not set
-# default:
-# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_2KB is not set
-# default:
-# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_4KB is not set
-# default:
-# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_8KB is not set
-# default:
-CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_16KB=y
-# end of LZ4 Configurations
-
-#
 # mDNS
 #
 # default:
@@ -4699,6 +4693,25 @@ CONFIG_LV_CHECK_ARG_LOG_MODE=0
 # CONFIG_LV_BUILD_DEMOS is not set
 # end of Demos
 # end of LVGL
+
+#
+# LZ4 Configurations
+#
+# default:
+# CONFIG_LZ4_USE_PSRAM is not set
+# default:
+# CONFIG_LZ4_FAST_DEC_LOOP is not set
+# default:
+# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_1KB is not set
+# default:
+# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_2KB is not set
+# default:
+# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_4KB is not set
+# default:
+# CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_8KB is not set
+# default:
+CONFIG_LZ4_BLOCK_HASH_TABLE_SIZE_16KB=y
+# end of LZ4 Configurations
 # end of Component config
 
 CONFIG_IDF_EXPERIMENTAL_FEATURES=y

@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from process_flags import NO_WINDOW
 import sys
 import time
 import psutil
@@ -10,6 +11,8 @@ import psutil
 import config_store
 from config_store import write_atomic
 import secrets_store
+from host_runtime import DEFAULT_PORT
+from platform_support import IS_WINDOWS, load
 
 ROOT = Path(__file__).resolve().parents[1]
 MAX_LOG_BYTES = 5 * 1024 * 1024
@@ -26,37 +29,89 @@ def firmware_installing(path=None):
 
 
 def startup_script_path(appdata=None):
-    """Return the per-user Windows Startup shortcut script."""
-    base = Path(appdata or os.environ.get('APPDATA', ''))
-    if not str(base):
-        raise OSError('The Windows startup folder is not available')
-    return base / 'Microsoft/Windows/Start Menu/Programs/Startup/Tessera.vbs'
+    """The per-user startup entry: the XDG autostart file on Linux, the Startup folder's Tessera.vbs on Windows."""
+    return load('autostart').startup_script_path(appdata)
+
+
+def startup_line():
+    """The line of Tessera.vbs that starts the tray app of this folder (Windows)."""
+    from platform_windows import autostart
+    return autostart.startup_line(ROOT)
 
 
 def autostart_enabled(appdata=None):
-    return os.name == 'nt' and startup_script_path(appdata).is_file()
+    """True when the startup entry starts this folder. A script left by a copy in another folder does not count."""
+    try:
+        path = startup_script_path(appdata)
+    except OSError:  # no startup folder (no APPDATA): nothing starts this folder
+        return False
+    return load('autostart').is_enabled(path, ROOT)
 
 
 def set_autostart(enabled, appdata=None):
     """Start the tray app (which starts the USB host) after the user signs in."""
-    if os.name != 'nt' and appdata is None:
-        raise OSError('Automatic startup is only supported on Windows')
     path = startup_script_path(appdata)
     if not enabled:
         path.unlink(missing_ok=True)
         return path
-    pythonw = ROOT / 'host/.venv/Scripts/pythonw.exe'
-    if not pythonw.is_file():
-        raise OSError('Run Tessera.cmd once before enabling automatic startup')
-    starter = ROOT / 'host/tessera_tray.py'
-    command = f'"{pythonw}" "{starter}"'.replace('"', '""')
-    contents = ('Set TesseraShell = CreateObject("WScript.Shell")\r\n'
-                f'TesseraShell.Run "{command}", 0, False\r\n')
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(contents, encoding='utf-16')  # Script Host reads a non-ASCII path only as UTF-16
-    os.replace(temporary, path)
-    return path
+    return load('autostart').enable(path, ROOT)
+
+
+def stop_editor(record_path=None, script=None, wait=4.0):
+    """Stop the editor when it runs in a browser tab. True when one was stopped.
+
+    In a native window, closing the window ends the editor. A browser tab is not the editor's window, so without this
+    the editor's web server would keep running after the tray is closed. Only the process the record names is
+    touched, and only if it is still the same process (same script, same start time).
+
+    Not on Windows: terminate() is a hard kill there, and the tray's Quit has never stopped the editor on Windows."""
+    if IS_WINDOWS:
+        return False
+    record_path = Path(record_path or ROOT / 'host/editor.local.json')
+    script = Path(script or ROOT / 'host/tessera_app.py')
+    try:
+        record = json.loads(record_path.read_text(encoding='utf-8'))
+        if not isinstance(record, dict) or not record.get('browser'):
+            return False
+        process = psutil.Process(record['pid'])
+        command = process.cmdline()
+        if not (len(command) > 1 and Path(command[1]).resolve() == script.resolve()
+                and abs(process.create_time() - record['created']) < .01):
+            return False
+    except (OSError, ValueError, KeyError, TypeError, psutil.Error):
+        return False
+    try:
+        process.terminate()  # SIGTERM: the editor turns it into a normal shutdown (record and lock removed)
+        try:
+            process.wait(wait)
+        except psutil.TimeoutExpired:
+            process.kill()
+            process.wait(2)
+    except psutil.Error:
+        return False
+    return True
+
+
+def is_alive(process) -> bool:
+    """Still running. A process that has ended but whose parent has not collected it yet (a zombie) is gone: the tray starts
+    the host, and the editor that stops it for a firmware install is not the parent, so psutil's own wait would see that
+    process for as long as the tray lives."""
+    try:
+        return process.is_running() and process.status() != psutil.STATUS_ZOMBIE
+    except psutil.NoSuchProcess:
+        return False
+    except psutil.Error:
+        return True  # cannot tell (access denied): assume it runs, as before
+
+
+def wait_until_gone(processes, timeout, sleep=time.sleep, clock=time.monotonic):
+    """The processes that are still alive after `timeout` seconds."""
+    deadline = clock() + timeout
+    alive = [process for process in processes if is_alive(process)]
+    while alive and clock() < deadline:
+        sleep(0.1)
+        alive = [process for process in alive if is_alive(process)]
+    return alive
 
 
 def save_profiles(config, path=None):
@@ -78,8 +133,10 @@ class Controller:
         self.pid_path = ROOT / 'host/deck-process.local.json'
         self.stop_path = ROOT / 'host/deck-stop.local.json'
         self.runtime_path = ROOT / 'host/deck-runtime.local.json'
+        self.children = []  # hosts this object started: collected as they end, so none stays a zombie
 
     def processes(self, root=None):
+        self.children = [child for child in self.children if child.poll() is None]
         try:
             saved = json.loads(self.pid_path.read_text())
             # The editor asks every 1.5 s: a host already found is checked, not searched for again.
@@ -126,7 +183,7 @@ class Controller:
     def status(self):
         processes = self.processes()
         result = {'running': bool(processes), 'connection': 'The host has stopped',
-                  'device': {'connected': False, 'port': os.environ.get('TESSERA_PORT', 'COM4')}}
+                  'device': {'connected': False, 'port': os.environ.get('TESSERA_PORT', DEFAULT_PORT)}}
         if not processes:
             return result
         result['connection'] = 'Waiting for the panel'
@@ -136,10 +193,11 @@ class Controller:
                 return result
             result['device'].update({key: runtime.get(key) for key in
                                      ('connected', 'port', 'profile', 'page', 'buttons', 'error',
-                                      'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol', 'layout_bytes', 'sensor_hint')})
+                                      'foreground', 'auto_profile', 'last_action', 'firmware', 'protocol', 'board', 'reset', 'layout_bytes', 'sensor_hint')})
             result['agents'] = runtime.get('agents', {})
             result['agent_states'] = runtime.get('agent_states', {})
             result['mixer'] = runtime.get('mixer', [])
+            result['remote_devices'] = runtime.get('remote_devices', [])
             result['notices'] = runtime.get('notices', [])
             result['variables'] = runtime.get('variables', {})
             result['plugins'] = runtime.get('plugins', [])
@@ -150,6 +208,7 @@ class Controller:
             result['device']['widgets'] = runtime.get('widgets', {})
             wifi = runtime.get('wifi')  # the panel's Wi-Fi state (protocol 5); never a password
             result['device']['wifi'] = wifi if isinstance(wifi, dict) else None
+            result['device']['has_wifi'] = runtime.get('has_wifi') is not False  # false: a board without the C6 Wi-Fi chip
             # Home Assistant: "api":1 from get_info, and the panel's last {"type":"api"} line; never the key
             result['device']['api'] = runtime.get('api') if type(runtime.get('api')) is int else None
             result['device']['ha'] = runtime.get('ha') if type(runtime.get('ha')) is int else None  # stage C keys
@@ -168,7 +227,7 @@ class Controller:
         if self.processes():
             emit('The deck host is already running.')
             return
-        port = os.environ.get('TESSERA_PORT', 'COM4')
+        port = os.environ.get('TESSERA_PORT', DEFAULT_PORT)
         from tesserad import Daemon, shift_logs
         profiles = ROOT / 'host/profiles.json'
         log_path = ROOT / 'host/deck.local.log'
@@ -193,9 +252,10 @@ class Controller:
             process = subprocess.Popen([sys.executable, str(ROOT / 'host/tesserad.py'), '--port', port],
                 cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
                 env=dict(os.environ, PYTHONUTF8='1', PYTHONUNBUFFERED='1'),
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                creationflags=NO_WINDOW)
         finally:
             log.close()
+        self.children.append(process)
         current = psutil.Process(process.pid)
         self.pid_path.write_text(json.dumps({'pid': process.pid, 'created': current.create_time()}))
         time.sleep(.3)
@@ -208,10 +268,10 @@ class Controller:
         processes = self.processes()
         for process in processes:
             self.stop_path.write_text(json.dumps({'pid': process.pid}))
-        _, alive = psutil.wait_procs(processes, timeout=8)
+        alive = wait_until_gone(processes, 8)
         for process in alive:
             process.terminate()
-        _, alive = psutil.wait_procs(alive, timeout=5)
+        alive = wait_until_gone(alive, 5)
         if alive:
             raise RuntimeError('Host did not stop; no new owner was started')
         self.stop_path.unlink(missing_ok=True)

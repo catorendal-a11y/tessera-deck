@@ -108,7 +108,7 @@ step in the current implementation.
 |---|---|---|
 | Visual button configuration | Drag actions to buttons; edit the selected action | Exists; mouse/touch, move/swap, choice of icon/color/name |
 | Custom icons | Images from file, icon library and animated formats | 1,895 Lucide icons, real app icons and your own PNG, JPEG, GIF and WebP files |
-| Text on buttons | Font settings and top/middle/bottom placement | Size, placement and bold are saved, but the panel draws one size today (only *Hide text* applies); the label is limited to 24 UTF-8 bytes |
+| Text on buttons | Font settings and top/middle/bottom placement | Size (16, 20, 24 or 28), placement (top, middle, bottom or hidden) and bold are drawn by the panel; the label is limited to 24 UTF-8 bytes |
 | Profiles | Separate setups with Smart Profiles by active program | Exists; rules on the process, a child process or the window title, picked from running programs in the editor |
 | Folders/pages | Its own folder action and pages; pinned actions can follow navigation | Folders with a folder stack, back button and pinned buttons |
 | Multi-actions | Own Multi Action configuration with steps and delays | Sequential steps and delay exist; simplified editor |
@@ -117,7 +117,7 @@ step in the current implementation.
 | Press/release | The SDK has separate key-down/key-up events | Click, long press and double press each run their own steps; a general key-down/key-up stream is missing |
 | App integrations | Marketplace plugins for OBS, Discord and more | Hotkeys, open, text, shell and HTTP, plus a local plugin host with permissions (no marketplace) |
 | Sharing | Stream Deck profiles and sharing of actions | Its own JSON format; no .streamDeckProfile import |
-| Program lifecycle | Established desktop app | Local Windows program with WebView2, Python host and terminal program |
+| Program lifecycle | Established desktop app | Local program for Windows and Linux (X11): a Python host, the editor in WebView2 or a browser tab, and a terminal program |
 
 Sources for the features above:
 

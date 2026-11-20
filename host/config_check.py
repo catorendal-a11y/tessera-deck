@@ -1,6 +1,9 @@
 """Validation of profiles.json: every malformed configuration surfaces as ValueError before the engine uses it."""
 import json
 import math
+import os
+
+from platform_support import load
 import re
 
 from ambient import check_ambient
@@ -9,21 +12,24 @@ import ha_keys
 from config_store import CONFIG_VERSION, version_of
 from live_state import NAME as LIVE_NAME, check_counter, check_timer
 import widgets
-from pc_state import FLAG_SOURCES, check_audio
+from program_name import SUFFIX
+from pc_state import FLAG_SOURCES, check_audio, check_media
 from plugins import PLUGIN_ID, check_plugin_config
+from script_files import BATCH_SUFFIXES, SCRIPT_SUFFIXES, SCRIPT_VARIABLE, script_text
 from substitution import check_web_url
-from win_input import MOUSE_OPERATIONS, WINDOW_OPERATIONS, parse_hotkey
+from input_common import MOUSE_OPERATIONS, WINDOW_OPERATIONS, split_hotkey
 
-ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command',
+ACTION_FIELDS = {'hotkey': 'keys', 'text': 'text', 'open': 'target', 'shell': 'command', 'script': 'path',
                  'http': 'url', 'delay': None, 'page': 'page', 'profile': 'profile',
                  'press': 'id', 'set': 'variable', 'audio': 'target', 'counter': 'name', 'timer': 'name', 'plugin': 'plugin', 'mouse': 'op', 'screen': 'show',
                  'folder': 'page', 'back': None, 'home': None, 'state': 'button', 'profile_lock': None,
                  'clipboard': 'text', 'window': 'op', 'toggle': 'variable', 'panel_lock': None,
-                 'homeassistant': 'action'}
+                 'homeassistant': 'action', 'media': 'op', 'remote_media': 'op'}
 HTTP_METHODS = ('GET', 'POST', 'PUT', 'PATCH', 'DELETE')
 VARIABLE_NAME = re.compile(r'[A-Za-z0-9_.-]{1,64}')
 COLOR_PATTERN = re.compile(r'#[0-9a-fA-F]{6}')
 TIME_PATTERN = re.compile(r'(?:[01]\d|2[0-3]):[0-5]\d')
+WEEKDAYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')  # Monday first, like date.weekday()
 TRIGGER_KINDS = ('startup', 'interval', 'daily', 'file', 'variable')
 
 
@@ -33,7 +39,7 @@ def _check_press(action, pages, profiles):
 
 
 def _check_hotkey(action, pages, profiles):
-    parse_hotkey(action['keys'])
+    split_hotkey(action['keys'])
 
 
 def _check_open(action, pages, profiles):
@@ -50,6 +56,9 @@ def _check_page(action, pages, profiles):
 def _check_profile_action(action, pages, profiles):
     if action['profile'] not in profiles:
         raise ValueError(f'Unknown profile: {action["profile"]}')
+    page = action.get('page')
+    if 'page' in action and not (isinstance(page, str) and page in profiles[action['profile']]['pages']):
+        raise ValueError(f'Profile {action["profile"]} has no page {page!r}')
 
 
 def _check_text(action, pages, profiles):
@@ -86,7 +95,7 @@ def _check_window(action, pages, profiles):
     if action['op'] not in WINDOW_OPERATIONS:
         raise ValueError(f'window: op must be one of {", ".join(WINDOW_OPERATIONS)}')
     if not isinstance(process, str) or len(process) > 260:
-        raise ValueError('window: process must be a program name like notepad.exe')
+        raise ValueError('window: process must be a program name like ' + load('labels').PROGRAM_EXAMPLE)
     if action['op'] == 'focus' and not process.strip():
         raise ValueError('window: focus needs a process name')
 
@@ -139,6 +148,19 @@ def _check_audio(action, pages, profiles):
     check_audio(action)
 
 
+def _check_media(action, pages, profiles):
+    check_media(action)
+
+
+def _check_remote_media(action, pages, profiles):
+    import remote_devices
+    if action['op'] not in remote_devices.OPS:
+        raise ValueError(f'remote_media: op must be one of {", ".join(remote_devices.OPS)}')
+    remote_devices.check_device(action.get('device', 'first'))
+    if type(action.get('step', remote_devices.DEFAULT_STEP)) is not int or not 1 <= action.get('step', remote_devices.DEFAULT_STEP) <= 50:
+        raise ValueError('remote_media: step must be a whole number from 1 to 50')
+
+
 def _check_delay(action, pages, profiles):
     if type(action.get('ms', 100)) is not int or not 0 <= action.get('ms', 100) <= 60000:
         raise ValueError('delay must be 0..60000 ms')
@@ -154,6 +176,20 @@ def _check_shell(action, pages, profiles):
     _check_timeout(action)
 
 
+def _check_script(action, pages, profiles):
+    """The editor's rules (valueProblem in core.js). Nothing here reads this PC's variables: a %NAME% that is not
+    set fails when the key runs, not the whole configuration when the host loads it."""
+    _check_timeout(action)
+    path = script_text(action['path'])
+    if not path or len(action['path']) > 1024 or '\0' in path or not path.lower().endswith(SCRIPT_SUFFIXES):
+        raise ValueError(f'script: path must be a file ending in {", ".join(SCRIPT_SUFFIXES)}')
+    if not os.path.isabs(path) and not SCRIPT_VARIABLE.match(path):
+        raise ValueError('script: use the full path of the script file')
+    lead = SCRIPT_VARIABLE.match(path)  # a leading %NAME% is fine: it is replaced before cmd sees the path
+    if path.lower().endswith(BATCH_SUFFIXES) and '%' in path[lead.end() if lead else 0:]:
+        raise ValueError('script: the path of a .bat or .cmd file cannot contain a % sign')
+
+
 def _check_http_action(action, pages, profiles):
     _check_timeout(action)
     _check_http(action)
@@ -166,8 +202,9 @@ def _check_state_kind(action, pages, profiles):
 ACTION_CHECKS = {'press': _check_press, 'state': _check_state_kind, 'hotkey': _check_hotkey, 'open': _check_open,
                  'page': _check_page, 'folder': _check_page, 'profile': _check_profile_action, 'text': _check_text,
                  'mouse': _check_mouse, 'screen': _check_screen, 'plugin': _check_plugin, 'counter': _check_counter,
-                 'timer': _check_timer_action, 'audio': _check_audio, 'delay': _check_delay,
-                 'shell': _check_shell, 'http': _check_http_action, 'clipboard': _check_clipboard,
+                 'timer': _check_timer_action, 'audio': _check_audio, 'media': _check_media, 'remote_media': _check_remote_media,
+                 'delay': _check_delay,
+                 'shell': _check_shell, 'script': _check_script, 'http': _check_http_action, 'clipboard': _check_clipboard,
                  'window': _check_window, 'toggle': _check_toggle, 'set': _check_set, 'panel_lock': _check_panel_lock,
                  'homeassistant': lambda action, pages, profiles: ha_keys.check_action(action)}
 
@@ -255,7 +292,7 @@ def _check_gauge(gauge):
         raise ValueError('gauge.badge must be a Lucide icon like lc:e186')
 
 
-LIVE_KINDS = re.compile(r'media|timer:[A-Za-z0-9_.-]{1,64}|' + '|'.join(widgets.WIDGETS))
+LIVE_KINDS = re.compile(r'media|remote_media|timer:[A-Za-z0-9_.-]{1,64}|' + '|'.join(widgets.WIDGETS))
 
 
 def _check_wide(button):
@@ -265,7 +302,7 @@ def _check_wide(button):
         raise ValueError('span must be 1, 2 or 3')
     live = button.get('live')
     if live is not None and (not isinstance(live, str) or not LIVE_KINDS.fullmatch(live) or span < 2):
-        raise ValueError('live must be media, timer:NAME or a widget (' + ', '.join(widgets.WIDGETS) + '), on a key that is at least 2 slots wide')
+        raise ValueError('live must be media, remote_media, timer:NAME or a widget (' + ', '.join(widgets.WIDGETS) + '), on a key that is at least 2 slots wide')
 
 
 def _check_button(button, pages, profiles):
@@ -375,6 +412,11 @@ def _check_trigger(trigger, pages, profiles):
     at = spec.get('at', '')
     if kind == 'daily' and not (isinstance(at, str) and TIME_PATTERN.fullmatch(at)):
         raise ValueError('daily needs at as HH:MM')
+    if 'days' in spec:
+        days = spec['days']
+        if (kind != 'daily' or not isinstance(days, list) or not days or len(set(map(str, days))) != len(days)
+                or any(day not in WEEKDAYS for day in days)):
+            raise ValueError('days must list each weekday once (mon, tue, wed, thu, fri, sat, sun) and only on a daily trigger')
     target = spec.get('path' if kind == 'file' else 'name')
     if kind in ('file', 'variable') and (not isinstance(target, str) or not target.strip() or chr(0) in target):
         raise ValueError('Trigger is missing a path or variable name')
@@ -425,9 +467,9 @@ def _check_display(display):
 def _check_panel(panel, pages=(), profiles=None):
     """The `panel` block: which agents, programs and readings the cockpit screens show."""
     import cockpit
-    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'stats', 'screens', 'shortcuts', 'wifi',
-                                                    'homeassistant'}:
-        raise ValueError('panel may only set agents, apps, mic, stats, screens, shortcuts, wifi and homeassistant')
+    if not isinstance(panel, dict) or set(panel) - {'agents', 'apps', 'mic', 'remote', 'stats', 'screens', 'shortcuts',
+                                                    'wifi', 'homeassistant'}:
+        raise ValueError('panel may only set agents, apps, mic, remote, stats, screens, shortcuts, wifi and homeassistant')
     if 'homeassistant' in panel:  # never the API key: the panel keeps it, and the dialog only shows it
         from panel_serial import homeassistant_settings
         homeassistant_settings(panel['homeassistant'])
@@ -464,13 +506,18 @@ def _check_panel(panel, pages=(), profiles=None):
         raise ValueError('panel.agents must list claude, codex or zcode')
     apps = panel.get('apps', [])
     if (not isinstance(apps, list) or len(apps) > cockpit.MAX_APPS
-            or any(not isinstance(item, str) or not re.fullmatch(r'[A-Za-z0-9_.-]{1,35}\.exe', item) for item in apps)):
-        raise ValueError(f'panel.apps must list at most {cockpit.MAX_APPS} program names ending in .exe')
+            or any(not isinstance(item, str) or not re.fullmatch(rf'[A-Za-z0-9_.-]{{1,35}}{SUFFIX}', item) for item in apps)):
+        raise ValueError(f'panel.apps must list at most {cockpit.MAX_APPS} program names' + load('labels').PROGRAM_LIST_NOTE)
     if type(panel.get('mic', True)) is not bool:
         raise ValueError('panel.mic must be true or false')
+    if 'remote' in panel:
+        import remote_devices
+        remote_devices.check_setting(panel['remote'])
     stats = panel.get('stats', [])
     if not isinstance(stats, list) or any(item not in cockpit.STAT_IDS for item in stats):
         raise ValueError('panel.stats must list readings the panel knows')
+    if len(set(stats)) > cockpit.MAX_STATS:
+        raise ValueError(f'panel.stats holds at most {cockpit.MAX_STATS} readings: the panel shows no more than that')
 
 
 def _validate_config(config):

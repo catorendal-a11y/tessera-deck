@@ -78,10 +78,10 @@ class HttpTests(unittest.TestCase):
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         daemon.stop.clear()
         error = tesserad.urllib.error.HTTPError('https://example.com/x', 503, 'Service Unavailable', {}, None)
-        with patch.object(tesserad.urllib.request, 'urlopen', Mock(side_effect=error)):
+        with patch.object(tesserad.WEB_OPENER, 'open', Mock(side_effect=error)):
             with self.assertRaisesRegex(CommandFailed, 'HTTP 503 Service Unavailable'):
                 daemon.run_action({'type': 'http', 'url': 'https://example.com/x'})
-        with patch.object(tesserad.urllib.request, 'urlopen', MagicMock()):
+        with patch.object(tesserad.WEB_OPENER, 'open', MagicMock()):
             daemon.run_action({'type': 'http', 'url': 'https://example.com/x'})  # a good answer passes
 
     def test_the_import_review_names_the_host_each_request_goes_to(self):
@@ -260,7 +260,10 @@ class TrayRestartTests(unittest.TestCase):
         app.background = lambda work, *args: work(*args)
         with patch.object(updates, 'check', return_value={'newer': True, 'latest': '0.7.0', 'notes': '- faster'}):
             tessera_tray.TrayApp.check_for_updates(app)
-        app.icon.notify.assert_called_once_with('- faster', 'Update available: 0.7.0')
+        text, title = app.icon.notify.call_args.args
+        self.assertEqual(title, 'Update available: 0.7.0')
+        self.assertIn('- faster', text)
+        self.assertIn('Releases page', text)  # the notice says where the new version is
 
 
 if __name__ == '__main__':

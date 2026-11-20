@@ -5,7 +5,8 @@ import copy
 import re
 import urllib.parse
 
-from ha_keys import SECRET_DATA
+from ha_keys import SECRET_DATA as HA_SECRET_DATA  # a code or a password in a Home Assistant step's data
+from substitution import ENV_REFERENCE
 
 # Header and address field names that carry a credential: Authorization, Private-Token, X-Api-Key, ?key=, ?sig=
 SECRET_FIELD = re.compile(r'(?i)auth(?!ors?\b)|token|secret|passw(?:or)?d|api.?key|(?:^|[-_])key$|^sig$|signature'
@@ -15,7 +16,7 @@ DOCUMENT_SUFFIXES = ('.txt', '.pdf', '.md')
 WEB_TARGET = re.compile(r'(?i)^(https?://|mailto:|ms-settings:|steam://|spotify:|discord://)')
 # A plugin command controls an outside system (a smart home, a stream), so it counts like a web request, and so does
 # a Home Assistant action, which the panel sends over the network to the smart home.
-EXECUTABLE_KINDS = ('shell', 'http', 'plugin', 'homeassistant')
+EXECUTABLE_KINDS = ('shell', 'script', 'http', 'plugin', 'homeassistant')
 SECRET_SETTING = re.compile(r'(?i)token|secret|password|api.?key')
 MAX_LISTED = 200
 TYPED = ('text', 'clipboard')  # after a hotkey (Win+R, a terminal) typed text is a command
@@ -72,6 +73,8 @@ def _classify(action):
     kind = action.get('type')
     if kind == 'shell':
         return 'high', f"runs the command: {str(action.get('command', ''))[:160]}"
+    if kind == 'script':
+        return 'high', f"runs the script: {str(action.get('path', ''))[:160]}"
     if kind == 'http':
         url = str(action.get('url', ''))
         detail = f"{action.get('method', 'GET')} {url[:160]}"
@@ -82,6 +85,11 @@ def _classify(action):
         detail += f' (host {host})' if host and '$(' not in host else ' (host set when it runs)'
         if action.get('body'):
             detail += ' with a request body'
+        headers = action.get('headers') if isinstance(action.get('headers'), dict) else {}
+        text = ' '.join(str(part) for pair in headers.items() for part in pair) + f" {url} {action.get('body') or ''}"
+        names = list(dict.fromkeys(ENV_REFERENCE.findall(text)))
+        if names:  # a secret from this PC's environment leaves in the request
+            return 'high', 'calls ' + detail + ' and sends ' + ', '.join(f'$(env:{name})' for name in names)
         return 'medium', 'calls ' + detail
     if kind == 'homeassistant':
         name, entity = str(action.get('action', ''))[:64], str(action.get('entity_id', ''))[:128]
@@ -126,14 +134,17 @@ def review(config: dict) -> list[dict]:
                 risk = 'high'
             findings.append({'where': where, 'kind': action.get('type'), 'risk': risk, 'detail': detail,
                              'automatic': automatic})
-            if len(findings) >= MAX_LISTED:
-                return findings
+    if len(findings) > MAX_LISTED:  # the user may keep all of them: the worst come first, and the cut is said
+        findings.sort(key=lambda finding: finding['risk'] != 'high')
+        more = len(findings) - MAX_LISTED
+        findings[MAX_LISTED:] = [{'where': 'The file', 'kind': 'more', 'risk': 'high', 'automatic': False,
+                                  'detail': f'has {more} more actions like these that are not listed'}]
     return findings
 
 
 def strip_executable(config: dict) -> dict:
-    """A copy without shell, HTTP and plugin actions, program launches that are not web links, text typed after a
-    hotkey, automatic rules and plugin setup."""
+    """A copy without shell, HTTP, plugin and Home Assistant actions, program launches that are not web links, text
+    typed after a hotkey, automatic rules and plugin setup."""
     safe = copy.deepcopy(config)
     for _, owner, key, _ in list(iter_actions(safe)):
         typed = _typed_after_hotkey(owner[key])
@@ -152,16 +163,12 @@ def strip_executable(config: dict) -> dict:
 
 
 def _ha_secrets(config):
-    """(action, data name) for Home Assistant data values named like a code or password (ha_keys.SECRET_DATA)."""
+    """(step, data name) for each Home Assistant data value named like a code or a password."""
     for _, owner, key, _ in iter_actions(config):
         for action in owner[key]:
             data = action.get('data') if isinstance(action, dict) and action.get('type') == 'homeassistant' else None
             if isinstance(data, dict):
-                yield from ((action, name) for name in data if isinstance(name, str) and SECRET_DATA.search(name))
-
-
-def _ha_secret_names(config):
-    return (name for _, name in _ha_secrets(config))
+                yield from ((action, name) for name in data if isinstance(name, str) and HA_SECRET_DATA.search(name))
 
 
 def env_name(header: str) -> str:
@@ -171,7 +178,7 @@ def env_name(header: str) -> str:
 def export_left_out(config: dict) -> list[str]:
     """What redact_secrets drops, in plain words, so the editor can say so after an export."""
     out = ['the calendar address'] if 'calendar' in config else []
-    out += [f'Home Assistant data {name}' for name in sorted(set(_ha_secret_names(config)))]
+    out += [f'Home Assistant data {name}' for name in sorted({name for _, name in _ha_secrets(config)})]
     for name, plugin in sorted((config.get('plugins') or {}).items()):
         settings = plugin.get('settings') if isinstance(plugin, dict) else None
         out += [f'plugin {name}: {key}' for key in (settings or {}) if SECRET_SETTING.search(key)]
@@ -183,7 +190,8 @@ def redact_secrets(config: dict) -> tuple[dict, list[str]]:
     Returns it and the names used.
 
     The calendar's iCal address and plugin settings named like a secret (a token or a password) are left out:
-    anyone with them can read the calendar or act as the plugin's account.
+    anyone with them can read the calendar or act as the plugin's account. So is a code or password in the data of a
+    Home Assistant step.
     """
     shared = copy.deepcopy(config)
     shared.pop('calendar', None)
@@ -194,8 +202,6 @@ def redact_secrets(config: dict) -> tuple[dict, list[str]]:
                 del settings[name]
     for action, name in list(_ha_secrets(shared)):
         del action['data'][name]
-        if not action['data']:
-            del action['data']
     names = []
 
     def hide_field(match):

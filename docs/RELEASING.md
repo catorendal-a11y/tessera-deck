@@ -4,7 +4,7 @@
 
 ## Versions
 
-`VERSION` holds one number (for example `0.8.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
+`VERSION` holds one number (for example `1.0.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
 
 The firmware's USB protocol has its own number in `main/protocol_version.h`. The host accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. It refuses a panel outside that range with a message that says which side to update.
 
@@ -22,7 +22,7 @@ The configuration file has its own `version` (currently 2). Opening an older fil
 
 ## Make a release
 
-1. Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`, for example `## 0.8.1`. Put a fresh `## Unreleased` above it if you want one.
+1. Rename `## Unreleased` in `CHANGELOG.md` to `## <version>`, for example `## 1.0.0`. Put a fresh `## Unreleased` above it if you want one.
 2. Set `VERSION` to the same number.
 3. Run the checks from [CONTRIBUTING.md](../CONTRIBUTING.md) and the native UI test.
 4. Commit and push, then tag and push the tag:
@@ -39,16 +39,16 @@ The configuration file has its own `version` (currently 2). Opening an older fil
 | Job | Steps |
 |---|---|
 | `ci` | Runs the whole CI workflow (`ci.yml`) on the tagged commit: host tests, lint, dependency audit, firmware static analysis, firmware build, native tests and the image cache benchmark. |
-| `release` (ESP-IDF 6.1 container) | Checks that the tag equals `v` plus `VERSION`. Checks that `CHANGELOG.md` has a `## <version>` heading. Builds the firmware with `idf.py -B build/idf6 build`. Runs the native LVGL tests. Packages the firmware with `tools/package_firmware.py`. Makes `tessera-host-<tag>.zip` from `git archive` with the firmware package inside. Writes `SHA256SUMS`. |
+| `release` (ESP-IDF 6.1 container) | Checks that the tag equals `v` plus `VERSION`. Checks that `CHANGELOG.md` has a `## <version>` heading. Builds the firmware with `idf.py -B build/idf6 build`, and each board in `boards/` with its board file. Runs the native LVGL tests. Packages each build with `tools/package_firmware.py`. Makes `tessera-host-<tag>.zip` from `git archive` with the firmware packages inside, and a copy named `tessera-host.zip` for the fixed address `releases/latest/download/tessera-host.zip`. Writes `SHA256SUMS`. |
 | `host-tests` (Windows) | Installs `host/requirements.lock` with `--require-hashes` and runs the host tests. |
-| `publish` | Starts only when `ci`, `release` and `host-tests` all pass. Takes the release notes from the `CHANGELOG.md` section, word for word, and stops if the section is empty. Signs a build attestation for the zips. Creates the GitHub release with `tessera-firmware-<version>.zip`, `tessera-host-<tag>.zip` and `SHA256SUMS`. |
+| `publish` | Starts only when `ci`, `release` and `host-tests` all pass. Takes the release notes from the `CHANGELOG.md` section, word for word, and stops if the section is empty. Signs a build attestation for the zips. Creates the GitHub release with `tessera-firmware-<version>.zip` (GUITION), `tessera-firmware-<board>-<version>.zip` for the other boards, `tessera-host-<tag>.zip` and `SHA256SUMS`. |
 
 The workflow stops early when the tag does not match `VERSION` or the changelog heading is missing, so a wrong tag does not publish anything.
 
 Anyone can check that a download came from this workflow:
 
 ```powershell
-gh attestation verify tessera-host-v0.8.0.zip --repo catorendal-a11y/tessera-deck
+gh attestation verify tessera-host-v1.2.5.zip --repo catorendal-a11y/tessera-deck
 ```
 
 [INSTALL.md](INSTALL.md) also explains how to compare a download with `SHA256SUMS`.
@@ -82,7 +82,7 @@ A panel that reports `"ota":1` takes *Update* over its own USB connection (`AD_O
 
 If the panel does not answer, esptool through the ROM bootloader still works. Unplug the panel, plug it in and install again. An esptool *Update* writes the app to `ota_0` and resets `otadata` so that slot boots.
 
-Rollback is written and tested in simulation. It has not been tried on the panel; see [VERIFICATION.md](../VERIFICATION.md).
+Rollback was tried on a panel on 16 November 2026. A test build that never confirmed itself restarted, and the bootloader started the previous firmware again. [VERIFICATION.md](../VERIFICATION.md) has the details.
 
 ### The first A/B install needs a full install
 
@@ -96,4 +96,4 @@ Packages built for the A/B table contain `ota_data_initial.bin` and carry `"need
 
 *Check for updates* in the firmware dialog asks GitHub for the latest release when you press it. It can download the firmware package, which is kept only if its SHA-256 matches the release's `SHA256SUMS`.
 
-The Windows program updates by replacing the folder with the new `tessera-host` zip, or by `git pull`. To keep your setup when you replace the folder, copy these from the old `host/` folder: `profiles.json`, `assets/`, `backups/`, `state.local.json` (counters and timers), `icon-library.local.json`, `editor.local.json`, `deck-device.local.json` and `profiles-previous.local.json`. This is the same list `--purge` deletes (`USER_DATA` in `host/setup_tool.py`).
+The program on the PC updates by replacing the folder with the new `tessera-host` zip, or by `git pull`. To keep your setup when you replace the folder, copy these from the old `host/` folder: `profiles.json`, `assets/`, `backups/`, `state.local.json` (counters and timers), `icon-library.local.json`, `editor.local.json`, `deck-device.local.json` and `profiles-previous.local.json`. This is the same list `--purge` deletes (`USER_DATA` in `host/setup_tool.py`).

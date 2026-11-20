@@ -1,0 +1,9 @@
+# Who is asked to review a pull request. The last matching line wins.
+*                       @catorendal-a11y
+
+# The Linux host
+/host/platform_linux/   @catorendal-a11y @joern-h
+/host/linux/            @catorendal-a11y @joern-h
+/Tessera.sh             @catorendal-a11y @joern-h
+/docs/LINUX.md          @catorendal-a11y @joern-h
+/tests/*_linux.py       @catorendal-a11y @joern-h

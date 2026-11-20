@@ -132,7 +132,8 @@ def _events(text: str) -> list[dict]:
                     current[key] = _when(value, params)
                     if name == 'DTSTART' and value.strip().endswith('Z') and len(value.strip()) > 8:
                         current['utc'] = _when(value, params, utc=True)  # repeats are walked in UTC, then made local
-            except (ValueError, IndexError):  # one unreadable event is dropped, not the whole calendar
+            # one unreadable event is dropped, not the whole calendar. OSError: a UTC time before 1970 on Windows
+            except (ValueError, IndexError, OSError, OverflowError):
                 current = None
         elif name == 'SUMMARY':
             current['summary'] = value.replace('\\,', ',').replace('\\;', ';').replace('\\n', ' ').replace('\\\\', '\\').strip()
@@ -284,7 +285,10 @@ def upcoming(text: str, now: datetime) -> list[dict]:
             if 'rrule' in event and (cancelled or (event.get('uid'), moment) in moved):
                 continue
             begin = _as_datetime(moment)
-            finish = begin + length
+            try:
+                finish = begin + length
+            except OverflowError:  # a length that ends after the year 9999
+                continue
             if finish > now - timedelta(hours=12) and begin <= until:
                 found.append({'start': begin, 'end': finish, 'summary': event.get('summary') or 'Busy',
                               'all_day': not isinstance(moment, datetime)})
@@ -302,7 +306,14 @@ def _wait(minutes: int) -> str:
     return f'in {hours} h {rest} min' if rest else f'in {hours} h'
 
 
-def content(events: list[dict] | None, now: datetime, error: str = '') -> dict:
+def _clock(moment: datetime, twelve: bool) -> str:
+    """'14:30', or '2:30 PM' on a 12-hour clock, as the clock widget writes it."""
+    if not twelve:
+        return f'{moment:%H:%M}'
+    return f'{moment.hour % 12 or 12}:{moment.minute:02d} {"AM" if moment.hour < 12 else "PM"}'
+
+
+def content(events: list[dict] | None, now: datetime, error: str = '', twelve: bool = False) -> dict:
     """Title, second line and progress for a wide key: the meeting that runs now, else the next one."""
     if events is None:
         return {'label': 'Calendar', 'sub': error or 'Add your calendar in Program settings'}
@@ -310,16 +321,16 @@ def content(events: list[dict] | None, now: datetime, error: str = '') -> dict:
     running = next((event for event in timed if event['start'] <= now < event['end']), None)
     if running:
         total = (running['end'] - running['start']).total_seconds() or 1
-        return {'label': running['summary'], 'sub': f"Now · until {running['end']:%H:%M}",
+        return {'label': running['summary'], 'sub': f"Now · until {_clock(running['end'], twelve)}",
                 'progress': max(0, min(100, round((now - running['start']).total_seconds() / total * 100)))}
     later = next((event for event in timed if event['start'] > now), None)
     if later and later['start'].date() == now.date():
-        return {'label': later['summary'], 'sub': f"{later['start']:%H:%M} · {_wait(int((later['start'] - now).total_seconds() // 60))}"}
+        return {'label': later['summary'], 'sub': f"{_clock(later['start'], twelve)} · {_wait(int((later['start'] - now).total_seconds() // 60))}"}
     today = next((event for event in events if event['all_day'] and event['start'].date() <= now.date() < event['end'].date()), None)
     if today:
         return {'label': today['summary'], 'sub': 'All day'}
     if later and later['start'].date() == now.date() + timedelta(days=1):
-        return {'label': later['summary'], 'sub': f"Tomorrow {later['start']:%H:%M}"}
+        return {'label': later['summary'], 'sub': f"Tomorrow {_clock(later['start'], twelve)}"}
     return {'label': 'No meetings', 'sub': 'Nothing more today'}
 
 
@@ -357,7 +368,7 @@ class Feed:
             found = upcoming(text, minute)
             self._parsed = (text, minute, found)
             return found, ''
-        except (ValueError, KeyError, IndexError) as exc:
+        except (ValueError, KeyError, IndexError, OSError, OverflowError) as exc:
             return None, f'The calendar could not be read: {exc}'[:60]
 
     def _refresh(self, url: str) -> None:

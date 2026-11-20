@@ -19,8 +19,14 @@ GREEN, BLUE, PURPLE, GREY, AMBER, RED = '#58E09B', '#64B5F6', '#B388FF', '#A3B2B
 STATS = (('CPU load', 'cpu_load', '%', 100, 95, GREEN), ('CPU temp', 'cpu_temp', 'C', 100, 85, GREEN),
          ('RAM', 'ram', '%', 100, 90, BLUE), ('Disk', 'disk', '%', 100, 90, BLUE),
          ('GPU load', 'gpu_load', '%', 100, None, PURPLE), ('GPU temp', 'gpu_temp', 'C', 100, 85, PURPLE),
-         ('VRAM', 'vram', '%', 100, 90, PURPLE))
-STAT_IDS = tuple(key for _, key, *_ in STATS) + ('net_down',)
+         ('VRAM', 'vram', '%', 100, 90, PURPLE), ('Download', 'net_down', '/s', 10 * 1024 * 1024, None, GREY),
+         ('Upload', 'net_up', '/s', 10 * 1024 * 1024, None, GREY), ('Uptime', 'uptime', '', 7 * 86400, None, GREY),
+         ('CPU clock', 'cpu_clock', 'MHz', 6000, None, GREEN), ('CPU power', 'cpu_power', 'W', 250, None, GREEN),
+         ('GPU power', 'gpu_power', 'W', 450, None, PURPLE), ('GPU clock', 'gpu_clock', 'MHz', 3000, None, PURPLE),
+         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE))
+STAT_IDS = tuple(key for _, key, *_ in STATS)
+DEFAULT_STATS = STAT_IDS[:8]  # what the status screen shows until the user picks readings
+MAX_STATS = 8  # DECK_STATS_MAX in main/deck_model.h
 
 
 def _line(payload: dict) -> str:
@@ -97,10 +103,10 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
 
 
 def stats_payload(display: dict, raw: dict, shown: list | None = None) -> str:
-    """The readings for the status screen (all eight unless `shown` picks); a missing sensor shows as --."""
+    """The readings for the status screen (the first eight unless `shown` picks, never more than eight); a missing sensor shows as --."""
     stats = []
     for label, key, unit, full, warn_from, color in STATS:
-        if shown is not None and key not in shown:
+        if key not in (shown or DEFAULT_STATS) or len(stats) == MAX_STATS:
             continue
         value = raw.get(key)
         known = isinstance(value, (int, float))
@@ -108,12 +114,6 @@ def stats_payload(display: dict, raw: dict, shown: list | None = None) -> str:
         stats.append({'name': label, 'value': str(display.get(key, '--'))[:7], 'unit': unit,
                       'p': max(0, min(100, round(value / full * 100))) if known else 0,
                       'color': AMBER if warn else color, 'warn': bool(warn)})
-    down = raw.get('net_down')
-    if shown is not None and 'net_down' not in shown:
-        return _line({'stats': stats})
-    stats.append({'name': 'Download', 'value': str(display.get('net_down', '--'))[:7], 'unit': '/s',
-                  'p': max(0, min(100, round(down / (10 * 1024 * 1024) * 100))) if isinstance(down, (int, float)) else 0,
-                  'color': GREY, 'warn': False})
     return _line({'stats': stats})
 
 
@@ -123,44 +123,30 @@ def app_title(process_name: str) -> str:
     return (stem[:1].upper() + stem[1:])[:15]
 
 
-def read_mixer(pinned: list | None = None, mic: bool = True) -> list[dict]:
+def read_mixer(pinned: list | None = None, mic: bool = True, remote: dict | None = None) -> list[dict]:
     """The default speaker, up to three programs and the microphone. Raises OSError without audio.
 
     `pinned` names the programs to show (those that have a sound session right now); without it the programs that
-    play sound are chosen."""
-    from pc_state import APP_TARGET, _with_audio
+    play sound are chosen. The sound server of the system answers (platform_windows/audio.py, platform_linux/audio.py)."""
+    import system_audio
+    faders = system_audio.read_mixer(pinned, mic)
+    import remote_devices
+    extra = remote_devices.faders(remote)
+    return fit_faders(faders, extra) if extra else faders
 
-    def work(ends):
-        from pycaw.pycaw import AudioUtilities
-        speaker, mic_end = ends['speaker'], ends['mic']
-        apps = {}
-        for session in AudioUtilities.GetAllSessions():
-            process = session.Process
-            if process is None:
-                continue
-            name = process.name()
-            if name.lower() in apps or not APP_TARGET.fullmatch('app:' + name) or len(name) + 4 > MAX_ID:
-                continue
-            volume = session.SimpleAudioVolume
-            apps[name.lower()] = {'id': 'app:' + name, 'name': app_title(name), 'active': int(session.State) == 1,
-                                  'level': round(volume.GetMasterVolume() * 100), 'muted': bool(volume.GetMute())}
-        # Programs that are playing right now come first; the ones shown keep alphabetical order so they do not jump.
-        if pinned:
-            wanted = [name.lower() for name in pinned][:MAX_APPS]
-            chosen = [apps[name] for name in wanted if name in apps]
-        else:
-            chosen = sorted(sorted(apps.values(), key=lambda app: (not app['active'], app['name'].lower()))[:MAX_APPS],
-                            key=lambda app: app['name'].lower())
-        faders = [{'id': 'speaker', 'name': 'Master', 'level': round(speaker.GetMasterVolumeLevelScalar() * 100),
-                   'muted': bool(speaker.GetMute()), 'color': GREEN}]
-        faders += [{'id': app['id'], 'name': app['name'], 'level': app['level'], 'muted': app['muted'],
-                    'color': APP_COLORS[index]} for index, app in enumerate(chosen)]
-        if mic and mic_end is not None:  # no microphone: the mixer shows the speaker and the programs only
-            faders.append({'id': 'mic', 'name': 'Mic', 'level': round(mic_end.GetMasterVolumeLevelScalar() * 100),
-                           'muted': bool(mic_end.GetMute()), 'mic': True, 'color': '#4DD0E1'})
-        return faders
 
-    return _with_audio(work)
+MAX_FADERS = 5  # DECK_FADERS_MAX in the firmware
+
+
+def fit_faders(local: list[dict], remote: list[dict]) -> list[dict]:
+    """The speaker, the remote devices, the programs and the microphone, in that order, in the five places the panel has. When
+    they do not all fit, programs go first, then the devices that come last: the speaker and the microphone always stay."""
+    speaker = [item for item in local if item['id'] == 'speaker']
+    mic = [item for item in local if item.get('mic')]
+    apps = [item for item in local if item not in speaker and item not in mic]
+    remote = remote[:max(0, MAX_FADERS - len(speaker) - len(mic))]  # more devices than places: the microphone still stays
+    room = MAX_FADERS - len(speaker) - len(mic) - len(remote)
+    return speaker + remote + apps[:room] + mic
 
 
 def mixer_payload(faders: list[dict]) -> str:

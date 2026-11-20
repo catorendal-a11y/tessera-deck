@@ -63,7 +63,7 @@ class PanelChoiceTests(unittest.TestCase):
         config = json.loads((Path(__file__).resolve().parents[1] / 'host/profiles.default.json').read_text(encoding='utf-8'))
         good = {'agents': ['claude'], 'apps': ['spotify.exe'], 'mic': False, 'stats': ['ram', 'net_down']}
         deck.validate_config(dict(config, panel=good))
-        for bad in ({'agents': ['nobody']}, {'apps': ['a.exe'] * 4}, {'apps': ['notaprogram']}, {'mic': 'yes'},
+        for bad in ({'agents': ['nobody']}, {'apps': ['a.exe'] * 4}, {'apps': ['not a program!']}, {'mic': 'yes'},
                     {'stats': ['cpu_heat']}, {'colour': 'red'}, 'all'):
             with self.assertRaises(ValueError, msg=bad):
                 deck.validate_config(dict(config, panel=bad))
@@ -139,6 +139,21 @@ class RailTests(HostCase):
         wake.assert_called_once()
         self.assertEqual(daemon.page, 'main', 'a tap on a dimmed panel only wakes it')
 
+    def test_a_shortcut_into_another_profile_sends_only_its_page(self):
+        daemon = self.daemon()
+        daemon.device_info = {'protocol': 4}
+        daemon.config['panel'] = {'shortcuts': [{'profile': 'coding', 'page': 'git', 'icon': 'lc:e0ff'}]}
+        daemon.cockpit_tick(100.0)
+        shortcut = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'page')
+        keys = next(i for i, item in enumerate(daemon.rail_items) if item['k'] == 'keys')
+        for tap, shown in ((shortcut, ('coding', 'git')), (keys, ('main', 'main'))):
+            daemon.panel.reset_mock()
+            daemon.handle_job(('rail', tap))
+            contexts = [json.loads(call.args[0].split(' ', 1)[1]) for call in daemon.panel.send_line.call_args_list
+                        if call.args[0].startswith('AD_CONTEXT ')]
+            self.assertEqual([(c['profile'], c['page']) for c in contexts], [shown], "the profile's first page is not sent first")
+            daemon.panel.push_buttons.assert_called_once()
+
 
 
 class CockpitDaemonTests(HostCase):
@@ -187,9 +202,10 @@ class CockpitDaemonTests(HostCase):
     def test_without_a_microphone_the_mixer_still_shows_the_speaker(self):
         from unittest.mock import Mock
         speaker = Mock(**{'GetMasterVolumeLevelScalar.return_value': 0.5, 'GetMute.return_value': False})
-        with patch('pc_state._with_audio', side_effect=lambda work: work({'speaker': speaker, 'mic': None})), \
+        from platform_windows import audio as win_audio
+        with patch('platform_windows.audio._with_audio', side_effect=lambda work: work({'speaker': speaker, 'mic': None})), \
                 patch('pycaw.pycaw.AudioUtilities.GetAllSessions', return_value=[]):
-            self.assertEqual([fader['id'] for fader in cockpit.read_mixer()], ['speaker'])
+            self.assertEqual([fader['id'] for fader in win_audio.read_mixer()], ['speaker'])
 
     def test_a_missing_sound_device_does_not_stop_the_other_screens(self):
         daemon = self.cockpit_daemon()
@@ -204,6 +220,28 @@ class CockpitDaemonTests(HostCase):
             daemon.handle_job(('fader', 'app:Spotify.exe', 40))
             daemon.handle_job(('mute', 'mic'))
         self.assertEqual([call.args for call in audio.call_args_list], [('app:Spotify.exe', 'volume', 40), ('mic', 'toggle')])
+
+    def test_a_touch_on_a_remote_fader_reaches_that_device_and_never_the_pcs_sound(self):
+        daemon = self.cockpit_daemon()
+        import remote_devices
+        with patch.object(deck, 'control_audio') as audio, patch.object(remote_devices, 'set_volume') as volume, \
+                patch.object(remote_devices, 'toggle_mute') as mute:
+            daemon.handle_job(('fader', 'remote:0123456789', 35))
+            daemon.handle_job(('mute', 'remote:0123456789'))
+            daemon.handle_job(('fader', 'speaker', 10))
+        volume.assert_called_once_with('remote:0123456789', 35)
+        mute.assert_called_once_with('remote:0123456789')
+        self.assertEqual([call.args for call in audio.call_args_list], [('speaker', 'volume', 10)])
+
+    def test_a_remote_media_key_runs_the_action_with_its_device(self):
+        daemon = self.cockpit_daemon()
+        import remote_devices
+        with patch.object(remote_devices, 'control_media') as media:
+            daemon.run_action({'type': 'remote_media', 'op': 'next', 'device': 'ce7eff39_phone'})
+            daemon.run_action({'type': 'remote_media', 'op': 'playpause'})
+            daemon.run_action({'type': 'remote_media', 'op': 'volumeup', 'step': 10})
+        self.assertEqual([call.args for call in media.call_args_list],
+                         [('next', 'ce7eff39_phone', 5), ('playpause', 'first', 5), ('volumeup', 'first', 10)])
 
     def test_an_agent_button_brings_the_tool_to_the_front_and_is_published_as_an_event(self):
         daemon = self.cockpit_daemon()

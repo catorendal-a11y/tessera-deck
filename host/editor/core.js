@@ -16,9 +16,12 @@ const kinds = {
   panel_lock:{name:'Lock panel',icon:'settings',field:null,label:'Lock or unlock the panel against stray taps',group:'Navigation'},
   delay:{name:'Wait',icon:'pause',field:'ms',label:'Delay (milliseconds)',placeholder:'500',group:'More actions'},
   shell:{name:'Run command',icon:'settings',field:'command',label:'Command',placeholder:'The command runs when the key is pressed',group:'Advanced'},
+  script:{name:'Run script',icon:'settings',field:'path',label:'Script file',placeholder:'Full path of a .py, .pyw, .ps1, .bat, .cmd, .ahk or .js file',group:'Advanced'},
   http:{name:'HTTP request',icon:'wifi',field:'url',label:'Address',placeholder:'https://…',group:'Advanced'},
   press:{name:'Trigger another key',icon:'loop',field:'id',label:'Key number (1–18)',group:'Advanced'},
   audio:{name:'Mute / unmute audio',icon:'settings',field:'target',label:'Device',group:'On the computer'},
+  media:{name:'Shuffle / repeat',icon:'loop',field:'op',label:'Media player option',group:'On the computer'},
+  remote_media:{name:'Remote media',icon:'play',field:'op',label:'Media control of a paired device',group:'Other devices',library:false},
   counter:{name:'Counter',icon:'plus',field:'name',label:'Counter name',placeholder:'for example laps',group:'On the computer'},
   mouse:{name:'Mouse',icon:'settings',field:'op',label:'Mouse operation',group:'On the computer'},
   screen:{name:'Switch screen',icon:'home',field:'show',label:'Show on the panel',group:'More actions'},
@@ -29,8 +32,12 @@ const kinds = {
   clipboard:{name:'Copy to clipboard',icon:'download',field:'text',label:'Text to copy',placeholder:'Text; $(var:name) and $(time) work too',group:'On the computer'},
   window:{name:'Window',icon:'list',field:'op',label:'Window operation',group:'On the computer'},
   toggle:{name:'Toggle variable',icon:'loop',field:'variable',label:'Variable name',placeholder:'for example mode',group:'Advanced'},
+  plugin:{name:'Plugin command',icon:'play',field:'plugin',label:'Plugin',placeholder:'for example obs',group:'Advanced'},
   homeassistant:{name:'Home Assistant',icon:'wifi',field:'action',label:'Action',placeholder:'light.toggle',group:'Smart home'},
 };
+/* Home Assistant steps run on the panel, from a key's own pressed, held and double-press steps only. */
+const HA_STEP='homeassistant';
+const kindName=type=>(kinds[type]||kinds.hotkey).name;
 // Sensors the host provides, with the ranges and thresholds of the bundled status page.
 const gaugeSensors={
   fps:['FPS (HWiNFO PresentMon)',{max:240,unit:'fps'}],
@@ -55,6 +62,7 @@ let dirty=false, saving=false, saveInFlight=null, conflicted=false, version=0, s
 let drag=null, suppressClick=false, editState=0;
 let iconPack=null, packIcons=new Map(), iconPage=0, iconPreferences={favorites:[],recent:[]};
 let actionCatalog={packs:[],templates:[]};
+var hostRules={};  /* from the host: keys (the names a hotkey may use), platform, scripts (the file types it runs) */
 let installedPrograms=[];
 let lastActionAt=0;
 let keyMenuReturnFocus=null;
@@ -162,7 +170,7 @@ const button=(text,fn,cls='quiet',title) => element('button',{text,class:cls,onc
 const text=(tag,value,cls) => element(tag,{text:value,class:cls||''});
 function toast(message,undoable=false) {const host=document.querySelector('dialog:modal')||document.body;if($('#toast').parentNode!==host){host.append($('#toast'));if(host!==document.body)host.addEventListener('close',()=>document.body.append($('#toast')),{once:true});}
   $('#toast').textContent=message;
-  if(undoable)$('#toast').append(button('Undo',()=>{undo();$('#toast').hidden=true;},'toast-undo'));$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
+  if(undoable){const about=history[history.length-1];$('#toast').append(button('Undo',()=>undoIf(about),'toast-undo'));}$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4800);}
 /* In-page confirm and prompt: the same look as the form dialog, and a Promise for the answer instead of a blocked page.
    cancel:null shows only the OK button, for a notice. */
 function askDialog(title,message,{ok='OK',cancel='Cancel',danger=false,input=null}={}) {
@@ -203,10 +211,29 @@ function visibleButtons() {const values=new Map(buttons().map(b=>[b.id,b]));for(
 function current() {return visibleButtons().find(b=>b.id===selected);}
 function owner(id=selected) {const pins=config.profiles[profile].pinned||[];return pins.some(b=>b.id===id)?pins:buttons();}
 function appearance(b=current()) {return b?.states?.[editState]||b;}
+/* A new icon color for the state being edited. A toggle key whose states share one color (Play and Pause) keeps sharing it: the
+   other states that have the old color follow, the ones with a color of their own (Mic live green, Mic muted red) stay. */
+function setColor(value) {
+  const b=current(),target=appearance(b),old=target.color;
+  target.color=value;
+  if(b.states)for(const holder of [b,...b.states])if(holder!==target&&holder.color===old)holder.color=value;
+}
 /* Which action list of the key the steps below edit: a normal press, a long press or a double press. */
 let editList='actions',editListFor='';
 /* The Held/Double-press tab belongs to the key it was opened on: any other key, page or profile starts on Pressed,
    so an action dropped on a new key never lands in a list it does not run on a tap. */
+/* A rail shortcut that runs steps needs at least one: the host refuses the whole file for one without. */
+/* Where the keys are whose steps `points` picks out, as 'Page 3' (with the profile first when `everywhere`): what a
+   deleted page or profile takes with it, so the toast can say which keys to look at. */
+function keysWith(points,everywhere=false) {
+  const found=[],steps=b=>[...(b.actions||[]),...(b.hold_actions||[]),...(b.double_actions||[]),...(b.states||[]).flatMap(state=>state.actions||[])];
+  for(const [name,item] of Object.entries(config.profiles)){if(!everywhere&&name!==profile)continue;
+    for(const [where,list] of [...Object.entries(item.pages||{}),['pinned',item.pinned||[]]])for(const b of list)if(steps(b).some(points))found.push(`${everywhere?name+' ':''}${where} ${b.id}`);}
+  return found;
+}
+function lostSteps(found,what) {return found.length?` ${found.length} key${found.length===1?'':'s'} lost the step that ${what}: ${found.slice(0,6).join(', ')}${found.length>6?' …':''}.`:'';}
+const withKeys=count=>count?` with its ${count} key${count===1?'':'s'}`:'';
+function dropEmptyShortcuts() {if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s?.type!=='actions'||s.actions?.length);}
 function syncEditList() {const key=[profile,page,selected].join('\u0000');if(key!==editListFor){editListFor=key;editList='actions';}}
 const TRIGGERS=[['actions','Pressed'],['hold_actions','Held'],['double_actions','Double-press']];
 function activeActions() {syncEditList();const b=current();if(editList!=='actions')return b[editList]||[];return b.states?b.states[Math.min(editState,b.states.length-1)].actions:b.actions;}
@@ -273,6 +300,15 @@ function stepProblem(a) {
 }
 /* The host refuses the whole configuration over one bad value, so a step it would refuse stays a draft like an empty one (rules from config_check.py). */
 const NAME_RULE=/^[A-Za-z0-9_.-]{1,64}$/;
+const PLUGIN_ID_RULE=/^[a-z][a-z0-9-]{1,31}$/;
+/* The host measures plugin arguments as Python's json.dumps writes them: ", " and ": " between items, and every
+   character past ASCII as \uXXXX. Counted the same way here, so the editor and the host agree on the 1024 limit. */
+const hostJson=v=>Array.isArray(v)?'['+v.map(hostJson).join(', ')+']':v&&typeof v==='object'?'{'+Object.entries(v).map(([k,x])=>hostJson(k)+': '+hostJson(x)).join(', ')+'}'
+  :JSON.stringify(v).replace(/[\u007f-\uffff]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
+function pluginArgsProblem(args) {
+  if(!args||typeof args!=='object'||Array.isArray(args))return 'write the arguments as a JSON object, for example {"name": "Gaming"}';
+  return hostJson(args).length>1024?'keep the arguments under 1024 characters':'';
+}
 /* Home Assistant steps and followed entities (ha_keys.py): the panel keeps them in fixed-size fields. */
 const HA_NAME=/^[a-z_][a-z0-9_]*\.[a-z0-9_]+$/,HA_DATA_KEY=/^[a-z0-9_]{1,32}$/,HA_ATTRIBUTE=/^[a-z0-9_]{0,32}$/;
 function haEntityProblem(value,many=true) {
@@ -316,14 +352,44 @@ function valueProblem(a) {
   const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
   if((a.type==='press'&&!whole(a.id,1,18))||(a.type==='state'&&!whole(a.button,1,18)))return 'use a key number from 1 to 18';
   if(a.type==='delay'&&!whole(a.ms,0,60000))return 'use a wait of 0 to 60000 milliseconds';
+  const host=(typeof hostRules==='object'&&hostRules)||{};
   if(a.type==='hotkey'&&String(a.keys).split('+').some(part=>!part.trim()))return 'finish the key combination';
+  if(a.type==='hotkey'&&host.keys){const unknown=String(a.keys).toLowerCase().split('+').map(part=>part.trim()).find(part=>!host.keys.includes(part));if(unknown)return `use key names such as ctrl+shift+t: “${unknown}” is not one`;}
+  if(a.type==='window'&&a.op==='focus'&&!String(a.process||'').trim())return 'fill in the process name of the program to bring to the front';
+  if(a.type==='mouse'&&a.op==='moveto'&&!(Number.isInteger(a.x)&&Number.isInteger(a.y)))return 'type the Screen X and Screen Y to move the pointer to';
+  if(a.type==='script'){
+    const path=String(a.path).trim().replace(/^"+|"+$/g,'').trim();  // as the host reads it: Explorer's Copy as path adds quotes
+    const types=host.scripts||['.py','.pyw','.ps1','.bat','.cmd','.ahk','.js'];  // Linux runs .sh and no .bat
+    if(!types.some(type=>path.toLowerCase().endsWith(type)))return `use a ${types.slice(0,-1).join(', ')} or ${types[types.length-1]} file`;
+    if(!(host.platform==='linux'?/^\//:/^([A-Za-z]:[\\/]|\\\\|%[^%\s]+%)/).test(path))return 'use the full path of the script file';
+    if(/\.(bat|cmd)$/i.test(path)&&/%/.test(path.replace(/^%[^%\s]+%/,'')))return 'leave the % sign out of the path of a .bat or .cmd file';
+  }
+  if(['http','shell','script'].includes(a.type)&&a.timeout!==undefined&&!(typeof a.timeout==='number'&&a.timeout>0&&a.timeout<=300))return 'use a timeout from 1 to 300 seconds';
+  if(a.type==='http'&&a.headers!==undefined&&(!a.headers||typeof a.headers!=='object'||Array.isArray(a.headers)))return 'write each header as Name: value';
   if(a.type==='http'&&!String(a.url).startsWith('$(')&&!/^https?:\/\/[^/\s]/i.test(a.url))return 'start the address with http:// or https://';
   if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
   if(a.type==='timer'&&a.seconds!==undefined&&!whole(a.seconds,1,604800))return 'use a timer length from 1 second to 7 days';
+  if(a.type==='plugin'){
+    if(typeof a.plugin!=='string'||!PLUGIN_ID_RULE.test(a.plugin))return 'use a plugin id of small letters, digits and dashes';
+    if(typeof a.command!=='string'||!a.command)return 'fill in the command';
+    if(!NAME_RULE.test(a.command))return 'use only letters, digits, dots, dashes or underscores in the command';
+    if(a.args!==undefined)return pluginArgsProblem(a.args);
+  }
   if(a.type==='homeassistant')return haStepProblem(a);
   return '';
 }
+/* The Headers field: one Name: value per line. A line without a colon keeps the raw text, so the step stays a draft with a reason. */
+function parseHeaders(value) {
+  const lines=String(value).split('\n').map(line=>line.trim()).filter(Boolean);if(!lines.length)return null;
+  const headers={};for(const line of lines){const at=line.indexOf(':');if(at<1||!line.slice(0,at).trim())return String(value);headers[line.slice(0,at).trim()]=line.slice(at+1).trim();}
+  return headers;
+}
+const headersText=headers=>typeof headers==='string'?headers:headers&&typeof headers==='object'?Object.entries(headers).map(([name,value])=>`${name}: ${value}`).join('\n'):'';
+function setHeaders(a,value) {const headers=parseHeaders(value);if(headers)a.headers=headers;else delete a.headers;}
+function setTimeoutValue(a,value) {if(String(value).trim()==='')delete a.timeout;else a.timeout=Math.max(1,Math.min(300,Math.round(Number(value))||1));}
+/* Switch profile: the page belongs to the profile, so a new profile drops a page it does not have. */
+function switchProfileStep(a,name) {a.profile=name;if(a.page!==undefined&&!config.profiles[name]?.pages?.[a.page])delete a.page;}
 function keyProblem(b) {
   const name=nameProblem(b);if(name)return name;
   for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {const step=stepProblem(a);if(step)return step;}
@@ -396,7 +462,9 @@ async function mergeFromDisk() {
 }
 async function save() {
   clearTimeout(saveTimer);
-  if(saveInFlight){await saveInFlight;if(dirty)return save();return;}
+  // A save refused because the file changed elsewhere merges and sends again by itself: a second caller that got
+  // the same refusal would mark the editor as conflicted although nothing is lost.
+  if(saveInFlight){try{await saveInFlight;}catch(error){if(error.status!==409)throw error;return;}if(dirty)return save();return;}
   if(!dirty) return;
   if(conflicted)throw new Error('Reload the configuration to resolve the conflict.');
   saving=true;const sentVersion=version;
@@ -414,6 +482,9 @@ async function save() {
   } finally {saving=false;saveInFlight=null;}
   if(dirty)saveTimer=setTimeout(()=>save().catch(showError),200);
 }
+/* The toast's Undo takes back the change the toast is about. After a later edit a plain undo would take that one back
+   and leave the delete the toast named in place. */
+function undoIf(about) {if(about&&history[history.length-1]===about)undo();$('#toast').hidden=true;}
 function updateHistory() {$('#undo').disabled=!history.length;$('#redo').disabled=!future.length;}
 function undo(redo=false) {const source=redo?future:history,target=redo?history:future;if(!source.length)return;lastEdit={key:null,at:0};target.push(clone(config));config=source.pop();ensureSelection();changed();renderAll();}
 function ensureSelection() {
@@ -481,6 +552,7 @@ function expandLabel(value) {
   const text=String(value||'').replace(/[$][(]([a-z_-]+)(?::([A-Za-z0-9_.-]+))?[)]/g,(match,kind,name)=>{
     const live=dashboard.variables?.[name?`${kind}:${name}`:kind];
     if(live!==undefined&&['pc','counter','timer','timer-state'].includes(kind))return String(live);
+    if(name&&kind==='counter')return '0';if(name&&kind==='timer')return '00:00';if(name&&kind==='timer-state')return 'IDLE';  // not used yet, as the host shows it
     if(kind==='profile_lock'&&!name)return String(live??'AUTO');
     if(kind==='agent')return dashboard.agents?.[name]?'ON':'OFF';
     if(kind==='profile'&&!name)return profile;if(kind==='page'&&!name)return page;
@@ -629,14 +701,22 @@ function moveToPage(id,name) {
   mutate(()=>{buttons().splice(buttons().indexOf(b),1);b.id=slot;p.pages[name].push(b);});
   toast(`Moved key ${id} to page “${name}”, slot ${slot}.`,true);
 }
+/* The choices for the device of a remote media key (the first connected one, or one device) or of the mixer (also every
+   connected one): the first connected one, or one of the
+   paired devices the host sees right now (a saved device that is not connected stays in the list). */
+function remoteDeviceChoices(current,allowAll=false) {
+  const found=(dashboard.remote_devices||[]).map(d=>[d.id,d.name]);
+  const saved=current&&current!=='first'&&!(allowAll&&current==='all')&&!found.some(d=>d[0]===current)?[[current,`${current} (not connected)`]]:[];
+  return [['first','The first one that is connected'],...(allowAll?[['all','Every connected device']]:[]),...found,...saved];
+}
 function actionTemplate(key) {
-  if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',actions:clone(pack.actions)};}
+  if(key.startsWith('pack:')) {const pack=actionCatalog.packs[Number(key.split(':')[1])];if(!pack)return;return {label:pack.label||pack.name,icon:pack.icon||'ok',color:pack.color||'#35D07F',...(pack.confirm?{confirm:true}:{}),...(pack.states?{states:clone(pack.states)}:{}),...(pack.bind?{bind:pack.bind}:{}),actions:clone(pack.actions||[])};}
   if(key.startsWith('preset:')) {const preset=presets[Number(key.split(':')[1])];if(!preset)return;return {label:preset.name,icon:preset.icon,actions:[{type:'hotkey',keys:preset.keys}]};}
   const k=kinds[key];if(!k)return;
   const value={hotkey:'',text:'',open:'',folder:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,back:null,page:Object.keys(config.profiles[profile].pages).find(p=>p!==page)||page,
-    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',clipboard:'',window:'minimize',toggle:'mode',homeassistant:'light.toggle'}[key];
+    profile:Object.keys(config.profiles).find(p=>p!==profile)||profile,delay:500,shell:'',script:'',http:'',press:1,set:'',state:1,audio:'mic',counter:'counter',timer:'timer',mouse:'left',screen:'clock',media:'shuffle',remote_media:'playpause',clipboard:'',window:'minimize',toggle:'mode',plugin:'',homeassistant:'light.toggle'}[key];
   const action={type:key,...(k.field?{[k.field]:value}:{}),...(key==='http'?{method:'GET'}:{}),...(key==='state'?{state:'next'}:{}),...(key==='audio'?{op:'toggle'}:{}),
-    ...(key==='counter'?{op:'inc',step:1}:{}),...(key==='homeassistant'?{entity_id:''}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{})};
+    ...(key==='remote_media'?{device:'first'}:{}),...(key==='counter'?{op:'inc',step:1}:{}),...(key==='timer'?{op:'toggle',seconds:300,sound:true}:{}),...(key==='plugin'?{command:'',args:{}}:{}),...(key==='homeassistant'?{entity_id:''}:{})};
   // The long list names do not fit on a key (24 bytes).
   const label=key==='counter'?'$(counter:counter)':key==='timer'?'$(timer:timer)':key==='profile_lock'?'Lock $(profile_lock)':key==='folder'?'Folder':key==='page'?'Go to page':k.name;
   return {label,icon:k.icon,actions:[action]};
@@ -648,7 +728,7 @@ function addAction(key,id=null) {
   if(fresh){
     const span=key.startsWith('widget:')?WIDGETS.find(w=>w.kind===key.slice(7))?.span||2:1;
     id=[selected,...Array.from({length:18},(_,i)=>i+1)].find(slot=>spanFits(slot,span));
-    if(!id)return toast('This page has no free slot. Drop the action on a key to add it as a step.');
+    if(!id)return toast('This page has all 18 keys. Put the action on a new page (＋ beside the page tabs), or drop it on a key to add a step.');
   }
   if(key.startsWith('widget:'))return addWidget(key.slice(7),id);
   const item=actionTemplate(key);if(!item)return;
@@ -657,7 +737,11 @@ function addAction(key,id=null) {
   if(key==='homeassistant'&&target?.states&&(id!==selected||editList==='actions'))  // the panel runs only a key's own lists
     return toast('Home Assistant steps cannot go in a toggle state. Use Held or Double-press, or a key without states.');
   inspectorTab=made?'look':'actions';
-  mutate(()=>{selected=id;syncEditList();let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];activeActions().push(...clone(item.actions));});
+  const other=id!==selected;
+  mutate(()=>{selected=id;syncEditList();if(made)editList='actions';if(made||other)editState=0;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',...(item.states?{states:clone(item.states)}:{}),...(item.bind?{bind:item.bind}:{}),actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];
+    /* A pack that asks for a hold (Shut down, Restart, ...) keeps it on a new or empty key; the host refuses confirm with hold or double steps. */
+    if(item.confirm&&editList==='actions'&&!b.actions.length&&!b.hold_actions?.length&&!b.double_actions?.length)b.confirm=true;
+    if(!(made&&item.states?.some(state=>state.actions?.length)))activeActions().push(...clone(item.actions));});
   if(made){const title=$('#inspector .prop-row-title input');title?.focus();title?.select();}  // name the new key first
   if(key==='folder')return newPage(true,activeActions().length-1,appearance().label);  // a folder needs its page: make it now
   toast(made?`Added to key ${id}. Drop on a key to add a step.`:'Action added. Steps run from top to bottom.');
@@ -665,8 +749,8 @@ function addAction(key,id=null) {
 
 /* The steps of a key as one readable line: "1 Open program: chrome.exe → 2 Hotkey: ctrl+t". */
 function stepDetail(action) {
-  const value = ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op', 'action'].map(key => action[key]).find(item => typeof item === 'string' && item);
-  return value ? `${(kinds[action.type] || kinds.hotkey).name}: ${value.length > 28 ? value.slice(0, 27) + '…' : value}` : (kinds[action.type] || kinds.hotkey).name;
+  const value = action.type === 'plugin' ? [action.plugin, action.command].filter(item => typeof item === 'string' && item).join(' ') : ['target', 'path', 'keys', 'text', 'url', 'command', 'name', 'page', 'profile', 'variable', 'op', 'action'].map(key => action[key]).find(item => typeof item === 'string' && item);
+  return value ? `${kindName(action.type)}: ${value.length > 28 ? value.slice(0, 27) + '…' : value}` : kindName(action.type);
 }
 function stepSummary(actions) {
   const shown = actions.slice(0, 3).map((action, index) => `${actions.length > 1 ? index + 1 + ' ' : ''}${stepDetail(action)}`);
@@ -706,7 +790,7 @@ function actionSymbol(name) {
 /* Ready-made widgets: a wide key that shows something live. The host fills in the text; the list matches host/widgets.py. */
 const WIDGETS = [
   {kind: 'clock', name: 'Clock', sub: 'The time, the date and how far the day is', icon: 'lc:e087', span: 2, color: '#4DD0E1', path: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>'},
-  {kind: 'date', name: 'Date', sub: 'The day, the week and the day of the year', icon: 'lc:e063', span: 2, color: '#B388FF', path: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>'},
+  {kind: 'date', name: 'Date', sub: 'The date, the weekday and the week number', icon: 'lc:e063', span: 2, color: '#B388FF', path: '<path d="M8 2v3"/><path d="M16 2v3"/><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/>'},
   {kind: 'cpu', name: 'Processor', sub: 'Load, temperature and clock speed', icon: 'lc:e0a9', span: 2, color: '#58E09B', path: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="8" y="8" width="8" height="8" rx="1"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>'},
   {kind: 'gpu', name: 'Graphics card', sub: 'Load, temperature and frames per second', icon: 'lc:e11d', span: 2, color: '#FFB74D', path: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/>'},
   {kind: 'ram', name: 'Memory', sub: 'How much memory is in use', icon: 'lc:e445', span: 2, color: '#64B5F6', path: '<rect x="2" y="6" width="20" height="10" rx="2"/><path d="M6 18v-2M10 18v-2M14 18v-2M18 18v-2"/>'},
@@ -715,7 +799,7 @@ const WIDGETS = [
   {kind: 'agents', name: 'AI agents', sub: 'Who works and who waits for you', icon: 'lc:e1bb', span: 3, color: '#58E09B', path: '<path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M15 13v2M9 13v2"/>'},
   {kind: 'calendar', name: 'Next meeting', sub: 'Your next meeting from your calendar (set it in Program settings)', icon: 'lc:e304', span: 3, color: '#64B5F6', path: '<path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/><path d="M16 2v4M8 2v4M3 10h5"/><path d="M17.5 17.5 16 16.3V14"/><circle cx="16" cy="16" r="6"/>'}
 ];
-function liveName(live) {return live==='media'?'Music':String(live).startsWith('timer:')?`Timer “${live.slice(6)}”`:WIDGETS.find(w=>w.kind===live)?.name||String(live);}
+function liveName(live) {return live==='media'?'Music':live==='remote_media'?'Music of a paired device':String(live).startsWith('timer:')?`Timer “${live.slice(6)}”`:WIDGETS.find(w=>w.kind===live)?.name||String(live);}
 /* What a widget key shows: the host's text while the panel shows this page, otherwise a stand-in. */
 function widgetText(b) {
   const shown=deviceShowsSelection()&&dashboard.device?.widgets?.[b.id];if(shown)return shown;

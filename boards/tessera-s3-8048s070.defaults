@@ -1,0 +1,12 @@
+# Sunton/Guition ESP32-8048S070, 800 x 480. GPIO19/20 carry the touch controller, so there is no native USB:
+# the host talks to UART0 (GPIO43/44) through the CH340 at 921600 baud.
+CONFIG_IDF_TARGET="esp32s3"
+CONFIG_TESSERA_BOARD_S3_8048S070=y
+# CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG is not set
+CONFIG_ESP_CONSOLE_UART_CUSTOM=y
+CONFIG_ESP_CONSOLE_UART_CUSTOM_NUM_0=y
+CONFIG_ESP_CONSOLE_UART_TX_GPIO=43
+CONFIG_ESP_CONSOLE_UART_RX_GPIO=44
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+# Without this the UART interrupt waits out every flash write and received bytes are lost.
+CONFIG_UART_ISR_IN_IRAM=y

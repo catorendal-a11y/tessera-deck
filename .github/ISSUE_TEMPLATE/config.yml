@@ -1,8 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: A security problem
-    url: https://github.com/catorendal-a11y/tessera-deck/blob/main/SECURITY.md
+    url: https://github.com/catorendal-a11y/tessera-deck/security/advisories/new
     about: Please do not report security problems in a public issue.
   - name: How do I ...?
     url: https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/USING.md
     about: Using Tessera, including troubleshooting.
+  - name: A question, an idea or a board report
+    url: https://github.com/catorendal-a11y/tessera-deck/discussions
+    about: Ask, share your setup or report how an S3 board went.

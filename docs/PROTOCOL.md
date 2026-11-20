@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 5; [Releasing](RELEASING.md) lists what each version added.
+The host and the panel talk over USB Serial/JTAG at 115200 baud. On the CrowPanel Advance 7.0 and the Sunton ESP32-8048S070 the link is a UART at 921600 baud through the board's USB-UART bridge. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 5; [Releasing](RELEASING.md) lists what each version added.
 
 ## Framing
 
@@ -21,15 +21,16 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. This page lists
 | `AD_PING` | none | Heartbeat every second. The rail shows *NO PC* after 3.5 s without any line from the host. |
 | `AD_TIME YYYY-MM-DDTHH:MM:SS [12h\|24h]` | `AD_TIME OK` or `INVALID` | The PC's local time, sent every 10 minutes and when the clock format changes. The panel has no network clock. The optional format sets 12- or 24-hour clocks; older firmware ignores it. |
 | `AD_CFG_BEGIN`, `AD_CFG_DATA <chunk>`, `AD_CFG_END` | `AD_CFG_BEGIN OK`, none, then `AD_CFG_END OK <keys>`, `INVALID` or `TOO_BIG 8192` | Pushes the key layout (JSON, chunked). See [Layout](#layout). |
-| `AD_IMG_BEGIN <id> <bytes> <crc32> [ack]`, `AD_IMG_DATA <offset> <hex>`, `AD_IMG_END` | `AD_IMG_END OK <id>`, `INVALID` or `FULL`; with `ack` also `AD_IMG_DATA OK <bytes received>` or `AD_IMG_DATA INVALID` | Uploads a key image. `FULL` means the 8 MiB image cache cannot hold it. See [Image upload](#image-upload). |
+| `AD_IMG_BEGIN <id> <bytes> <crc32> [ack]`, `AD_IMG_DATA <offset> <hex>`, `AD_IMG_END` | `AD_IMG_END OK <id>`, `INVALID` or `FULL`; with `ack` also `AD_IMG_DATA OK <bytes received>` or `AD_IMG_DATA INVALID` | Uploads a key image. `FULL` means the image cache (8 MiB on the P4 boards, 2 MiB on the S3 boards) cannot hold it. See [Image upload](#image-upload). |
 | `AD_CONTEXT {"profile":"…","page":"…","canBack":true}` | `AD_CONTEXT OK` or `INVALID` | Profile, page and back state for the header. |
 | `AD_FEEDBACK ok <id>` or `AD_FEEDBACK alert <id>` | `AD_FEEDBACK OK` or `INVALID` | Ends the pressed highlight with a green or red flash. |
 | `AD_BRIGHTNESS <1-100>` | `AD_BRIGHTNESS OK <level>`, `FAILED <level>` or `INVALID` | Sets the backlight and stores the level on the panel. |
 | `AD_DISPLAY_DIM <0-100>` | `AD_DISPLAY_DIM OK <level>`, `FAILED <level>` or `INVALID` | Dims the backlight without changing the stored level. |
-| `AD_DISPLAY_WAKE` | `AD_DISPLAY_WAKE <esp error name> QUEUED` or `NO_REDRAW` | Restores the stored backlight and redraws. |
+| `AD_DISPLAY_WAKE` | `AD_DISPLAY_WAKE <esp error name> QUEUED` or `NO_REDRAW` | Restores the stored backlight. Redraws the screen only when the panel was dimmed (`QUEUED`). |
 | `AD_PANEL_LOCK 1` or `AD_PANEL_LOCK 0` | `AD_PANEL_LOCK OK <1 or 0>` | Locks or unlocks the touch screen. See [Panel lock](#panel-lock). |
 | `AD_SCREEN deck` or `AD_SCREEN ambient` | `{"type":"screen","queued":true}` | Shows the keys or the ambient clock (protocol 3). |
 | `AD_AMBIENT <text>` | `AD_AMBIENT OK` | The line under the ambient clock, for example the weather (protocol 3). |
+| `AD_NOTIFY <info\|ok\|warn\|error> <1-30> <text>` | `AD_NOTIFY OK` or `INVALID` | A short message in a banner over whatever screen is open, for that many seconds. A tap on the banner closes it, a new message replaces it, and one that arrives during the boot screen waits for it to end. The text is shortened to two lines. Sent only to a panel with `"notify":1`; without it the host shows a Windows notification. |
 | `AD_AGENTS {"agents":[…]}` | `AD_AGENTS OK` or `INVALID` | The agents screen, up to 3 lanes (protocol 4). |
 | `AD_MIXER {"faders":[…]}` | `AD_MIXER OK` or `INVALID` | The mixer screen, up to 5 faders (protocol 4). |
 | `AD_STATS {"stats":[…]}` | `AD_STATS OK` or `INVALID` | The status screen, up to 8 readings (protocol 4). |
@@ -75,7 +76,7 @@ Each list is a JSON object with one array. Text fields are shortened to fit; ids
 | Message | Array entries |
 |---|---|
 | `AD_AGENTS` | `id`, `name` (needed), `state` (`idle`, `working` or `waiting`), `text`, `sub`, `q` (`1` when the lane asks a question), `at` (`HH:MM` the agent started working or waiting; older firmware ignores it). |
-| `AD_MIXER` | `id` (the host's audio target), `name`, `level` (0-100), `muted`, `mic`, `color`. |
+| `AD_MIXER` | `id` (the host's audio target: `speaker`, `mic`, `app:NAME` or, for a device paired with KDE Connect, `remote:` and ten characters of the hash of its id), `name`, `level` (0-100), `muted`, `mic`, `color`. |
 | `AD_STATS` | `name`, `value`, `unit`, `p` (0-100), `color`, `warn`. |
 | `AD_RAIL` | `k` is `keys`, `agents`, `mixer`, `status`, `page` or `act`. A `page` entry also needs `p` (profile) and `g` (page) and may carry `i` (icon). An `act` entry (firmware 0.6.3) carries only `i`. |
 
@@ -85,7 +86,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 
 | Message | When | What the host does |
 |---|---|---|
-| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":5,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"reset":"…","ota":1,"wifi":"off","layoutSaved":N}` | The answer to `get_info` | Accepts only `tessera-p4` and a supported protocol. See [Handshake fields](#handshake-fields). |
+| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":5,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"w":N,"h":N,"imgCache":N,"reset":"…","ota":1,"imgAck":1,"notify":1,"wifi":"off","layoutSaved":N,"draws":N,"drawMaxMs":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
 | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed. `hold` is present for a long press. | Runs the key's actions. |
 | `{"type":"wake"}` | A touch woke the dimmed panel. | Resets the idle timer. No key is pressed. |
 | `{"type":"brightness","level":N}` | The brightness slider was released. | Stores the level (1 to 100). |
@@ -108,13 +109,18 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `boardId`, `firmwareVersion`, `protocol` | Identify the panel. The protocol number is the panel's own. |
 | `bootId`, `uptime` | A new `bootId` tells the host the panel restarted. `uptime` is in seconds. |
 | `heap`, `psramFree` | Free internal and external memory in bytes. |
+| `w`, `h`, `imgCache` | The screen size in pixels and the size of the image cache in bytes. Missing on firmware older than 1.1.0; the host then assumes 1024 × 600 and 8 MiB. |
 | `reset` | Why the panel last started: `poweron`, `sw`, `panic`, `int_wdt`, `task_wdt`, `wdt`, `brownout`, `deepsleep`, `ext` or `unknown`. The host warns about `panic`, `int_wdt`, `task_wdt`, `wdt` and `brownout`. |
 | `ota` | `1` when the panel accepts `AD_OTA_*`. Missing on older firmware. |
 | `imgAck` | `1` when `AD_IMG_BEGIN` takes `ack` and the panel then acknowledges image data. Missing on older firmware: the host sends 160-byte lines and pauses 10 ms after every 4. |
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
+| `notify` | `1` when the panel shows `AD_NOTIFY` banners. Missing on older firmware. |
+| `draws`, `drawMaxMs` | Screen updates since the previous `get_info`, and how long the slowest took to draw and send to the panel, in ms. Reading them starts a new count. Missing on older firmware. |
 | `wifi` | `off`, `connecting`, `connected` or `failed` (protocol 5). With the protocol number it tells the host that `AD_WIFI_*` exists. |
 | `api` | `1` when the panel has the Home Assistant API and accepts `AD_API_*`. Missing on older firmware. |
 | `ha` | `1` when the panel reads the layout's `ha` and `hs` key fields and runs Home Assistant steps itself. Missing on older firmware: the host strips those fields and runs no Home Assistant step. |
+
+Only the GUITION board has Wi-Fi, through its ESP32-C6. Firmware for the other boards (CrowPanel, the S3 boards) also reports protocol 5 but leaves out `wifi`, `api` and `ha`, so the host sends no `AD_WIFI_*` or `AD_API_*` line to it and runs no Home Assistant step there.
 
 A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once. A key with Home Assistant steps for that trigger follows Home Assistant instead (see [Home Assistant keys](#home-assistant-keys)).
 

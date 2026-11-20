@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Standalone Tessera terminal and profile editor."""
 import argparse
-import os
+from venv_paths import venv_python
 import asyncio
 import copy
 import json
@@ -17,6 +17,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll, Grid
 from textual.screen import ModalScreen
 from textual.widgets import Button, DataTable, Footer, Header, Input, Select, Static, TabbedContent, TabPane
+from process_flags import NO_WINDOW
 
 
 ACTION_FIELDS = {'hotkey': ('keys', 'ctrl+shift+b'), 'text': ('text', 'Text to type'),
@@ -122,8 +123,8 @@ class ActionEditor(ModalScreen):
                 if kind in ('press', 'state') and not 1 <= value <= 18:
                     raise ValueError('The button number must be 1-18')
             if kind == 'hotkey':
-                from tesserad import parse_hotkey
-                parse_hotkey(value)
+                from input_common import split_hotkey
+                split_hotkey(value)
             action = copy.deepcopy(self.draft) if kind == self.draft['type'] else {}
             action = {'type': kind} if ACTION_FIELDS[kind][0] is None else dict(action, type=kind, **{ACTION_FIELDS[kind][0]: value})
             if kind == 'http':
@@ -595,9 +596,9 @@ class TesseraApp(App):
 
     def action_graphic_editor(self):
         import subprocess
-        subprocess.Popen([str(ROOT / 'host/.venv/Scripts/pythonw.exe'),
+        subprocess.Popen([str(venv_python(ROOT, True)),
                           str(ROOT / 'host/tessera_app.py'), '--editor'],
-                         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                         creationflags=NO_WINDOW)
 
     def __init__(self, controller=None, profile_path=None, reader=None):
         self.controller = controller or Controller()

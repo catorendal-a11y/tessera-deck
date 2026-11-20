@@ -1,12 +1,13 @@
 {
   "id": "obs",
   "name": "OBS Studio",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "api": 1,
   "command": ["python", "main.py"],
-  "permissions": ["vars", "events"],
+  "permissions": ["vars", "events", "notify", "feedback"],
   "settings": {
     "port": {"type": "number", "label": "WebSocket port (OBS: Tools → WebSocket Server Settings)", "default": 4455},
-    "password": {"type": "text", "label": "WebSocket server password (empty if authentication is off)", "default": ""}
+    "password": {"type": "text", "label": "WebSocket server password (empty if authentication is off)", "default": ""},
+    "inputs": {"type": "text", "label": "Inputs whose mute state to show, separated by commas (up to 10, for example Mic/Aux)", "default": ""}
   }
 }

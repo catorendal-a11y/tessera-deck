@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
 import host_support  # noqa: E402
+from platform_windows.input import is_neutral_window as windows_neutral_window, real_app_exe as windows_real_app_exe
+from platform_marks import windows_only
 from system_stats import select_presentmon_fps
 
 
@@ -38,26 +40,27 @@ class NeutralWindowTests(unittest.TestCase):
                            ('explorer.exe', ''), ('explorer.exe', 'Task Switching'),
                            ('pythonw.exe', 'Tessera · main / main'), ('msedgewebview2.exe', 'Tessera')):
             with self.subTest(exe=exe, title=title):
-                self.assertTrue(deck.is_neutral_window(context(exe, title)))
+                self.assertTrue(windows_neutral_window(context(exe, title)))
 
     def test_real_programs_are_not_neutral(self):
         for exe, title in (('explorer.exe', 'Documents'), ('pythonw.exe', 'my script'), ('chrome.exe', 'Tessera docs'),
                            ('code.exe', '')):
             with self.subTest(exe=exe, title=title):
-                self.assertFalse(deck.is_neutral_window(context(exe, title)))
+                self.assertFalse(windows_neutral_window(context(exe, title)))
 
 
+@windows_only
 class StoreAppTests(unittest.TestCase):
     def test_a_frame_host_window_is_the_app_inside_it(self):
-        self.assertEqual(deck.real_app_exe('applicationframehost.exe', ['applicationframehost.exe', '', 'calculatorapp.exe']),
+        self.assertEqual(windows_real_app_exe('applicationframehost.exe', ['applicationframehost.exe', '', 'calculatorapp.exe']),
                          'calculatorapp.exe')
 
     def test_a_frame_host_without_a_visible_app_stays_the_frame_host(self):
-        self.assertEqual(deck.real_app_exe('applicationframehost.exe', ['applicationframehost.exe']),
+        self.assertEqual(windows_real_app_exe('applicationframehost.exe', ['applicationframehost.exe']),
                          'applicationframehost.exe')
 
     def test_other_programs_are_left_alone(self):
-        self.assertEqual(deck.real_app_exe('chrome.exe', ['chrome.exe', 'other.exe']), 'chrome.exe')
+        self.assertEqual(windows_real_app_exe('chrome.exe', ['chrome.exe', 'other.exe']), 'chrome.exe')
 
 
 class SwitchingTests(unittest.TestCase):
@@ -93,6 +96,7 @@ class SwitchingTests(unittest.TestCase):
         self.tick(daemon, chrome)  # Chrome's extension host runs claude.exe; the window is still Chrome
         self.assertEqual(daemon.profile, 'web')
 
+    @patch.object(deck, 'is_neutral_window', windows_neutral_window)  # the shell windows of this test are the Windows ones
     def test_a_neutral_window_does_not_end_an_automatic_switch(self):
         daemon = self.make_daemon()
         self.tick(daemon, context('code.exe', 'editor'))

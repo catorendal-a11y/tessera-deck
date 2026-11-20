@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 import ambient
 import iconify
 from action_preview import preview
-from program_locator import locate
+from platform_windows.programs import locate
 from substitution import expand_environment, substitute
 from tessera_app import Editor
 

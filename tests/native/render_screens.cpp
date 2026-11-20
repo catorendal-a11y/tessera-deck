@@ -1,8 +1,10 @@
 // Draws screens with the real panel UI. tools/render_screens.py writes the manifest this reads.
 // Each manifest line is tab separated: "image id crc path" or "screen out-file json-file profile page back(0/1)".
+// TESSERA_SCREEN=800x480 draws another screen size (default 1024x600).
 #include <lvgl.h>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -16,6 +18,7 @@
 
 static uint32_t tick = 10000;
 static std::vector<uint8_t> pixels;
+static int width = 1024, height = 600;
 uint32_t millis() { return tick; }
 extern "C" int64_t esp_timer_get_time() { return static_cast<int64_t>(tick) * 1000; }
 extern "C" const char* time_service_time_text() { return "14:32"; }
@@ -28,7 +31,7 @@ static void flush(lv_display_t* display, const lv_area_t* area, uint8_t* data) {
     for (int y = area->y1; y <= area->y2; ++y)
         for (int x = area->x1; x <= area->x2; ++x) {
             const uint32_t value = source[offset++];
-            uint8_t* to = &pixels[(static_cast<size_t>(y) * 1024 + x) * 3];
+            uint8_t* to = &pixels[(static_cast<size_t>(y) * width + x) * 3];
             to[0] = (value >> 16) & 255; to[1] = (value >> 8) & 255; to[2] = value & 255;
         }
     lv_display_flush_ready(display);
@@ -73,13 +76,19 @@ static bool show(const std::string& json, const std::string& profile, const std:
 
 int main(int argc, char** argv) {
     if (argc != 2) { fprintf(stderr, "usage: render_screens manifest\n"); return 2; }
+    alignas(64) static uint32_t buffer[1024 * 600];
+    if (const char* size = getenv("TESSERA_SCREEN")) {
+        if (sscanf(size, "%dx%d", &width, &height) != 2 || width < 320 || height < 240 || width * height > 1024 * 600) {
+            fprintf(stderr, "TESSERA_SCREEN must be WxH, at most 1024x600 pixels\n");
+            return 2;
+        }
+    }
     lv_init();
     lv_tick_set_cb(millis);
-    pixels.resize(1024 * 600 * 3);
-    auto* display = lv_display_create(1024, 600);
+    pixels.resize(static_cast<size_t>(width) * height * 3);
+    auto* display = lv_display_create(width, height);
     lv_display_set_color_format(display, LV_COLOR_FORMAT_XRGB8888);
-    alignas(64) static uint32_t buffer[1024 * 600];
-    lv_display_set_buffers(display, buffer, nullptr, sizeof(buffer), LV_DISPLAY_RENDER_MODE_FULL);
+    lv_display_set_buffers(display, buffer, nullptr, static_cast<uint32_t>(width * height * 4), LV_DISPLAY_RENDER_MODE_FULL);
     lv_display_set_flush_cb(display, flush);
     lv_tick_inc(tick);
     deck_model_init();
@@ -100,7 +109,7 @@ int main(int argc, char** argv) {
             deck_model_note_host();
             updates();
             std::ofstream out(field[1], std::ios::binary);
-            out << "P6\n1024 600\n255\n";
+            out << "P6\n" << width << " " << height << "\n255\n";
             out.write(reinterpret_cast<const char*>(pixels.data()), static_cast<std::streamsize>(pixels.size()));
         } else if (field.size() == 3 && field[0] == "agents") {  // "agents out-file json-file": the agents screen
             if (!deck_model_agents_from_json(read_file(field[2]).c_str())) { fprintf(stderr, "agents refused: %s\n", field[2].c_str()); ++failures; continue; }
@@ -108,7 +117,7 @@ int main(int argc, char** argv) {
             deck_model_note_host();
             updates();
             std::ofstream out(field[1], std::ios::binary);
-            out << "P6\n1024 600\n255\n";
+            out << "P6\n" << width << " " << height << "\n255\n";
             out.write(reinterpret_cast<const char*>(pixels.data()), static_cast<std::streamsize>(pixels.size()));
         }
     }

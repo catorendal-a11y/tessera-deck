@@ -17,6 +17,7 @@ import hashlib
 import json
 import re
 import subprocess
+from process_flags import NO_WINDOW
 import time
 import sys
 import tempfile
@@ -27,8 +28,9 @@ from pathlib import Path
 from typing import Callable
 
 FORMAT = 1
-BOARD_ID = 'tessera-p4'
+BOARD_ID = 'tessera-p4'  # the default board of build_package
 CHIP = 'esp32p4'
+BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3'}
 MANIFEST = 'manifest.json'
 APP_OFFSET = 0x10000
 OTADATA_NAME = 'ota_data_initial.bin'  # written with the app by esptool so the bootloader starts ota_0 again
@@ -61,6 +63,8 @@ class Package:
     flash: dict
     images: tuple[Image, ...]
     needs_full: bool = False  # A/B layout: a panel without it ("ota" missing) must get the full install once
+    board: str = BOARD_ID
+    chip: str = CHIP
 
     @property
     def app(self) -> Image:
@@ -75,8 +79,27 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def build_package(build_dir: Path, out_dir: Path, version: str, protocol: int) -> Path:
+def package_name(board: str, version: str) -> str:
+    """tessera-firmware-<version>.zip for the P4 (as always), tessera-firmware-<board>-<version>.zip for the others."""
+    return f'tessera-firmware-{version}.zip' if board == BOARD_ID else f'tessera-firmware-{board}-{version}.zip'
+
+
+def app_slot_size(table: bytes) -> int | None:
+    """Size of the application slot (factory or ota_0) in a binary ESP-IDF partition table; None if unreadable."""
+    for start in range(0, len(table) - 31, 32):
+        entry = table[start:start + 32]
+        if entry[:2] != b'\xaa\x50':
+            break
+        if entry[2] == 0 and entry[3] in (0, 0x10):  # type app, subtype factory or ota_0
+            return int.from_bytes(entry[8:12], 'little')
+    return None
+
+
+def build_package(build_dir: Path, out_dir: Path, version: str, protocol: int,
+                  board: str = BOARD_ID, chip: str = CHIP) -> Path:
     """Zip the images listed in the ESP-IDF build's flasher_args.json together with a manifest."""
+    if BOARD_CHIPS.get(board) != chip:
+        raise PackageError(f'{board!r} is not a known board for chip {chip!r}')
     build_dir, out_dir = Path(build_dir), Path(out_dir)
     args = json.loads((build_dir / 'flasher_args.json').read_text(encoding='utf-8'))
     files = []
@@ -88,11 +111,11 @@ def build_package(build_dir: Path, out_dir: Path, version: str, protocol: int) -
         files.append({'offset': offset, 'file': name, 'sha256': sha256(data)})
     # Every image the build flashes goes in, ota_data_initial.bin included. Its presence marks the A/B partition
     # table, which a panel still on the old single-slot table only gets from a full install.
-    manifest = {'format': FORMAT, 'board': BOARD_ID, 'chip': CHIP, 'version': version, 'protocol': protocol,
+    manifest = {'format': FORMAT, 'board': board, 'chip': chip, 'version': version, 'protocol': protocol,
                 'flash': {key: args['flash_settings'][key] for key in ('flash_mode', 'flash_size', 'flash_freq')},
                 'files': files, 'needs_full': OTADATA_NAME in blobs}
     out_dir.mkdir(parents=True, exist_ok=True)
-    target = out_dir / f'tessera-firmware-{version}.zip'
+    target = out_dir / package_name(board, version)
     with zipfile.ZipFile(target, 'w', zipfile.ZIP_DEFLATED) as archive:
         archive.writestr(MANIFEST, json.dumps(manifest, indent=2) + '\n')
         for name, data in blobs.items():
@@ -115,8 +138,9 @@ def load_package(path: Path, supported_protocols: tuple[int, ...]) -> Package:
             raise PackageError('The package has no readable manifest.json') from exc
         if not isinstance(manifest, dict) or manifest.get('format') != FORMAT:
             raise PackageError('The package format is not supported by this version of Tessera')
-        if manifest.get('board') != BOARD_ID or manifest.get('chip') != CHIP:
-            raise PackageError(f'The package is for {manifest.get("board")!r}, not for a Tessera panel')
+        board, chip = manifest.get('board'), manifest.get('chip')
+        if not isinstance(board, str) or BOARD_CHIPS.get(board) != chip:
+            raise PackageError(f'The package is for {board!r}, not for a Tessera panel')
         protocol = manifest.get('protocol')
         if type(protocol) is not int or protocol not in supported_protocols:
             raise PackageError(f'The firmware speaks protocol {protocol!r}, this host supports '
@@ -148,12 +172,17 @@ def load_package(path: Path, supported_protocols: tuple[int, ...]) -> Package:
             if sha256(data) != expected:
                 raise PackageError(f'{name} is damaged (checksum mismatch)')
             images.append(Image(offset, name, data))
-    if not any(image.offset == APP_OFFSET for image in images):
+    app = next((image for image in images if image.offset == APP_OFFSET), None)
+    if app is None:
         raise PackageError('The package has no application image')
+    table = next((image.data for image in images if image.name == 'partition-table.bin'), b'')
+    slot = app_slot_size(table)
+    if slot is not None and len(app.data) > slot:
+        raise PackageError(f'The application ({len(app.data)} bytes) does not fit its {slot // 1024} KiB flash slot')
     if len({image.offset for image in images}) != len(images):
         raise PackageError('Two images share one flash address')
     return Package(path, version, protocol, flash, tuple(sorted(images, key=lambda image: image.offset)),
-                   manifest.get('needs_full') is True)
+                   manifest.get('needs_full') is True, board, chip)
 
 
 def command_line(package: Package, port: str, folder: Path, mode: str = 'app', baud: int = 460800) -> list[str]:
@@ -164,7 +193,7 @@ def command_line(package: Package, port: str, folder: Path, mode: str = 'app', b
     if mode not in ('app', 'full'):
         raise ValueError("mode must be 'app' or 'full'")
     chosen = [image for image in (package.otadata, package.app) if image] if mode == 'app' else list(package.images)
-    arguments = [sys.executable, '-m', 'esptool', '--chip', CHIP, '-p', port, '-b', str(baud),
+    arguments = [sys.executable, '-m', 'esptool', '--chip', package.chip, '-p', port, '-b', str(baud),
                  '--before', 'default-reset', '--after', 'hard-reset', 'write-flash',
                  '--flash-mode', package.flash['flash_mode'], '--flash-size', package.flash['flash_size'],
                  '--flash-freq', package.flash['flash_freq']]
@@ -177,7 +206,7 @@ def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tupl
     """Run esptool, forwarding its percentage output; returns (exit code, tail of the output)."""
     process = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                encoding='utf-8', errors='replace', bufsize=1,
-                               creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0))
+                               creationflags=NO_WINDOW)
     tail = ''
     assert process.stdout is not None
     watchdog = threading.Timer(ESPTOOL_TIMEOUT, process.kill)
@@ -226,6 +255,8 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
     firmware: allowed only with force=True after the chip check done by esptool) and raises
     PackageError for a device that is clearly not a Tessera panel. In 'app' mode a panel that reports
     "ota":1 is updated over its USB connection with `ota` (serial_ota by default) instead of esptool.
+    A Tessera panel whose protocol this host does not speak comes back as {"protocolUnknown": True}
+    and can only get the full install.
     """
     progress('checking', 0)
     info = identify(port)
@@ -233,8 +264,14 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
         raise InstallError(f'{port} did not answer as a Tessera panel. If it is new, blank or its firmware is broken, '
                            'choose "Full install" and tick "Install anyway", then try again. '
                            'The chip type is still verified before writing.')
+    if info and info.get('boardId') not in (None, package.board):
+        raise InstallError(f'This package is for {package.board}, but the connected panel is {info["boardId"]}. '
+                           'Choose the package that matches the panel.')
     previous = (info or {}).get('firmwareVersion')
     has_slots = (info or {}).get('ota') == 1
+    if mode == 'app' and (info or {}).get('protocolUnknown'):
+        raise InstallError('The panel runs firmware this version of Tessera cannot talk to, such as a newer release. '
+                           'To install this one, choose "Full install".')
     if mode == 'app' and package.needs_full and not has_slots:
         raise InstallError("This firmware changes how the panel's flash is divided (A/B slots for updates over USB). "
                            'Install it once with "Full install"; later updates can use "Update" again.')
@@ -273,8 +310,8 @@ def find_packages(folders: list[Path], supported_protocols: tuple[int, ...]) -> 
                 try:
                     package = load_package(path, supported_protocols)
                     found.append({'path': str(path), 'version': package.version, 'protocol': package.protocol,
-                                  'bytes': len(package.app.data), 'needs_full': package.needs_full, 'error': None})
+                                  'bytes': len(package.app.data), 'needs_full': package.needs_full, 'board': package.board, 'error': None})
                 except PackageError as exc:
-                    found.append({'path': str(path), 'version': None, 'protocol': None, 'bytes': 0, 'error': str(exc)})
+                    found.append({'path': str(path), 'version': None, 'protocol': None, 'bytes': 0, 'board': None, 'error': str(exc)})
     return sorted(found, key=lambda item: ([int(n) for n in re.findall(r'\d+', item['version'] or '')], item['path']),
                   reverse=True)

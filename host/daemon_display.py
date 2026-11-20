@@ -4,16 +4,26 @@ from pathlib import Path
 import time
 
 from config_check import in_quiet_hours
+from control_api import NOTIFY_MAX_TEXT
+from host_runtime import pc_idle_seconds
+from platform_support import load
 
 DEFAULT_DIM_AFTER = 300  # seconds of no presses before the panel dims
+
+
+def banner_text(text) -> str:
+    """Any text as the banner takes it: one line of printable characters, at most NOTIFY_MAX_TEXT, cut with an ellipsis.
+    The firmware holds 400 bytes, so 99 characters and the 3-byte ellipsis always fit. The panel fonts have no arrow,
+    so a menu path such as 'More → Plugins' becomes 'More > Plugins'."""
+    text = str(text).replace('→', '>')
+    line = ' '.join(''.join(char for char in text if char.isprintable() or char.isspace()).split())
+    return line if len(line) <= NOTIFY_MAX_TEXT else line[:NOTIFY_MAX_TEXT - 1].rstrip() + '…'
 
 
 def windows_clock() -> str:
     """'12h' when Windows shows the time with AM/PM (Region settings), else '24h'."""
     try:
-        import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Control Panel\International') as key:
-            return '12h' if str(winreg.QueryValueEx(key, 'iTime')[0]) == '0' else '24h'
+        return load('regional').clock_format()
     except (ImportError, OSError):
         return '24h'
 
@@ -79,7 +89,8 @@ class DisplayMixin:
         self.panel.send_line('AD_DISPLAY_WAKE')
 
     def dim_display(self, reason):
-        self.panel.send_line(f'AD_DISPLAY_DIM {self.display_settings()["dim_level"]}')
+        # never above the level in force: quiet hours at 5 % with a dim level of 10 % made the panel brighter
+        self.panel.send_line(f'AD_DISPLAY_DIM {min(self.display_settings()["dim_level"], self.wanted_brightness())}')
         self.dimmed = True
         self.log(f'Panel dimmed {reason}')
 
@@ -94,6 +105,33 @@ class DisplayMixin:
             self.dim_display('because Windows is locked')
         elif not locked and self.dimmed:
             self.wake_display()
+
+    def panel_notice(self, text, level, seconds):
+        """A short message on the panel's banner. False when no panel is connected, its firmware has no banner
+        ("notify":1 in get_info) or it did not take the line."""
+        panel, banner = self.panel, self.device_info.get('notify')
+        if panel is None or self.connection_failed.is_set() or type(banner) is not int or banner < 1:
+            return False
+        # The control API checked the text; a newline would still end the line early, so it never gets through.
+        line = ''.join(char if char.isprintable() else ' ' for char in str(text))
+        try:
+            panel.send_line(f'AD_NOTIFY {level} {int(seconds)} {line}')
+            return True
+        except OSError as exc:
+            self.log(f'The panel did not take the message: {exc}')
+            return False
+
+    def show_notice(self, text, level, seconds):
+        """A short message (deckctl say, POST /v1/notify) on the panel's banner, or as a Windows notification through
+        the tray when the panel cannot show it. A warning or an error wakes a dimmed panel, as a touch would; while
+        Windows is locked the panel stays dim."""
+        if level in ('warn', 'error') and self.panel is not None and self.dimmed and not self.locked:
+            try:
+                self.wake_display()
+            except OSError:
+                pass  # panel_notice reports a panel that is gone
+        if not self.panel_notice(text, level, seconds):
+            self.notify('Tessera', text)
 
     def question_open(self):
         permissions = getattr(self, 'permissions', None)
@@ -125,16 +163,25 @@ class DisplayMixin:
         self.ambient_sent = ''
         self.panel.send_line('AD_SCREEN ambient')
 
+    def pc_idle(self):
+        return pc_idle_seconds()
+
     def ambient_tick(self, now):
-        """Show the ambient clock after `after` idle seconds and keep its weather line fresh."""
+        """Show the ambient clock after `after` seconds without a press and without keyboard or mouse input on the PC,
+        and keep its weather line fresh. Input on the PC takes an idle clock away again; one asked for by a key stays."""
         settings = self.ambient_settings()
         supported = (self.device_info.get('protocol') or 1) >= 3
         if self.panel is None or not supported or not (settings['enabled'] or self.ambient_requested):
             if self.ambient_active:
                 self.leave_ambient()
             return
+        idle = min(now - self.last_activity, self.pc_idle())
+        if self.ambient_active and not self.ambient_requested and idle < settings['after']:
+            self.leave_ambient()
+            self.log('Ambient screen left for input on the PC')
+            return
         if not self.ambient_active:
-            if self.locked or now - self.last_activity < settings['after'] or self.question_open():
+            if self.locked or idle < settings['after'] or self.question_open():
                 return
             self.ambient_active = True
             self.panel.send_line('AD_SCREEN ambient')

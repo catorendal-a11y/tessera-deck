@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import urllib.request
 import zipfile
 from unittest.mock import patch
 
@@ -120,6 +121,14 @@ class DownloadTests(unittest.TestCase):
             updates.download_firmware(self.info, self.folder, redirected)
         cdn = self.routes(**{f'https://github.com/r/{NAME}': Reply(FIRMWARE, 'https://objects.githubusercontent.com/x')})
         self.assertTrue(updates.download_firmware(self.info, self.folder, cdn).is_file())
+
+    def test_every_redirect_hop_is_checked_before_it_is_fetched(self):
+        hop, request = updates._GitHubRedirects(), urllib.request.Request(f'https://github.com/r/{NAME}')
+        for target in ('http://github.com/x.zip', 'https://evil.example/x.zip'):
+            with self.assertRaises(ValueError):
+                hop.redirect_request(request, None, 302, 'Found', {}, target)
+        cdn = hop.redirect_request(request, None, 302, 'Found', {}, 'https://objects.githubusercontent.com/x')
+        self.assertEqual(cdn.full_url, 'https://objects.githubusercontent.com/x')
 
     def test_odd_file_names_and_missing_assets_are_refused(self):
         for firmware in ({'name': '../evil.zip', 'size': 1, 'url': 'https://github.com/x'}, None):

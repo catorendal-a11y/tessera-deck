@@ -318,6 +318,6 @@ direct_dependencies:
 - espressif/usb
 - idf
 - lvgl/lvgl
-manifest_hash: d34a2bca703cc4e799e41fb6b3ff3dd8cf7952e2064bb31435e7514d490f5e9b
+manifest_hash: e34628fc5d3f77e457b005215bc7f4afc6cc98a6a00f4c465d0432a330f83266
 target: esp32p4
 version: 3.0.0

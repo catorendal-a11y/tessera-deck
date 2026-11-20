@@ -41,6 +41,15 @@ def tessera(method, path, data=None, timeout=35):
         return json.loads(reply.read())
 
 
+def newest_event():
+    """The id to read events after, so only keys pressed from now on count. A reply holds at most 100 events, oldest
+    first, so a full one is followed until the last page."""
+    reply = tessera('GET', '/v1/events')
+    while len(reply['events']) >= 100:
+        reply = tessera('GET', f"/v1/events?since={reply['last']}")
+    return reply['last']
+
+
 def set_vars(values):
     """Post the variables in batches: 20 or more entities in one call were refused, and every update failed."""
     items = list(values.items())
@@ -92,10 +101,15 @@ def reason(exc):
     return 'not reachable'
 
 
+def unknown():
+    """Every entity as 'unknown': a key must not go on showing 'on' when Home Assistant cannot be reached."""
+    return {f'{PLUGIN}.{entity}'[:64]: 'unknown' for entity in ENTITIES if ENTITY.fullmatch(entity)}
+
+
 def main():
     if not HOME or not HOME_TOKEN:
         tessera('POST', '/v1/vars', {'set': {f'{PLUGIN}.connected': 'add the address and token'}})
-    since = tessera('GET', '/v1/events')['last']  # only react to presses from now on
+    since = newest_event()
     next_update, failures = 0.0, 0
     while failures < MAX_FAILURES:
         try:
@@ -103,7 +117,7 @@ def main():
                 try:
                     values = dict(states(), **{f'{PLUGIN}.connected': 'yes'})
                 except (urllib.error.URLError, OSError, ValueError) as exc:
-                    values = {f'{PLUGIN}.connected': reason(exc)}
+                    values = dict(unknown(), **{f'{PLUGIN}.connected': reason(exc)})
                 set_vars(values)
                 next_update = time.monotonic() + INTERVAL
             reply = tessera('GET', f'/v1/events?since={since}&wait={min(INTERVAL, 20):g}')

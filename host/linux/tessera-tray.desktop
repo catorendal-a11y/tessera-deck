@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tessera
+GenericName=Deck panel host
+Comment=Tray icon and USB host for the Tessera deck panel
+Exec=Tessera.sh --tray
+Icon=tessera
+Terminal=false
+Categories=Utility;
+Keywords=deck;panel;tray;
+StartupNotify=false
