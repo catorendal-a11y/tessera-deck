@@ -16,30 +16,25 @@ ABSENT = ('org.freedesktop.DBus.Error.ServiceUnknown', 'org.freedesktop.DBus.Err
 
 
 def open_connection(sock: socket.socket, hello_seconds: float = HELLO_SECONDS):
-    """A jeepney DBusConnection on `sock`, which is already signed in. jeepney says Hello at once and waits for the answer in a
-    select without a time limit, which the socket's own timeout does not shorten: a bus that stays silent would hold the host's
-    loop for ever. Past `hello_seconds` the socket is shut down, the wait ends and the caller gets an OSError."""
-    from jeepney.io.blocking import DBusConnection
-    expired = []
+    """A jeepney DBusConnection on `sock`, which is already signed in, that says Hello within `hello_seconds`. jeepney's own
+    DBusConnection waits for the answer without any limit, which the socket's timeout does not shorten (it waits in a select), so a
+    bus that stays silent would hold the host's loop for ever. Past the time the socket is closed and the caller gets an OSError."""
+    from jeepney.io.blocking import DBusConnection, DBusConnectionBase, MessageFilters, Proxy, message_bus
 
-    def abort():
-        expired.append(True)
-        try:
-            sock.shutdown(socket.SHUT_RDWR)
-        except OSError:
-            pass
-    timer = threading.Timer(hello_seconds, abort)
-    timer.daemon = True
-    timer.start()
+    class Connection(DBusConnection):
+        def __init__(self):
+            DBusConnectionBase.__init__(self, sock)  # not DBusConnection's: that one says Hello without a time limit
+            self._filters = MessageFilters()
+            self.bus_proxy = Proxy(message_bus, self, timeout=hello_seconds)
+            self.unique_name = self.bus_proxy.Hello()[0]
     try:
-        return DBusConnection(sock)
+        return Connection()
+    except TimeoutError as exc:
+        sock.close()
+        raise OSError(f'the D-Bus did not answer Hello within {hello_seconds:g} seconds') from exc
     except Exception as exc:
         sock.close()
-        if expired:
-            raise OSError(f'the D-Bus did not answer Hello within {hello_seconds:g} seconds') from exc
-        raise
-    finally:
-        timer.cancel()
+        raise OSError(f'the D-Bus refused Hello: {exc}') from exc
 
 
 class NotRunning(OSError):

@@ -254,22 +254,29 @@ class HelloTests(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 5)
         self.assertEqual(ours.fileno(), -1, 'the socket is closed, so a later call can connect again')
 
-    def test_the_deadline_is_cancelled_when_hello_is_answered(self):
+    def test_a_bus_that_answers_hello_gives_a_connection_with_its_unique_name(self):
         import socket
-        from unittest.mock import patch
+        from jeepney import new_method_return
+        from jeepney.low_level import Parser
+        from dbus_client import open_connection
         ours, theirs = socket.socketpair()
-        self.addCleanup(ours.close)
-        self.addCleanup(theirs.close)
 
-        class Connection:
-            def __init__(self, sock):
-                self.sock = sock
-        with patch('jeepney.io.blocking.DBusConnection', Connection):
-            from dbus_client import open_connection
-            connection = open_connection(ours, 0.2)
-            time.sleep(0.4)
-        self.assertIsInstance(connection, Connection)
-        self.assertNotEqual(ours.fileno(), -1, 'the timer did not shut a good connection down')
+        def bus():  # answers each message with a method return that carries a name, as the bus does to Hello
+            parser = Parser()
+            while True:
+                data = theirs.recv(4096)
+                if not data:
+                    return
+                parser.add_data(data)
+                while (message := parser.get_next_message()) is not None:
+                    theirs.sendall(new_method_return(message, 's', (':1.42',)).serialise(serial=1))
+        thread = threading.Thread(target=bus, daemon=True)
+        thread.start()
+        connection = open_connection(ours, 5)
+        self.addCleanup(theirs.close)
+        self.addCleanup(connection.close)
+        self.assertEqual(connection.unique_name, ':1.42')
+        self.assertNotEqual(ours.fileno(), -1)
 
 
 class BusTests(unittest.TestCase):
