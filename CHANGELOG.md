@@ -3,7 +3,7 @@
 ## Unreleased
 
 - The host runs in a Wayland session on KDE Plasma. Keys, typing and the mouse go through `ydotool`, the window in front (smart profiles) and window actions through `kdotool`, and the clipboard through `wl-copy` or Klipper. Text is typed with your own keyboard layout, so `@`, `/`, `~` and `æøå` come out right on a Norwegian keyboard; a character the layout has no key for is refused before anything is typed. On other Wayland desktops keys and typing work and window actions say why they cannot. [LINUX.md](docs/LINUX.md#wayland) has the tools.
-- On Linux the editor opens in a window of its own (WebKitGTK), like the Windows app, instead of a browser tab. Without WebKitGTK it still opens in the browser.
+- On Linux the editor opens in a window of its own (WebKitGTK), like the Windows app, instead of a browser tab. Without WebKitGTK it still opens in the browser. WebKitGTK's DMA-BUF renderer is off in that window, because it draws an empty window with some GPU drivers.
 - The tray icon has its right-click menu on Plasma Wayland too: pystray uses the X11 tray there, through XWayland.
 - Linux: installing panel firmware from the editor stopped with "Host did not stop; no new owner was started" although the host had stopped. The tray did not collect a host that had ended, and the editor took the leftover process for a running one. Fixed by joern-h.
 - A release also has its program zip as `tessera-host.zip`, so `releases/latest/download/tessera-host.zip` always gives the latest. The README has the three commands that install Tessera from a terminal with it.

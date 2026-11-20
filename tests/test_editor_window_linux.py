@@ -61,6 +61,16 @@ class OpenTests(unittest.TestCase):
             find.assert_not_called()
 
 
+class RendererTests(unittest.TestCase):
+    def test_the_dmabuf_renderer_is_off_unless_the_user_chose(self):
+        import platform_linux.editor_window_helper as helper
+        for preset, expected in ((None, '1'), ('0', '0')):
+            env = {} if preset is None else {'WEBKIT_DISABLE_DMABUF_RENDERER': preset}
+            with unittest.mock.patch.dict(os.environ, env, clear=True), unittest.mock.patch.dict(sys.modules, {'gi': None}):
+                self.assertIsNone(helper.load())
+                self.assertEqual(os.environ['WEBKIT_DISABLE_DMABUF_RENDERER'], expected)
+
+
 class ActivateTests(unittest.TestCase):
     def test_the_window_of_the_helper_child_is_brought_to_the_front(self):
         backend = unittest.mock.Mock()

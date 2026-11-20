@@ -21,7 +21,11 @@ BACKGROUND = '#0A0E10'
 
 def load():
     """GLib, Gdk, Gtk and WebKit2, or None. The program name is set first: on Wayland it is the window's app id, and
-    the menu entry tessera-editor.desktop (host/linux/) of the same name gives the window its icon and name in the task bar."""
+    the menu entry tessera-editor.desktop (host/linux/) of the same name gives the window its icon and name in the task bar.
+    WebKitGTK's DMA-BUF renderer draws an empty window with some GPU drivers (NVIDIA among them), and the helper cannot tell
+    that from a page that works, so the browser fallback would never come. The editor draws fine without it; set
+    WEBKIT_DISABLE_DMABUF_RENDERER=0 to have it back."""
+    os.environ.setdefault('WEBKIT_DISABLE_DMABUF_RENDERER', '1')
     try:
         import gi
         from gi.repository import GLib

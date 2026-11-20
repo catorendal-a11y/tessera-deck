@@ -32,7 +32,7 @@ opens it too (`--no-browser` prints its address instead), and `./Tessera.sh --ap
 The editor opens in a window of its own, like the Windows app: it has its own entry in the task bar, closing it closes the
 editor, and the USB host keeps running in the background with the tray. A second start brings the open window to the front.
 The window is GTK with WebKitGTK under the *system* Python, like the tray menu; without WebKitGTK, or with
-`TESSERA_EDITOR=browser`, the editor opens in your browser instead. A browser tab is not the editor's window, so then
+`TESSERA_EDITOR=browser`, the editor opens in your browser instead. WebKitGTK's DMA-BUF renderer is turned off for the window, because it draws an empty window with some GPU drivers. A browser tab is not the editor's window, so then
 *Quit tray* and *Quit and stop host* also stop the editor's web server. `./Tessera.sh --setup`, `--uninstall [--purge]`, `--diagnostics`, `--terminal` and `--tray`
 work as in `Tessera.cmd`. *Start with the desktop* in the tray menu writes `~/.config/autostart/tessera.desktop`.
 
