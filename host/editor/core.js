@@ -142,6 +142,7 @@ function renderIconResults() {
       else if(iconPreferences.favorites.length<512)iconPreferences.favorites.push(item.id);
       else return toast('The favorites list is full. Remove an icon first.');
       saveIconPreferences();renderIconResults();
+      document.querySelector(`#icon-results [aria-label="${CSS.escape((favorite?'Favorite ':'Remove favorite ')+item.name)}"]`)?.focus();  // the label flips with the star
     },'catalog-star'+(favorite?' favorite':''),favorite?'Remove favorite':'Add to favorites');
     star.setAttribute('aria-label',(favorite?'Remove favorite ':'Favorite ')+item.name);star.setAttribute('aria-pressed',favorite);
     return element('div',{class:'catalog-item'},choose,star);
@@ -457,8 +458,9 @@ function moveSlot(source,target) {
   const from=visibleButtons().find(b=>b.id===source),to=visibleButtons().find(b=>b.id===target);if(!from)return;
   const fromSpan=from.span||1,toSpan=to?.span||1,skip=[from,to];
   const separate=target+fromSpan-1<source||target>source+toSpan-1;  // the two keys do not overlap after the swap
-  if(!spanFits(target,fromSpan,skip)||(to&&!spanFits(source,toSpan,skip))||(to&&!separate))return toast('A wide key needs free slots on one row: it does not fit there.');
-  if((isPinned(from)&&!freeOnAllPages(target,fromSpan,skip))||(to&&isPinned(to)&&!freeOnAllPages(source,toSpan,skip)))return toast('A pinned key shows on every page, and another page has a key there.');
+  const refuse=message=>{renderInspector();return toast(message);};  // the Move to slot select shows the key's real slot again
+  if(!spanFits(target,fromSpan,skip)||(to&&!spanFits(source,toSpan,skip))||(to&&!separate))return refuse('A wide key needs free slots on one row: it does not fit there.');
+  if((isPinned(from)&&!freeOnAllPages(target,fromSpan,skip))||(to&&isPinned(to)&&!freeOnAllPages(source,toSpan,skip)))return refuse('A pinned key shows on every page, and another page has a key there.');
   mutate(()=>{from.id=target;if(to)to.id=source;selected=target;});
 }
 /* Alt+arrow: the key moves one slot; a key already there changes places with it (a covered slot means its wide key). */
@@ -675,6 +677,9 @@ function actionTemplate(key) {
 }
 /* A click in the action list (no id) always makes a new key: on the selected slot when it is empty, else on the first
    free slot. A drop on a key, or Add action in the inspector, passes the slot and adds a step to the key there. */
+/* The host refuses confirm with hold or double steps: a step added there turns Hold to confirm off. True when it did. */
+const CONFIRM_DROPPED='Hold to confirm was turned off: a Held or Double-press step cannot have it.';
+function dropConfirm(b) {if(editList==='actions'||!b.confirm)return false;delete b.confirm;return true;}
 function addAction(key,id=null) {
   const fresh=id===null;
   if(fresh){
@@ -686,13 +691,16 @@ function addAction(key,id=null) {
   const item=actionTemplate(key);if(!item)return;
   const made=!visibleButtons().some(b=>b.id===id);
   inspectorTab=made?'look':'actions';
-  const other=id!==selected;
+  const other=id!==selected;let unconfirmed=false;
   mutate(()=>{selected=id;syncEditList();if(made)editList='actions';if(made||other)editState=0;let b=current();if(!b){b={id,label:item.label,icon:item.icon,color:item.color||'#35D07F',...(item.states?{states:clone(item.states)}:{}),...(item.bind?{bind:item.bind}:{}),actions:[]};buttons().push(b);}if(editList==='actions')b.actions??=[];else b[editList]??=[];
     /* A pack that asks for a hold (Shut down, Restart, ...) keeps it on a new or empty key; the host refuses confirm with hold or double steps. */
     if(item.confirm&&editList==='actions'&&!b.actions.length&&!b.hold_actions?.length&&!b.double_actions?.length)b.confirm=true;
+    unconfirmed=dropConfirm(b);
     if(!(made&&item.states?.some(state=>state.actions?.length)))activeActions().push(...clone(item.actions));});
   if(made){const title=$('#inspector .prop-row-title input');title?.focus();title?.select();}  // name the new key first
-  if(key==='folder')return newPage(true,activeActions().length-1,appearance().label);  // a folder needs its page: make it now
+  const about=history[history.length-1];
+  if(key==='folder')return newPage(true,activeActions().length-1,appearance().label,()=>undoIf(about));  // a folder needs its page: make it now; cancelling takes the key back
+  if(unconfirmed)return toast(CONFIRM_DROPPED,true);
   toast(made?`Added to key ${id}. Drop on a key to add a step.`:'Action added. Steps run from top to bottom.');
 }
 

@@ -199,6 +199,8 @@ async function testButton(id = selected) {
   if (result.hold_actions) section('When held', result.hold_actions);
   if (result.double_actions) section('When double-pressed', result.double_actions);
   $('#test-run').onclick = () => runKey(id, payload.actions).catch(showError);
+  $('#test-run').disabled = !dashboard.device?.connected;  // the host refuses run-key without the panel
+  $('#test-run').title = dashboard.device?.connected ? '' : 'Connect the panel first: Run now presses the key on it.';
   $('#test-dialog').showModal();
 }
 /* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */
@@ -387,15 +389,17 @@ async function openBackups() {
   for (const item of backups) {
     list.append(element('div', {class: 'backup-row'},
       element('div', {}, text('strong', item.saved), text('small', backupDetail(item))),
-      button(item.kept ? 'Stop keeping' : 'Keep', () => keepBackup(item).catch(showError), 'outline', 'A kept backup is not removed when newer ones come.'),
+      button(item.kept ? 'Stop keeping' : 'Keep', () => keepBackup(item).catch(showError), 'outline keep-backup', 'A kept backup is not removed when newer ones come.'),
       button('Restore', () => restoreBackup(item).catch(showError), 'outline')));
   }
   $('#backup-dialog').showModal();
 }
 const backupDetail = item => `${item.profiles} profiles · ${item.buttons} keys · ${Math.max(1, Math.round(item.bytes / 1024))} KiB${item.kept ? ' · kept' : ''}`;
 async function keepBackup(item) {
+  const at = [...document.querySelectorAll('#backup-list .keep-backup')].indexOf(document.activeElement);
   await api('command/keep-backup', {name: item.name, keep: !item.kept});
   await openBackups();
+  document.querySelectorAll('#backup-list .keep-backup')[at]?.focus();  // the list was redrawn
 }
 async function restoreBackup(item) {
   if (!await confirmDialog('Restore this backup?', `The current configuration is replaced by the backup from ${item.saved}. The current one is kept as a backup.`, {ok: 'Restore'})) return;
@@ -679,7 +683,7 @@ async function showWelcome(force) {
   renderWelcome();
   if (force === true) { $('#welcome').scrollIntoView({block: 'nearest'}); $('#welcome-close').focus(); }
 }
-$('#welcome-close').onclick = () => { $('#welcome').hidden = true; welcomeOpen = false; if (!setup.welcome_done) setupDone({welcome_done: true}); };
+$('#welcome-close').onclick = () => { $('#welcome').hidden = true; welcomeOpen = false; if (!setup.welcome_done) setupDone({welcome_done: true}); $(`[data-slot="${selected}"]`)?.focus(); };
 $('#welcome-open').onclick = () => showWelcome(true);
 $('#welcome-template').onclick = () => openGallery();
 $('#welcome-test').onclick = () => testButton(selected).catch(showError);
@@ -738,8 +742,10 @@ function panelChoice() {
   return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.slice(0, PANEL_STATS_MAX).map(s => s[0]), ...(config?.panel || {})};
 }
 function savePanel(change) {
+  const label = document.activeElement?.getAttribute?.('aria-label');
   mutate(() => { config.panel = {...panelChoice(), ...change}; });
   renderScreen();
+  if (typeof label === 'string') document.querySelector(`#screens-view [aria-label="${CSS.escape(label)}"]`)?.focus();  // the screen was redrawn under the control
 }
 let railShown = '';
 function renderRail() {
@@ -815,7 +821,7 @@ function renderScreen() {
       if (list.length > 3 || list.some(item => !/^[A-Za-z0-9_.-]{1,35}\.exe$/.test(item))) { toast('Use up to three program names ending in .exe, like spotify.exe.'); event.target.value = choice.apps.join(', '); return; }
       savePanel({apps: list});
     }});
-    const mic = element('input', {type: 'checkbox', onchange: event => savePanel({mic: event.target.checked})});
+    const mic = element('input', {type: 'checkbox', 'aria-label': 'Show the microphone fader', onchange: event => savePanel({mic: event.target.checked})});
     mic.checked = choice.mic;
     const remote = choice.remote || {mode: 'off'};
     const remoteMode = remote.mode === 'device' ? remote.device : remote.mode;

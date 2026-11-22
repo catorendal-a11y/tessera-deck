@@ -158,9 +158,10 @@ function renderInspector() {
   const confirm=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Hold to confirm'),text('small','The panel runs the key only after a 0.6 s hold, so a brush does nothing.')));
   const confirmBox=confirm.querySelector('input');confirmBox.checked=base.confirm===true;
   confirmBox.disabled=!base.confirm&&!!(base.hold_actions?.length||base.double_actions?.length);  /* the host refuses the mix */
+  if(confirmBox.disabled)confirm.title='Remove the Held and Double-press steps first.';
   confirmBox.onchange=()=>mutate(()=>{if(confirmBox.checked)base.confirm=true;else delete base.confirm;});
   const typeStart=panel.children.length;
-  panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){const steps=(base.actions||[]).filter(a=>a.type!==BETA_STEP);  /* never in a toggle state, as in the beta */base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(steps)},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(steps)}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;delete base.bind;}  /* the host refuses a bind without two states */editState=0;}),{values:['Normal key','Toggle key']}));
+  panel.append(field('Key type',base.states?'Toggle key':'Normal key',value=>mutate(()=>{if(value==='Toggle key'){const steps=(base.actions||[]).filter(a=>a.type!==BETA_STEP);  /* never in a toggle state, as in the beta */base.states=[{label:base.label,icon:base.icon,color:base.color,actions:clone(steps)},{label:base.label+' · on',icon:base.icon,color:'#FFA868',actions:clone(steps)}];base.actions=[];}else if(base.states){const first=base.states[0];for(const key of ['label','icon','color'])if(first[key]!==undefined)base[key]=first[key];base.actions=clone(first.actions||[]);delete base.states;delete base.bind;toast('State 2 was removed.',true);}  /* the host refuses a bind without two states */editState=0;}),{values:['Normal key','Toggle key']}));
   if(base.states){panel.append(field('Edit state',String(editState+1),value=>{editState=Number(value)-1;renderGrid();renderInspector();},{values:base.states.map((_,i)=>String(i+1))}),text('p','A press runs this state and then shows the next one. This is local key state, not confirmed app status.','hint'));}
   const bindStart=panel.children.length;
   renderGauge(panel,base);
@@ -172,7 +173,7 @@ function renderInspector() {
   (activeActions()||[]).forEach((action,index)=>panel.append(renderStep(action,index,activeActions().length)));
   // a step goes on this key (and this trigger) directly: a click in the library makes a new key instead
   const addSelect=element('select',{'aria-label':'Add a step to this key'});addSelect.append(element('option',{value:'',text:'＋ Step …'}));for(const [key,k] of Object.entries(kinds))addSelect.append(element('option',{value:key,text:k.name}));
-  addSelect.addEventListener('change',()=>{const item=addSelect.value&&actionTemplate(addSelect.value);if(item)mutate(()=>{if(editList==='actions')base.actions??=[];else base[editList]??=[];activeActions().push(...clone(item.actions));});});
+  addSelect.addEventListener('change',()=>{const item=addSelect.value&&actionTemplate(addSelect.value);let unconfirmed=false;if(item){mutate(()=>{if(editList==='actions')base.actions??=[];else base[editList]??=[];unconfirmed=dropConfirm(base);activeActions().push(...clone(item.actions));});if(unconfirmed)toast(CONFIRM_DROPPED,true);}});
   panel.append(addSelect,confirm);
   wrapSection(panel,actionsStart,panel.children.length,'Actions',false,'handling');
   wrapSection(panel,bindStart,actionsStart,'Live value and binding',false,'extras');
@@ -284,11 +285,12 @@ function renderStep(action,index,count) {
   step.addEventListener('dragover',event=>{if(Array.from(event.dataTransfer.types).includes('application/x-deck-step'))event.preventDefault();});
   step.addEventListener('drop',event=>{const value=event.dataTransfer.getData('application/x-deck-step');if(value==='')return;event.preventDefault();const source=Number(value);mutate(()=>{const actions=activeActions();actions.splice(index,0,actions.splice(source,1)[0]);});});
   const move=delta=>{if(index+delta<0||index+delta>=count)return;mutate(()=>{const a=activeActions();[a[index],a[index+delta]]=[a[index+delta],a[index]];});};
-  const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.disabled=index===0;down.disabled=index===count-1;
+  const up=button('↑',()=>move(-1),'quiet','Move step up'),down=button('↓',()=>move(1),'quiet','Move step down');up.setAttribute('aria-label','Move step up');down.setAttribute('aria-label','Move step down');up.disabled=index===0;down.disabled=index===count-1;
   // The title is the step type: a wrong pick changes in place and keeps the step's position.
   const type=element('select',{class:'step-type','aria-label':`Step ${index+1} action type`});options(type,Object.entries(kinds).map(([key,item])=>[key,item.name]),action.type);
   type.addEventListener('change',()=>{const fresh=actionTemplate(type.value)?.actions[0];if(fresh)mutate(()=>{activeActions()[index]=fresh;});});
-  step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,action.type===BETA_STEP?kindName(BETA_STEP):type),up,down,button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step')));
+  const remove=button('×',()=>mutate(()=>{activeActions().splice(index,1);if(editList!=='actions'&&!current()[editList].length)delete current()[editList];}),'quiet danger','Remove step');remove.setAttribute('aria-label','Remove step');
+  step.append(element('div',{class:'step-header'},element('strong',{},`${index+1}. `,action.type===BETA_STEP?kindName(BETA_STEP):type),up,down,remove));
   let values=action.type==='screen'?[['clock','The clock'],['keys','The keys'],['toggle','Switch between them']]:action.type==='mouse'?[['left','Left click'],['right','Right click'],['middle','Middle click'],['double','Double click'],['scroll','Scroll'],['move','Move the pointer by'],['moveto','Move the pointer to']]:action.type==='window'?windowOps:action.type==='media'?[['shuffle','Shuffle on / off'],['repeat','Repeat: off, all, one']]:action.type==='remote_media'?[['playpause','Play / pause'],['play','Play'],['pause','Pause'],['next','Next track'],['previous','Previous track'],['stop','Stop'],['volumeup','Volume up'],['volumedown','Volume down']]:['page','folder'].includes(action.type)?Object.keys(config.profiles[profile].pages):action.type==='profile'?Object.keys(config.profiles):action.type==='plugin'?pluginChoices(action.plugin):null;
   if(action.type===BETA_STEP){step.append(text('p',`From the Wi-Fi beta: ${action.action||''}${action.entity_id?' on '+action.entity_id:''}. It is kept as it is, and this version skips it when the key runs.`,'hint'));return step;}
   if(action.type==='back'){step.append(text('p','Goes back one level in the folder stack.','hint'));return step;}
@@ -379,7 +381,9 @@ function clockToSeconds(value) {
 function secondsToClock(seconds) {const h=Math.floor(seconds/3600),m=Math.floor(seconds%3600/60),s=seconds%60,two=n=>String(n).padStart(2,'0');return h?`${h}:${two(m)}:${two(s)}`:`${two(m)}:${two(s)}`;}
 function renderTimerStep(step,action,index) {
   step.append(field('Operation',action.op||'toggle',v=>mutate(()=>{activeActions()[index].op=v;}),{values:[['toggle','Start, pause and resume'],['start','Start again from the beginning'],['pause','Pause'],['resume','Resume'],['stop','Stop and reset']]}));
-  step.append(field('Length (mm:ss or h:mm:ss)',secondsToClock(action.seconds||300),v=>{const seconds=clockToSeconds(v);if(seconds&&seconds<=604800)editAction(index,'seconds',seconds);},{placeholder:'05:00'}));
+  const length=field('Length (mm:ss or h:mm:ss)',secondsToClock(action.seconds||300),v=>{const seconds=clockToSeconds(v);if(seconds&&seconds<=604800)editAction(index,'seconds',seconds);},{placeholder:'05:00'}),lengthBox=length.querySelector('input');
+  lengthBox.addEventListener('change',()=>{const seconds=clockToSeconds(lengthBox.value),bad=!seconds||seconds>604800;lengthBox.setAttribute('aria-invalid',String(bad));if(bad)toast('Write the length as mm:ss or h:mm:ss, more than 0 and at most a week.');});  // checked once the field is left, not on every key
+  step.append(length);
   step.append(field('Message when finished (optional)',action.notify||'',v=>editAction(index,'notify',v),{placeholder:'for example Tea is ready'}));
   const sound=element('label',{class:'check-option'},element('input',{type:'checkbox'}),element('span',{},text('strong','Play a sound when finished')));
   const box=sound.querySelector('input');box.checked=!!action.sound;box.onchange=()=>mutate(()=>{activeActions()[index].sound=box.checked;},false);step.append(sound);
@@ -407,14 +411,14 @@ function openTemplates() {
   },'Add profile');
 }
 /* link: the step at `index` becomes a folder to the new page, which gets a Back key; either way the editor opens the new page. */
-function newPage(link=false,index=0,suggested='') {dialog(link?'Create a subpage':'New page',[{name:'name',label:'Page name',required:true,value:suggested,maxLength:100}],values=>{
+function newPage(link=false,index=0,suggested='',onCancel=null) {let made=false;dialog(link?'Create a subpage':'New page',[{name:'name',label:'Page name',required:true,value:suggested,maxLength:100}],values=>{
   const name=values.name.trim();if(!name||config.profiles[profile].pages[name])throw new Error('Choose a new page name.');
-  mutate(()=>{config.profiles[profile].pages[name]=[];if(link){activeActions()[index].page=name;activeActions()[index].type='folder';
+  made=true;mutate(()=>{config.profiles[profile].pages[name]=[];if(link){activeActions()[index].page=name;activeActions()[index].type='folder';
     const view=appearance();if(!view.label?.trim()||['Folder','Go to page',kinds.folder.name,kinds.page.name].includes(view.label))view.label=name;  // a default name becomes the page name
     config.profiles[profile].pages[name].push({id:17,label:'Back',icon:'home',color:'#A3B2BC',actions:[{type:'back'}]});}
     showPage(profile,name);},false);renderAll();
   if(link)toast(`Subpage “${name}” created. Back is on slot 17.`);
-});setTimeout(()=>$('#dialog-fields input')?.select(),40);}
+});if(onCancel)$('#form-dialog').addEventListener('close',()=>{if(!made)onCancel();},{once:true});setTimeout(()=>$('#dialog-fields input')?.select(),40);}
 function renameProfile(old,name) {
   if(name===old)return;
   if(!name||config.profiles[name])throw new Error('Choose a new profile name.');
