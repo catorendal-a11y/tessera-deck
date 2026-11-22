@@ -52,6 +52,10 @@ class SilentPortTests(unittest.TestCase):
         self.assertNotIn('ESP-ROM', message)  # only the last four lines
         self.assertNotIn('"type"', message)
 
+    def test_a_broken_json_line_and_a_last_line_without_newline_are_in_the_error(self):
+        message = self.rejected(b'{"type":"info"\npanic: boot failed')
+        self.assertIn('{"type":"info" | panic: boot failed', message)
+
     def test_a_port_that_prints_nothing_says_only_that(self):
         self.assertEqual(self.rejected(b''), 'COM7 did not identify itself as a Tessera panel')
 

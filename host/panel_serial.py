@@ -113,7 +113,7 @@ class PanelSerial:
                 try:
                     message = json.loads(line) if line.startswith('{') else None
                 except ValueError:
-                    continue
+                    message = None  # a broken line is still something it printed
                 if message is None and line:
                     heard = (heard + [line])[-4:]
                 if isinstance(message, dict) and message.get('type') == 'info':
@@ -123,6 +123,8 @@ class PanelSerial:
                         self.ser.reset_input_buffer()  # the boot log and the answers to the repeated questions
                     return
         # A firmware that does not start often still prints its boot log or crash; that is what a report needs.
+        pending = bytes(self.rx).decode('utf-8', 'replace').strip()  # a last line without its newline
+        heard = heard + [pending] if pending else heard
         printed = f'; it printed: {" | ".join(heard)[-400:]}' if heard else ''
         raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel{printed}', 'silent')
 
