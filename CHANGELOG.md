@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.2.9
 
-- The v3.x GUITION build runs the screen at 48 MHz, a clock the chip can make exactly, with a line length the DSI host can count exactly (59 Hz), and the screen's reads from PSRAM get the highest priority. Before, the picture had light vertical bands over it and flashed faintly (#21).
-- GUITION boards with a v3.x chip have a newer screen panel. The v3 firmware now sends it the matching start-up sequence and timing, and resets it on GPIO0. Before, the screen showed only vertical stripes (#21).
-- GUITION boards with a v3.x chip restarted at every startup and the screen stayed black (#21). The display code asked for the DSI clock source of the v1.x chips, which v3.x does not have, so the firmware stopped as soon as it set up the screen. IDF now picks the clock source for the chip.
-- The firmware for GUITION boards with a v3.x chip is now built from the same settings as the tested v1.x build, with only the chip revision options changed. Before, it started from a shorter base config and about 60 settings (watchdog, LVGL, FreeRTOS) differed. On one v3.2 board the previous build installed but never started (#21).
+- GUITION boards with a v3.x chip work now. A user tested the firmware on a v3.2 board: the picture is clean and touch and keys work (#21). It took four fixes:
+  - The firmware restarted at every startup and the screen stayed black. The display code asked for the DSI clock source of the v1.x chips, which v3.x does not have. IDF now picks the clock source for the chip.
+  - These boards have a newer screen panel. The v3 firmware sends it the matching start-up sequence and timing and resets it on GPIO0. Before, the screen showed only vertical stripes.
+  - The screen runs at 48 MHz, a clock the chip can make exactly, with a line length the DSI host can count exactly (59 Hz), and its reads from PSRAM get the highest priority. Before, the picture had light vertical bands over it and flashed faintly.
+  - The v3 firmware is built from the same settings as the tested v1.x build, with only the chip revision options changed. Before, it started from a shorter base config and about 60 settings (watchdog, LVGL, FreeRTOS) differed.
 - When a port does not answer as a Tessera panel, the error now ends with the last lines it printed, so a crash at startup shows up in the diagnostics.
 - Discussions has forms for questions, ideas and setups. The README, the website and the new-issue page link to it.
 

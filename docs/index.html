@@ -243,7 +243,7 @@ footer p{margin:40px 0 0}
         <a class="btn primary" href="https://github.com/catorendal-a11y/tessera-deck/releases/latest">Download Tessera</a>
         <a class="btn" href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/INSTALL.md">Read the install guide</a>
       </div>
-      <p class="note">Open source under the MIT licence. v1.2.8 runs on Windows 10 and 11 and on Linux with X11, or KDE Plasma or GNOME on Wayland.</p>
+      <p class="note">Open source under the MIT licence. v1.2.9 runs on Windows 10 and 11 and on Linux with X11, or KDE Plasma or GNOME on Wayland.</p>
     </div>
   </div>
   <div class="stage"><img src="images/console-desk.jpg" width="1920" height="1080" fetchpriority="high" alt="The Tessera panel in its printed desk console on a desk, with the main page of app keys on the screen and a monitor out of focus behind it"></div>
@@ -445,7 +445,7 @@ python host\deckctl.py say Build passed --level ok</pre>
 <section class="block wrap" id="boards">
   <h2>The <span class="nb">7-inch</span> boards it runs on.</h2>
   <div class="cards boards">
-    <div class="card"><div class="n">ESP32-P4, 1024 × 600</div><h3>GUITION JC1060P470C</h3><p>The main board, about $35 to $42 on AliExpress. Tested on hardware, and every release has its firmware. Newer boards with a v3.x chip take a package of their own.</p></div>
+    <div class="card"><div class="n">ESP32-P4, 1024 × 600</div><h3>GUITION JC1060P470C</h3><p>The main board, about $35 to $42 on AliExpress. Tested on hardware, and every release has its firmware. Newer boards with a v3.x chip take a package of their own, which a user runs on a v3.2 board.</p></div>
     <div class="card"><div class="n">ESP32-P4, 1024 × 600</div><h3>Elecrow CrowPanel Advance 7.0</h3><p>Works on a contributor's board, colors and touch included, and the release has its firmware. <a href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/CROWPANEL.md">CROWPANEL.md</a> has the details.</p></div>
     <div class="card"><div class="n">ESP32-S3, 800 × 480</div><h3>Waveshare ESP32-S3-Touch-LCD-7</h3><p>Experimental. The release has its firmware, and one tester has the display, touch, keys and PC actions working. <a href="https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/S3.md">S3.md</a> lists what is untested.</p></div>
     <div class="card"><div class="n">ESP32-S3, 800 × 480</div><h3>Sunton ESP32-8048S070</h3><p>Experimental. The release has its firmware, but it has not run on the board yet.</p></div>
@@ -488,7 +488,7 @@ python host\deckctl.py say Build passed --level ok</pre>
     <div class="code">
       <header><span>Release · Windows and Linux</span></header>
 <pre><span class="c"># from the latest release</span>
-tessera-host-v1.2.8.zip
+tessera-host-v1.2.9.zip
 <span class="c"># Windows: unpack, then double-click</span>
 Tessera.cmd
 <span class="c"># Linux (X11, or Plasma or GNOME on Wayland): unpack, then run</span>
@@ -524,7 +524,7 @@ idf.py -B build/idf6 -p COMx flash</pre>
 </section>
 
 <div class="wrap">
-  <p class="status">Home Assistant over Wi-Fi is a beta. It lives on the <a href="https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta">esphome-beta</a> branch and is not in v1.2.8. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses for ESPHome devices, but it has not been tried in a full Home Assistant install yet. Reports in issues are welcome.</p>
+  <p class="status">Home Assistant over Wi-Fi is a beta. It lives on the <a href="https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta">esphome-beta</a> branch and is not in v1.2.9. It runs on one panel and works with aioesphomeapi, the library Home Assistant uses for ESPHome devices, but it has not been tried in a full Home Assistant install yet. Reports in issues are welcome.</p>
 </div>
 </main>
 

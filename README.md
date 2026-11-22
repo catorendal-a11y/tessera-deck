@@ -42,7 +42,7 @@ Questions, ideas and photos of your setup go in [Discussions](https://github.com
 
 | Board | Chip and screen | State |
 |---|---|---|
-| [GUITION JC1060P470C](https://www.aliexpress.com/item/1005010022828767.html) | ESP32-P4, 7-inch, 1024 × 600 | The main board, about $35 to $42. Tested on hardware, with firmware in every release. Newer boards with a v3.x chip take their own package, which has not run on one yet ([INSTALL.md](docs/INSTALL.md#flash-the-panel)). |
+| [GUITION JC1060P470C](https://www.aliexpress.com/item/1005010022828767.html) | ESP32-P4, 7-inch, 1024 × 600 | The main board, about $35 to $42. Tested on hardware, with firmware in every release. Newer boards with a v3.x chip take their own package, which a user runs on a v3.2 board ([INSTALL.md](docs/INSTALL.md#flash-the-panel)). |
 | [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Works on a contributor's board, colors and touch included. The firmware is in the releases from 1.2.0. |
 | [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. One tester has the display, touch, keys and PC actions working over native USB. |
 | [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
