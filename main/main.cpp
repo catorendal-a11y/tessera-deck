@@ -859,7 +859,8 @@ extern "C" void app_main(void)
      * the physical panel looks completely black. */
     /* Lit any sooner, the panel flashes LVGL's default screen: wait for the boot screen's first frame, 2 s at most. */
     for (int wait = 0; ui_loaded && wait < 200 && !s_boot_drawn; ++wait) vTaskDelay(pdMS_TO_TICKS(10));
-    ESP_ERROR_CHECK(bsp_display_brightness_set(s_brightness));
+    if (const esp_err_t err = bsp_display_brightness_set(s_brightness); err != ESP_OK)
+        ESP_LOGW(TAG, "Backlight not set: %s", esp_err_to_name(err));  /* the panel still runs dark */
 
     ESP_LOGI(TAG, "Tessera UI running");
     if (xTaskCreatePinnedToCore(usb_console_task, "ad_usb_console", 24576, nullptr, 1, nullptr, 0) != pdPASS)

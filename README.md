@@ -189,7 +189,7 @@ flowchart LR
         Tray["Tray app"] --> Host
         CLI["deckctl / hooks"] -->|loopback API| Host
         Sensors["Windows counters, Libre Hardware Monitor<br/>or hwmon on Linux"] --> Host
-        Host["tesserad — USB host<br/>actions, profiles, sensors"]
+        Host["tesserad: USB host<br/>actions, profiles, sensors"]
     end
     Host <-->|"USB Serial/JTAG<br/>JSON + line protocol"| Panel["ESP32-P4 panel<br/>LVGL UI, touch"]
 ```
@@ -211,7 +211,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
 | [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what has not been tried or measured yet |
-| [ESP32-S3 boards](docs/S3.md) | The experimental port to two 800 x 480 S3 boards and what is still untested |
+| [ESP32-S3 boards](docs/S3.md) | The experimental port to three 800 x 480 S3 boards and what is still untested |
 | [CrowPanel Advance 7.0](docs/CROWPANEL.md) | The Elecrow CrowPanel Advance 7.0 (ESP32-P4): building, flashing and what is still open |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 

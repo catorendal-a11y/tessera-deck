@@ -370,9 +370,9 @@ class KeysymTests(unittest.TestCase):
             if not symbol.startswith('XF86'):  # python-xlib does not load the XF86 group by default
                 self.assertEqual(keysyms.keysym_number(name), XK.string_to_keysym(symbol), name)
 
-    def test_a_character_types_as_its_code_point_and_the_two_control_characters_as_keys(self):
-        self.assertEqual([keysyms.char_keysym(c) for c in 'aAø€\n\t'],
-                         [0x61, 0x41, 0xf8, 0x01000000 + 0x20ac, RETURN, TAB])
+    def test_a_character_types_as_its_code_point_and_the_control_characters_as_keys(self):
+        self.assertEqual([keysyms.char_keysym(c) for c in 'aAø€\n\t\b\x1b\x7f'],
+                         [0x61, 0x41, 0xf8, 0x01000000 + 0x20ac, RETURN, TAB, 0xff08, 0xff1b, 0xffff])
 
     def test_an_unknown_key_is_refused(self):
         with self.assertRaises(ValueError):

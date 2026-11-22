@@ -4,7 +4,7 @@
 
 - Experimental firmware for the Elecrow CrowPanel Advance 7.0 with the ESP32-S3 (800 × 480, hardware V1.3 to V1.5), asked for in #20. It has not run on the board yet. The cable goes to the UART port, as on the P4 CrowPanel.
 - Wayland without `ydotool`: keys, typing, mouse buttons, the wheel and relative moves go through the desktop's RemoteDesktop portal. The desktop asks once and the permission is kept. `ydotool` is used whenever it is installed.
-- Window actions and smart profiles on GNOME Wayland, through a small extension for GNOME Shell that `./Tessera.sh --gnome-extension` installs. While it is on, any program of your session can read window titles and focus, move or close windows.
+- Window actions and smart profiles on GNOME Wayland, through a small extension for GNOME Shell that `./Tessera.sh --gnome-extension` installs. While it is on, any program of your session can read window titles and focus, move or close windows. `./Tessera.sh --gnome-extension remove` takes it out again, and so does `--uninstall`.
 - The tray icon on GNOME and other Wayland desktops without an X11 tray is a StatusNotifier one (on GNOME with the *AppIndicator and KStatusNotifierItem Support* extension): it has the desktop's own menu, and a click opens that menu. It needs `libayatana-appindicator` and PyGObject. Plasma keeps the X11 icon through XWayland, where a left click opens the editor; `PYSTRAY_BACKEND=appindicator` gives it the StatusNotifier icon. A desktop that shows no tray icon gets a notification that says why, and Tessera keeps running.
 
 ## 1.2.5

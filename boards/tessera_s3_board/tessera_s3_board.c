@@ -138,21 +138,27 @@ esp_err_t bsp_display_brightness_set(int brightness_percent)
 #define TOUCH_INT GPIO_NUM_1
 #define BACKLIGHT_MCU 0x30
 #define BACKLIGHT_OFF 245
+#define TOUCH_ON 250 /* the MCU lets the GT911 out of reset */
 static i2c_master_dev_handle_t s_backlight;
 
 static esp_err_t board_io_start(void)
 {
-    /* Elecrow's sequence: INT low for 120 ms while the MCU brings the GT911 out of reset, so it takes 0x5D. */
-    touch_int_low(TOUCH_INT);
-    vTaskDelay(pdMS_TO_TICKS(110));
-    touch_int_release(TOUCH_INT);
     ESP_RETURN_ON_ERROR(i2c_start(GPIO_NUM_15, GPIO_NUM_16), TAG, "I2C");
     /* The MCU can start after the ESP32; Elecrow's code waits until it answers. */
     int tries = 40;
     while (i2c_master_probe(s_i2c, BACKLIGHT_MCU, 50) != ESP_OK && --tries) vTaskDelay(pdMS_TO_TICKS(50));
-    if (!tries) ESP_LOGW(TAG, "No backlight MCU at 0x30; brightness will not change");
+    if (!tries) {
+        ESP_LOGW(TAG, "No backlight MCU at 0x30: no touch, and the brightness will not change");
+        return ESP_OK;
+    }
     const i2c_device_config_t dev = {.dev_addr_length = I2C_ADDR_BIT_LEN_7, .device_address = BACKLIGHT_MCU, .scl_speed_hz = 100000};
     ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(s_i2c, &dev, &s_backlight), TAG, "backlight MCU");
+    /* Elecrow's sequence: command 250, then INT low for 120 ms while the GT911 leaves reset, so it takes 0x5D. */
+    const uint8_t on = TOUCH_ON;
+    if (i2c_master_transmit(s_backlight, &on, 1, 100) != ESP_OK) ESP_LOGW(TAG, "Touch enable command not taken");
+    touch_int_low(TOUCH_INT);
+    vTaskDelay(pdMS_TO_TICKS(110));
+    touch_int_release(TOUCH_INT);
     /* Backlight off until main sets the brightness, as on the P4. */
     bsp_display_brightness_set(0);
     return ESP_OK;
@@ -196,9 +202,9 @@ static esp_lcd_panel_handle_t panel_start(void)
     cfg.timings.vsync_front_porch = 8;
     cfg.timings.flags.pclk_active_neg = 1;
 #elif CONFIG_TESSERA_BOARD_S3_CROWPANEL7
-    /* Pins, porches and clock polarity from Elecrow's factory LovyanGFX config; data0..15 are B0-4, G0-5, R0-4. Elecrow
-     * clocks the panel at 21 MHz with PSRAM at 120 MHz. This build keeps PSRAM at 80 MHz, so it starts at the 12 MHz
-     * that ran stable on the Waveshare board. */
+    /* Pins, porches and clock edge from Elecrow's factory code; data0..15 are B0-4, G0-5, R0-4. Elecrow's IDF example
+     * clocks the panel at 16 MHz with PSRAM at 80 MHz. This build starts at the 12 MHz that ran stable on the Waveshare
+     * board. LovyanGFX's pclk_idle_high in Elecrow's config sets the output edge, which is pclk_active_neg here. */
     static const gpio_num_t data[16] = {21, 47, 48, 45, 38, 9, 10, 11, 12, 13, 14, 7, 17, 18, 3, 46};
     cfg.hsync_gpio_num = GPIO_NUM_40;
     cfg.vsync_gpio_num = GPIO_NUM_41;
@@ -211,7 +217,7 @@ static esp_lcd_panel_handle_t panel_start(void)
     cfg.timings.vsync_pulse_width = 4;
     cfg.timings.vsync_back_porch = 8;
     cfg.timings.vsync_front_porch = 8;
-    cfg.timings.flags.pclk_idle_high = 1;
+    cfg.timings.flags.pclk_active_neg = 1;
 #else
     /* Pins and timings from the vendor board file (esp32-8048S070C). It names 15,7,6,5,4 R0..R4 and 14,21,47,48,45
      * B0..B4, but hands them to the driver in this order, where data0..4 is blue; ESP3D lists them as blue too. If red

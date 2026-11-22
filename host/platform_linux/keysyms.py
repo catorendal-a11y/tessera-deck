@@ -47,12 +47,13 @@ def keysym_number(name: str) -> int:
     return NUMBERS[symbol] if symbol in NUMBERS else ord(symbol)
 
 
+CONTROL = {'\n': 'Return', '\t': 'Tab', '\b': 'BackSpace', '\x1b': 'Escape', '\x7f': 'Delete'}
+
+
 def char_keysym(char: str) -> int:
-    """The keysym that types `char`: Return and Tab for the two control characters, else the code point (Latin-1) or
-    0x01000000 + the code point (the rest of Unicode)."""
-    if char == '\n':
-        return NUMBERS['Return']
-    if char == '\t':
-        return NUMBERS['Tab']
+    """The keysym that types `char`: Return, Tab, BackSpace, Escape and Delete for their control characters, else the
+    code point (Latin-1) or 0x01000000 + the code point (the rest of Unicode)."""
+    if char in CONTROL:
+        return NUMBERS[CONTROL[char]]
     code = ord(char)
     return code if code < 0x100 else 0x01000000 + code
