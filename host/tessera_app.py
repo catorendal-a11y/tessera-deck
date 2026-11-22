@@ -489,6 +489,9 @@ class Editor:
             raise ValueError('Check for updates first')
         if not self.last_release.get('newer'):
             raise ValueError('This is already the newest version')
+        if os.environ.get('TESSERA_PACKAGED'):
+            raise ValueError('This Tessera comes from a package. Update it with your package manager, '
+                             'for example yay -Syu tessera-deck for the AUR package.')
         import tempfile
         try:
             with tempfile.TemporaryDirectory() as folder:

@@ -1,7 +1,7 @@
 pkgbase = tessera-deck
 	pkgdesc = Host application (tray, USB host and editor) for the Tessera deck panel
 	pkgver = 1.2.7
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/catorendal-a11y/tessera-deck
 	install = tessera-deck.install
 	arch = any
