@@ -1,0 +1,13 @@
+body:
+  - type: textarea
+    id: setup
+    attributes:
+      label: Your setup
+      description: A photo of your panel, the stand or console you use, and what you put on the keys. A plugin or a profile you made is welcome too.
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: Board
+      placeholder: GUITION JC1060P470C

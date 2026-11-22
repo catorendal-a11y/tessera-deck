@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Discussions has forms for questions, ideas and setups. The README, the website and the new-issue page link to it.
+
 ## 1.2.8
 
 - AUR package: `tessera --gnome-extension` installs the GNOME Shell extension (`remove` takes it out), and `tessera --uninstall` removes the autostart entry and the extension. Before, the first did nothing and the second only printed a message. The editor no longer offers to update a packaged Tessera in place, which the next start undid; update it with your package manager.

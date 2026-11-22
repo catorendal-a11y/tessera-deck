@@ -6,6 +6,9 @@ contact_links:
   - name: How do I ...?
     url: https://github.com/catorendal-a11y/tessera-deck/blob/main/docs/USING.md
     about: Using Tessera, including troubleshooting.
-  - name: A question, an idea or a board report
+  - name: A question
+    url: https://github.com/catorendal-a11y/tessera-deck/discussions/new?category=q-a
+    about: Setting up or using Tessera. Answers stay findable for the next person.
+  - name: An idea, a board report or your setup
     url: https://github.com/catorendal-a11y/tessera-deck/discussions
-    about: Ask, share your setup or report how an S3 board went.
+    about: Suggest a feature or a board, say how a board went, or show what you built.
