@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.7
 
 - Firmware for GUITION JC1060P470C boards with a v3.x ESP32-P4 chip, which newer boards have (#21). The firmware so far was built for v1.x chips only, so on these boards esptool refused it, and with the check skipped the screen stayed black. The new package is `tessera-firmware-tessera-p4-v3-<version>.zip` and the panel reports the board id `tessera-p4-v3`. It has not run on a v3.x board yet. When esptool refuses a package for the chip's revision, the editor now says which package to take.
 
