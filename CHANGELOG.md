@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Installing firmware on a new panel takes fewer steps. When no panel answers, the firmware dialog reads the chip and its revision from the USB port, says what it found and lists only the packages for boards with that chip. A GUITION board with a v3.x chip gets its package chosen for it. The *Install anyway* box is gone: *Install* asks once before it writes everything.
+- The package list names the boards (GUITION JC1060P470C, Elecrow CrowPanel Advance 7.0 and so on) instead of their internal ids.
+- *Check for updates* downloads the package for the board the dialog found, not always the one for the GUITION v1.x board.
+- The tray's *Check for updates* notice says how to update from the editor. It still pointed to the Releases page, from before the editor could update Tessera itself.
 - The host no longer stops when something unexpected goes wrong while it connects to the panel. It writes the reason to the log and tries again, as it does for a missing panel.
 - A USB port that does not open is explained in plain words: in use by another program, not there, or (on Linux) not allowed for your user. The log used to show pyserial's own text, such as `PermissionError(13, 'Access is denied.')`.
 - A request to the control API that fails inside the host gets an answer and a line in the host log. The connection used to close without either.
