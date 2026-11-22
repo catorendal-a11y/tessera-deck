@@ -199,8 +199,9 @@ async function testButton(id = selected) {
   if (result.hold_actions) section('When held', result.hold_actions);
   if (result.double_actions) section('When double-pressed', result.double_actions);
   $('#test-run').onclick = () => runKey(id, payload.actions).catch(showError);
-  $('#test-run').disabled = !dashboard.device?.connected;  // the host refuses run-key without the panel
-  $('#test-run').title = dashboard.device?.connected ? '' : 'Connect the panel first: Run now presses the key on it.';
+  const panelHere = !!dashboard?.device?.connected;  // the host refuses run-key without the panel
+  $('#test-run').disabled = !panelHere;
+  $('#test-run').title = panelHere ? '' : 'Connect the panel first: Run now presses the key on it.';
   $('#test-dialog').showModal();
 }
 /* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */

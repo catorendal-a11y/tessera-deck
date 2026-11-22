@@ -6,6 +6,14 @@
 - The package list names the boards (GUITION JC1060P470C, Elecrow CrowPanel Advance 7.0 and so on) instead of their internal ids.
 - *Check for updates* downloads the package for the board the dialog found, not always the one for the GUITION v1.x board.
 - The tray's *Check for updates* notice says how to update from the editor. It still pointed to the Releases page, from before the editor could update Tessera itself.
+- Editor fixes:
+  - Adding a Held or Double-press step to a key with *Hold to confirm* no longer blocks saving. *Hold to confirm* is turned off and a notice says so, with undo.
+  - *Move to slot* shows the key's real slot again when the move is refused.
+  - A timer length the editor cannot read gets a message instead of being dropped in silence.
+  - Changing a toggle key back to a normal key says that state 2 was removed, with undo.
+  - Cancelling *Create a subpage* takes the half-made folder key back.
+  - *Run now on this PC* is greyed out while no panel is connected, and *Hold to confirm* says why it is greyed out.
+  - Keyboard focus stays where it was after a favorite, a kept backup, a screen setting or closing the Getting started card. The step buttons ↑ ↓ × have names for screen readers.
 
 ## 1.2.9
 
