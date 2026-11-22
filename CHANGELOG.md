@@ -6,6 +6,13 @@
 - The package list names the boards (GUITION JC1060P470C, Elecrow CrowPanel Advance 7.0 and so on) instead of their internal ids.
 - *Check for updates* downloads the package for the board the dialog found, not always the one for the GUITION v1.x board.
 - The tray's *Check for updates* notice says how to update from the editor. It still pointed to the Releases page, from before the editor could update Tessera itself.
+- Updating Tessera from the editor is safer:
+  - The new version's packages are installed before Tessera closes. If that fails (no network), the dialog says so. Before, Tessera closed and never came back.
+  - Every file of the new version is written first and swapped in at the end, with `VERSION` last. A file that is in use no longer leaves a folder with two versions mixed, and the update can be tried again.
+  - On Linux the editor opens again after the update. Only the tray did.
+- A first start that failed while it installed the packages repeats the first-run steps the next time, so the Desktop shortcut is made (Windows).
+- A host that was started again after *Stop host* in the tray (from the editor, the terminal or a firmware install) is restarted automatically again if it dies.
+- `--uninstall --purge` also deletes the logs and the other `*.local.*` files in `host/`. The uninstall names the autostart entry only when there was one.
 
 ## 1.2.9
 
