@@ -1,0 +1,34 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask anything about setting up or using Tessera. When an answer solves it, mark it as the answer so the next person finds it.
+        Something that worked before and broke, or a crash, is better as a [bug report](https://github.com/catorendal-a11y/tessera-deck/issues/new/choose).
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What you want to do, and what you tried so far.
+    validations:
+      required: true
+  - type: dropdown
+    id: board
+    attributes:
+      label: Board
+      options:
+        - GUITION JC1060P470C
+        - Elecrow CrowPanel Advance 7.0 (ESP32-P4)
+        - Waveshare ESP32-S3-Touch-LCD-7
+        - Sunton ESP32-8048S070
+        - Elecrow CrowPanel Advance 7.0 ESP32-S3
+        - Another board, or none yet
+  - type: input
+    id: system
+    attributes:
+      label: PC and Tessera version
+      placeholder: Windows 11 24H2, Tessera 1.2.8
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (optional)
+      description: In the editor, **More → Save diagnostics** makes a file you can attach here. It leaves out the contents of your keys and redacts secrets.

@@ -1,0 +1,17 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An idea for Tessera, or a board you would like it on. Others can vote with 👍 on the post, which helps decide what comes next.
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What you would use it for. A sketch or a screenshot of something similar helps.
+    validations:
+      required: true
+  - type: textarea
+    id: board
+    attributes:
+      label: For a new board
+      description: The model name, the resolution and a link to its pin or schematic details. [Contributing](https://github.com/catorendal-a11y/tessera-deck/blob/main/CONTRIBUTING.md#port-to-another-board) says what a port needs.
