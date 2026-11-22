@@ -163,6 +163,21 @@ return {full, still, moved: config.profiles.Main.pages.Free.map(b => b.id), othe
         self.assertEqual((found['still'], found['moved'], found['other']), (1, [3], ['Full', 'Free']))
 
 
+    def test_the_firmware_dialog_offers_the_packages_for_the_boards_the_panel_can_be(self):
+        found = run_editor(self, r"""
+const packages = [{path: 'v3-9', board: 'tessera-p4-v3', version: '1.2.9'}, {path: 'p4-9', board: 'tessera-p4', version: '1.2.9'},
+  {path: 'crow-9', board: 'tessera-p4-crowpanel7', version: '1.2.9'}, {path: 'old', version: '1.0.0'}, {path: 'bad', error: 'damaged'}];
+const pick = (boards, all) => { const c = firmwareChoices(packages, boards, all); return [c.shown.map(p => p.path), c.newest?.path || null, c.hidden]; };
+return {v3: pick(['tessera-p4-v3']), v1: pick(['tessera-p4', 'tessera-p4-crowpanel7']), unknown: pick(null),
+  all: pick(['tessera-p4-v3'], true), none: pick(['tessera-s3-ws7']), chip: chipName('esp32p4')};
+""")
+        self.assertEqual(found, {
+            'v3': [['v3-9'], 'v3-9', 3],  # one board fits the chip: its package is chosen
+            'v1': [['p4-9', 'crow-9', 'old'], None, 1],  # two boards share the chip: the user chooses
+            'unknown': [['v3-9', 'p4-9', 'crow-9', 'old'], None, 0],
+            'all': [['v3-9', 'p4-9', 'crow-9', 'old'], 'v3-9', 0],
+            'none': [[], None, 4], 'chip': 'ESP32-P4'})
+
     def test_the_firmware_dialog_says_how_the_package_relates_to_the_panel(self):
         found = run_editor(self, r"""
 const panel = {connected: true, firmware: '1.2.1'};

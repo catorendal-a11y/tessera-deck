@@ -296,7 +296,9 @@ class TrayApp:
             current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
             release = updates.check(current)
             if release.get('newer'):
-                how = f"You have {current}. Get the new version from the Releases page on GitHub."
+                # the editor updates the program itself; a packaged Tessera is updated by its package manager
+                how = (f'You have {current}. Update it with your package manager.' if os.environ.get('TESSERA_PACKAGED')
+                       else f'You have {current}. To update, open the editor: Panel → Panel firmware and updates.')
                 self.icon.notify((how + '\n' + (release.get('notes') or '')).strip()[:250], f"Update available: {release['latest']}")
             else:
                 self.icon.notify(f'Tessera {current} is the newest version.', 'Tessera')
