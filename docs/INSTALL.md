@@ -136,7 +136,7 @@ From version 1.2.4 the editor does it. Open **Panel → Panel firmware and updat
 
 To do it by hand: replace the program folder with the new `tessera-host` zip, or run `git pull` in a source checkout. Copy your data
 over first: from `host/`, copy `profiles.json`, `assets/`, `backups/` and the `*.local.json` files (counters, timers,
-your icon library and the panel you used last). [Releasing](RELEASING.md) lists them by name. Then check **Panel → Panel firmware and updates …** for newer firmware. The tray menu has **Help → Check for updates**.
+your icon library and the panel you used last). [Releasing](RELEASING.md) lists them by name. Then check **Panel → Panel firmware and updates …** for newer firmware. The tray menu has **Help → Check for updates**. The tray also looks once a day and tells you when a new version is out; **Help → Check for updates automatically** switches that off.
 
 If you unpacked the new version to a new folder and Start with Windows was on, start the new copy once with `Tessera.cmd`. When the panel connects, its tray asks whether Start with Windows should start the new copy instead.
 
