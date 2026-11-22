@@ -104,6 +104,7 @@ class PanelSerial:
         started = time.monotonic()
         deadline = started + (max(HANDSHAKE_SECONDS, RESET_HANDSHAKE_SECONDS) if self.resets_on_open() else HANDSHAKE_SECONDS)
         asked = started
+        heard = []  # the last lines that were not protocol messages
         while time.monotonic() < deadline:
             if self.resets_on_open() and time.monotonic() - asked >= ASK_AGAIN_SECONDS:
                 asked = time.monotonic()
@@ -113,13 +114,17 @@ class PanelSerial:
                     message = json.loads(line) if line.startswith('{') else None
                 except ValueError:
                     continue
+                if message is None and line:
+                    heard = (heard + [line])[-4:]
                 if isinstance(message, dict) and message.get('type') == 'info':
                     self.accept(message)
                     if self.resets_on_open():
                         time.sleep(SETTLE_AFTER_RESET_SECONDS)
                         self.ser.reset_input_buffer()  # the boot log and the answers to the repeated questions
                     return
-        raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel', 'silent')
+        # A firmware that does not start often still prints its boot log or crash; that is what a report needs.
+        printed = f'; it printed: {" | ".join(heard)[-400:]}' if heard else ''
+        raise DeviceRejected(f'{self.ser.port} did not identify itself as a Tessera panel{printed}', 'silent')
 
     def resets_on_open(self):
         return RESETS_ON_OPEN and str(getattr(getattr(self, 'ser', None), 'port', '')).startswith('/dev/')
