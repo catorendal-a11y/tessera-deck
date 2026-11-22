@@ -768,7 +768,13 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     ESP_LOGI(TAG, "Install JD9165 LCD control panel");
     esp_lcd_dpi_panel_config_t dpi_config = {
             .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+#if BSP_LCD_JD9165_NEW_PANEL
+            /* 240 MHz / 5. A clock the divider cannot make (52 runs at 48) leaves the host's horizontal timing
+             * out of step with the pixels on v3.x chips (esp-idf#19188): stripes on the screen (#21). */
+            .dpi_clock_freq_mhz = 48,
+#else
             .dpi_clock_freq_mhz = 52,
+#endif
             .virtual_channel = 0,
             #if CONFIG_BSP_LCD_COLOR_FORMAT_RGB888
             .in_color_format = LCD_COLOR_FMT_RGB888,

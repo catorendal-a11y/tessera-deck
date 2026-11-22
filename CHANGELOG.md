@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The v3.x GUITION build runs the screen at 48 MHz, a clock the chip can make exactly. At 52 MHz the picture had light vertical bands over it (#21).
 - GUITION boards with a v3.x chip have a newer screen panel. The v3 firmware now sends it the matching start-up sequence and timing, and resets it on GPIO0. Before, the screen showed only vertical stripes (#21).
 - GUITION boards with a v3.x chip restarted at every startup and the screen stayed black (#21). The display code asked for the DSI clock source of the v1.x chips, which v3.x does not have, so the firmware stopped as soon as it set up the screen. IDF now picks the clock source for the chip.
 - The firmware for GUITION boards with a v3.x chip is now built from the same settings as the tested v1.x build, with only the chip revision options changed. Before, it started from a shorter base config and about 60 settings (watchdog, LVGL, FreeRTOS) differed. On one v3.2 board the previous build installed but never started (#21).
