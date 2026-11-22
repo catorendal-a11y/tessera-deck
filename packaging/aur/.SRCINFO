@@ -1,6 +1,6 @@
 pkgbase = tessera-deck
 	pkgdesc = Host application (tray, USB host and editor) for the Tessera deck panel
-	pkgver = 1.2.6
+	pkgver = 1.2.7
 	pkgrel = 1
 	url = https://github.com/catorendal-a11y/tessera-deck
 	install = tessera-deck.install
@@ -30,10 +30,10 @@ pkgbase = tessera-deck
 	optdepends = wl-clipboard: clipboard on Wayland
 	optdepends = libayatana-appindicator: tray icon on GNOME and other Wayland desktops
 	optdepends = webkit2gtk-4.1: the editor in its own window
-	source = tessera-host-v1.2.6.zip::https://github.com/catorendal-a11y/tessera-deck/releases/download/v1.2.6/tessera-host-v1.2.6.zip
+	source = tessera-host-v1.2.7.zip::https://github.com/catorendal-a11y/tessera-deck/releases/download/v1.2.7/tessera-host-v1.2.7.zip
 	source = tessera-deck.sh
 	source = tessera-deck.desktop
-	sha256sums = 02899e431e2170733e08bcf989ff968704277b4ac01e91d0a41b9eea420c535a
+	sha256sums = 40e63f5e61731ef5a12d09fb13cab8b7fb015266008deab6ddc368bb5856e532
 	sha256sums = SKIP
 	sha256sums = SKIP
 
