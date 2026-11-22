@@ -124,6 +124,15 @@ class EditorTests(Case):
             editor.install_host_update()
         self.assertIn('newest', str(raised.exception))
 
+    def test_a_packaged_install_is_left_to_the_package_manager(self):
+        from unittest.mock import patch
+        editor = self.editor()
+        editor.last_release = self.info
+        with patch.dict('os.environ', {'TESSERA_PACKAGED': '1'}), patch.object(updates, 'download_host') as download:
+            with self.assertRaises(ValueError) as raised:
+                editor.install_host_update()
+        download.assert_not_called()
+        self.assertIn('package manager', str(raised.exception))
 
     def test_after_the_update_tessera_starts_again_by_itself(self):
         from unittest.mock import patch

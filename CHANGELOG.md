@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- AUR package: `tessera --gnome-extension` installs the GNOME Shell extension (`remove` takes it out), and `tessera --uninstall` removes the autostart entry and the extension. Before, the first did nothing and the second only printed a message. The editor no longer offers to update a packaged Tessera in place, which the next start undid; update it with your package manager.
+- README: the terminal install for Windows uses `curl.exe`, so it also works in Windows PowerShell 5.1.
+
 ## 1.2.7
 
 - Firmware for GUITION JC1060P470C boards with a v3.x ESP32-P4 chip, which newer boards have (#21). The firmware so far was built for v1.x chips only, so on these boards esptool refused it, and with the check skipped the screen stayed black. The new package is `tessera-firmware-tessera-p4-v3-<version>.zip` and the panel reports the board id `tessera-p4-v3`. It has not run on a v3.x board yet. When esptool refuses a package for the chip's revision, the editor now says which package to take.

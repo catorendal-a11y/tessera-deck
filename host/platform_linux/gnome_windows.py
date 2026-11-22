@@ -18,7 +18,8 @@ log = logging.getLogger(__name__)
 NAME = 'org.tessera.Windows'
 PATH = '/org/tessera/Windows'
 MISSING = ('The Tessera extension for GNOME Shell is not installed or not enabled, so Tessera cannot find or move '
-           'windows. Install it with ./Tessera.sh --gnome-extension, sign in again, then turn it on: '
+           'windows. Install it with ./Tessera.sh --gnome-extension (tessera --gnome-extension for the AUR package), '
+           'sign in again, then turn it on: '
            'gnome-extensions enable tessera-windows@tessera')
 ABSENT = ('org.freedesktop.DBus.Error.ServiceUnknown', 'org.freedesktop.DBus.Error.NameHasNoOwner',
           'org.freedesktop.DBus.Error.NoReply')

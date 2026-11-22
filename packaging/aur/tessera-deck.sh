@@ -19,6 +19,9 @@ fi
 cd "$DATA"
 PY="$DATA/host/.venv/bin/python"
 export PYTHONUTF8=1
+# pacman updates this copy, so the host refuses its own in-place update (the next start would undo it)
+export TESSERA_PACKAGED=1
+EXTENSION="${XDG_DATA_HOME:-$HOME/.local/share}/gnome-shell/extensions/tessera-windows@tessera"
 
 background() { setsid nohup "$@" >/dev/null 2>&1 & }
 
@@ -27,7 +30,22 @@ case "${1:-}" in
     background "$PY" host/tessera_tray.py
     background "$PY" host/tessera_app.py --editor ;;
   --setup)        echo "Nothing to set up: the package provides the dependencies." ;;
-  --uninstall)    echo "Remove the package with pacman. Your data is in $DATA (delete it to purge)." ;;
+  --uninstall)
+    "$PY" host/setup_tool.py uninstall ${2:+"$2"}
+    rm -rf "$EXTENSION"
+    echo "Now remove the package with pacman. The rest of $DATA stays until you delete it." ;;
+  --gnome-extension)
+    if [ "${2:-}" = "remove" ]; then
+      rm -rf "$EXTENSION" && echo "Removed $EXTENSION. Sign in again to unload it."
+      exit 0
+    fi
+    mkdir -p "$(dirname "$EXTENSION")" && rm -rf "$EXTENSION"
+    cp -r host/linux/gnome-extension/tessera-windows@tessera "$EXTENSION"
+    echo "Installed $EXTENSION"
+    echo "GNOME loads new extensions at sign-in. Sign out and in again, then run:"
+    echo "  gnome-extensions enable tessera-windows@tessera"
+    echo "While it is on, any program of your session can read window titles and focus, move or close windows. Turn it off with"
+    echo "  gnome-extensions disable tessera-windows@tessera" ;;
   --diagnostics)  exec "$PY" host/setup_tool.py diagnostics ;;
   --terminal)     exec "$PY" host/tessera_terminal.py ;;
   --tray)         background "$PY" host/tessera_tray.py ;;
