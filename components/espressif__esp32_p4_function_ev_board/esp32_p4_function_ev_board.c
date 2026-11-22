@@ -15,6 +15,9 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_ldo_regulator.h"
+#if CONFIG_IDF_TARGET_ESP32P4
+#include "hal/axi_icm_ll.h"
+#endif
 #include "esp_vfs_fat.h"
 #include "usb/usb_host.h"
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
@@ -790,7 +793,9 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
 #if BSP_LCD_JD9165_NEW_PANEL
                 .hsync_back_porch = 136,
                 .hsync_pulse_width = 24,
-                .hsync_front_porch = 160,
+                /* GUITION's 52 MHz line (1344 px) at the 48 MHz the chip makes: front porch 57 keeps
+                 * the line time and ~61 Hz, as espcontrol's v3.2 profile runs it. 160 made the line longer. */
+                .hsync_front_porch = 57,
                 .vsync_back_porch = 21,
                 .vsync_pulse_width = 2,
                 .vsync_front_porch = 12,
@@ -829,6 +834,13 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
      * board's proven reference firmware and explicitly enable the panel after
      * reset/init instead of relying only on the 0x29 init command. */
     ESP_GOTO_ON_ERROR(esp_lcd_panel_disp_on_off(disp_panel, true), err, TAG, "LCD panel ON failed");
+#if BSP_LCD_JD9165_NEW_PANEL
+    /* The panel reads its frame from PSRAM all the time through DW-GDMA. Every AXI master starts at the same
+     * priority, so PSRAM use by the CPU can hold those reads up and leave columns of a line without data.
+     * Highest read priority on both DW-GDMA ports, as ESPHome's mipi_dsi does (esphome#21638). */
+    axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, 15);
+    axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, 15);
+#endif
     // ESP_GOTO_ON_ERROR(esp_lcd_panel_disp_sleep(disp_panel, false), err, TAG, "LCD Sleep ON failed");
 
 #else
