@@ -417,7 +417,7 @@ async function checkUpdates() {
   label.textContent = info.newer
     ? `Version ${info.latest} is available (you have ${info.current}).${info.firmware ? '' : ' It has no firmware package.'}`
     : `You have the latest version (${info.current}).${info.firmware ? ' Its firmware can still be downloaded for the panel.' : ''}`;
-  if (info.newer) label.append(' ', element('a', {href: info.page, target: '_blank', rel: 'noopener', text: 'Release notes and the Windows program'}));
+  if (info.newer) label.append(' ', element('a', {href: info.page, target: '_blank', rel: 'noopener', text: 'Release notes'}));
   if (info.newer && info.notes) label.append(element('pre', {class: 'release-notes', text: info.notes}));  // what is new, before you download
 }
 async function downloadFirmware() {

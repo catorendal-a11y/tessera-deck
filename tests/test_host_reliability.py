@@ -263,7 +263,7 @@ class TrayRestartTests(unittest.TestCase):
         text, title = app.icon.notify.call_args.args
         self.assertEqual(title, 'Update available: 0.7.0')
         self.assertIn('- faster', text)
-        self.assertIn('Releases page', text)  # the notice says where the new version is
+        self.assertIn('Panel → Panel firmware and updates', text)  # the notice says where to update
 
 
 if __name__ == '__main__':
