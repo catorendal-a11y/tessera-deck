@@ -53,6 +53,7 @@ jobs:
         shell: bash
         run: |
           . $IDF_PATH/export.sh
+          python3 tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig  # the tested v1.x config minus the revision options
           idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
       - name: Native LVGL render and model tests
         shell: bash

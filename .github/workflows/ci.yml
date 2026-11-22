@@ -149,6 +149,8 @@ jobs:
         shell: bash
         run: |
           . $IDF_PATH/export.sh
+          # The v3.x GUITION build starts from the tested v1.x sdkconfig; only the revision options come from its board file
+          if [ "${{ matrix.board }}" = tessera-p4-v3 ]; then python3 tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig; fi
           idf.py -B build/${{ matrix.board }} -DSDKCONFIG=build/${{ matrix.board }}/sdkconfig -DIDF_TARGET=${{ matrix.target }} \
             -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;${{ matrix.defaults }}" build
           ls -l build/${{ matrix.board }}/tessera.bin

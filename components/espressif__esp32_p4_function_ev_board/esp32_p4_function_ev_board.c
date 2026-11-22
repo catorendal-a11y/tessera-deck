@@ -632,7 +632,8 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
     esp_lcd_dsi_bus_config_t bus_config = {
         .bus_id = 0,
         .num_data_lanes = BSP_LCD_MIPI_DSI_LANE_NUM,
-        .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,
+        /* phy_clk_src left at 0: IDF then picks PLL_F20M on v1.x chips and XTAL on v3.x. The old
+         * MIPI_DSI_PHY_CLK_SRC_DEFAULT is always PLL_F20M, and the v3.x HAL aborts on it (#21). */
         .lane_bit_rate_mbps = 750,
     };
     esp_err_t bus_err = esp_lcd_new_dsi_bus(&bus_config, &mipi_dsi_bus);
