@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.2.8
 
 - AUR package: `tessera --gnome-extension` installs the GNOME Shell extension (`remove` takes it out), and `tessera --uninstall` removes the autostart entry and the extension. Before, the first did nothing and the second only printed a message. The editor no longer offers to update a packaged Tessera in place, which the next start undid; update it with your package manager.
 - README: the terminal install for Windows uses `curl.exe`, so it also works in Windows PowerShell 5.1.
+
+The AUR launcher changes have not been run on Arch yet. If you use the AUR package, a report in the issues on whether they work helps.
 
 ## 1.2.7
 
