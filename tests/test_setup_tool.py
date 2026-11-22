@@ -130,6 +130,23 @@ class UninstallTests(unittest.TestCase):
             self.assertFalse((self.root / relative).exists(), relative)
         self.assertTrue((self.root / 'host/tessera_app.py').exists())
 
+    def test_a_purge_deletes_every_local_state_log_and_trigger_file(self):
+        names = ('deck.local.log', 'deck.local.log.1', 'triggers.local.json', 'tray-first-run.local.json', 'update-check.local.json')
+        for name in names:
+            (self.root / 'host' / name).write_text('x')
+        self.run_uninstall(purge=True, answer='YES')
+        for name in names:
+            self.assertFalse((self.root / 'host' / name).exists(), name)
+        self.assertTrue((self.root / 'host/tessera_app.py').exists())
+
+    def test_uninstall_does_not_claim_an_autostart_entry_that_was_not_there(self):
+        import deck_control
+        gone = self.root / 'no-such-entry'
+        with patch.object(deck_control, 'startup_script_path', return_value=gone),                 patch.object(deck_control, 'set_autostart') as turn_off:
+            removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link)
+        turn_off.assert_called_once_with(False)
+        self.assertEqual(removed, [SHORTCUT])
+
     def test_a_purge_also_deletes_every_copy_of_the_profiles(self):
         copies = ('host/profiles-unreadable.local.json', 'host/profiles-unreadable-1.local.json',
                   'host/profiles-previous.local.json', 'host/profiles.json.abc123.tmp')

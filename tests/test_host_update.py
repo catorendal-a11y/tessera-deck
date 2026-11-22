@@ -3,10 +3,12 @@ program folder. What the user made stays, and nothing outside the folder is writ
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import Mock
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +110,32 @@ class InstallTests(Case):
         self.assertIn('not a Tessera', str(raised.exception))
 
 
+class HalfwayTests(Case):
+    def test_a_locked_file_leaves_no_new_files_and_the_old_version(self):
+        from unittest.mock import patch
+        (self.root / 'VERSION').write_text('1.0.0\n')
+        real, calls = os.replace, []
+
+        def replace(source, target):
+            calls.append(Path(target).name)
+            if len(calls) == 2:
+                raise PermissionError(13, 'in use', str(target))
+            real(source, target)
+        with patch('updates.os.replace', replace), self.assertRaises(PermissionError):
+            updates.install_host(self.saved(), self.root)
+        self.assertEqual((self.root / 'VERSION').read_text(), '1.0.0\n')
+        self.assertFalse([path for path in self.root.rglob('*.new')])
+        self.assertNotEqual(calls[0], 'VERSION')
+
+    def test_version_is_written_last(self):
+        from unittest.mock import patch
+        calls = []
+        real = os.replace
+        with patch('updates.os.replace', lambda a, b: (calls.append(Path(b).name), real(a, b))):
+            updates.install_host(self.saved(), self.root)
+        self.assertEqual(calls[-1], 'VERSION')
+
+
 class EditorTests(Case):
     def editor(self):
         path = self.root / 'host/profiles.json'
@@ -139,10 +167,24 @@ class EditorTests(Case):
         editor = self.editor()
         editor.last_release = self.info
         with patch.object(updates, 'download_host', return_value=self.saved()), patch.object(updates, 'install_host', return_value=3), \
+                patch('tessera_app.subprocess.run', return_value=Mock(returncode=0, stdout='', stderr='')), \
                 patch.object(Editor, 'restart_soon') as restart:
             result = editor.install_host_update()
         restart.assert_called_once_with()
-        self.assertIn('starts again now', result['message'])
+        self.assertIn('opens again in a few seconds', result['message'])
+
+    def test_a_failed_package_step_is_reported_and_nothing_restarts(self):
+        from unittest.mock import patch
+        editor = self.editor()
+        editor.last_release = self.info
+        failed = Mock(returncode=1, stdout='', stderr='ERROR: no network')
+        with patch.object(updates, 'download_host', return_value=self.saved()), patch.object(updates, 'install_host', return_value=3), \
+                patch('tessera_app.subprocess.run', return_value=failed), patch.object(Editor, 'restart_soon') as restart:
+            with self.assertRaises(ValueError) as raised:
+                editor.install_host_update()
+        restart.assert_not_called()
+        self.assertIn('no network', str(raised.exception))
+        self.assertIn('in place', str(raised.exception))
 
 
 class RestartTests(unittest.TestCase):
@@ -173,7 +215,16 @@ class RestartTests(unittest.TestCase):
     def test_tessera_starts_again_through_its_start_file(self):
         import setup_tool
         command = setup_tool.restart_command(Path('folder'))
-        self.assertTrue(command[-1].endswith(('Tessera.cmd', 'Tessera.sh')))
+        self.assertTrue(command[-1 if os.name == 'nt' else 0].endswith(('Tessera.cmd', 'Tessera.sh')))
+
+    def test_the_restart_opens_the_editor_on_linux_and_windows_alike(self):
+        import setup_tool
+        from unittest.mock import patch
+        with patch.object(setup_tool, 'IS_LINUX', True):
+            self.assertEqual(setup_tool.restart_command(Path('folder'))[1:], ['--app'])
+        with patch.object(setup_tool, 'IS_LINUX', False):
+            self.assertEqual(setup_tool.restart_command(Path('folder'))[:2], ['cmd', '/c'])
+            self.assertEqual(len(setup_tool.restart_command(Path('folder'))), 3)
 
 
 if __name__ == '__main__':

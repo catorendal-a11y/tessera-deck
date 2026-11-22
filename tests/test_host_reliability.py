@@ -246,6 +246,16 @@ class TrayRestartTests(unittest.TestCase):
         app.host.assert_not_called()
         app.icon.notify.assert_not_called()
 
+    def test_a_host_started_another_way_after_stop_is_watched_again(self):
+        app = self.make_app()
+        with patch('tessera_tray.firmware_installing', return_value=False):
+            app.user_stopped = True
+            app.watch_host(True, 0)
+            self.assertFalse(app.user_stopped)
+            app.watch_host(False, 10)
+            app.watch_host(False, 20)
+        self.assertIsNotNone(app.restart_at)
+
     def test_a_failed_automatic_start_is_quiet(self):
         app = self.make_app()
         app.controller.start.side_effect = RuntimeError('port busy')

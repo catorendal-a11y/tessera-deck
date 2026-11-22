@@ -12,8 +12,9 @@ if not exist "host\.venv\Scripts\python.exe" (
   echo 1/3 Finding Python ...
   call :create_environment
   if errorlevel 1 goto failed
-  set FIRST_RUN=1
 )
+rem requirements.sha256 is written once the packages are installed, so a first run that failed on the network repeats
+if not exist "host\.venv\requirements.sha256" set FIRST_RUN=1
 if "%~1"=="--uninstall" goto uninstall
 if defined FIRST_RUN echo 2/3 Installing packages ...
 "host\.venv\Scripts\python.exe" "host\setup_tool.py" ensure

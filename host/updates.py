@@ -183,16 +183,23 @@ def install_host(package: Path, root: Path) -> int:
             raise ValueError('This is not a Tessera program file')
         if sum(item.file_size for item, _ in members) > MAX_UNPACKED:
             raise ValueError('The update file unpacks to more than expected')
-        for item, relative in members:
-            target = root / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            temporary = target.with_name(target.name + '.new')
-            with archive.open(item) as source, open(temporary, 'wb') as out:
-                shutil.copyfileobj(source, out)
-            mode = (item.external_attr >> 16) & 0o777
-            if target.exists():
-                shutil.copymode(target, temporary)  # Tessera.sh stays a program the user can start
-            elif mode:
-                os.chmod(temporary, mode)
-            os.replace(temporary, target)
+        staged = []  # (new file, target); VERSION goes last, so a half-done update is never taken for a finished one
+        try:
+            for item, relative in sorted(members, key=lambda member: member[1] == 'VERSION'):
+                target = root / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                temporary = target.with_name(target.name + '.new')
+                staged.append((temporary, target))
+                with archive.open(item) as source, open(temporary, 'wb') as out:
+                    shutil.copyfileobj(source, out)
+                mode = (item.external_attr >> 16) & 0o777
+                if target.exists():
+                    shutil.copymode(target, temporary)  # Tessera.sh stays a program the user can start
+                elif mode:
+                    os.chmod(temporary, mode)
+            for temporary, target in staged:
+                os.replace(temporary, target)
+        finally:
+            for temporary, _ in staged:
+                temporary.unlink(missing_ok=True)
     return len(members)
