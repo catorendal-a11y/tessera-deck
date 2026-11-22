@@ -32,6 +32,7 @@ The configuration file has its own `version` (currently 2). Opening an older fil
    ```
 
 5. The *Release* workflow (`.github/workflows/release.yml`) starts on the tag and publishes the release.
+6. The AUR package is in `packaging/aur`. Set `pkgver` and the first `sha256sums` entry (the `tessera-host-v<version>.zip` line in the release's `SHA256SUMS`) in `PKGBUILD` and `.SRCINFO`, commit, and push the folder to the AUR repository `tessera-deck`. Its maintainer has the push access.
 
 ### What the workflow does
 

@@ -2,3 +2,4 @@ VERSION text eol=lf
 *.sh text eol=lf
 *.desktop text eol=lf
 *.cmd text eol=crlf
+packaging/aur/** text eol=lf
