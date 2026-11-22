@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Installing firmware on a new panel takes fewer steps. When no panel answers, the firmware dialog reads the chip and its revision from the USB port, says what it found and lists only the packages for boards with that chip. A GUITION board with a v3.x chip gets its package chosen for it. The *Install anyway* box is gone: *Install* asks once before it writes everything.
+- The package list names the boards (GUITION JC1060P470C, Elecrow CrowPanel Advance 7.0 and so on) instead of their internal ids.
+- *Check for updates* downloads the package for the board the dialog found, not always the one for the GUITION v1.x board.
+
 ## 1.2.9
 
 - GUITION boards with a v3.x chip work now. A user tested the firmware on a v3.2 board: the picture is clean and touch and keys work (#21). It took four fixes:

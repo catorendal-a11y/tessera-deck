@@ -5,6 +5,7 @@ from desktop import open_path
 from platform_support import IS_WINDOWS, load
 from venv_paths import venv_python
 import argparse
+import contextlib
 import zipfile
 import copy
 import hashlib
@@ -185,6 +186,7 @@ class Editor:
         self.assets = Assets(self.path)
         self.firmware_job = {'state': 'idle'}
         self.last_release = None  # what the last update check found; downloads never trust client-sent URLs
+        self.found_boards = []  # what the last look at a panel that does not answer found (detect_panel)
         self.firmware_lock = threading.Lock()
         self.served = {}  # revision -> the configuration read then, so a save can follow a tray brightness change
 
@@ -360,7 +362,7 @@ class Editor:
                 'device': {'firmware': status.get('firmware'), 'protocol': status.get('protocol'), 'board': status.get('board'),
                            'connected': bool(status.get('connected'))},
                 'host': version_file.read_text(encoding='utf-8').strip() if version_file.is_file() else None,
-                'job': dict(self.firmware_job)}
+                'names': firmware_update.BOARD_NAMES, 'job': dict(self.firmware_job)}
 
     @staticmethod
     def identify_panel(port):
@@ -395,7 +397,7 @@ class Editor:
     def firmware_port(self):
         # The first candidate is only TESSERA_PORT/COM4 when no panel is remembered, so it is not trusted: the port
         # whose device answers as a panel wins. Without an answer (a blank panel) only a lone Espressif port is used,
-        # so "Install anyway" never writes to another device or to a second ESP32.
+        # so an install on a panel that does not answer never writes to another device or a second ESP32.
         import host_runtime
         try:
             installed = host_runtime._installed_ports()
@@ -420,6 +422,34 @@ class Editor:
             raise firmware_update.InstallError('No USB port was found. Connect the panel with the USB cable.')
         raise firmware_update.InstallError(f'No Tessera panel answered on {", ".join(ports)}. Unplug the other '
                                            'USB serial devices, or connect only the panel, and try again.')
+
+    def detect_panel(self):
+        """What is on the USB port when the host has no panel: the board and firmware if it answers, otherwise the
+        chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install."""
+        if not self.firmware_lock.acquire(blocking=False):
+            raise ValueError('A firmware installation is already running')
+        was_running = bool(self.controller.processes())
+        try:
+            with contextlib.suppress(OSError):
+                FIRMWARE_FLAG_PATH.write_text(json.dumps({'pid': os.getpid()}), encoding='utf-8')
+            if was_running:
+                self.controller.stop()
+            port = self.firmware_port()
+            info = self.identify_panel(port)
+            if info is not None:
+                board = info.get('boardId', firmware_update.BOARD_ID)
+                found = {'port': port, 'board': board, 'firmware': info.get('firmwareVersion'), 'boards': [board]}
+            else:
+                found = dict(firmware_update.detect_chip(port), port=port)
+            self.found_boards = found['boards']
+            return found
+        finally:
+            FIRMWARE_FLAG_PATH.unlink(missing_ok=True)  # before the restart, which the flag would refuse
+            try:
+                if was_running:
+                    self.controller.start()
+            finally:
+                self.firmware_lock.release()
 
     def run_firmware_install(self, package, mode, force):
         was_running = bool(self.controller.processes())
@@ -468,7 +498,9 @@ class Editor:
 
     def check_updates(self):
         try:
-            self.last_release = updates.check(self.version(), board=self.status().get('device', {}).get('board'))
+            # without a panel that says which board it is: the one board the chip on the USB port can be, if it was looked up
+            found = self.found_boards[0] if len(self.found_boards) == 1 else None
+            self.last_release = updates.check(self.version(), board=self.status().get('device', {}).get('board') or found)
         except OSError as exc:
             raise ValueError('GitHub could not be reached. Check your internet connection.') from exc
         return self.last_release
@@ -628,6 +660,8 @@ class Editor:
                 raise ValueError('The city search could not be reached. Check your internet connection.') from exc
         if command == 'firmware-list':
             return self.firmware_list()
+        if command == 'firmware-detect':
+            return self.detect_panel()
         if command == 'firmware-install':
             return self.install_firmware(data)
         if command == 'firmware-progress':

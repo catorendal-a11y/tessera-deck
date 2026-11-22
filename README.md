@@ -91,7 +91,7 @@ The release zip has the host and the panel firmware, so you need no build tools.
 
    `SHA256SUMS` from the same release has the file's checksum; [Install](docs/INSTALL.md#download-and-verify) shows how to compare.
 2. Connect the panel with USB. The *Getting started* checklist in the editor ticks off *Host running* and *Panel connected* by itself.
-3. Open **Panel → Panel firmware and updates …** and choose the included firmware. A new board needs *Full install (new or blank panel)*, then *Install anyway*. Press *Install*. More in [Install](docs/INSTALL.md).
+3. Open **Panel → Panel firmware and updates …** with the board plugged in. The dialog reads which chip a new board has and chooses the firmware and *Full install* for it; when two boards share the chip, choose yours in the list. Press *Install*. More in [Install](docs/INSTALL.md).
 4. Click an action in the list on the right. It becomes a new key. Fill it in on the **Look** and **Actions** tabs. Changes are saved automatically.
 5. Press the key on the panel. The editor says "It works" and lights up the key.
 

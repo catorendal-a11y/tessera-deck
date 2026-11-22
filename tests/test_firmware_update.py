@@ -371,6 +371,91 @@ if __name__ == '__main__':
     unittest.main()
 
 
+P4_V3 = ('esptool v5.6.0\nConnected to ESP32-P4 on COM7:\nChip type:          ESP32-P4 (revision v3.2)\n'
+         'Features:           Dual Core + LP Core, 400MHz\nCrystal:            40MHz\nMAC:                30:ed:a0:e1:9c:11\n'
+         '\nStub flasher running.\n\nMAC:                30:ed:a0:e1:9c:11\n\nHard resetting via RTS pin...\n')
+
+
+class DetectTests(unittest.TestCase):
+    """A panel that does not answer: the ROM bootloader still says which chip it is."""
+
+    def test_the_chip_and_its_revision_give_the_boards_it_can_be(self):
+        runner = Mock(return_value=(0, P4_V3))
+        self.assertEqual(fw.detect_chip('COM7', runner),
+                         {'chip': 'esp32p4', 'revision': '3.2', 'boards': ['tessera-p4-v3']})
+        self.assertIn('read-mac', runner.call_args.args[0])
+        self.assertNotIn('write-flash', runner.call_args.args[0])
+        older = fw.detect_chip('COM7', Mock(return_value=(0, P4_V3.replace('v3.2', 'v1.3'))))
+        self.assertEqual(older['boards'], ['tessera-p4', 'tessera-p4-crowpanel7'])
+        s3 = fw.detect_chip('COM5', Mock(return_value=(0, 'Chip is ESP32-S3 (QFN56) (revision v0.2)\n')))
+        self.assertEqual((s3['chip'], s3['revision']), ('esp32s3', '0.2'))
+        self.assertEqual(s3['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
+
+    def test_a_port_without_an_esp32_or_with_another_chip_is_reported(self):
+        with self.assertRaisesRegex(fw.InstallError, 'COM7 has no ESP32.*No serial data received'):
+            fw.detect_chip('COM7', Mock(return_value=(2, 'A fatal error occurred: No serial data received.')))
+        with self.assertRaisesRegex(fw.InstallError, 'ESP32-C6.*no Tessera firmware'):
+            fw.detect_chip('COM7', Mock(return_value=(0, 'Chip type:          ESP32-C6 (QFN40) (revision v0.1)\n')))
+
+    def test_every_board_has_a_name(self):
+        self.assertEqual(set(fw.BOARD_NAMES), set(fw.BOARD_CHIPS))
+
+
+class EditorDetectTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        profiles = Path(self.temp.name) / 'profiles.json'
+        profiles.write_text(json.dumps({'default_profile': 'Main', 'profiles': {'Main': {'match': [], 'pages': {'First': []}}}}))
+        self.controller = Mock()
+        self.controller.processes.return_value = [object()]
+        self.editor = Editor(profiles, self.controller, dashboard=lambda: {'running': True, 'device': {'connected': False}})
+        self.flag = Path(self.temp.name) / 'firmware-install.local.json'
+        flag_patch = patch('tessera_app.FIRMWARE_FLAG_PATH', self.flag)
+        flag_patch.start()
+        self.addCleanup(flag_patch.stop)
+
+    def detect(self, answer, esptool=(0, P4_V3)):
+        with patch.object(self.editor, 'firmware_port', return_value='COM7'), \
+                patch.object(Editor, 'identify_panel', staticmethod(lambda port: answer)), \
+                patch.object(fw, 'run_esptool', Mock(return_value=esptool)) as runner:
+            return self.editor.command('firmware-detect', {}), runner
+
+    def test_a_silent_panel_is_asked_for_its_chip_with_the_host_stopped(self):
+        found, runner = self.detect(None)
+        self.assertEqual(found, {'port': 'COM7', 'chip': 'esp32p4', 'revision': '3.2', 'boards': ['tessera-p4-v3']})
+        self.controller.stop.assert_called_once()
+        self.controller.start.assert_called_once()
+        self.assertFalse(self.flag.exists())
+        self.assertFalse(self.editor.firmware_lock.locked())
+        runner.assert_called_once()
+
+    def test_a_panel_that_answers_is_not_reset(self):
+        found, runner = self.detect({'boardId': 'tessera-p4-crowpanel7', 'firmwareVersion': '1.2.9'})
+        self.assertEqual(found, {'port': 'COM7', 'board': 'tessera-p4-crowpanel7', 'firmware': '1.2.9', 'boards': ['tessera-p4-crowpanel7']})
+        runner.assert_not_called()
+
+    def test_a_failed_look_still_restarts_the_host_and_an_install_is_never_disturbed(self):
+        with self.assertRaises(fw.InstallError):
+            self.detect(None, (2, 'A fatal error occurred: No serial data received.'))
+        self.controller.start.assert_called_once()
+        self.assertFalse(self.editor.firmware_lock.locked())
+        self.editor.firmware_lock.acquire()
+        self.addCleanup(self.editor.firmware_lock.release)
+        with self.assertRaisesRegex(ValueError, 'already running'):
+            self.editor.command('firmware-detect', {})
+        self.controller.start.assert_called_once()
+
+    def test_the_update_check_asks_for_the_package_of_the_board_that_was_found(self):
+        self.detect(None)
+        with patch('tessera_app.updates.check', return_value={}) as check:
+            self.editor.command('update-check', {})
+        self.assertEqual(check.call_args.kwargs['board'], 'tessera-p4-v3')
+
+    def test_the_package_list_carries_the_board_names(self):
+        self.assertEqual(self.editor.command('firmware-list', {})['names']['tessera-p4-v3'], fw.BOARD_NAMES['tessera-p4-v3'])
+
+
 class SerialOtaRetryTests(unittest.TestCase):
     def test_a_timed_out_upload_is_aborted_and_tried_once_more(self):
         from unittest import mock

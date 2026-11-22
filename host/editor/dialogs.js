@@ -53,49 +53,83 @@ function firmwareNote(chosen, device, host, newest = chosen) {
   if (versionOrder(newest.version, host) < 0) lines.push(`There is no firmware package for Tessera ${host} here. Check for updates downloads it.`);
   return lines.join(' ');
 }
+/* The packages to offer and the one to preselect. `boards` is what the panel can be: its own board when a firmware
+   answers, the boards with its chip when only the ROM bootloader does, null when nothing is known. A package is
+   preselected only when that leaves one board: two boards with the same chip cannot be told apart before a firmware
+   runs, and nothing refuses the other board's package on a panel that does not answer. */
+function firmwareChoices(packages, boards, all) {
+  const good = packages.filter(p => !p.error), fits = p => !boards || boards.includes(p.board || 'tessera-p4');
+  const shown = all ? good : good.filter(fits);
+  return {shown, newest: boards?.length === 1 ? good.find(fits) : undefined, hidden: good.length - shown.length};
+}
+/* firmwareFound: what the look at the USB port found while the host has no panel (command/firmware-detect).
+   firmwareBlank: no Tessera firmware answers, so an install writes everything and has to be confirmed as such. */
+let firmwareFound = null, firmwareBlank = false;
+const chipName = chip => String(chip || '').toUpperCase().replace('ESP32', 'ESP32-');
 async function openFirmware() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
-  // "Install anyway" is for the one attempt after a panel that did not answer; never carry it over.
-  // With no panel connected it is most likely new or blank, so offer the full install and the box straight away.
   const blank = !dashboard?.device?.connected;
-  $('#firmware-force').checked = false;
-  $('.firmware-force').hidden = !blank;
+  firmwareFound = null;
+  $('#firmware-all').checked = false;
   $('#firmware-mode').value = blank ? 'full' : 'app';
   $('#firmware-dialog').showModal();
-  try { await refreshFirmware(); } catch (error) { showError(error); }
+  try {
+    const info = await refreshFirmware();
+    // With no panel in the host it is most likely new or blank: ask the USB port what is there, unless an install runs.
+    if (blank && info.job.state !== 'running') await detectPanel();
+  } catch (error) { showError(error); }
+}
+async function detectPanel() {
+  $('#firmware-device').textContent = 'Looking for the panel on USB …';
+  $('#firmware-detect').hidden = $('#firmware-install').disabled = true;
+  let failed = '';
+  try { firmwareFound = await api('command/firmware-detect', {}); }
+  catch (error) { firmwareFound = null; failed = error.message; }
+  if (firmwareFound) $('#firmware-mode').value = firmwareFound.board ? 'app' : 'full';
+  await refreshFirmware();
+  if (failed) $('#firmware-device').textContent = failed;
 }
 async function refreshFirmware() {
   const info = await api('command/firmware-list', {});
-  const select = $('#firmware-package'), good = info.packages.filter(p => !p.error);
+  const device = info.device, found = device.connected ? null : firmwareFound;
+  // a panel the look found answering (the host is stopped or has not found it yet) counts like a connected one
+  const panel = found?.board ? {connected: true, firmware: found.firmware, board: found.board} : device;
+  const boards = panel.connected && panel.board ? [panel.board] : found?.boards || null;
+  firmwareBlank = !panel.connected;
+  const select = $('#firmware-package'), {shown, newest, hidden} = firmwareChoices(info.packages, boards, $('#firmware-all').checked);
   select.replaceChildren();
-  for (const p of good) select.append(element('option', {value: p.path, text: `Version ${p.version} for ${p.board || 'tessera-p4'} · ${Math.round(p.bytes / 1024)} KiB`}));
+  for (const p of shown) select.append(element('option', {value: p.path, text: `${info.names?.[p.board || 'tessera-p4'] || p.board} · version ${p.version}`}));
   for (const p of info.packages.filter(item => item.error)) select.append(element('option', {value: '', disabled: 'true', text: `${p.path.split(/[\\/]/).pop()} · ${p.error}`}));
   if (!info.packages.length) select.append(element('option', {value: '', text: 'No package found in dist/ or firmware/'}));
-  const device = info.device;
-  // The release has one package per board: preselect the connected board's. A panel that does not say which board it is
-  // gets no guess, even when only one board's packages are here: both P4 boards have the same chip, and nothing refuses
-  // the other board's package on a panel that does not answer.
-  const newest = good.find(p => (p.board || 'tessera-p4') === device.board);
-  if (good.length && !newest) select.prepend(element('option', {value: '', text: 'Choose the package for your board'}));
+  else if (!shown.length) select.append(element('option', {value: '', text: 'No package for this board here. Check for updates downloads it.'}));
+  if (shown.length && !newest) select.prepend(element('option', {value: '', text: 'Choose your board'}));
   select.value = newest ? newest.path : '';
-  const note = () => { const text = firmwareNote(good.find(p => p.path === select.value), device, info.host, newest); $('#firmware-note').textContent = text; $('#firmware-note').hidden = !text; };
+  $('.firmware-all').hidden = !hidden && !$('#firmware-all').checked;
+  const note = () => { const text = firmwareNote(shown.find(p => p.path === select.value), panel, info.host, newest); $('#firmware-note').textContent = text; $('#firmware-note').hidden = !text; };
   select.onchange = () => { $('#firmware-install').disabled = !select.value; note(); };
   note();
   // The protocol number only matters to the user when it differs from the newest package's.
-  const protocol = newest && device.protocol != null && newest.protocol !== device.protocol ? ` · protocol ${device.protocol}, package needs ${newest.protocol}` : '';
-  $('#firmware-device').textContent = device.connected
-    ? `Panel connected · firmware ${device.firmware || 'unknown'}${protocol} · Tessera ${info.host || '?'}`
-    : `The panel is not connected · Tessera ${info.host || '?'}`;
+  const protocol = newest && device.connected && device.protocol != null && newest.protocol !== device.protocol ? ` · protocol ${device.protocol}, package needs ${newest.protocol}` : '';
+  const tessera = `Tessera ${info.host || '?'}`;
+  $('#firmware-device').textContent = device.connected ? `Panel connected · firmware ${device.firmware || 'unknown'}${protocol} · ${tessera}`
+    : found?.board ? `Panel found on ${found.port} · firmware ${found.firmware || 'unknown'} · ${tessera}`
+    : found ? `New panel on ${found.port}: ${chipName(found.chip)} revision v${found.revision}, no Tessera firmware answers · ${tessera}`
+    : `The panel is not connected · ${tessera}`;
+  $('#firmware-detect').hidden = device.connected;
   $('#firmware-install').disabled = !select.value;
   if (info.job.state === 'running') pollFirmware();
+  return info;
 }
 async function installFirmware() {
-  const path = $('#firmware-package').value;
-  if (!path || !await confirmDialog('Write the firmware now?', 'Do not unplug the panel until it has finished.', {ok: 'Write firmware'})) return;
-  const force = $('#firmware-force').checked;
-  $('#firmware-force').checked = false;
-  $('.firmware-force').hidden = true;
-  try { await api('command/firmware-install', {package: path, mode: $('#firmware-mode').value, force}); }
+  const path = $('#firmware-package').value, mode = $('#firmware-mode').value;
+  // A panel that does not answer gets everything written; saying yes to that here is the "force" the host asks for.
+  const force = firmwareBlank && mode === 'full';
+  const where = firmwareFound?.chip ? `${firmwareFound.port} has an ${chipName(firmwareFound.chip)} revision v${firmwareFound.revision} and no Tessera firmware answers.`
+    : 'No Tessera firmware answers on the panel. The chip type is checked before anything is written.';
+  const [title, text] = force ? ['Write the firmware to this panel?', `${where} Everything on it is replaced: bootloader, partitions and app. Do not unplug the panel until it has finished.`]
+    : ['Write the firmware now?', 'Do not unplug the panel until it has finished.'];
+  if (!path || !await confirmDialog(title, text, {ok: 'Write firmware'})) return;
+  try { await api('command/firmware-install', {package: path, mode, force}); }
   catch (error) { showError(error); return; }
   pollFirmware();
 }
@@ -114,18 +148,19 @@ async function pollFirmware() {
     label.textContent = `Installed ${job.result.installed}${job.result.previous ? ` (was ${job.result.previous})` : ''}.`
       + (job.restarted ? ' The host has started again.' : job.restart_error ? ` The host did not start again: ${job.restart_error}` : '');
     // the line at the top still names the firmware from before: read it again when the host has found the panel
-    if (!label.dataset.refreshed) { label.dataset.refreshed = '1'; setTimeout(() => refreshFirmware().catch(() => {}), 5000); }
+    if (!label.dataset.refreshed) { label.dataset.refreshed = '1'; firmwareFound = null; setTimeout(() => refreshFirmware().catch(() => {}), 5000); }
   } else if (job.state === 'failed') {
     label.textContent = job.error || 'The installation failed.';
-    const silent = (job.error || '').includes('did not answer');
-    $('.firmware-force').hidden = !silent;
-    if (silent) $('#firmware-mode').value = 'full';  // a panel that does not answer needs everything written
+    // a panel that does not answer needs everything written: the next Install asks for exactly that
+    if ((job.error || '').includes('did not answer')) { firmwareBlank = true; $('#firmware-mode').value = 'full'; }
   }
   $('#firmware-install').disabled = job.state === 'running' || !$('#firmware-package').value;
 }
 $('#firmware-open').onclick = openFirmware;
 $('#firmware-close').onclick = () => $('#firmware-dialog').close();
 $('#firmware-install').onclick = installFirmware;
+$('#firmware-detect').onclick = () => detectPanel().catch(showError);
+$('#firmware-all').onchange = () => refreshFirmware().catch(showError);
 
 /* Key colors: an own background, label color and outline per button (or per state of a toggle button), as a Look row. */
 function renderStyle(propRow) {

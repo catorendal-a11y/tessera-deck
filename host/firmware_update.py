@@ -31,6 +31,12 @@ FORMAT = 1
 BOARD_ID = 'tessera-p4'  # the default board of build_package
 CHIP = 'esp32p4'
 BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-v3': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3', 'tessera-s3-crowpanel7': 'esp32s3'}
+V3_BOARDS = frozenset({'tessera-p4-v3'})  # ESP32-P4 builds for chip revision v3.x; the other P4 builds are for v1.x
+BOARD_NAMES = {'tessera-p4': 'GUITION JC1060P470C', 'tessera-p4-v3': 'GUITION JC1060P470C (v3.x chip)',
+               'tessera-p4-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-P4)',
+               'tessera-s3-ws7': 'Waveshare ESP32-S3-Touch-LCD-7', 'tessera-s3-8048s070': 'Sunton ESP32-8048S070',
+               'tessera-s3-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-S3)'}
+CHIP_LINE = re.compile(r'Chip (?:type:|is)\s+(ESP32-[A-Z]\d+).*?\(revision v(\d+)\.(\d+)\)')  # "Chip is" before esptool 5
 MANIFEST = 'manifest.json'
 APP_OFFSET = 0x10000
 OTADATA_NAME = 'ota_data_initial.bin'  # written with the app by esptool so the bootloader starts ota_0 again
@@ -202,8 +208,8 @@ def command_line(package: Package, port: str, folder: Path, mode: str = 'app', b
     return arguments
 
 
-def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tuple[int, str]:
-    """Run esptool, forwarding its percentage output; returns (exit code, tail of the output)."""
+def run_esptool(arguments: list[str], progress: Callable[[float], None], keep: int = OUTPUT_TAIL) -> tuple[int, str]:
+    """Run esptool, forwarding its percentage output; returns (exit code, the last `keep` characters of the output)."""
     process = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
                                encoding='utf-8', errors='replace', bufsize=1,
                                creationflags=NO_WINDOW)
@@ -214,7 +220,7 @@ def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tupl
     watchdog.start()
     try:
         for chunk in iter(process.stdout.readline, ''):
-            tail = (tail + chunk)[-OUTPUT_TAIL:]
+            tail = (tail + chunk)[-keep:]
             found = PROGRESS.findall(chunk)
             if found:
                 progress(min(100.0, float(found[-1])))
@@ -222,6 +228,32 @@ def run_esptool(arguments: list[str], progress: Callable[[float], None]) -> tupl
     finally:  # also when reading fails: a timer left running would kill a later process
         watchdog.cancel()
     return code, tail.strip()
+
+
+def boards_for(chip: str, major: int) -> list[str]:
+    """The boards a chip can be. The two P4 revisions take different builds, so the revision narrows it down."""
+    return [board for board, its in BOARD_CHIPS.items()
+            if its == chip and (chip != 'esp32p4' or (board in V3_BOARDS) == (major >= 3))]
+
+
+def detect_chip(port: str, runner: Callable | None = None) -> dict:
+    """Ask the ROM bootloader on `port` which chip it is: the way to tell boards apart when no firmware answers.
+
+    Reads only (esptool read-mac) and restarts the chip afterwards. Returns the chip, its revision and the boards
+    it can be; raises InstallError when nothing answers or the chip is not one Tessera has firmware for.
+    """
+    code, output = (runner or run_esptool)([sys.executable, '-m', 'esptool', '-p', port, '--before', 'default-reset',
+                                            '--after', 'hard-reset', 'read-mac'], lambda percent: None, 4000)
+    found = CHIP_LINE.search(output)
+    if code or not found:
+        raise InstallError(f'{port} has no ESP32 that answers. Check the cable (it must carry data), or hold the '
+                           f"board's BOOT button while you plug it in, and look again. {output[-OUTPUT_TAIL:].strip()}")
+    name, major, minor = found.group(1), int(found.group(2)), found.group(3)
+    chip = name.lower().replace('-', '')
+    boards = boards_for(chip, major)
+    if not boards:
+        raise InstallError(f'{port} has an {name}, and there is no Tessera firmware for that chip.')
+    return {'chip': chip, 'revision': f'{major}.{minor}', 'boards': boards}
 
 
 def serial_ota(port: str, data: bytes, progress: Callable[[float], None]) -> None:
@@ -262,7 +294,7 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
     info = identify(port)
     if info is None and not force:
         raise InstallError(f'{port} did not answer as a Tessera panel. If it is new, blank or its firmware is broken, '
-                           'choose "Full install" and tick "Install anyway", then try again. '
+                           'choose "Full install" and install again. '
                            'The chip type is still verified before writing.')
     if info and info.get('boardId') not in (None, package.board):
         raise InstallError(f'This package is for {package.board}, but the connected panel is {info["boardId"]}. '

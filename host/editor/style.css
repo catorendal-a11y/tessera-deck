@@ -97,8 +97,8 @@ span.key-symbol{left:0;width:150px;top:17px;height:60px}
 /* Panel firmware installer */
 #firmware-dialog{width:min(560px,92vw)}
 .firmware-field{display:grid;gap:6px;margin:14px 0}
-.firmware-field span,.firmware-force span{color:var(--muted);font-size:13px}
-.firmware-force{display:flex;gap:8px;align-items:flex-start;margin:10px 0}
+.firmware-field span,.firmware-all span{color:var(--muted);font-size:13px}
+.firmware-all{display:flex;gap:8px;align-items:center;margin:-6px 0 10px}.firmware-all input{width:16px;height:16px;flex:none;margin:0}.firmware-all[hidden]{display:none}
 .firmware-progress{display:grid;gap:6px;margin:14px 0}
 .firmware-progress progress{width:100%;height:10px;accent-color:var(--accent)}
 .firmware-progress span{font-size:13px}
