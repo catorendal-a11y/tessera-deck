@@ -1,4 +1,5 @@
 """Device identity and protocol handshake with a scripted serial port; no hardware."""
+import errno
 import hashlib
 import json
 from pathlib import Path
@@ -204,6 +205,27 @@ class PortSelectionTests(unittest.TestCase):
                 daemon.open_panel()
         self.assertIn('COM4 is a different device', str(raised.exception))
         self.assertIn('COM7: busy', str(raised.exception))
+
+    def test_open_panel_says_in_plain_words_why_a_port_does_not_open(self):
+        daemon = self.daemon()
+        errors = {'COM4': OSError("could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)"),
+                  'COM7': OSError("could not open port 'COM7': FileNotFoundError(2, 'The system cannot find the file specified.', None, 2)"),
+                  '/dev/ttyACM0': OSError(errno.EACCES, 'could not open port /dev/ttyACM0: Permission denied'),
+                  '/dev/ttyACM1': OSError(errno.EBUSY, 'could not open port /dev/ttyACM1: Device or resource busy')}
+
+        def factory(port, log):
+            raise errors[port]
+
+        daemon.panel_factory = factory
+        with patch.object(deck, 'candidate_ports', return_value=list(errors)):
+            with self.assertRaises(OSError) as raised:
+                daemon.open_panel()
+        text = str(raised.exception)
+        self.assertIn('COM4 is in use by another program', text)
+        self.assertIn('COM7 is not there', text)
+        self.assertIn('/dev/ttyACM0 may not be opened by your user', text)
+        self.assertIn('/dev/ttyACM1 is in use by another program', text)
+        self.assertNotIn('PermissionError', text)
 
 
 if __name__ == '__main__':

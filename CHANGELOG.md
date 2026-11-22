@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The host no longer stops when something unexpected goes wrong while it connects to the panel. It writes the reason to the log and tries again, as it does for a missing panel.
+- A USB port that does not open is explained in plain words: in use by another program, not there, or (on Linux) not allowed for your user. The log used to show pyserial's own text, such as `PermissionError(13, 'Access is denied.')`.
+- A request to the control API that fails inside the host gets an answer and a line in the host log. The connection used to close without either.
+- A heartbeat thread that fails now makes the host reconnect instead of leaving the panel on its lost-PC screen.
+
 ## 1.2.9
 
 - GUITION boards with a v3.x chip work now. A user tested the firmware on a v3.2 board: the picture is clean and touch and keys work (#21). It took four fixes:

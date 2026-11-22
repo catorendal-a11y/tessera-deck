@@ -873,6 +873,24 @@ class HostRuntimeTests(HostCase):
                 daemon.run()
             self.assertEqual(fired, [{'type': 'startup'}])
 
+    def test_an_unexpected_error_while_connecting_is_logged_and_retried_not_fatal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            path.write_text((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.log, daemon.pc.start, daemon.pc.stop = Mock(), Mock(), Mock()
+            daemon.agent_scan_at = daemon.stats_scan_at = float('inf')
+            daemon.open_panel = Mock(side_effect=RuntimeError('Install host/requirements.txt first'))
+            daemon.fire_trigger = lambda when: daemon.stop.set()
+            timer = threading.Timer(5, daemon.stop.set)
+            timer.start()
+            self.addCleanup(timer.cancel)
+            with patch.object(deck, '__file__', str(Path(directory) / 'tesserad.py')), \
+                    patch.object(deck, 'ControlServer'), \
+                    patch.object(deck, 'PluginManager', return_value=Mock(**{'status.return_value': []})):
+                daemon.run()  # before: the RuntimeError ended the host
+            self.assertTrue(any('RuntimeError: Install host/requirements.txt first' in str(entry) for entry in daemon.log.call_args_list))
+
     def test_a_command_file_held_open_by_a_scanner_waits_for_the_next_second(self):
         with tempfile.TemporaryDirectory() as directory:
             daemon = self.daemon()

@@ -248,8 +248,11 @@ class Controller:
         finally:
             log.close()
         self.children.append(process)
-        current = psutil.Process(process.pid)
-        self.pid_path.write_text(json.dumps({'pid': process.pid, 'created': current.create_time()}))
+        try:
+            created = psutil.Process(process.pid).create_time()
+        except psutil.NoSuchProcess:  # it is gone already: the check below says so in plain words
+            created = None
+        self.pid_path.write_text(json.dumps({'pid': process.pid, 'created': created}))
         time.sleep(.3)
         if process.poll() is not None:
             raise RuntimeError('The host stopped right after it started. Open the host log (More → Host log) to see why.')
