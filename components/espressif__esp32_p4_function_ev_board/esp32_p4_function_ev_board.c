@@ -15,6 +15,9 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_ldo_regulator.h"
+#if CONFIG_IDF_TARGET_ESP32P4
+#include "hal/axi_icm_ll.h"
+#endif
 #include "esp_vfs_fat.h"
 #include "usb/usb_host.h"
 #include "sd_pwr_ctrl_by_on_chip_ldo.h"
@@ -832,6 +835,11 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
      * reset/init instead of relying only on the 0x29 init command. */
     ESP_GOTO_ON_ERROR(esp_lcd_panel_disp_on_off(disp_panel, true), err, TAG, "LCD panel ON failed");
 #if BSP_LCD_JD9165_NEW_PANEL
+    /* The panel reads its frame from PSRAM all the time through DW-GDMA. Every AXI master starts at the same
+     * priority, so PSRAM use by the CPU can hold those reads up and leave columns of a line without data.
+     * Highest read priority on both DW-GDMA ports, as ESPHome's mipi_dsi does (esphome#21638). */
+    axi_icm_ll_set_dw_gdma_qos_arbiter_prio(0, 0, 15);
+    axi_icm_ll_set_dw_gdma_qos_arbiter_prio(1, 0, 15);
     /* Test build for #21: 8 s of the DSI host's own colour bars, which do not come from PSRAM */
     bsp_display_brightness_set(100);
     esp_lcd_dpi_panel_set_pattern(disp_panel, MIPI_DSI_PATTERN_BAR_VERTICAL);
