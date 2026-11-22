@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- GUITION boards with a v3.x chip restarted at every startup and the screen stayed black (#21). The display code asked for the DSI clock source of the v1.x chips, which v3.x does not have, so the firmware stopped as soon as it set up the screen. IDF now picks the clock source for the chip.
 - The firmware for GUITION boards with a v3.x chip is now built from the same settings as the tested v1.x build, with only the chip revision options changed. Before, it started from a shorter base config and about 60 settings (watchdog, LVGL, FreeRTOS) differed. On one v3.2 board the previous build installed but never started (#21).
 - When a port does not answer as a Tessera panel, the error now ends with the last lines it printed, so a crash at startup shows up in the diagnostics.
 - Discussions has forms for questions, ideas and setups. The README, the website and the new-issue page link to it.
