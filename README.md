@@ -20,6 +20,7 @@
   <a href="https://github.com/catorendal-a11y/tessera-deck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/catorendal-a11y/tessera-deck?color=35D07F"></a>
   <a href="https://github.com/catorendal-a11y/tessera-deck/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/catorendal-a11y/tessera-deck/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
+  <a href="https://github.com/catorendal-a11y/tessera-deck/discussions"><img alt="GitHub Discussions" src="https://img.shields.io/github/discussions/catorendal-a11y/tessera-deck?logo=github&label=discussions"></a>
 </p>
 
 <p align="center">
@@ -30,6 +31,8 @@ Tessera is a macro deck for Windows and Linux that you build from one 7-inch tou
 
 > [!IMPORTANT]
 > You need one of the [supported boards](#supported-boards), a USB cable and a PC with Windows 10/11 or Linux (X11, or KDE Plasma or GNOME on Wayland). Other boards need porting. Other Wayland desktops are partly supported, macOS not at all.
+
+Questions, ideas and photos of your setup go in [Discussions](https://github.com/catorendal-a11y/tessera-deck/discussions). Bugs go in the [issues](https://github.com/catorendal-a11y/tessera-deck/issues/new/choose).
 
 <p align="center">
   <img src="docs/images/promo.gif" alt="A short loop: the Tessera logo, the Windows app and the panel joined by one USB cable, a tap on Allow on the agents screen, the editor putting a Timer key on the panel, and what you need to build one" width="760">
@@ -214,8 +217,6 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [ESP32-S3 boards](docs/S3.md) | The experimental port to three 800 x 480 S3 boards and what is still untested |
 | [CrowPanel Advance 7.0](docs/CROWPANEL.md) | The Elecrow CrowPanel Advance 7.0 (ESP32-P4): building, flashing and what is still open |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
-
-Questions, ideas and photos of your setup go in [Discussions](https://github.com/catorendal-a11y/tessera-deck/discussions). Bugs go in the [issues](https://github.com/catorendal-a11y/tessera-deck/issues/new/choose).
 
 ## Credits and license
 
