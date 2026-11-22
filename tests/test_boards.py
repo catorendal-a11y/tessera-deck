@@ -20,7 +20,7 @@ import updates
 from test_firmware_update import fake_build
 from test_handshake import info, panel
 
-S3_BOARDS = ('tessera-s3-ws7', 'tessera-s3-8048s070')
+S3_BOARDS = ('tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7')
 
 
 P4_BOARDS = ('tessera-p4', 'tessera-p4-crowpanel7')

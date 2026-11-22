@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           . $IDF_PATH/export.sh
-          for board in tessera-s3-ws7 tessera-s3-8048s070; do
+          for board in tessera-s3-ws7 tessera-s3-8048s070 tessera-s3-crowpanel7; do
             idf.py -B build/$board -DSDKCONFIG=build/$board/sdkconfig -DIDF_TARGET=esp32s3 -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/$board.defaults" build
           done
       # The CrowPanel Advance 7.0 has the GUITION board's chip; its board file sets the screen, pins and host link.
@@ -59,7 +59,7 @@ jobs:
         shell: bash
         run: |
           python3 tools/package_firmware.py build/idf6 dist
-          for board in tessera-s3-ws7 tessera-s3-8048s070 tessera-p4-crowpanel7; do
+          for board in tessera-s3-ws7 tessera-s3-8048s070 tessera-s3-crowpanel7 tessera-p4-crowpanel7; do
             python3 tools/package_firmware.py build/$board dist --board $board
           done
           git config --global --add safe.directory "$GITHUB_WORKSPACE"

@@ -24,6 +24,8 @@ menu "Tessera board"
             bool "Waveshare ESP32-S3-Touch-LCD-7 (800 x 480, native USB)"
         config TESSERA_BOARD_S3_8048S070
             bool "Sunton/Guition ESP32-8048S070 (800 x 480, CH340 on UART0)"
+        config TESSERA_BOARD_S3_CROWPANEL7
+            bool "Elecrow CrowPanel Advance 7.0 ESP32-S3 (800 x 480, CH340K on UART0)"
     endchoice
 
     # The id the panel reports in get_info. The Guition P4 keeps "tessera-p4", the id of every release so far.
@@ -33,6 +35,7 @@ menu "Tessera board"
         default "tessera-p4-crowpanel7" if TESSERA_BOARD_P4_CROWPANEL7
         default "tessera-s3-ws7" if TESSERA_BOARD_S3_WS7
         default "tessera-s3-8048s070" if TESSERA_BOARD_S3_8048S070
+        default "tessera-s3-crowpanel7" if TESSERA_BOARD_S3_CROWPANEL7
 
     config TESSERA_IMAGE_CACHE_KB
         int "Key image cache (KiB)"

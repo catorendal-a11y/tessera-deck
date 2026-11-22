@@ -8,7 +8,7 @@ import threading
 from platform_support import IS_LINUX, load
 
 ESPRESSIF_VID = 0x303A  # USB Serial/JTAG of the ESP32-P4 and of the native-USB S3 board
-CH340_VID = 0x1A86  # the UART bridge of the ESP32-8048S070 board
+CH340_VID = 0x1A86  # the UART bridge of the ESP32-8048S070 and the CrowPanel boards
 PANEL_VIDS = (ESPRESSIF_VID, CH340_VID)
 UART_BAUD = 921600  # firmware UART speed on the CH340 board; USB Serial/JTAG ignores the baud rate
 DEFAULT_BAUD = 115200

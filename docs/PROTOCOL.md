@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-The host and the panel talk over USB Serial/JTAG at 115200 baud. On the CrowPanel Advance 7.0 and the Sunton ESP32-8048S070 the link is a UART at 921600 baud through the board's USB-UART bridge. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 4; [Releasing](RELEASING.md) lists what each version added.
+The host and the panel talk over USB Serial/JTAG at 115200 baud. On both CrowPanel Advance 7.0 boards (P4 and S3) and the Sunton ESP32-8048S070 the link is a UART at 921600 baud through the board's USB-UART bridge. This page lists every line they exchange. The source is `main/main.cpp` and `main/deck_model.c` on the panel, `host/panel_serial.py` and `host/tesserad.py` on the host. The current protocol is version 4; [Releasing](RELEASING.md) lists what each version added.
 
 ## Framing
 

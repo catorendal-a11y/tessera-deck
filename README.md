@@ -43,6 +43,7 @@ Tessera is a macro deck for Windows and Linux that you build from one 7-inch tou
 | [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Works on a contributor's board, colors and touch included. The firmware is in the releases from 1.2.0. |
 | [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. One tester has the display, touch, keys and PC actions working over native USB. |
 | [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
+| [Elecrow CrowPanel Advance 7.0 ESP32-S3](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental, hardware V1.3 to V1.5. Not run on the board yet. |
 
 If you have one of the S3 boards, [tell me how it goes](https://github.com/catorendal-a11y/tessera-deck/discussions/6). [Contributing](CONTRIBUTING.md#port-to-another-board) says what a port to another board needs.
 
