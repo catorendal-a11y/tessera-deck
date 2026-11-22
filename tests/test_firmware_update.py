@@ -387,6 +387,8 @@ class DetectTests(unittest.TestCase):
         self.assertNotIn('write-flash', runner.call_args.args[0])
         older = fw.detect_chip('COM7', Mock(return_value=(0, P4_V3.replace('v3.2', 'v1.3'))))
         self.assertEqual(older['boards'], ['tessera-p4', 'tessera-p4-crowpanel7'])
+        unnamed = fw.detect_chip('COM7', Mock(return_value=(0, 'Chip type:          Unknown ESP32-P4 (revision v3.2)\n')))
+        self.assertEqual(unnamed['boards'], ['tessera-p4-v3'])
         s3 = fw.detect_chip('COM5', Mock(return_value=(0, 'Chip is ESP32-S3 (QFN56) (revision v0.2)\n')))
         self.assertEqual((s3['chip'], s3['revision']), ('esp32s3', '0.2'))
         self.assertEqual(s3['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])

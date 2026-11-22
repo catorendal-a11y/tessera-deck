@@ -68,13 +68,14 @@ let firmwareFound = null, firmwareBlank = false;
 const chipName = chip => String(chip || '').toUpperCase().replace('ESP32', 'ESP32-');
 async function openFirmware() {
   document.querySelectorAll('.more-menu').forEach(menu => { menu.hidden = true; });
-  const blank = !dashboard?.device?.connected;
   firmwareFound = null;
   $('#firmware-all').checked = false;
-  $('#firmware-mode').value = blank ? 'full' : 'app';
+  $('#firmware-mode').value = dashboard?.device?.connected ? 'app' : 'full';
   $('#firmware-dialog').showModal();
   try {
-    const info = await refreshFirmware();
+    // What the host says now decides, not the dashboard the page last drew: looking at the port stops the host.
+    const info = await refreshFirmware(), blank = !info.device.connected;
+    $('#firmware-mode').value = blank ? 'full' : 'app';
     // With no panel in the host it is most likely new or blank: ask the USB port what is there, unless an install runs.
     if (blank && info.job.state !== 'running') await detectPanel();
   } catch (error) { showError(error); }
@@ -86,7 +87,8 @@ async function detectPanel() {
   try { firmwareFound = await api('command/firmware-detect', {}); }
   catch (error) { firmwareFound = null; failed = error.message; }
   if (firmwareFound) $('#firmware-mode').value = firmwareFound.board ? 'app' : 'full';
-  await refreshFirmware();
+  try { await refreshFirmware(); }
+  catch (error) { $('#firmware-detect').hidden = false; throw error; }  // the list failed: leave a way to look again
   if (failed) $('#firmware-device').textContent = failed;
 }
 async function refreshFirmware() {

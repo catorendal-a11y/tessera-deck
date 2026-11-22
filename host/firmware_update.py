@@ -36,7 +36,8 @@ BOARD_NAMES = {'tessera-p4': 'GUITION JC1060P470C', 'tessera-p4-v3': 'GUITION JC
                'tessera-p4-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-P4)',
                'tessera-s3-ws7': 'Waveshare ESP32-S3-Touch-LCD-7', 'tessera-s3-8048s070': 'Sunton ESP32-8048S070',
                'tessera-s3-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-S3)'}
-CHIP_LINE = re.compile(r'Chip (?:type:|is)\s+(ESP32-[A-Z]\d+).*?\(revision v(\d+)\.(\d+)\)')  # "Chip is" before esptool 5
+# "Chip is" before esptool 5; "Unknown ESP32-P4" for a package version esptool has no name for
+CHIP_LINE = re.compile(r'Chip (?:type:|is)\s+(?:Unknown )?(ESP32-[A-Z]\d+).*?\(revision v(\d+)\.(\d+)\)')
 MANIFEST = 'manifest.json'
 APP_OFFSET = 0x10000
 OTADATA_NAME = 'ota_data_initial.bin'  # written with the app by esptool so the bootloader starts ota_0 again

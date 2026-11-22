@@ -428,8 +428,9 @@ class Editor:
         chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install."""
         if not self.firmware_lock.acquire(blocking=False):
             raise ValueError('A firmware installation is already running')
-        was_running = bool(self.controller.processes())
+        was_running = False
         try:
+            was_running = bool(self.controller.processes())
             with contextlib.suppress(OSError):
                 FIRMWARE_FLAG_PATH.write_text(json.dumps({'pid': os.getpid()}), encoding='utf-8')
             if was_running:
