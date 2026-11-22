@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.6
 
 - Experimental firmware for the Elecrow CrowPanel Advance 7.0 with the ESP32-S3 (800 × 480, hardware V1.3 to V1.5), asked for in #20. It has not run on the board yet. The cable goes to the UART port, as on the P4 CrowPanel.
 - Wayland without `ydotool`: keys, typing, mouse buttons, the wheel and relative moves go through the desktop's RemoteDesktop portal. The desktop asks once and the permission is kept. `ydotool` is used whenever it is installed.
