@@ -29,8 +29,10 @@ menu "Tessera board"
     endchoice
 
     # The id the panel reports in get_info. The Guition P4 keeps "tessera-p4", the id of every release so far.
+    # Newer Guition boards have a v3.x chip, which needs its own build (boards/tessera-p4-v3.defaults).
     config TESSERA_BOARD_ID
         string
+        default "tessera-p4-v3" if TESSERA_BOARD_P4_GUITION && !ESP32P4_SELECTS_REV_LESS_V3
         default "tessera-p4" if TESSERA_BOARD_P4_GUITION
         default "tessera-p4-crowpanel7" if TESSERA_BOARD_P4_CROWPANEL7
         default "tessera-s3-ws7" if TESSERA_BOARD_S3_WS7

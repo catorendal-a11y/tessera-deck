@@ -48,6 +48,12 @@ jobs:
         run: |
           . $IDF_PATH/export.sh
           idf.py -B build/tessera-p4-crowpanel7 -DSDKCONFIG=build/tessera-p4-crowpanel7/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/crowpanel-p4-7.defaults" build
+      # Newer GUITION boards have a v3.x chip; an image for v1.x does not start on it.
+      - name: Build firmware for the GUITION board with a v3.x chip
+        shell: bash
+        run: |
+          . $IDF_PATH/export.sh
+          idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
       - name: Native LVGL render and model tests
         shell: bash
         run: |
@@ -59,7 +65,7 @@ jobs:
         shell: bash
         run: |
           python3 tools/package_firmware.py build/idf6 dist
-          for board in tessera-s3-ws7 tessera-s3-8048s070 tessera-s3-crowpanel7 tessera-p4-crowpanel7; do
+          for board in tessera-s3-ws7 tessera-s3-8048s070 tessera-s3-crowpanel7 tessera-p4-crowpanel7 tessera-p4-v3; do
             python3 tools/package_firmware.py build/$board dist --board $board
           done
           git config --global --add safe.directory "$GITHUB_WORKSPACE"

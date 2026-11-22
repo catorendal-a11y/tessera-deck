@@ -17,7 +17,7 @@
 
 | Part | Notes |
 |---|---|
-| Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C. Other sellers also list the board under this model number. |
+| Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C. Other sellers also list the board under this model number. Newer boards have chip revision v3.x and take their own package, `tessera-firmware-tessera-p4-v3-<version>.zip` (see [Flash the panel](#flash-the-panel)). |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Cable | USB cable from the PC to the board's USB Serial/JTAG port. No Wi-Fi is needed. |
 | PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
@@ -100,6 +100,7 @@ protocol before it writes anything, stops the host while it writes and starts it
 Under the package list the dialog says when the panel already has that version, when the package is older than the firmware on the panel (installing it goes back), and when the folder has no package for this Tessera version. *Check for updates* then downloads it.
 
 - A new board without Tessera firmware does not answer. The dialog then chooses *Full install* and shows *Install anyway*. Tick it. The chip type is still checked.
+- Newer GUITION boards have an ESP32-P4 of revision v3.x, and firmware for the older v1.x chip does not start on them (the screen stays black). esptool shows the revision when it connects, for example `Chip is ESP32-P4 (revision v3.2)`. A v3.x board takes `tessera-firmware-tessera-p4-v3-<version>.zip`, an older one `tessera-firmware-<version>.zip`. If you pick the wrong one, esptool refuses it before it writes anything, and the editor says which package to use.
 - The release zip includes a firmware package. *Check for updates* asks GitHub for the latest release and can download the package; it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put `tessera-firmware-<version>.zip` from the Releases page in the `firmware` folder and choose it in the dialog.
 - The flash has two 6 MB app slots for rollback. If a new firmware crashes or hangs before its first handshake with the host (or before it has run for 60 s), the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
 - On a panel with old single-slot firmware, the first update to A/B firmware must be a *Full install*. The installer says so.

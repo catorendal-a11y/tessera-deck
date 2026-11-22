@@ -23,7 +23,7 @@ from test_handshake import info, panel
 S3_BOARDS = ('tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7')
 
 
-P4_BOARDS = ('tessera-p4', 'tessera-p4-crowpanel7')
+P4_BOARDS = ('tessera-p4', 'tessera-p4-v3', 'tessera-p4-crowpanel7')
 
 
 class P4BoardTests(unittest.TestCase):
@@ -33,6 +33,17 @@ class P4BoardTests(unittest.TestCase):
             self.assertEqual(fw.BOARD_CHIPS[board], 'esp32p4')
         self.assertEqual(fw.package_name('tessera-p4', '1.0.0'), 'tessera-firmware-1.0.0.zip')
         self.assertEqual(fw.package_name('tessera-p4-crowpanel7', '1.0.0'), 'tessera-firmware-tessera-p4-crowpanel7-1.0.0.zip')
+
+    def test_a_v3_chip_gets_its_own_package_and_never_the_v1_one(self):
+        assets = [{'name': 'tessera-firmware-1.0.0.zip'}, {'name': 'tessera-firmware-tessera-p4-v3-1.0.0.zip'}]
+        self.assertEqual(fw.package_name('tessera-p4-v3', '1.0.0'), 'tessera-firmware-tessera-p4-v3-1.0.0.zip')
+        self.assertEqual(updates.firmware_asset(assets, 'tessera-p4-v3')['name'], 'tessera-firmware-tessera-p4-v3-1.0.0.zip')
+        self.assertEqual(updates.firmware_asset(assets, 'tessera-p4')['name'], 'tessera-firmware-1.0.0.zip')
+        self.assertIsNone(updates.firmware_asset(assets[:1], 'tessera-p4-v3'))
+        overlay = (ROOT / 'boards' / 'tessera-p4-v3.defaults').read_text(encoding='utf-8')
+        self.assertIn('# CONFIG_ESP32P4_SELECTS_REV_LESS_V3 is not set', overlay)
+        self.assertIn('"tessera-p4-v3" if TESSERA_BOARD_P4_GUITION && !ESP32P4_SELECTS_REV_LESS_V3',
+                      (ROOT / 'main' / 'Kconfig.projbuild').read_text(encoding='utf-8'))
 
 
 def table(*entries):

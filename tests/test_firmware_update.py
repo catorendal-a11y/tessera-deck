@@ -151,6 +151,11 @@ class InstallTests(unittest.TestCase):
         self.assertIn(('writing', 100.0), stages)
         self.assertEqual(stages[-1], ('done', 100))
 
+    def test_a_chip_revision_refusal_names_the_package_for_the_other_revision(self):
+        refusal = 'A fatal error occurred: bootloader.bin requires chip revision in range [v1.0 - v1.99] (this chip is revision v3.2)'
+        with self.assertRaisesRegex(fw.InstallError, 'tessera-p4-v3 package'):
+            fw.install(self.package, 'COM4', lambda port: None, force=True, runner=Mock(return_value=(2, refusal)))
+
     def test_a_silent_panel_needs_an_explicit_force_and_another_board_is_never_touched(self):
         runner = Mock(return_value=(0, ''))
         with self.assertRaises(fw.InstallError):

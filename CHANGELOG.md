@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Firmware for GUITION JC1060P470C boards with a v3.x ESP32-P4 chip, which newer boards have (#21). The firmware so far was built for v1.x chips only, so on these boards esptool refused it, and with the check skipped the screen stayed black. The new package is `tessera-firmware-tessera-p4-v3-<version>.zip` and the panel reports the board id `tessera-p4-v3`. It has not run on a v3.x board yet. When esptool refuses a package for the chip's revision, the editor now says which package to take.
+
 ## 1.2.6
 
 - Experimental firmware for the Elecrow CrowPanel Advance 7.0 with the ESP32-S3 (800 × 480, hardware V1.3 to V1.5), asked for in #20. It has not run on the board yet. The cable goes to the UART port, as on the P4 CrowPanel.
