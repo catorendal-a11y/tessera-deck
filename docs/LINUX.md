@@ -141,7 +141,7 @@ Audio, media, secrets, sensors and the launcher do not depend on the display ser
 ### Windows on GNOME
 
 GNOME shows a program no other windows, so Tessera comes with a small extension for GNOME Shell
-(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51):
+(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51). It is marked for GNOME 51 only, so an older GNOME will not enable it:
 
 ```
 ./Tessera.sh --gnome-extension          # copies it to ~/.local/share/gnome-shell/extensions

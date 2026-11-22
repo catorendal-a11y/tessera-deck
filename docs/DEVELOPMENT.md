@@ -21,7 +21,7 @@ Plugins and AI tools         --control API------> host
 ```text
 main/            Panel firmware: USB console, button model, LVGL UI, fonts, image decoder
 components/      Board support package for the ESP32-P4 Function EV Board (the GUITION board and the CrowPanel)
-boards/          Build settings for the CrowPanel and the two S3 boards, and the S3 board support
+boards/          Build settings for the CrowPanel and the three S3 boards, and the S3 board support
 host/            The host, for Windows and Linux
   tesserad.py          USB daemon: owns the panel, the job queue and the actions
   daemon_presses.py    Key presses: fast lane, slow lane, double taps
@@ -197,7 +197,7 @@ GitHub Actions runs these on every pull request and every push to main:
 | `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock` (Python 3.11 and 3.14) |
 | `ci.yml`, firmware-analysis | `cppcheck` on the firmware sources |
 | `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests, and the image cache benchmark with `--check`, with and without `--old-firmware` |
-| `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the two S3 boards, each with its board file |
+| `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the three S3 boards, each with its board file |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 
 [VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).
