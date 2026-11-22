@@ -30,7 +30,7 @@ from typing import Callable
 FORMAT = 1
 BOARD_ID = 'tessera-p4'  # the default board of build_package
 CHIP = 'esp32p4'
-BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3', 'tessera-s3-crowpanel7': 'esp32s3'}
+BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-v3': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3', 'tessera-s3-crowpanel7': 'esp32s3'}
 MANIFEST = 'manifest.json'
 APP_OFFSET = 0x10000
 OTADATA_NAME = 'ota_data_initial.bin'  # written with the app by esptool so the bootloader starts ota_0 again
@@ -294,6 +294,10 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
         progress('writing', 0)
         code, tail = (runner or run_esptool)(command_line(package, port, Path(folder), mode),
                             lambda percent: progress('writing', percent))
+    if code and 'requires chip revision' in tail:
+        raise InstallError('This package does not fit the chip revision of the panel, and nothing was written. '
+                           'GUITION boards with an ESP32-P4 v3.x chip take the tessera-p4-v3 package; older ones take '
+                           f'tessera-firmware-<version>.zip. {tail}')
     if code:
         raise InstallError('Flashing failed and the panel may be in download mode. Unplug the cable, plug it in '
                            f'again and retry; the ROM bootloader always allows another attempt. {tail}')
