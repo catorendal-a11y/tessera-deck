@@ -795,7 +795,9 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
                 .hsync_pulse_width = 24,
                 /* GUITION's 52 MHz line (1344 px) at the 48 MHz the chip makes: front porch 57 keeps
                  * the line time and ~61 Hz, as espcontrol's v3.2 profile runs it. 160 made the line longer. */
-                .hsync_front_porch = 57,
+                /* Test for #21: 1280 px per line. 1280 x 750 / 48 / 8 = 2500 lane byte clocks, a whole number,
+                 * so the DSI host and the bridge count the same line length. 1241 px gave 2423.8. */
+                .hsync_front_porch = 96,
                 .vsync_back_porch = 21,
                 .vsync_pulse_width = 2,
                 .vsync_front_porch = 12,
