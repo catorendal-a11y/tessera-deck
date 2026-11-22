@@ -831,6 +831,13 @@ esp_err_t bsp_display_new_with_handles(const bsp_display_config_t *config, bsp_l
      * board's proven reference firmware and explicitly enable the panel after
      * reset/init instead of relying only on the 0x29 init command. */
     ESP_GOTO_ON_ERROR(esp_lcd_panel_disp_on_off(disp_panel, true), err, TAG, "LCD panel ON failed");
+#if BSP_LCD_JD9165_NEW_PANEL
+    /* Test build for #21: 8 s of the DSI host's own colour bars, which do not come from PSRAM */
+    bsp_display_brightness_set(100);
+    esp_lcd_dpi_panel_set_pattern(disp_panel, MIPI_DSI_PATTERN_BAR_VERTICAL);
+    vTaskDelay(pdMS_TO_TICKS(8000));
+    esp_lcd_dpi_panel_set_pattern(disp_panel, MIPI_DSI_PATTERN_NONE);
+#endif
     // ESP_GOTO_ON_ERROR(esp_lcd_panel_disp_sleep(disp_panel, false), err, TAG, "LCD Sleep ON failed");
 
 #else
