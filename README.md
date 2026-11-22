@@ -45,7 +45,7 @@ Tessera is a macro deck for Windows and Linux that you build from one 7-inch tou
 | [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
 | [Elecrow CrowPanel Advance 7.0 ESP32-S3](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental, hardware V1.3 to V1.5. Not run on the board yet. |
 
-If you have one of the S3 boards, [tell me how it goes in Discussions](https://github.com/catorendal-a11y/tessera-deck/discussions/new?category=general). [Contributing](CONTRIBUTING.md#port-to-another-board) says what a port to another board needs.
+If you have one of the S3 boards, [tell me how it goes in the S3 test reports](https://github.com/catorendal-a11y/tessera-deck/discussions/29). [Contributing](CONTRIBUTING.md#port-to-another-board) says what a port to another board needs.
 
 ## In short
 
