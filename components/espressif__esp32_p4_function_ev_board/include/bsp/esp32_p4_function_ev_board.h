@@ -99,7 +99,13 @@
 #define BSP_LCD_TOUCH_INT     (GPIO_NUM_42)
 #elif CONFIG_BSP_LCD_TYPE_1024_600
 #define BSP_LCD_BACKLIGHT     (GPIO_NUM_23)
+#if !CONFIG_ESP32P4_SELECTS_REV_LESS_V3
+/* Boards with a v3.x chip have the newer JD9165 panel ("New Panel" in GUITION's demos), reset on GPIO0 (#21) */
+#define BSP_LCD_JD9165_NEW_PANEL 1
+#define BSP_LCD_RST           (GPIO_NUM_0)
+#else
 #define BSP_LCD_RST           (GPIO_NUM_5)
+#endif
 #define BSP_LCD_TOUCH_RST     (GPIO_NUM_NC)
 #define BSP_LCD_TOUCH_INT     (GPIO_NUM_NC)
 #else
