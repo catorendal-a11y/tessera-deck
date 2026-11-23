@@ -23,6 +23,10 @@ if [ "${1:-}" = "--gnome-extension" ]; then  # needs no Python environment
   fi
   mkdir -p "$(dirname "$target")" && rm -rf "$target" && cp -r host/linux/gnome-extension/tessera-windows@tessera "$target" || exit 1
   echo "Installed $target"
+  shell_major="$(gnome-shell --version 2>/dev/null | tr -dc '0-9.' | cut -d. -f1)"
+  if [ -n "$shell_major" ] && [ "$shell_major" -lt 51 ]; then  # metadata.json lists GNOME 51 only
+    echo "Warning: this extension is marked for GNOME 51 or newer and your GNOME Shell is $shell_major, so GNOME will not enable it." >&2
+  fi
   echo "GNOME loads new extensions at sign-in. Sign out and in again, then run:"
   echo "  gnome-extensions enable tessera-windows@tessera"
   echo "While it is on, any program of your session can read window titles and focus, move or close windows. Turn it off with"

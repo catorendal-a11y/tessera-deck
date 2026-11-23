@@ -100,6 +100,19 @@ class LauncherTests(unittest.TestCase):
         (self.folder / '.local/share/gnome-shell/extensions/tessera-windows@tessera').mkdir(parents=True)
         self.assertEqual(self.notes(tools, XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='ubuntu:GNOME'), '')
 
+    def test_installing_the_gnome_extension_warns_on_a_gnome_older_than_the_one_it_is_marked_for(self):
+        # the extension's metadata.json lists GNOME 51 only; an older Shell refuses to enable it
+        shutil.copytree(ROOT / 'host/linux/gnome-extension', self.folder / 'host/linux/gnome-extension')
+        shell = self.folder / 'bin/gnome-shell'
+        for version, warned in (('50.1', True), ('51.0', False)):
+            shell.write_text(f'#!/bin/sh\necho "GNOME Shell {version}"\n')
+            shell.chmod(shell.stat().st_mode | stat.S_IXUSR)
+            done = subprocess.run(['bash', str(self.folder / 'Tessera.sh'), '--gnome-extension'], capture_output=True, text=True,
+                                  timeout=30, env=dict(os.environ, XDG_DATA_HOME=str(self.folder / 'data'),
+                                                       PATH=f'{self.folder / "bin"}:{os.environ["PATH"]}'))
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual('GNOME 51' in done.stderr, warned, done.stderr)
+
     def test_without_ydotool_the_portal_is_named(self):
         self.assertIn('RemoteDesktop portal', self.notes({'kdotool': 0, 'wl-copy': 0}, XDG_SESSION_TYPE='wayland',
                                                          XDG_CURRENT_DESKTOP='KDE'))

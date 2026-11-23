@@ -862,6 +862,7 @@ class ExtensionFilesTests(unittest.TestCase):
         meta = json.loads((self.folder / 'metadata.json').read_text(encoding='utf-8'))
         self.assertEqual(meta['uuid'], self.folder.name)
         self.assertEqual(meta['shell-version'], ['51'])
+        self.assertIn('GNOME 51 or newer', gnome_windows.MISSING)  # a user told to enable it learns it needs this version
 
     def test_the_extension_and_the_host_agree_on_the_bus_name_the_path_and_the_methods(self):
         code = (self.folder / 'extension.js').read_text(encoding='utf-8')
