@@ -397,6 +397,26 @@ class ReconnectProbeTests(unittest.TestCase):
             self.assertIn('update the firmware or the host', str(raised.exception))
         self.assertEqual([fake.port for fake in FakeSerial.opened], ['COM6'])
 
+    def test_a_new_user_hears_about_the_blank_panel_not_about_a_busy_com4(self):
+        import serial
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port == 'COM4':  # a modem or Bluetooth port another program holds
+                    raise serial.SerialException("could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)")
+
+            def write(self, raw):  # nothing reads on a panel without firmware
+                raise serial.SerialTimeoutException('Write timeout')
+
+        self.state.unlink()  # no panel was connected before
+        self.listed = [types.SimpleNamespace(device='COM4', vid=None, serial_number=None),
+                       types.SimpleNamespace(device='COM7', vid=0x303A, serial_number='P4BLANK')]
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                self.assertRaises(OSError) as raised:
+            self.daemon(port='COM4').open_panel()  # COM4 is the Windows default the host is started with
+        self.assertIn('COM7 does not take data', str(raised.exception))
+        self.assertNotIn('in use', str(raised.exception))
+
     def test_with_tessera_port_set_only_that_port_is_opened(self):
         import os
         os.environ['TESSERA_PORT'] = 'COM8'

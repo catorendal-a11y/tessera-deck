@@ -154,7 +154,11 @@ def candidate_ports(requested, state_path, installed=None, espressif=None):
     try:
         others = espressif if espressif is not None else _espressif_ports()
     except (ImportError, OSError):
-        others = []
+        return [first] if first else []
+    # Without TESSERA_PORT the port name (COM4 on Windows) is a guess: it is tried only when a panel's USB id is on it,
+    # so a modem or Bluetooth port there is never opened and its errors never hide what the real panel said.
+    if first not in others and not os.environ.get('TESSERA_PORT'):
+        first = None
     return ([first] if first else []) + [device for device in sorted(others) if device != first]
 
 
