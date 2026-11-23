@@ -185,6 +185,17 @@ class FirmwareInstallTests(unittest.TestCase):
         self.assertEqual(len(refused), 2, 'an install ran while the program update could restart the editor')
         self.assertEqual(editor.firmware_job, {'state': 'idle'})
 
+    def test_the_update_button_is_off_while_the_firmware_installs(self):
+        found = run_editor(self, '''
+api = async () => ({job: {state: 'running', stage: 'writing', percent: 40}});
+await pollFirmware();
+const during = $('#host-update').disabled === true;
+api = async () => ({job: {state: 'done', stage: 'done', percent: 100, result: {installed: '1.2.3'}}});
+await pollFirmware();
+return {during, after: $('#host-update').disabled};
+''')
+        self.assertEqual(found, {'during': True, 'after': False})
+
     def test_closing_the_window_waits_for_a_running_firmware_install(self):
         servers, install, real = [], {}, tessera_app.make_server
 
