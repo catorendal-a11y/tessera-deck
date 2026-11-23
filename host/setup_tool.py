@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from platform_support import load
+from platform_support import IS_LINUX, load
 
 ROOT = Path(__file__).resolve().parents[1]
 HASH_FILE = ROOT / 'host/.venv/requirements.sha256'
@@ -24,10 +24,10 @@ REQUIREMENTS = ROOT / 'host/requirements.txt'
 LOCK = ROOT / 'host/requirements.lock'
 MODULE_PROBE = load('labels').MODULE_PROBE
 MINIMUM_PYTHON = (3, 11)
-# Glob patterns. profiles-*.local.json are the previous and the unreadable copies, profiles.json.*.tmp a save cut short.
-USER_DATA = ('host/profiles.json', 'host/assets', 'host/backups', 'host/state.local.json', 'host/editor.local.json',
-             'host/icon-library.local.json', 'host/profiles-*.local.json', 'host/profiles.json.*.tmp',
-             'host/deck-device.local.json', 'host/profiles.backup.local.json', 'diagnostics', 'firmware', 'dist')
+# Glob patterns. host/*.local.* is every state, log, lock and copy file the host writes (profiles-*.local.json are the
+# previous and the unreadable copies); profiles.json.*.tmp is a save cut short.
+USER_DATA = ('host/profiles.json', 'host/assets', 'host/backups', 'host/*.local.*', 'host/profiles.json.*.tmp',
+             'diagnostics', 'firmware', 'dist')
 
 
 def requirements_hash(path: Path = REQUIREMENTS) -> str:
@@ -114,12 +114,18 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
     Raises OSError after the report when a purge could not delete everything.
     """
     removed, failed = [], []
-    if autostart is None:
+    own_autostart = autostart is None
+    if own_autostart:
         sys.path.insert(0, str(root / 'host'))
         from deck_control import set_autostart as autostart
     try:
+        had_entry = True  # a stand-in has no entry to look at
+        if own_autostart:
+            from deck_control import startup_script_path
+            had_entry = startup_script_path().exists()
         autostart(False)
-        removed.append('start with ' + load('labels').AUTOSTART_NAME)
+        if had_entry:
+            removed.append('start with ' + load('labels').AUTOSTART_NAME)
     except OSError as exc:
         emit(f'Could not remove the autostart entry: {exc}')
     shortcuts = [path for path in load('shortcuts').shortcut_files(link or desktop_shortcut_path()) if path.exists()]
@@ -178,7 +184,7 @@ def running_programs(processes, root: Path, own: int) -> list:
 def restart_command(root: Path) -> list[str]:
     """The start file, which also installs what a new version needs before it starts the tray and the editor."""
     launcher = str(Path(root) / load('labels').LAUNCHER)
-    return ['cmd', '/c', launcher] if os.name == 'nt' else [launcher]
+    return [launcher, '--app'] if IS_LINUX else ['cmd', '/c', launcher]  # Tessera.sh alone starts only the tray
 
 
 def restart(root: Path = ROOT, wait: Callable[[float], None] = time.sleep) -> None:

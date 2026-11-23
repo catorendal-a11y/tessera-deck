@@ -512,7 +512,7 @@ class TrayApp:
         """Start a host again that died without the user pressing Stop: after 5 s, 15 s, 60 s, then every 5 min.
         One notice per burst; a host that then runs RESTART_RESET_SECONDS starts the next burst afresh."""
         if running:
-            self.seen_running, self.restart_at = True, None
+            self.seen_running, self.restart_at, self.user_stopped = True, None, False  # started another way after Stop
             if self.running_since is None:
                 self.running_since = now
             elif now - self.running_since >= RESTART_RESET_SECONDS:

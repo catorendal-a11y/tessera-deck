@@ -15,6 +15,13 @@
   - Keyboard focus stays where it was after a favorite, a kept backup, a screen setting or closing the Getting started card. The step buttons ↑ ↓ × have names for screen readers.
 - The tray's *Check for updates* notice says how to update from the editor. It still pointed to the Releases page, from before the editor could update Tessera itself.
 - The tray can look for a new version once a day and tell you once when one is out. It is your choice: on Windows the tray asks once, and **Help → Check for updates automatically** in the tray menu switches it on or off (on Linux it is off until you tick it). The look asks GitHub for the latest release and sends nothing about you or your setup. A Tessera from a package manager and a source checkout do not run it.
+- Updating Tessera from the editor is safer:
+  - The new version's packages are installed before Tessera closes. If that fails (no network), the dialog says so. Before, Tessera closed and never came back.
+  - Every file of the new version is written first and swapped in at the end, with `VERSION` last. A file that is in use no longer leaves a folder with two versions mixed, and the update can be tried again.
+  - On Linux the editor opens again after the update. Only the tray did.
+- A first start that failed while it installed the packages repeats the first-run steps the next time, so the Desktop shortcut is made (Windows).
+- A host that was started again after *Stop host* in the tray (from the editor, the terminal or a firmware install) is restarted automatically again if it dies.
+- `--uninstall --purge` also deletes the logs and the other `*.local.*` files in `host/`. The uninstall names the autostart entry only when there was one.
 
 ## 1.2.9
 

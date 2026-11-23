@@ -537,9 +537,16 @@ class Editor:
         except zipfile.BadZipFile as exc:
             raise ValueError('The update file cannot be read as a zip; nothing was changed.') from exc
         latest = self.last_release['latest']
+        # the restart has no console, so a failed package step would go unseen: run it here, where the dialog can say so
+        step = subprocess.run([str(venv_python(ROOT)), str(ROOT / 'host/setup_tool.py'), 'ensure'], capture_output=True, text=True,
+                              errors='replace', creationflags=NO_WINDOW, stdin=subprocess.DEVNULL)
+        if step.returncode != 0:
+            detail = ' '.join((step.stdout + step.stderr).split())[-300:]
+            raise ValueError(f'Tessera {latest} is in place, but its packages could not be installed: {detail} '
+                             'The update will finish when Tessera is started with a network connection.')
         self.restart_soon()
         return {'version': latest, 'files': written,
-                'message': f'Tessera {latest} is in place and starts again now. '
+                'message': f'Tessera {latest} is in place. This window closes and opens again in a few seconds. '
                            'Then update the panel here if this dialog offers newer firmware.'}
 
     @staticmethod
