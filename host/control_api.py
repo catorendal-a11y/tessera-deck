@@ -381,6 +381,9 @@ class ControlServer:
                     return self.reply(403, {'error': str(exc)})
                 except (ValueError, TypeError) as exc:
                     return self.reply(400, {'error': str(exc)})
+                except Exception as exc:  # a bug in a route: answer, and leave a line to find it by
+                    api.daemon.log(f'Control API: {route} failed: {exc!r}')
+                    return self.reply(500, {'error': 'The host could not do that. The host log says why.'})
                 self.reply(200, result if isinstance(result, dict) else {'ok': True, 'queued': True})
 
         return Handler

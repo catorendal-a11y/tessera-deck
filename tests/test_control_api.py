@@ -36,6 +36,13 @@ class ControlApiTests(unittest.TestCase):
         self.addCleanup(self.api.stop)
         self.port = self.api.server.server_port
 
+    def test_a_route_that_fails_unexpectedly_answers_and_leaves_a_line_in_the_log(self):
+        self.api.routes['page'] = Mock(side_effect=KeyError('pages'))
+        status, body = self.call('POST', '/v1/page', {'page': 'main'})
+        self.assertEqual(status, 500)
+        self.assertIn('host log', body['error'])
+        self.assertTrue(any('page' in line and 'KeyError' in line for line in self.logged))
+
     def call(self, method, path, data=None, token=None, headers=None, raw=None):
         body = raw if raw is not None else None if data is None else json.dumps(data).encode()
         sent = {'Content-Type': 'application/json'}

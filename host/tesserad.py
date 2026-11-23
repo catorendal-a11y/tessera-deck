@@ -2,6 +2,8 @@
 """Tessera action engine and sole USB owner."""
 import argparse
 import collections
+import contextlib
+import errno
 import http.client
 import itertools
 import json
@@ -134,6 +136,18 @@ def panel_label(text):
 
 
 
+
+
+def port_trouble(port, exc):
+    """Why a serial port did not open, in plain words where pyserial says it: its own text names Python exceptions."""
+    text, code = str(exc), getattr(exc, 'errno', None)
+    if code == errno.ENOENT or 'FileNotFoundError' in text:
+        return f'{port} is not there. Check the USB cable.'
+    if code == errno.EBUSY or 'PermissionError' in text:  # Windows refuses a port that is open elsewhere with "Access is denied"
+        return f'{port} is in use by another program. Close the serial monitor, flasher or second Tessera that has it open.'
+    if code == errno.EACCES:
+        return f'{port} may not be opened by your user. Join the group uucp (Arch) or dialout (Debian, Ubuntu) and sign in again.'
+    return f'{port}: {exc}'
 
 
 class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
@@ -671,7 +685,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             while not self.stop.is_set() and panel is self.panel and not self.connection_failed.is_set():
                 self.heartbeat(panel, time.monotonic())
                 self.stop.wait(1)
-        except (OSError, ValueError, AttributeError, TypeError) as exc:
+        except Exception as exc:  # any error: a heartbeat thread that ends quietly leaves the panel on "PC lost"
             if panel is self.panel and not self.stop.is_set():  # without a heartbeat the panel shows a lost PC
                 self.log(f'Heartbeat failed: {exc!r}')
                 self.connection_failed.set()
@@ -777,9 +791,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.agent_touch(message['id'], message['do'])
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
-        except (OSError, ValueError, TypeError, AttributeError) as exc:
+        except Exception as exc:
+            if panel is self.panel:
+                self.connection_failed.set()  # first: publishing waits for the state lock, the reconnect must not
             if not self.stop.is_set():
-                self.log(f'USB disconnected: {exc}')
+                self.log(f'USB disconnected: {exc if isinstance(exc, OSError) else repr(exc)}')
                 self.publish_runtime(False, exc, force=True)
         finally:
             if panel is self.panel:
@@ -996,7 +1012,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             except DeviceRejected as exc:
                 failures.append(str(exc))
             except OSError as exc:
-                failures.append(f'{port}: {exc}')
+                failures.append(port_trouble(port, exc))
         raise OSError('; '.join(failures) or 'No USB port found')
 
     def run(self):
@@ -1022,7 +1038,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         pass
                 if (self.panel is None or self.connection_failed.is_set()) and time.monotonic() >= retry_at:
                     if self.panel:
-                        self.panel.close()
+                        with contextlib.suppress(OSError):  # a port that is gone can fail to close
+                            self.panel.close()
                     self.panel = None
                     try:
                         self.panel, self.port = self.open_panel()
@@ -1052,13 +1069,17 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         self.publish_runtime(True, force=True)
                         missed = self.reconnect.recovered()
                         self.log(f'USB ready on {self.port}' + (f' after {missed} failed attempts' if missed > 1 else ''))
-                    except (OSError, ValueError, TimeoutError) as exc:
-                        wait, show = self.reconnect.failed(str(exc))
+                    except Exception as exc:  # whatever went wrong, try again: an error here used to end the host
+                        reason = str(exc) if isinstance(exc, (OSError, ValueError)) else f'{type(exc).__name__}: {exc}'
+                        wait, show = self.reconnect.failed(reason)
                         if show:
-                            self.log(f'USB: {exc}; retrying in {wait} seconds')
-                        self.publish_runtime(False, exc, force=True)
+                            self.log(f'USB: {reason}; retrying in {wait} seconds')
                         self.connection_failed.set()
                         retry_at, connect_error = time.monotonic() + wait, exc
+                        try:  # after the retry is set: what failed above can fail again here, and must not end the loop
+                            self.publish_runtime(False, exc, force=True)
+                        except Exception as report:
+                            self.log(f'USB: the state could not be published: {report!r}')
                 if not startup_fired:  # after the first try to connect, with or without a panel
                     self.fire_trigger({'type': 'startup'})
                     startup_fired = True
