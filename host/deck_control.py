@@ -22,10 +22,19 @@ FIRMWARE_FLAG_SECONDS = 600  # a flash takes about a minute; a flag left by a cr
 
 def firmware_installing(path=None):
     """True while the editor installs panel firmware: a host started then takes the COM port from esptool."""
+    path = Path(path or FIRMWARE_FLAG_PATH)
     try:
-        return time.time() - Path(path or FIRMWARE_FLAG_PATH).stat().st_mtime < FIRMWARE_FLAG_SECONDS
+        fresh = time.time() - path.stat().st_mtime < FIRMWARE_FLAG_SECONDS
     except OSError:
         return False
+    try:
+        pid = json.loads(path.read_text(encoding='utf-8')).get('pid')
+    except (OSError, ValueError, AttributeError):
+        pid = None  # unreadable: only the age decides
+    if fresh and isinstance(pid, int) and not psutil.pid_exists(pid):
+        path.unlink(missing_ok=True)  # the editor that wrote it was closed or crashed mid-install
+        return False
+    return fresh
 
 
 def startup_script_path(appdata=None):
