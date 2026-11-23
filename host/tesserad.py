@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import subprocess  # noqa: F401  (the tests patch deck.subprocess)
 import sys
@@ -52,7 +53,7 @@ from daemon_display import DisplayMixin
 from daemon_presses import DOUBLE_PRESS_SECONDS, PressMixin  # noqa: F401
 from daemon_ticks import BackgroundMixin
 from panel_serial import (OFFLINE_LAYOUT_BYTES, SUPPORTED_PROTOCOLS, DeviceRejected,  # noqa: F401
-                          PanelSerial, layout_bytes, restart_report)
+                          PanelSerial, layout_bytes, restart_report, serial)
 
 JOB_QUEUE_SIZE = 128
 SLOW_LANE_LIMIT = 4
@@ -148,13 +149,19 @@ def panel_label(text):
 def port_trouble(port, exc):
     """Why a serial port did not open, in plain words where pyserial says it: its own text names Python exceptions."""
     text, code = str(exc), getattr(exc, 'errno', None)
+    # On Windows pyserial ends its text with repr(ctypes.WinError()), whose last number is the Windows error code.
+    # Python files several codes under PermissionError, so the class name alone does not mean "in use".
+    found = re.search(r', (\d+)\)$', text)
+    windows = int(found.group(1)) if found else None
     if code == errno.ENOENT or 'FileNotFoundError' in text:
         return f'{port} is not there. Check the USB cable.'
-    if code == errno.EBUSY or 'PermissionError' in text:  # Windows refuses a port that is open elsewhere with "Access is denied"
+    if code == errno.EBUSY or windows in (5, 32):  # access denied, sharing violation: the port is open elsewhere
         return f'{port} is in use by another program. Close the serial monitor, flasher or second Tessera that has it open.'
+    if windows in (22, 31, 121, 433):  # the driver lost the device: after sleep, a flaky cable, an absent Bluetooth port
+        return f'The USB device on {port} stopped responding. Unplug it and plug it in again.'
     if code == errno.EACCES:
         return f'{port} may not be opened by your user. Join the group uucp (Arch) or dialout (Debian, Ubuntu) and sign in again.'
-    if 'timeout' in text.lower():  # it opened but takes no data: the bootloader of a board without firmware only prints
+    if isinstance(exc, getattr(serial, 'SerialTimeoutException', ())):  # it opened but takes no data: the bootloader of a board without firmware only prints
         return (f'{port} does not take data. If the panel has no firmware yet, install it in the editor: '
                 'Panel, then Panel firmware and updates.')
     return f'{port}: {exc}'

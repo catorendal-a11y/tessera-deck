@@ -297,6 +297,26 @@ class PortSelectionTests(unittest.TestCase):
         self.assertIn('/dev/ttyACM1 is in use by another program', text)
         self.assertNotIn('PermissionError', text)
 
+    def test_windows_errors_that_need_a_replug_say_so(self):
+        import serial
+
+        def refused(error):  # as serialwin32 raises it, with repr(ctypes.WinError(code)) as printed by Python 3.11
+            return serial.SerialException(f"could not open port 'COM4': {error}")
+        replug = ("PermissionError(13, 'A device attached to the system is not functioning.', None, 31)",  # after sleep
+                  "PermissionError(13, 'The device does not recognize the command.', None, 22)",
+                  "OSError(22, 'The semaphore timeout period has expired.', None, 121)",  # an absent Bluetooth COM port
+                  "OSError(22, 'A device which does not exist was specified.', None, 433)")
+        for error in replug:
+            with self.subTest(error=error):
+                said = deck.port_trouble('COM4', refused(error))
+                self.assertIn('Unplug', said)
+                self.assertNotIn('in use', said)
+                self.assertNotIn('firmware', said)
+        for error in ("PermissionError(13, 'Access is denied.', None, 5)",
+                      "PermissionError(13, 'The process cannot access the file because it is being used by another process.', None, 32)"):
+            self.assertIn('in use', deck.port_trouble('COM4', refused(error)))
+        self.assertIn('no firmware yet', deck.port_trouble('COM4', serial.SerialTimeoutException('Write timeout')))
+
 
 class ReconnectProbeTests(unittest.TestCase):
     """What the reconnect loop opens while no panel answers. Every open of a UART board restarts it on Linux, and on
