@@ -189,6 +189,14 @@ class EditorCommandTests(unittest.TestCase):
                                                           "Profile 'Main' / page 'First' / button 2 'Mute'", 'panel apps'])
             self.assertEqual(review(editor.command('sanitize', {'config': config})['config']), [])
 
+    def test_the_plugin_list_names_the_program_the_consent_dialog_shows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            rows = {row['id']: row for row in editor.command('plugins', {})['plugins']}
+            self.assertEqual(rows['obs']['command'], ['python', 'main.py'])
+
 
 class SubstitutionTests(unittest.TestCase):
     def daemon(self):

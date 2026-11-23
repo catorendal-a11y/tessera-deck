@@ -590,7 +590,7 @@ class Editor:
             enabled = bool(entry.get('enabled'))
             state = live.get(manifest.id, {})
             rows.append({'id': manifest.id, 'name': manifest.name, 'version': manifest.version,
-                         'permissions': sorted(manifest.permissions), 'settings': manifest.settings, 'enabled': enabled,
+                         'permissions': sorted(manifest.permissions), 'command': list(manifest.command), 'settings': manifest.settings, 'enabled': enabled,
                          'values': entry.get('settings', {}),
                          'state': state.get('state', 'starting' if enabled else 'disabled') if enabled else 'disabled',
                          'error': state.get('error', '')})
