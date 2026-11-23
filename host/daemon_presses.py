@@ -37,7 +37,7 @@ class PressMixin:
         if not self.input_lock.acquire(blocking=False):
             if threading.get_ident() == self.worker_ident:
                 # the worker runs every press in turn: waiting here leaves all later presses to go stale
-                raise RuntimeError('The keyboard is busy: another key is still typing')
+                raise RuntimeError('Another key is still typing. Press this key again when it is done.')
             with self.state_lock.suspended():
                 self.input_lock.acquire()
         try:
@@ -160,7 +160,7 @@ class PressMixin:
                 # press and state steps pick keys of the current page, so only they would reach the wrong key; a
                 # hotkey or typing after "open app, delay" must still run when auto switching followed that app
                 if moved and action['type'] in ('press', 'state'):
-                    raise RuntimeError('The page changed while the key was waiting')
+                    raise RuntimeError('The page changed while this key waited. Open its page and press it again.')
                 # asked before the step runs: a press step waits when its key does, and that key is on this page
                 where, waited = (self.profile, self.page), self.waits([action])
                 self.run_action(action)
