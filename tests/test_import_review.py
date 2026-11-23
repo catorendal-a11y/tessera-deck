@@ -204,6 +204,18 @@ class EditorCommandTests(unittest.TestCase):
                                                           "Profile 'Main' / page 'First' / button 2 'Mute'", 'panel apps'])
             self.assertEqual(review(editor.command('sanitize', {'config': config})['config']), [])
 
+    @windows_only
+    def test_a_long_panel_app_name_from_the_other_system_gets_exe_like_a_short_one(self):
+        name = 'a' * 35  # the longest name panel.apps accepts before .exe
+        config = {'default_profile': 'Main', 'panel': {'apps': [name]}, 'profiles': {'Main': {'match': [], 'pages': {'First': []}}}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            result = editor.command('review', {'config': config})
+            deck.validate_config(result['config'])
+            self.assertEqual(result['config']['panel']['apps'], [name + '.exe'])
+
     def test_the_plugin_list_names_the_program_the_consent_dialog_shows(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'profiles.json'

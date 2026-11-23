@@ -160,7 +160,7 @@ def adapt_to_this_system(config: dict):
     apps = panel.get('apps') if isinstance(panel, dict) else None
     if isinstance(apps, list):
         fixed = [f'{app}.exe' if isinstance(app, str) and not re.fullmatch(rf'[A-Za-z0-9_.-]{{1,35}}{SUFFIX}', app)
-                 and re.fullmatch(rf'[A-Za-z0-9_.-]{{1,31}}{SUFFIX}', app + '.exe') else app for app in apps]
+                 and re.fullmatch(rf'[A-Za-z0-9_.-]{{1,35}}{SUFFIX}', app + '.exe') else app for app in apps]
         if fixed != apps:
             panel['apps'] = fixed
             where.append('panel apps')
