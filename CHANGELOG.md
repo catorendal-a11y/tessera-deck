@@ -6,7 +6,7 @@
 - The package list names the boards (GUITION JC1060P470C, Elecrow CrowPanel Advance 7.0 and so on) instead of their internal ids.
 - *Check for updates* downloads the package for the board the dialog found, not always the one for the GUITION v1.x board.
 - The tray's *Check for updates* notice says how to update from the editor. It still pointed to the Releases page, from before the editor could update Tessera itself.
-- The tray looks for a new version once a day and tells you once when one is out. It asks GitHub for the latest release and sends nothing about you or your setup. **Help → Check for updates automatically** in the tray menu switches it off. A Tessera from a package manager and a source checkout do not run it.
+- The tray can look for a new version once a day and tell you once when one is out. It is your choice: on Windows the tray asks once, and **Help → Check for updates automatically** in the tray menu switches it on or off (on Linux it is off until you tick it). The look asks GitHub for the latest release and sends nothing about you or your setup. A Tessera from a package manager and a source checkout do not run it.
 
 ## 1.2.9
 
