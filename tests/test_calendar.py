@@ -119,6 +119,13 @@ class ReadingTests(unittest.TestCase):
             text = ics(['DTSTART:20250106T090000', rule + f';COUNT={count}', 'SUMMARY:Standup'])
             self.assertEqual(summaries(text, friday_evening), shown, count)
 
+    def test_a_weekday_rule_with_a_count_started_long_ago_is_still_shown(self):
+        # Monday 2010-01-04 to Friday 2026-11-20: 880 whole weeks (4400 weekdays) plus 5, so the 4405th is that Friday.
+        friday_evening = datetime(2026, 11, 20, 20, 0)
+        for count, shown in ((4405, [('Fri 09:00', 'Standup')]), (4404, []), (9999, [('Fri 09:00', 'Standup')])):
+            text = ics(['DTSTART:20100104T090000', f'RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;COUNT={count}', 'SUMMARY:Standup'])
+            self.assertEqual(summaries(text, friday_evening), shown, count)
+
     def test_until_count_month_days_and_odd_rules(self):
         until = ics(['DTSTART:20261111T091000', 'RRULE:FREQ=DAILY;UNTIL=20261113T091000', 'SUMMARY:Last'])
         self.assertEqual(summaries(until), [('Fri 09:10', 'Last')], 'UNTIL at the start time includes it')

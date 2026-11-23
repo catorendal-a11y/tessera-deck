@@ -195,9 +195,10 @@ def _starts(event: dict, until: datetime, budget: list | None = None):
     if frequency in ('DAILY', 'WEEKLY'):  # jump over the years before the window instead of walking them
         period = interval * (1 if frequency == 'DAILY' else 7)
         skip = max(0, ((until - LOOK_AHEAD * 2).date() - first).days // period - 1)
-        if frequency == 'DAILY' and by_day and count is not None:
-            skip = 0  # days dropped by BYDAY are not counted, so COUNT needs the walk
-        if skip:  # what COUNT has already used up in the skipped weeks or days
+        if frequency == 'DAILY' and by_day:  # BYDAY drops days, and every 7 steps land on each weekday the same way
+            skip -= skip % 7
+            made = skip // 7 * sum((first + timedelta(days=step * interval)).weekday() in days for step in range(7))
+        elif skip:  # what COUNT has already used up in the skipped weeks or days
             made = skip if frequency == 'DAILY' else skip * len(days) - sum(day < first.weekday() for day in days)
     elif frequency in ('MONTHLY', 'YEARLY') and count is None:  # the same jump; COUNT needs the walk to count
         target = (until - LOOK_AHEAD * 2).date()
