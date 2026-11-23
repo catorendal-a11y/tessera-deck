@@ -7,11 +7,13 @@ from unittest.mock import Mock, patch
 
 import psutil
 
+from platform_marks import windows_only
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 
 
-@unittest.skipUnless(sys.platform == 'win32', 'pycaw is Windows only')
+@windows_only
 class OtherDeviceTests(unittest.TestCase):
     """Fakes stand in for Core Audio only: one enumerator, two output devices, the program on the second."""
 
