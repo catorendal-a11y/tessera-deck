@@ -266,6 +266,7 @@ class TrayRestartTests(unittest.TestCase):
         self.assertIn('Panel → Panel firmware and updates', text)  # the notice says where to update
 
 
+@unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
 class AutoUpdateCheckTests(unittest.TestCase):
     """The tray's own daily look at the releases: once a day, one notice per release, and an off switch."""
 
@@ -286,6 +287,9 @@ class AutoUpdateCheckTests(unittest.TestCase):
         self.app.icon = Mock()
         self.app.background = lambda work, *args: work(*args)
         self.newer = {'newer': True, 'latest': '1.3.0', 'notes': '- faster'}
+        self.dialogs = Mock(**{'ask_yes_no.return_value': True})
+        self.enterContext(patch.object(tessera_tray, 'load', lambda name: self.dialogs if name == 'dialogs' else Mock()))
+        tessera_tray.save_update_check(enabled=True)  # the user said yes; the question has its own tests
 
     def look(self, release, now, uptime):
         with patch.object(updates, 'check', return_value=release) if not isinstance(release, Exception) \
@@ -318,6 +322,7 @@ class AutoUpdateCheckTests(unittest.TestCase):
         self.assertFalse(self.tray.auto_update_check_enabled())
         self.app.icon.update_menu.assert_called_once()
         self.assertEqual(self.look(self.newer, 1000, 200), 0)
+        self.dialogs.ask_yes_no.assert_not_called()  # switched off is a choice: no question follows
         self.app.toggle_auto_update_check()
         self.assertTrue(self.tray.auto_update_check_enabled())
         with patch.dict('os.environ', {'TESSERA_PACKAGED': '1'}):
@@ -326,10 +331,35 @@ class AutoUpdateCheckTests(unittest.TestCase):
         self.assertEqual(self.look(self.newer, 1000, 2000), 0)
         self.app.icon.notify.assert_not_called()
 
-    def test_a_damaged_state_file_counts_as_never_checked(self):
+    def test_a_damaged_state_file_counts_as_never_asked(self):
         self.state.write_text('not json', encoding='utf-8')
-        self.assertEqual(self.look(self.newer, 1000, 200), 1)
-        self.assertEqual(json.loads(self.state.read_text(encoding='utf-8')), {'checked': 1000, 'told': '1.3.0'})
+        self.assertEqual(self.look(self.newer, 1000, 200), 0)
+        self.assertEqual(self.dialogs.ask_yes_no.call_count, 1, 'the choice was lost with the file: ask again')
+        self.assertEqual(self.look(self.newer, 1000, 300), 1)
+        self.assertEqual(json.loads(self.state.read_text(encoding='utf-8')), {'enabled': True, 'checked': 1000, 'told': '1.3.0'})
+
+    def test_nothing_is_looked_up_until_the_user_has_said_yes(self):
+        self.state.unlink()
+        self.assertFalse(self.tray.auto_update_check_enabled())
+        self.assertEqual(self.look(self.newer, 1000, 200), 0, 'the first look only asks')
+        self.assertIn('once a day', self.dialogs.ask_yes_no.call_args.args[0])
+        self.assertTrue(self.tray.auto_update_check_enabled())
+        self.assertEqual(self.look(self.newer, 1000, 201), 1, 'and after a yes it looks at once')
+        self.assertEqual(self.dialogs.ask_yes_no.call_count, 1)
+
+    def test_a_no_is_kept_and_not_asked_again(self):
+        self.state.unlink()
+        self.dialogs.ask_yes_no.return_value = False  # also what a desktop without the dialog answers
+        for uptime in (200, 900, 90000):
+            self.assertEqual(self.look(self.newer, 1000 + uptime, uptime), 0)
+        self.assertEqual(self.dialogs.ask_yes_no.call_count, 1)
+        self.assertFalse(self.tray.auto_update_check_enabled())
+
+    def test_a_package_and_a_checkout_are_not_asked_the_question(self):
+        self.state.unlink()
+        with patch.dict('os.environ', {'TESSERA_PACKAGED': '1'}):
+            self.assertEqual(self.look(self.newer, 1000, 200), 0)
+        self.dialogs.ask_yes_no.assert_not_called()
 
 
 if __name__ == '__main__':
