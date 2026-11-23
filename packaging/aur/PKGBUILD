@@ -1,7 +1,7 @@
 # Maintainer: Joern <joernhofmann@web.de>
 pkgname=tessera-deck
 _pkgname=tessera
-pkgver=1.2.9
+pkgver=1.2.10
 pkgrel=1
 pkgdesc='Host application (tray, USB host and editor) for the Tessera deck panel'
 arch=('any')
@@ -26,7 +26,7 @@ install=tessera-deck.install
 source=("tessera-host-v${pkgver}.zip::${url}/releases/download/v${pkgver}/tessera-host-v${pkgver}.zip"
         'tessera-deck.sh'
         'tessera-deck.desktop')
-sha256sums=('324ab6c7a66b2c04175b5e2150db325ffecaf861eddef5124ed542ea754353f2'
+sha256sums=('7e464536b8e051d501f3356f8a26f0bcf24032f667918416f34ceab21119b278'
             'SKIP'
             'SKIP')
 
