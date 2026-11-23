@@ -55,7 +55,9 @@ class RepoHygieneTests(unittest.TestCase):
 
     def test_the_deckctl_examples_use_the_virtual_environments_python(self):
         # deckctl imports psutil, which only the venv has: a plain `python` fails with ModuleNotFoundError
-        bare = [line for line in read('docs/USING.md').splitlines() if re.search(r'(?<![\w\\/.])python\s+host\\deckctl\.py', line)]
+        pages = [*sorted((ROOT / 'docs').glob('*.md')), ROOT / 'docs' / 'index.html']
+        bare = [f'{page.name}: {line.strip()}' for page in pages for line in page.read_text(encoding='utf-8').splitlines()
+                if re.search(r'(?<![\w\\/.])python\s+host\\deckctl\.py', line)]
         self.assertEqual(bare, [])
 
 
