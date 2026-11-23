@@ -92,6 +92,24 @@ def select_presentmon_fps(readings: list[dict]) -> float | None:
     return None
 
 
+def select_radeon_fps(readings: list[dict]) -> float | None:
+    """The frame rate of a full-screen game from Libre Hardware Monitor, which has it from the Radeon driver.
+
+    Each AMD card has a "Fullscreen FPS" reading that stays at -1 while nothing runs in full screen. With two cards
+    (integrated and discrete) the one that is drawing has the number; the discrete card wins if both do.
+    """
+    best = None
+    for item in readings:
+        if _norm(str(item.get('label', ''))) != 'fullscreen fps':
+            continue
+        value = float(item['value'])
+        if 0 < value < 10000:
+            score = gpu_discrete_bonus(_norm(str(item.get('sensor', ''))))
+            if best is None or score > best[0]:
+                best = (score, value)
+    return best[1] if best else None
+
+
 def _rate(value: float) -> str:
     if value >= 1024 * 1024:
         return f'{value / 1024 / 1024:.1f}M'
@@ -150,6 +168,8 @@ class SystemStats:
         gpu = {} if {'gpu_temp', 'gpu_load'} <= sensor_values.keys() else self.gpu.sample()
         merged = {**gpu, **self.counters.sample(), **sensor_values}
         fps = select_presentmon_fps(hwinfo_readings)
+        if fps is None:
+            fps = select_radeon_fps(lhm_readings)
         if fps is not None:
             merged['fps'] = fps
         self.raw = dict(merged, cpu_load=cpu, ram=ram, disk=disk, net_down=down, net_up=up,

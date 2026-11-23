@@ -39,7 +39,7 @@ const BETA_STEP='homeassistant';
 const kindName=type=>type===BETA_STEP?'Home Assistant step (beta firmware only)':(kinds[type]||kinds.hotkey).name;
 // Sensors the host provides, with the ranges and thresholds of the bundled status page.
 const gaugeSensors={
-  fps:['FPS (HWiNFO PresentMon)',{max:240,unit:'fps'}],
+  fps:['FPS (Libre Hardware Monitor on Radeon, or HWiNFO)',{max:240,unit:'fps'}],
   cpu_load:['CPU load',{max:100,unit:'%',warn:85,critical:97}],cpu_temp:['CPU temperature',{max:100,unit:'C',warn:80,critical:90}],
   cpu_power:['CPU power',{max:170,unit:'W',warn:130,critical:160}],cpu_clock:['CPU clock',{max:5500,fmt:'ghz'}],
   ram:['RAM',{max:100,unit:'%',warn:85,critical:95}],disk:['Disk',{max:100,unit:'%',warn:90,critical:97}],

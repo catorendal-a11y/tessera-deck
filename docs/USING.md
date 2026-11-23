@@ -308,7 +308,7 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 |---|---|---|
 | Windows | Nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
 | Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power and clock; fan speed on AMD only |
-| Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks |
+| Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks; on a Radeon card also the FPS of a full-screen game |
 | HWiNFO | Running with shared memory enabled (`host\Enable-HWiNFO.ps1`, as administrator, turns it on) | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
 To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
@@ -354,6 +354,6 @@ Start with **More → Host log …**. It shows what the USB host does: connectio
 |---|---|
 | A page change takes several seconds | The panel's image cache holds about 33 animated icons of 12 frames. With more on the pages you switch between, the host sends them again on a page change, about 0.65 s each. Use still icons for most keys. |
 | The panel stays black but touch works | A touch wakes a dimmed panel. If it stays black, restart the host; it wakes the backlight on connect. |
-| Gauges show `--` | CPU temperature and power need Libre Hardware Monitor: `tools\setup_sensors.ps1`, or **Options → Remote Web Server → Run** in a copy you already run. FPS needs HWiNFO with PresentMon. |
+| Gauges show `--` | CPU temperature and power need Libre Hardware Monitor: `tools\setup_sensors.ps1`, or **Options → Remote Web Server → Run** in a copy you already run. FPS needs Libre Hardware Monitor with a Radeon card and a game in full screen, or HWiNFO with PresentMon. |
 | A key does nothing | Check the key for a yellow dot (unfinished). **Test** the key and read the steps. Then read the host log. |
 | An action list click made a key on the wrong slot | A click uses the selected slot if it is empty, else the first free one. Select the empty slot first, or drag the action to it. |

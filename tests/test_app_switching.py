@@ -10,7 +10,7 @@ import tesserad as deck
 import host_support  # noqa: E402
 from platform_windows.input import is_neutral_window as windows_neutral_window, real_app_exe as windows_real_app_exe
 from platform_marks import windows_only
-from system_stats import select_presentmon_fps
+from system_stats import select_presentmon_fps, select_radeon_fps
 
 
 def context(exe, title=''):
@@ -26,6 +26,18 @@ class FpsSensorTests(unittest.TestCase):
         ]
         self.assertEqual(select_presentmon_fps(readings), 144)
         self.assertIsNone(select_presentmon_fps(readings[:2]))
+
+    def test_a_radeon_card_gives_the_frame_rate_through_libre_hardware_monitor(self):
+        # the two readings as Libre Hardware Monitor 0.9.6 gave them on a Ryzen 7 7800X3D with an RX 6950 XT, idle
+        idle = [{'sensor': 'AMD Radeon(TM) Graphics gpu-amd/0', 'label': 'Fullscreen FPS', 'unit': '', 'value': -1.0},
+                {'sensor': 'AMD Radeon RX 6950 XT gpu-amd/5', 'label': 'Fullscreen FPS', 'unit': '', 'value': -1.0}]
+        self.assertIsNone(select_radeon_fps(idle), 'nothing in full screen: the gauge shows --, not -1')
+        game = [dict(idle[0]), dict(idle[1], value=119.0)]
+        self.assertEqual(select_radeon_fps(game), 119.0)
+        both = [dict(idle[0], value=60.0), dict(idle[1], value=119.0)]
+        self.assertEqual(select_radeon_fps(both), 119.0, 'the discrete card wins')
+        self.assertEqual(select_radeon_fps([dict(idle[0], value=60.0), idle[1]]), 60.0, 'a game on the integrated one')
+        self.assertIsNone(select_radeon_fps([{'sensor': 'x', 'label': 'GPU Core', 'unit': '%', 'value': 50}]))
 
     def test_missing_fps_is_not_a_zero_gauge(self):
         from system_stats import gauge_state
