@@ -335,6 +335,15 @@ class EditorFirmwareTests(unittest.TestCase):
             info = Editor.identify_panel('COM4')
         self.assertEqual(info, {'boardId': fw.BOARD_ID, 'firmwareVersion': None, 'protocolUnknown': True})
 
+    def test_a_board_that_takes_no_data_counts_as_silent_and_a_busy_port_does_not(self):
+        import serial
+        with patch('tessera_app.PanelSerial', side_effect=serial.SerialTimeoutException('Write timeout')):
+            self.assertIsNone(Editor.identify_panel('COM4'), 'a blank board: the chip is asked next')
+        with patch('tessera_app.PanelSerial', side_effect=serial.SerialException('Access is denied')),                 self.assertRaisesRegex(fw.InstallError, 'could not be opened'):
+            Editor.identify_panel('COM4')
+        import tesserad
+        self.assertIn('no firmware yet', tesserad.port_trouble('COM4', serial.SerialTimeoutException('Write timeout')))
+
     def test_installing_stops_the_host_flashes_and_always_restarts_it(self):
         calls = []
         with patch.object(self.editor, 'firmware_port', return_value='COM4'), \
