@@ -26,7 +26,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm)",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -39,7 +39,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v gnome-calculator >/dev/null 2>&1 && exec setsid -f gnome-calculator) || (command -v kcalc >/dev/null 2>&1 && exec setsid -f kcalc) || (command -v galculator >/dev/null 2>&1 && exec setsid -f galculator) || (command -v xcalc >/dev/null 2>&1 && exec setsid -f xcalc)",
+                "command": "(command -v gnome-calculator >/dev/null 2>&1 && exec setsid -f gnome-calculator) || (command -v kcalc >/dev/null 2>&1 && exec setsid -f kcalc) || (command -v galculator >/dev/null 2>&1 && exec setsid -f galculator) || (command -v xcalc >/dev/null 2>&1 && exec setsid -f xcalc) || { echo 'none of: gnome-calculator, kcalc, galculator, xcalc is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -759,7 +759,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings sound) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center sound) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings kcm_pulseaudio) || (command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol)",
+                "command": "(command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings sound) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center sound) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings kcm_pulseaudio) || (command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol) || { echo 'none of: cinnamon-settings sound, gnome-control-center sound, systemsettings kcm_pulseaudio, pavucontrol is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -772,7 +772,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol)",
+                "command": "(command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol) || (command -v pavucontrol-qt >/dev/null 2>&1 && exec setsid -f pavucontrol-qt) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center sound) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings kcm_pulseaudio) || { echo 'none of: pavucontrol, pavucontrol-qt, gnome-control-center sound, systemsettings kcm_pulseaudio is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -785,7 +785,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol)",
+                "command": "(command -v pavucontrol >/dev/null 2>&1 && exec setsid -f pavucontrol) || (command -v pavucontrol-qt >/dev/null 2>&1 && exec setsid -f pavucontrol-qt) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center sound) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings kcm_pulseaudio) || { echo 'none of: pavucontrol, pavucontrol-qt, gnome-control-center sound, systemsettings kcm_pulseaudio is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -798,7 +798,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v blueman-manager >/dev/null 2>&1 && exec setsid -f blueman-manager) || (command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings bluetooth) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center bluetooth)",
+                "command": "(command -v blueman-manager >/dev/null 2>&1 && exec setsid -f blueman-manager) || (command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings bluetooth) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center bluetooth) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings kcm_bluetooth) || { echo 'none of: blueman-manager, cinnamon-settings bluetooth, gnome-control-center bluetooth, systemsettings kcm_bluetooth is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1048,7 +1048,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v gnome-calculator >/dev/null 2>&1 && exec setsid -f gnome-calculator) || (command -v kcalc >/dev/null 2>&1 && exec setsid -f kcalc) || (command -v galculator >/dev/null 2>&1 && exec setsid -f galculator) || (command -v xcalc >/dev/null 2>&1 && exec setsid -f xcalc)",
+                "command": "(command -v gnome-calculator >/dev/null 2>&1 && exec setsid -f gnome-calculator) || (command -v kcalc >/dev/null 2>&1 && exec setsid -f kcalc) || (command -v galculator >/dev/null 2>&1 && exec setsid -f galculator) || (command -v xcalc >/dev/null 2>&1 && exec setsid -f xcalc) || { echo 'none of: gnome-calculator, kcalc, galculator, xcalc is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1061,7 +1061,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v gnome-text-editor >/dev/null 2>&1 && exec setsid -f gnome-text-editor) || (command -v gedit >/dev/null 2>&1 && exec setsid -f gedit) || (command -v kate >/dev/null 2>&1 && exec setsid -f kate) || (command -v xed >/dev/null 2>&1 && exec setsid -f xed) || (command -v mousepad >/dev/null 2>&1 && exec setsid -f mousepad)",
+                "command": "(command -v gnome-text-editor >/dev/null 2>&1 && exec setsid -f gnome-text-editor) || (command -v gedit >/dev/null 2>&1 && exec setsid -f gedit) || (command -v kate >/dev/null 2>&1 && exec setsid -f kate) || (command -v xed >/dev/null 2>&1 && exec setsid -f xed) || (command -v mousepad >/dev/null 2>&1 && exec setsid -f mousepad) || { echo 'none of: gnome-text-editor, gedit, kate, xed, mousepad is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1074,7 +1074,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v gnome-system-monitor >/dev/null 2>&1 && exec setsid -f gnome-system-monitor) || (command -v ksysguard >/dev/null 2>&1 && exec setsid -f ksysguard) || (command -v xfce4-taskmanager >/dev/null 2>&1 && exec setsid -f xfce4-taskmanager)",
+                "command": "(command -v gnome-system-monitor >/dev/null 2>&1 && exec setsid -f gnome-system-monitor) || (command -v plasma-systemmonitor >/dev/null 2>&1 && exec setsid -f plasma-systemmonitor) || (command -v ksysguard >/dev/null 2>&1 && exec setsid -f ksysguard) || (command -v xfce4-taskmanager >/dev/null 2>&1 && exec setsid -f xfce4-taskmanager) || { echo 'none of: gnome-system-monitor, plasma-systemmonitor, ksysguard, xfce4-taskmanager is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1087,7 +1087,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings) || (command -v xfce4-settings-manager >/dev/null 2>&1 && exec setsid -f xfce4-settings-manager)",
+                "command": "(command -v cinnamon-settings >/dev/null 2>&1 && exec setsid -f cinnamon-settings) || (command -v gnome-control-center >/dev/null 2>&1 && exec setsid -f gnome-control-center) || (command -v systemsettings >/dev/null 2>&1 && exec setsid -f systemsettings) || (command -v xfce4-settings-manager >/dev/null 2>&1 && exec setsid -f xfce4-settings-manager) || { echo 'none of: cinnamon-settings, gnome-control-center, systemsettings, xfce4-settings-manager is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1199,7 +1199,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm)",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1729,7 +1729,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex))",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -1742,7 +1742,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex resume --last) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex resume --last) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex resume --last) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex resume --last) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex resume --last))",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex resume --last) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex resume --last) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex resume --last) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex resume --last) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex resume --last) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -2011,7 +2011,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude))",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ],
@@ -2032,7 +2032,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -c) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -c) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -c) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -c) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -c))",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -c) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -c) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -c) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -c) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -c) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -2045,7 +2045,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -r) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -r) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -r) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -r) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -r))",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -r) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -r) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -r) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -r) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -r) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -2514,7 +2514,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v zcode >/dev/null 2>&1 && exec setsid -f zcode)",
+                "command": "(command -v zcode >/dev/null 2>&1 && exec setsid -f zcode) || { echo 'none of: zcode is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -2587,7 +2587,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm)",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]

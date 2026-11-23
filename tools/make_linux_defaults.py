@@ -17,15 +17,20 @@ def shell(command):
     return {'type': 'shell', 'command': command, 'timeout': 10}
 
 
+def none_installed(names):
+    """What the chain says when nothing in it is installed; the key's error shows this instead of a bare exit code 1."""
+    return f"{{ echo 'none of: {', '.join(names)} is installed' >&2; exit 1; }}"
+
+
 def launch(*programs):
     """Start the first installed program of the list, detached, so the key returns at once."""
     chain = ' || '.join(f'(command -v {name.split()[0]} >/dev/null 2>&1 && exec setsid -f {name})' for name in programs)
-    return shell(chain)
+    return shell(f'{chain} || {none_installed(programs)}')
 
 
 TERMINAL = launch('x-terminal-emulator', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm')
 SETTINGS = launch('cinnamon-settings', 'gnome-control-center', 'systemsettings', 'xfce4-settings-manager')
-MIXER = launch('pavucontrol')
+MIXER = launch('pavucontrol', 'pavucontrol-qt', 'gnome-control-center sound', 'systemsettings kcm_pulseaudio')
 CHANGES = {
     ('main', 'Explorer'): ('Files', [{'type': 'open', 'target': '~'}]),
     ('main', 'Terminal'): (None, [TERMINAL]),
@@ -48,7 +53,7 @@ CHANGES = {
     ('audio', 'Sound settings'): (None, [launch('cinnamon-settings sound', 'gnome-control-center sound', 'systemsettings kcm_pulseaudio', 'pavucontrol')]),
     ('audio', 'Volume mixer'): (None, [MIXER]),
     ('audio', 'Audio devices'): (None, [MIXER]),
-    ('audio', 'Bluetooth'): (None, [launch('blueman-manager', 'cinnamon-settings bluetooth', 'gnome-control-center bluetooth')]),
+    ('audio', 'Bluetooth'): (None, [launch('blueman-manager', 'cinnamon-settings bluetooth', 'gnome-control-center bluetooth', 'systemsettings kcm_bluetooth')]),
     ('audio', 'Quick settings'): None,
     ('tools', 'Screenshot'): (None, [{'type': 'hotkey', 'keys': 'printscreen'}]),
     ('tools', 'Clipboard'): None,
@@ -58,7 +63,7 @@ CHANGES = {
     ('tools', 'Always on top'): (None, [{'type': 'window', 'op': 'topmost'}]),
     ('tools', 'Calculator'): (None, [launch('gnome-calculator', 'kcalc', 'galculator', 'xcalc')]),
     ('tools', 'Notepad'): ('Editor', [launch('gnome-text-editor', 'gedit', 'kate', 'xed', 'mousepad')]),
-    ('tools', 'Task Manager'): ('System monitor', [launch('gnome-system-monitor', 'ksysguard', 'xfce4-taskmanager')]),
+    ('tools', 'Task Manager'): ('System monitor', [launch('gnome-system-monitor', 'plasma-systemmonitor', 'ksysguard', 'xfce4-taskmanager')]),
     ('tools', 'Settings'): (None, [SETTINGS]),
     ('tools', 'PowerToys Run'): None,
     ('tools', 'Plain paste'): (None, [{'type': 'hotkey', 'keys': 'ctrl+shift+v'}]),
@@ -77,7 +82,7 @@ def in_terminal(command):
     runs = (('x-terminal-emulator', '-e'), ('gnome-terminal', '--'), ('konsole', '-e'), ('xfce4-terminal', '-x'),
             ('xterm', '-e'))
     chain = ' || '.join(f'(command -v {name} >/dev/null 2>&1 && exec setsid -f {name} {flag} {command})' for name, flag in runs)
-    return {'type': 'shell', 'command': f'cd "$HOME" && ({chain})', 'timeout': 10}
+    return {'type': 'shell', 'command': f'cd "$HOME" && ({chain} || {none_installed([name for name, _ in runs])})', 'timeout': 10}
 
 
 def linux_action(action):
