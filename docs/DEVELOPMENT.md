@@ -202,10 +202,12 @@ GitHub Actions runs these on every pull request and every push to main:
 |---|---|
 | `ci.yml`, host | Lint, tests with the 73 % coverage floor, terminal check and dependency audit, on Windows with Python 3.11, 3.12 and 3.14 |
 | `ci.yml`, host-linux | The tests that are not Windows-only, on Linux under Xvfb (Python 3.11 and 3.14) |
-| `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock` (Python 3.11 and 3.14) |
+| `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock`, on Windows with Python 3.11 and 3.14 |
+| `ci.yml`, host-lock-linux | A clean venv installed from `host/requirements.lock` on Linux (Python 3.12), then an import of every package the first start checks for, under Xvfb |
 | `ci.yml`, firmware-analysis | `cppcheck` on the firmware sources |
 | `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests, and the image cache benchmark with `--check`, with and without `--old-firmware` |
 | `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the three S3 boards, each with its board file |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
+| `audit.yml` | `pip-audit` on the versions in `host/requirements.lock`, once on Windows and once on Linux, because each skips the packages marked for the other system. It runs when `host/requirements*` changes and every Monday |
 
 [VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).
