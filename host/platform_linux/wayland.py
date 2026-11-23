@@ -26,7 +26,7 @@ import time
 
 from platform_linux import BackendUnavailable
 from platform_linux.base import DesktopBackend
-from platform_linux.keysyms import char_keysym, keysym_number
+from platform_linux.keysyms import CONTROL, char_keysym, keysym_number
 from platform_linux.portal import BUTTONS, RemoteDesktop
 from platform_linux.x11 import run
 
@@ -63,6 +63,12 @@ PUNCTUATION = {'comma': ',', 'period': '.', 'slash': '/', 'grave': '`', 'lbracke
                'minus': '-', 'equals': '=', 'semicolon': ';', 'quote': "'", 'backslash': '\\'}
 SHIFT_CODE, ALTGR_CODE, ENTER_CODE, TAB_CODE = 42, 100, 28, 15
 MOUSE_BUTTONS = {'left': '0xC0', 'right': '0xC1', 'middle': '0xC2'}  # 0xC0: press and release
+
+
+def no_key_message(missing) -> str:
+    shown = ' '.join(dict.fromkeys(missing))
+    return (f'Your keyboard layout has no key for {shown}: on Wayland Tessera can only type '
+            f'characters your layout has (use a "clipboard" step and ctrl+v for the rest)')
 
 
 def caps_lock_on(leds: str = CAPS_LOCK_LEDS) -> bool | None:
@@ -199,9 +205,7 @@ class WaylandBackend(DesktopBackend):
                     missing.append(char)
                 strokes.append(found or [])
         if missing:
-            shown = ' '.join(dict.fromkeys(missing))
-            raise ValueError(f'Your keyboard layout has no key for {shown}: on Wayland Tessera can only type '
-                             f'characters your layout has (use a "clipboard" step and ctrl+v for the rest)')
+            raise ValueError(no_key_message(missing))
         return strokes
 
     @staticmethod
@@ -248,8 +252,20 @@ class WaylandBackend(DesktopBackend):
             raise ValueError(f'Unknown mouse operation: {op}')
 
     # input through the RemoteDesktop portal, where ydotool is not installed
+    def refuse_missing(self, chars) -> None:
+        """The portal sends keysyms, and GNOME drops one that no key of the layout in use types, without an error. A
+        character behind a dead key has no keysym key either. An unreadable layout is not checked."""
+        try:
+            keymap = self.keymap()
+        except BackendUnavailable:
+            return
+        missing = [char for char in chars if char not in CONTROL and len(keymap.strokes(char) or ()) != 1]
+        if missing:
+            raise ValueError(no_key_message(missing))
+
     def portal_keys(self, names) -> None:
         numbers = [keysym_number(name) for name in names]  # an unknown key is refused before anything is pressed
+        self.refuse_missing([name for name in names if len(name) == 1])  # letters and digits are keysyms of the layout
         pressed = []
         try:
             for number in numbers:
@@ -260,6 +276,7 @@ class WaylandBackend(DesktopBackend):
                 self.remote.keysym(number, False)
 
     def portal_text(self, chars: str, pause: float, wait) -> None:
+        self.refuse_missing(chars)  # all of it first: nothing is typed when one character cannot be
         for n, char in enumerate(chars):
             number = char_keysym(char)
             self.remote.keysym(number, True)

@@ -371,9 +371,22 @@ class FakeRemote:
         self.events.append(('move', dx, dy))
 
 
+class Layout:
+    """Stands in for libxkbcommon: a layout with a plain key for every character except `missing`; `dead` characters
+    need a dead key and a second key."""
+    def __init__(self, missing='', dead=''):
+        self.missing, self.dead = missing, dead
+
+    def strokes(self, char, caps_lock=False):
+        if char in self.missing:
+            return None
+        return [(1, False, False), (2, False, False)] if char in self.dead else [(1, False, False)]
+
+
 def portal_backend(**kwargs):
     """A backend whose input goes through the RemoteDesktop portal, as where ydotool is not installed."""
     remote = FakeRemote()
+    kwargs.setdefault('keymap', Layout())
     return wayland.WaylandBackend(remote=remote, sleep=lambda seconds: None, **kwargs), remote
 
 
@@ -424,12 +437,37 @@ class PortalInputTests(unittest.TestCase):
             wl.send_keys(['ctrl', 'hyper'])
         self.assertEqual(remote.events, [])
 
-    def test_text_types_every_character_including_ones_that_are_not_on_the_keyboard(self):
+    def test_text_types_the_characters_of_the_layout_as_keysyms(self):
         wl, remote = portal_backend()
         wl.send_text('aø€\r\nb')
         pressed = [number for kind, number, down in remote.events if down]
         self.assertEqual(pressed, [0x61, 0xf8, 0x01000000 + 0x20ac, RETURN, 0x62])
         self.assertEqual(len(remote.events), 10)  # each character goes down and up
+
+    def test_a_character_the_layout_has_no_key_for_is_refused_and_nothing_is_typed(self):
+        # GNOME drops a keysym that no key of the active layout types (mutter: "No keycode found for keyval") and says nothing
+        wl, remote = portal_backend(keymap=Layout(missing='€✓', dead='é'))
+        for text, shown in (('a€b', '€'), ('ok ✓ €', '✓ €'), ('café', 'é')):
+            with self.assertRaisesRegex(ValueError, f'no key for {shown}'):
+                wl.send_text(text)
+        wl.send_text('a\nb\t')  # Return and Tab are keys of every layout
+        self.assertEqual(len([e for e in remote.events if e[2]]), 4)
+
+    def test_a_hotkey_letter_the_layout_has_no_key_for_is_refused_and_nothing_is_pressed(self):
+        wl, remote = portal_backend(keymap=Layout(missing='c'))  # a Russian layout is active
+        with self.assertRaisesRegex(ValueError, 'no key for c'):
+            wl.send_keys(['ctrl', 'c'])
+        self.assertEqual(remote.events, [])
+        wl.send_keys(['ctrl', 'v'])
+        self.assertEqual(len(remote.events), 4)
+
+    def test_text_and_keys_are_sent_as_before_when_the_layout_cannot_be_read(self):
+        wl, remote = portal_backend(keymap=None)
+        with unittest.mock.patch.object(xkb, 'active_group', return_value=0), \
+                unittest.mock.patch.object(xkb, 'session_keymap', side_effect=BackendUnavailable('no layout')):
+            wl.send_text('a€')
+            wl.send_keys(['ctrl', 'c'])
+        self.assertEqual(len(remote.events), 8)
 
     def test_a_stop_request_ends_the_typing(self):
         wl, remote = portal_backend()

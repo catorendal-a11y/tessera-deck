@@ -103,7 +103,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   builds from September 2025 on (`active_layout_index` in `hyprctl devices -j`). GNOME, older Hyprland and other
   desktops do not: there typing is refused with a message while the session has more than one layout, because the
   wrong layout would type other characters. With one layout nothing needs asking. The RemoteDesktop portal (below)
-  needs no layout, but it is only used where `ydotool` is not installed.
+  does not move keys by position, but it is only used where `ydotool` is not installed or not running.
 - **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
   `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
   none of these names a layout, typing is refused with a message instead of typing with a guessed one.
@@ -119,7 +119,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   restart. To take the permission back, revoke it in the desktop's settings (Privacy or Applications). Deleting that
   file does not revoke it: Tessera can then no longer restore the permission and asks again at its next start, but a
   session that is running goes on. Stop the host to end the running session. The portal takes
-  characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
+  characters, not key positions, so a US key position does not matter there, but GNOME drops a character that no key of the layout in use types: such text, and a hotkey letter the layout lacks (`ctrl+c` on a Russian layout), is refused with a message, and a "clipboard" step and `ctrl+v` types it. `moveto` is not
   possible, because the portal only allows relative moves. `ydotool` is used when it is installed and its daemon is running (its socket exists); Tessera decides this when the first key is pressed, so start `ydotoold` before Tessera. Otherwise the portal is used, which also covers the old `ydotool` 0.1.x of Debian 12 and Ubuntu, which has no daemon and takes other commands.
 - **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
