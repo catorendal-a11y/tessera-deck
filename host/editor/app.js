@@ -448,6 +448,11 @@ function deleteProfile() {
   mutate(()=>{delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
     for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
     for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
+    // Rail steps and triggers are checked against every profile's pages: drop the ones that led only to pages of this profile.
+    const kept=new Set(Object.values(config.profiles).flatMap(p=>Object.keys(p.pages)));
+    const lostPage=a=>['page','folder'].includes(a.type)&&!kept.has(a.page)?null:a;
+    rewriteActions(railSteps(),lostPage);
+    for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=lostPage(a);return changed?[changed]:[];});
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);dropEmptyShortcuts();});renderAll();toast(`Profile “${old}” was deleted${withKeys(keys)}.${lostSteps(lost,'switched to it')}`,true);
 }
 const nightLevelChoices=[5,10,20,40];

@@ -270,6 +270,20 @@ return {drafts: draftProblems(), sent: sent.profiles.coding.pages.first.map(k =>
         self.assertEqual(found['sent'], [[]])
         self.assertEqual(found['kept'], [{'type': 'folder', 'page': 'status'}])
 
+    def test_deleting_a_profile_removes_rail_and_trigger_steps_to_pages_only_it_had(self):
+        found = self.run_editor(r"""
+const go = type => ({type, page: 'Lobby'}), shared = {type: 'page', page: 'Home'};
+config = {default_profile: 'Main', profiles: {
+  Main: {match: [], pages: {Home: []}}, Games: {match: [], pages: {Lobby: [], Home: []}}},
+  panel: {shortcuts: [{type: 'actions', label: 'Go', icon: 'ok', actions: [go('page')]}, {type: 'actions', label: 'Home', icon: 'ok', actions: [shared]}]},
+  triggers: [{when: {type: 'startup'}, actions: [go('folder'), {type: 'hotkey', keys: 'a'}]}]};
+profile = 'Games'; page = 'Lobby'; selected = 1; history = []; future = [];
+deleteProfile();
+return {shortcuts: config.panel.shortcuts, triggers: config.triggers};
+""")
+        self.assertEqual(found['shortcuts'], [{'type': 'actions', 'label': 'Home', 'icon': 'ok', 'actions': [{'type': 'page', 'page': 'Home'}]}])
+        self.assertEqual(found['triggers'], [{'when': {'type': 'startup'}, 'actions': [{'type': 'hotkey', 'keys': 'a'}]}])
+
 
 if __name__ == '__main__':
     unittest.main()
