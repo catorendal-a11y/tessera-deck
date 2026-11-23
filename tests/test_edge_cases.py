@@ -1,6 +1,7 @@
 """Edge cases found by reading the code, on both systems. Each test failed before its fix."""
 import json
 from datetime import datetime
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -121,6 +122,25 @@ class LinuxSideTests(unittest.TestCase):
                 linux_autostart.enable(entry, data)
                 self.assertIn('Exec="tessera" "--tray"', entry.read_text(encoding='utf-8'))
                 self.assertTrue(linux_autostart.is_enabled(entry, data))
+
+    def test_an_arch_entry_from_before_the_wrapper_counts_and_is_rewritten_to_it(self):
+        # an entry written by 1.2.11 or older starts the copy's python, so the tray it starts has no TESSERA_PACKAGED
+        with tempfile.TemporaryDirectory() as folder:
+            data, entry = Path(folder) / 'data', Path(folder) / 'tessera.desktop'
+            data.mkdir()
+            (data / '.pkgrel').write_text('1\n', encoding='utf-8')  # the launcher copies it in with the package
+            old = f'[Desktop Entry]\nExec="{data / "host/.venv/bin/python"}" "{data / "host/tessera_tray.py"}"\n'
+            for packaged in ({'TESSERA_PACKAGED': '1'}, {}):
+                entry.write_text(old, encoding='utf-8')
+                with patch.dict('os.environ', packaged):
+                    if not packaged:
+                        os.environ.pop('TESSERA_PACKAGED', None)
+                    self.assertTrue(linux_autostart.is_enabled(entry, data))
+                    self.assertIn('Exec="tessera" "--tray"', entry.read_text(encoding='utf-8'))
+                    entry.unlink()
+                    linux_autostart.enable(entry, data)  # Start with the desktop turned on from that tray
+                    self.assertIn('Exec="tessera" "--tray"', entry.read_text(encoding='utf-8'))
+
 
 class AutostartTests(unittest.TestCase):
     def test_start_with_the_desktop_writes_the_entry_on_linux(self):

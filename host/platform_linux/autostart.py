@@ -17,18 +17,34 @@ def startup_script_path(appdata=None):
 PACKAGED_COMMAND = ['tessera', '--tray']
 
 
+def packaged(root):
+    """True in the Arch package's per-user copy. A tray started by an entry from 1.2.11 or older runs without
+    TESSERA_PACKAGED, so the .pkgrel file that the launcher copies in with the package counts too."""
+    return bool(os.environ.get('TESSERA_PACKAGED')) or (Path(root) / '.pkgrel').is_file()
+
+
 def is_enabled(script, root):
-    """True when the entry starts the tray of this folder. An entry left by a copy in another folder does not count."""
-    wanted = desktop_entries.quote(PACKAGED_COMMAND) if os.environ.get('TESSERA_PACKAGED') else str(Path(root) / 'host/tessera_tray.py')
+    """True when the entry starts the tray of this folder. An entry left by a copy in another folder does not count.
+    In the Arch copy, an older entry that starts the copy's python is rewritten to start the wrapper."""
+    tray = str(Path(root) / 'host/tessera_tray.py')
     try:
-        return wanted in Path(script).read_text(encoding='utf-8')
+        text = Path(script).read_text(encoding='utf-8')
     except (OSError, UnicodeDecodeError):
         return False
+    if not packaged(root):
+        return tray in text
+    if tray in text:
+        try:
+            enable(Path(script), Path(root))
+        except OSError:
+            pass  # the old entry still starts this copy
+        return True
+    return desktop_entries.quote(PACKAGED_COMMAND) in text
 
 
 def enable(path, root):
     """Write the autostart entry. Needs the virtual environment that Tessera.sh makes."""
-    if os.environ.get('TESSERA_PACKAGED'):
+    if packaged(root):
         return desktop_entries.write(path, desktop_entries.entry(PACKAGED_COMMAND, root, root / 'docs/images/logo-mark.svg',
                                                                  hidden_start=True))
     python = venv_python(root)
