@@ -98,6 +98,23 @@ class HomeAssistantTests(unittest.TestCase):
         self.assertEqual(module.reason(error(404)), 'HA error 404')
         self.assertEqual(module.reason(urllib.error.URLError('refused')), 'not reachable')
 
+    def test_an_address_without_http_and_an_untrusted_certificate_are_named_as_such(self):
+        import ssl
+        import urllib.error
+        entities = 'light.kitchen'
+        # A real call with no scheme: urllib itself refuses it, nothing is sent.
+        module = load('home-assistant', {'url': 'homeassistant.local:8123', 'token': 'secret', 'entities': entities})
+        with self.assertRaises(urllib.error.URLError) as caught:
+            module.states()
+        self.assertEqual(module.reason(caught.exception), 'address must start with http:// or https://')
+        # urllib wraps a failed certificate check like this; the network is the boundary faked here.
+        failed = ssl.SSLCertVerificationError(1, 'certificate verify failed: Hostname mismatch')
+        with patch('urllib.request.urlopen', side_effect=urllib.error.URLError(failed)):
+            module = load('home-assistant', {'url': 'https://192.168.1.5:8123', 'token': 'secret', 'entities': entities})
+            with self.assertRaises(urllib.error.URLError) as caught:
+                module.states()
+        self.assertEqual(module.reason(caught.exception), 'certificate not trusted')
+
 
 class FakeObs:
     """A WebSocket server that speaks just enough OBS WebSocket 5, with a password."""
