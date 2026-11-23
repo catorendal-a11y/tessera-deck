@@ -276,5 +276,71 @@ class TrayRestartTests(unittest.TestCase):
         self.assertIn('Panel → Panel firmware and updates', text)  # the notice says where to update
 
 
+class AutoUpdateCheckTests(unittest.TestCase):
+    """The tray's own daily look at the releases: once a day, one notice per release, and an off switch."""
+
+    def setUp(self):
+        import tessera_tray
+        self.tray = tessera_tray
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        root = Path(self.temp.name)
+        (root / 'VERSION').write_text('1.2.9\n', encoding='utf-8')
+        self.state = root / 'update-check.local.json'
+        for name, value in (('ROOT', root), ('UPDATE_CHECK_PATH', self.state)):
+            self.enterContext(patch.object(tessera_tray, name, value))
+        self.enterContext(patch.object(tessera_tray, 'notifications_enabled', return_value=True))
+        self.enterContext(patch.dict('os.environ'))
+        os.environ.pop('TESSERA_PACKAGED', None)
+        self.app = host_support.tray_app(Mock())
+        self.app.icon = Mock()
+        self.app.background = lambda work, *args: work(*args)
+        self.newer = {'newer': True, 'latest': '1.3.0', 'notes': '- faster'}
+
+    def look(self, release, now, uptime):
+        with patch.object(updates, 'check', return_value=release) if not isinstance(release, Exception) \
+                else patch.object(updates, 'check', side_effect=release) as check:
+            self.app.auto_update_check(now=now, uptime=uptime)
+        return check.call_count
+
+    def test_it_asks_once_a_day_and_tells_once_per_release(self):
+        day = self.tray.UPDATE_CHECK_SECONDS
+        self.assertEqual(self.look(self.newer, 1000, 30), 0, 'not while the PC is still signing in')
+        self.assertEqual(self.look(self.newer, 1000, 200), 1)
+        text, title = self.app.icon.notify.call_args.args
+        self.assertEqual(title, 'Update available: 1.3.0')
+        self.assertIn('Panel → Panel firmware and updates', text)
+        self.assertEqual(self.look(self.newer, 1100, 300), 0, 'the file is not read again for ten minutes')
+        self.assertEqual(self.look(self.newer, 5000, 2000), 0, 'and GitHub not again the same day')
+        self.assertEqual(self.look(self.newer, 1000 + day, 9000), 1)
+        self.app.icon.notify.assert_called_once()  # the same release is not announced every day
+        self.assertEqual(self.look(dict(self.newer, latest='1.4.0'), 1000 + 2 * day, 99000), 1)
+        self.assertEqual(self.app.icon.notify.call_count, 2)
+
+    def test_the_newest_version_and_a_pc_without_a_network_stay_quiet(self):
+        self.assertEqual(self.look({'newer': False, 'latest': '1.2.9'}, 1000, 200), 1)
+        self.assertEqual(self.look(OSError('no network'), 1000 + self.tray.UPDATE_CHECK_SECONDS, 90000), 1)
+        self.app.icon.notify.assert_not_called()
+        self.assertEqual(self.look(self.newer, 1500 + self.tray.UPDATE_CHECK_SECONDS, 99000), 0, 'it waits a day after a failure too')
+
+    def test_it_can_be_switched_off_and_a_package_or_a_checkout_is_never_asked_for(self):
+        self.app.toggle_auto_update_check()
+        self.assertFalse(self.tray.auto_update_check_enabled())
+        self.app.icon.update_menu.assert_called_once()
+        self.assertEqual(self.look(self.newer, 1000, 200), 0)
+        self.app.toggle_auto_update_check()
+        self.assertTrue(self.tray.auto_update_check_enabled())
+        with patch.dict('os.environ', {'TESSERA_PACKAGED': '1'}):
+            self.assertEqual(self.look(self.newer, 1000, 1000), 0)
+        (Path(self.temp.name) / '.git').mkdir()
+        self.assertEqual(self.look(self.newer, 1000, 2000), 0)
+        self.app.icon.notify.assert_not_called()
+
+    def test_a_damaged_state_file_counts_as_never_checked(self):
+        self.state.write_text('not json', encoding='utf-8')
+        self.assertEqual(self.look(self.newer, 1000, 200), 1)
+        self.assertEqual(json.loads(self.state.read_text(encoding='utf-8')), {'checked': 1000, 'told': '1.3.0'})
+
+
 if __name__ == '__main__':
     unittest.main()

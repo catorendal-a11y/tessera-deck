@@ -45,11 +45,11 @@ A plugin runs with your own rights on the PC. Tessera does not sandbox it. It ca
 
 ## What Tessera contacts
 
-Tessera makes these connections, each only after you ask for it:
+Tessera makes these connections. All but the daily update check happen only after you ask for them:
 
 | Address | When |
 |---|---|
-| The project's releases on `api.github.com` | The update check. |
+| The project's releases on `api.github.com` | The update check: when you press *Check for updates*, and once a day from the tray. The request asks for the latest release and sends nothing about you or your setup. Switch the daily check off in the tray under **Help → Check for updates automatically**. A Tessera from a package manager and a source checkout never run it. |
 | `api.open-meteo.com`, `geocoding-api.open-meteo.com` | The weather on the ambient screen and its city search. |
 | `api.iconify.design` | Online icons. |
 | Your own HTTP actions, the calendar address you enter for the *Next meeting* widget | When a key or widget uses them. |

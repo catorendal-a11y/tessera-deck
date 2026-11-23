@@ -23,7 +23,7 @@ HASH_FILE = ROOT / 'host/.venv/requirements.sha256'
 REQUIREMENTS = ROOT / 'host/requirements.txt'
 LOCK = ROOT / 'host/requirements.lock'
 MODULE_PROBE = load('labels').MODULE_PROBE
-MINIMUM_PYTHON = (3, 12) if IS_LINUX else (3, 11)  # what Tessera.sh and Tessera.cmd ask for
+MINIMUM_PYTHON = (3, 11)
 # Glob patterns. host/*.local.* is every state, log, lock and copy file the host writes (profiles-*.local.json are the
 # previous and the unreadable copies); profiles.json.*.tmp is a save cut short.
 USER_DATA = ('host/profiles.json', 'host/assets', 'host/backups', 'host/*.local.*', 'host/profiles.json.*.tmp',

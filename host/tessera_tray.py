@@ -45,6 +45,10 @@ STOPPED_PATH = ROOT / 'host/deck-stopped.local.json'  # Stop host in the termina
 RESTART_WAITS = (5, 15, 60, 300)  # seconds before each automatic restart of a host that died; the last repeats
 RESTART_RESET_SECONDS = 600  # a host that ran this long starts a new burst from the first wait
 BRIGHTNESS_LEVELS = (100, 80, 60, 40, 20)
+UPDATE_CHECK_PATH = ROOT / 'host/update-check.local.json'  # the automatic check: off switch, last look, last version told
+UPDATE_CHECK_SECONDS = 24 * 3600
+UPDATE_CHECK_DELAY = 120  # seconds after the tray starts, so a sign-in is not held up by it
+UPDATE_CHECK_LOOK = 600  # how often the tray reads the file to see whether a day has passed
 STATE_COLORS = {'connected': (53, 208, 127), 'waiting': (255, 183, 77), 'stopped': (255, 112, 112)}
 
 
@@ -157,6 +161,34 @@ def set_notifications(enabled: bool, path: Path | None = None) -> None:
     save_profiles(config, path or PROFILES_PATH)
 
 
+def update_check_state(path: Path | None = None) -> dict:
+    try:
+        state = json.loads((path or UPDATE_CHECK_PATH).read_text(encoding='utf-8'))
+        return state if isinstance(state, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_update_check(path: Path | None = None, **changes) -> None:
+    path = path or UPDATE_CHECK_PATH
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(json.dumps(dict(update_check_state(path), **changes)), encoding='utf-8')
+    os.replace(temporary, path)
+
+
+def auto_update_check_enabled(path: Path | None = None) -> bool:
+    """The daily look at the project's releases; on unless switched off in the tray's Help menu."""
+    return update_check_state(path).get('enabled', True) is not False
+
+
+def update_notice(current: str, release: dict) -> tuple[str, str]:
+    """Text and title of the notice about a newer release."""
+    # the editor updates the program itself; a packaged Tessera is updated by its package manager
+    how = (f'You have {current}. Update it with your package manager.' if os.environ.get('TESSERA_PACKAGED')
+           else f'You have {current}. To update, open the editor: Panel → Panel firmware and updates.')
+    return (how + '\n' + (release.get('notes') or '')).strip()[:250], f"Update available: {release['latest']}"
+
+
 def autostart_question_open():
     """True while this folder has not been asked about autostart: no record yet, or a record copied over from another
     folder whose copy Start with Windows still starts."""
@@ -174,6 +206,8 @@ class TrayApp:
         self.status: dict = {}
         self.state: str | None = None
         self.stop = threading.Event()
+        self.started = time.monotonic()
+        self.update_look_after = 0.0  # tray uptime before which the automatic update check does not look again
         self.last_notice = None  # newest notice already shown; the first poll only catches up
         self.host_work = threading.Lock()  # start, stop and restart of the host run one at a time
         self.menu_shows = None  # what the open menu was built from; it is rebuilt when this changes
@@ -296,12 +330,43 @@ class TrayApp:
             current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
             release = updates.check(current)
             if release.get('newer'):
-                # the editor updates the program itself; a packaged Tessera is updated by its package manager
-                how = (f'You have {current}. Update it with your package manager.' if os.environ.get('TESSERA_PACKAGED')
-                       else f'You have {current}. To update, open the editor: Panel → Panel firmware and updates.')
-                self.icon.notify((how + '\n' + (release.get('notes') or '')).strip()[:250], f"Update available: {release['latest']}")
+                self.icon.notify(*update_notice(current, release))
             else:
                 self.icon.notify(f'Tessera {current} is the newest version.', 'Tessera')
+        self.background(work)
+
+    def toggle_auto_update_check(self, *_):
+        def work():
+            save_update_check(enabled=not auto_update_check_enabled())
+            self.icon.update_menu()  # the menu is built once: without this the tick stays as it was
+        self.background(work)
+
+    def auto_update_check(self, now=None, uptime=None):
+        """Once a day, ask GitHub for the newest release and say so once per release. The request names nothing about
+        this PC. A package manager's Tessera and a source checkout are updated another way, so they are not asked for."""
+        now = time.time() if now is None else now
+        uptime = time.monotonic() - self.started if uptime is None else uptime
+        if uptime < max(UPDATE_CHECK_DELAY, self.update_look_after):
+            return
+        self.update_look_after = uptime + UPDATE_CHECK_LOOK
+        state = update_check_state()
+        last = state.get('checked')
+        recent = isinstance(last, (int, float)) and 0 <= now - last < UPDATE_CHECK_SECONDS
+        if recent or state.get('enabled', True) is False or os.environ.get('TESSERA_PACKAGED') or (ROOT / '.git').exists():
+            return
+        save_update_check(checked=now)  # before the request: a PC without a network asks again tomorrow, not every 2 s
+
+        def work():
+            import updates
+            current = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
+            try:
+                release = updates.check(current)
+            except (OSError, ValueError):
+                log.debug('automatic update check failed', exc_info=True)
+                return
+            if release.get('newer') and release['latest'] != state.get('told'):
+                save_update_check(told=release['latest'])
+                self.tell(*update_notice(current, release))
         self.background(work)
 
     def ask_about_autostart(self):
@@ -383,7 +448,9 @@ class TrayApp:
             pystray.MenuItem('Recent problems', lambda *_: self.background(self.show_problems)),
             pystray.MenuItem('Save diagnostics for a bug report', self.save_diagnostics),
             pystray.MenuItem('Open the data folder', self.open_data_folder),
-            pystray.MenuItem('Check for updates', self.check_for_updates)))
+            pystray.MenuItem('Check for updates', self.check_for_updates),
+            pystray.MenuItem('Check for updates automatically', self.toggle_auto_update_check,
+                             checked=lambda item: auto_update_check_enabled())))
         yield pystray.Menu.SEPARATOR
         yield pystray.MenuItem('Quit tray', self.quit)
         yield pystray.MenuItem('Quit and stop host', self.quit_and_stop_host)
@@ -482,6 +549,7 @@ class TrayApp:
             wait = POLL_SECONDS
             try:
                 self.refresh()
+                self.auto_update_check()
             except Exception:
                 log.debug('tray refresh failed', exc_info=True)
 
