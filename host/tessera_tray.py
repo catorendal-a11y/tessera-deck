@@ -286,7 +286,10 @@ class TrayApp:
         return action
 
     def toggle_autostart(self, *_):
-        self.background(lambda: set_autostart(not autostart_enabled()))
+        def work():
+            set_autostart(not autostart_enabled())
+            self.icon.update_menu()  # pystray rebuilds the menu at the click, before this thread has changed the entry
+        self.background(work)
 
     def toggle_notifications(self, *_):
         self.background(lambda: set_notifications(not notifications_enabled()))
@@ -484,7 +487,7 @@ class TrayApp:
         state = tray_state(self.status)
         self.icon.title = f'Tessera — {status_text(self.status)}'[:120]  # Windows allows 127 characters in a tooltip
         shown = (status_text(self.status), bool(self.status.get('running')), self.status.get('device', {}).get('profile'),
-                 PROFILES_PATH.stat().st_mtime_ns if PROFILES_PATH.exists() else 0, firmware_installing())
+                 PROFILES_PATH.stat().st_mtime_ns if PROFILES_PATH.exists() else 0, firmware_installing(), autostart_enabled())
         if shown != self.menu_shows:  # the menu is built once; without this it keeps the old status and ticks
             self.menu_shows = shown
             self.icon.update_menu()
