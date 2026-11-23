@@ -111,6 +111,9 @@ CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-F
 # Silent handshakes before the reconnect loop leaves a device alone until it is plugged in again. A panel that is still
 # booting can miss one or two; every open restarts a UART board on Linux, and holds the port from other programs.
 SILENT_TRIES = 3
+# A UART board that restarts stays on USB and sends nothing on its own, so the host asks who it is this often and
+# compares the bootId. Without it the panel kept an old page for up to CLOCK_INTERVAL, with no rail, lock or clock.
+BOOT_CHECK_INTERVAL = 5
 
 
 class ReconnectBackoff:
@@ -241,6 +244,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.last_activity = time.monotonic()
         self.clock_sent_at = float('-inf')
         self.clock_hours_sent = None
+        self.boot_asked_at = float('-inf')
         self.device_state_path = Path(args.profiles).with_name('deck-device.local.json')
 
     @staticmethod
@@ -685,6 +689,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         if now - self.clock_sent_at >= CLOCK_INTERVAL or hours != self.clock_hours_sent:  # a new format shows at once
             panel.send_line(f'AD_TIME {time.strftime("%Y-%m-%dT%H:%M:%S")} {hours}')
             self.clock_sent_at, self.clock_hours_sent = now, hours
+        if now - self.boot_asked_at >= BOOT_CHECK_INTERVAL:  # the reader loop compares the answer's bootId
+            panel.send_line('{"cmd":"get_info"}')
+            self.boot_asked_at = now
 
     def heartbeat_loop(self, panel):
         # A thread of its own: slow sensor or focus ticks must not make the
@@ -797,6 +804,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('mute', message['id'][:80]))
                         elif message.get('type') == 'agent' and message.get('do') in cockpit.AGENT_ACTIONS and cockpit.agent_exe(message.get('id')):
                             self.agent_touch(message['id'], message['do'])
+                        elif message.get('type') == 'info' and message.get('bootId') != self.device_info.get('bootId'):
+                            # It restarted on the same link: connect again, which logs the restart and sets it up anew.
+                            self.connection_failed.set()
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
         except Exception as exc:

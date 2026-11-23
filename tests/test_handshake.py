@@ -126,6 +126,33 @@ class RestartTests(unittest.TestCase):
         self.assertEqual(len(daemon.notices), 1, 'a normal power-on is only logged')
 
 
+class RestartOnTheSameLinkTests(unittest.TestCase):
+    """A board with a USB-UART bridge that restarts (RST, a crash, a power dip) stays on USB, so the port never fails:
+    the host must notice the new boot from what the panel says, or the panel keeps an old page with no rail or lock."""
+
+    def connected(self, boot_after):
+        FakeSerial.opened = []
+        link = panel('COM9', info(bootId=7, protocol=4))
+        daemon = host_support.test_daemon(port='COM9', no_focus=True)
+        daemon.log, daemon.publish_runtime = Mock(), Mock()
+        daemon.panel, daemon.device_info = link, link.info
+        FakeSerial.script = info(bootId=boot_after, protocol=4)  # what the panel answers from now on
+        reader = threading.Thread(target=daemon.reader_loop, args=(link,), daemon=True)
+        reader.start()
+        self.addCleanup(reader.join, 2)
+        self.addCleanup(daemon.stop.set)
+        import time
+        for second in range(1, 31):  # half a minute of heartbeats
+            daemon.heartbeat(link, time.monotonic() + second)
+        return daemon
+
+    def test_a_panel_that_restarted_without_leaving_usb_is_connected_again(self):
+        self.assertTrue(self.connected(boot_after=8).connection_failed.wait(2))
+
+    def test_the_same_boot_keeps_the_connection(self):
+        self.assertFalse(self.connected(boot_after=7).connection_failed.wait(0.5))
+
+
 class OtaPanel(FakeSerial):
     """Acts as the firmware's AD_OTA_* receiver and keeps the image it got. `lost` names the windows (1 is the first)
     whose answer never leaves the panel, `late` those whose answer only comes with the next one, and `dropped` the
