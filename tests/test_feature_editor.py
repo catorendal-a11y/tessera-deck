@@ -1,10 +1,11 @@
 """Editor features that can be reached without a page: config rewrites, drafts and what a function writes into `config`."""
+import json
 from pathlib import Path
 import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_editor import run_editor
+from test_editor import host_takes, run_editor
 
 
 class EditorFeatureTests(unittest.TestCase):
@@ -318,30 +319,26 @@ return {asked, ran: calls.includes('command/run-key')};
         self.assertFalse(found['ran'])
 
     def test_a_step_the_host_refuses_for_its_size_or_values_stays_a_draft(self):
-        found = self.run_editor(r"""
-const x = n => 'x'.repeat(n);
-const cases = {
-  sameToggle: {type: 'toggle', variable: 'mode', values: ['1', '1']},
-  longToggle: {type: 'toggle', variable: 'mode', values: ['a', x(65)]},
-  okToggle: {type: 'toggle', variable: 'mode', values: ['a', x(64)]},
-  defaultToggle: {type: 'toggle', variable: 'mode'},
-  longNotify: {type: 'timer', name: 't', op: 'start', seconds: 5, notify: x(121)},
-  okNotify: {type: 'timer', name: 't', op: 'start', seconds: 5, notify: x(120)},
-  longSet: {type: 'set', variable: 'v', value: x(1001)},
-  okSet: {type: 'set', variable: 'v', value: x(1000)},
-  longWindow: {type: 'window', op: 'minimize', process: x(261)},
-  okWindow: {type: 'window', op: 'minimize', process: x(260)},
-  longOpen: {type: 'open', target: 'notepad.exe', process: x(261)},
-  farMouse: {type: 'mouse', op: 'move', x: 20001, y: 0},
-  farMouseY: {type: 'mouse', op: 'moveto', x: 0, y: -20001},
-  okMouse: {type: 'mouse', op: 'moveto', x: -20000, y: 20000}};
-return Object.fromEntries(Object.entries(cases).map(([name, step]) => [name, stepProblem(step)]));
-""")
-        for name, problem in found.items():
-            if name.startswith('ok') or name == 'defaultToggle':
-                self.assertEqual(problem, '', name)
-            else:
-                self.assertNotEqual(problem, '', name)
+        cases = {
+            'sameToggle': {'type': 'toggle', 'variable': 'mode', 'values': ['1', '1']},
+            'longToggle': {'type': 'toggle', 'variable': 'mode', 'values': ['a', 'x' * 65]},
+            'okToggle': {'type': 'toggle', 'variable': 'mode', 'values': ['a', 'x' * 64]},
+            'okDefaultToggle': {'type': 'toggle', 'variable': 'mode'},
+            'longNotify': {'type': 'timer', 'name': 't', 'op': 'start', 'seconds': 5, 'notify': 'x' * 121},
+            'okNotify': {'type': 'timer', 'name': 't', 'op': 'start', 'seconds': 5, 'notify': 'x' * 120},
+            'longSet': {'type': 'set', 'variable': 'v', 'value': 'x' * 1001},
+            'okSet': {'type': 'set', 'variable': 'v', 'value': 'x' * 1000},
+            'longWindow': {'type': 'window', 'op': 'minimize', 'process': 'x' * 261},
+            'okWindow': {'type': 'window', 'op': 'minimize', 'process': 'x' * 260},
+            'longOpen': {'type': 'open', 'target': 'notepad.exe', 'process': 'x' * 261},
+            'farMouse': {'type': 'mouse', 'op': 'move', 'x': 20001, 'y': 0},
+            'farMouseY': {'type': 'mouse', 'op': 'moveto', 'x': 0, 'y': -20001},
+            'okMouse': {'type': 'mouse', 'op': 'moveto', 'x': -20000, 'y': 20000}}
+        expected = {name: host_takes(step) for name, step in cases.items()}
+        self.assertEqual(expected, {name: name.startswith('ok') for name in cases}, 'the cases cover both sides of each limit')
+        found = self.run_editor('return Object.fromEntries(Object.entries(' + json.dumps(cases)
+                                + ').map(([name, step]) => [name, !stepProblem(step)]));')
+        self.assertEqual(found, expected)
 
     def test_the_editor_does_not_follow_the_panel_while_a_field_in_the_inspector_has_focus(self):
         found = self.run_editor(r"""
