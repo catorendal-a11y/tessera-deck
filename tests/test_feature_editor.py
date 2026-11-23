@@ -304,6 +304,32 @@ return {asked, ran: calls.includes('command/run-key')};
         self.assertIn('runs a command', found['asked'][0])
         self.assertFalse(found['ran'])
 
+    def test_a_step_the_host_refuses_for_its_size_or_values_stays_a_draft(self):
+        found = self.run_editor(r"""
+const x = n => 'x'.repeat(n);
+const cases = {
+  sameToggle: {type: 'toggle', variable: 'mode', values: ['1', '1']},
+  longToggle: {type: 'toggle', variable: 'mode', values: ['a', x(65)]},
+  okToggle: {type: 'toggle', variable: 'mode', values: ['a', x(64)]},
+  defaultToggle: {type: 'toggle', variable: 'mode'},
+  longNotify: {type: 'timer', name: 't', op: 'start', seconds: 5, notify: x(121)},
+  okNotify: {type: 'timer', name: 't', op: 'start', seconds: 5, notify: x(120)},
+  longSet: {type: 'set', variable: 'v', value: x(1001)},
+  okSet: {type: 'set', variable: 'v', value: x(1000)},
+  longWindow: {type: 'window', op: 'minimize', process: x(261)},
+  okWindow: {type: 'window', op: 'minimize', process: x(260)},
+  longOpen: {type: 'open', target: 'notepad.exe', process: x(261)},
+  farMouse: {type: 'mouse', op: 'move', x: 20001, y: 0},
+  farMouseY: {type: 'mouse', op: 'moveto', x: 0, y: -20001},
+  okMouse: {type: 'mouse', op: 'moveto', x: -20000, y: 20000}};
+return Object.fromEntries(Object.entries(cases).map(([name, step]) => [name, stepProblem(step)]));
+""")
+        for name, problem in found.items():
+            if name.startswith('ok') or name == 'defaultToggle':
+                self.assertEqual(problem, '', name)
+            else:
+                self.assertNotEqual(problem, '', name)
+
 
 if __name__ == '__main__':
     unittest.main()

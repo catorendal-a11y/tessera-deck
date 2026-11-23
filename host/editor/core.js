@@ -330,6 +330,12 @@ function valueProblem(a,pages) {
   if(a.type==='http'&&!String(a.url).startsWith('$(')&&!/^https?:\/\/[^/\s]/i.test(a.url))return 'start the address with http:// or https://';
   if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
   if(['page','folder'].includes(a.type)&&pages&&!pages.includes(a.page))return 'choose a page of this profile';  // a pasted key can name a page only another profile has
+  // Size limits of config_check.py and live_state.py
+  if(a.type==='toggle'&&a.values!==undefined&&!(Array.isArray(a.values)&&a.values.length===2&&a.values.every(v=>typeof v==='string'&&v.length<=64)&&a.values[0]!==a.values[1]))return 'give the toggle two different values of at most 64 characters';
+  if(a.type==='timer'&&String(a.notify||'').length>120)return 'keep the message under 120 characters';
+  if(a.type==='set'&&String(a.value??'').length>1000)return 'keep the value under 1000 characters';
+  if(['window','open'].includes(a.type)&&String(a.process||'').length>260)return 'keep the process name under 260 characters';
+  if(a.type==='mouse'&&['x','y'].some(k=>a[k]!==undefined&&!whole(a[k],-20000,20000)))return 'keep the pointer position within 20000 pixels of the screen origin';
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
   if(a.type==='timer'&&a.seconds!==undefined&&!whole(a.seconds,1,604800))return 'use a timer length from 1 second to 7 days';
   if(a.type==='plugin'){
