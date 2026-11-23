@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 import time
 from pathlib import Path
 from typing import Callable
@@ -85,6 +86,12 @@ def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_
     if venv_made_by_other_python():
         # the venv keeps the old minor version's folder, so the new Python finds nothing in it and pip is gone too
         emit('Python changed since host/.venv was made. Delete the folder host/.venv and start Tessera again.')
+        return False
+    platform = sysconfig.get_platform()
+    if platform.startswith('win') and platform != 'win-amd64':
+        # pyca/cryptography and psutil publish no wheels for 32-bit or arm64 Windows, and building them needs a compiler
+        emit(f'Tessera needs 64-bit (x64) Python on Windows; this one is {platform}. '
+             'Install x64 Python, delete the folder host\\.venv and start Tessera again.')
         return False
     emit(f'Installing the host dependencies ({reason}) ...')
     run = install or (lambda command: subprocess.run(command).returncode)

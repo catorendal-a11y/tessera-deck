@@ -20,7 +20,7 @@
 | Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C. Other sellers also list the board under this model number. Newer boards have chip revision v3.x and take their own package, `tessera-firmware-tessera-p4-v3-<version>.zip` (see [Flash the panel](#flash-the-panel)). |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Cable | USB cable from the PC to the board's USB Serial/JTAG port. No Wi-Fi is needed. |
-| PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
+| PC | Windows 10 or 11 and 64-bit (x64) Python 3.11 or newer; arm64 and 32-bit Python do not work. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
 
 ## Download and verify
 
@@ -56,7 +56,7 @@ The editor does not run keys; they run only when you press them on the panel. Th
 
 The first start of `Tessera.cmd` shows numbered progress lines (1/3 to 3/3). It
 
-- finds Python 3.11 or newer, or installs Python 3.12 with winget;
+- finds 64-bit (x64) Python 3.11 or newer, or installs x64 Python 3.12 with winget;
 - creates `host\.venv` and installs the packages from `host/requirements.lock`, each pinned to its SHA-256 hash;
 - puts a shortcut on the Desktop;
 - starts the tray icon and the editor.

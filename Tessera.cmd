@@ -69,11 +69,11 @@ exit /b 0
 if errorlevel 1 goto failed
 exit /b 0
 :create_environment
-rem Python 3.11 or newer (README); an older one is skipped, and winget installs 3.12 when none fits
+rem Python 3.11 or newer in 64-bit x64 (README); an older, 32-bit or arm64 one is skipped (no wheels exist for them), and winget installs x64 3.12 when none fits
 set "PYTHON="
-py -3 -c "import sys; sys.exit(sys.version_info < (3, 11))" >nul 2>nul && set "PYTHON=py -3"
-if not defined PYTHON python -c "import sys; sys.exit(sys.version_info < (3, 11))" >nul 2>nul && set "PYTHON=python"
-if not defined PYTHON python -c "" >nul 2>nul && echo The Python on this PC is older than 3.11, which Tessera needs.
+py -3 -c "import sys, sysconfig; sys.exit(sys.version_info < (3, 11) or sysconfig.get_platform() != 'win-amd64')" >nul 2>nul && set "PYTHON=py -3"
+if not defined PYTHON python -c "import sys, sysconfig; sys.exit(sys.version_info < (3, 11) or sysconfig.get_platform() != 'win-amd64')" >nul 2>nul && set "PYTHON=python"
+if not defined PYTHON python -c "" >nul 2>nul && echo The Python on this PC is older than 3.11 or not 64-bit x64, which Tessera needs.
 if not defined PYTHON call :install_python
 if not defined PYTHON exit /b 1
 %PYTHON% -m venv "host\.venv"
@@ -81,9 +81,9 @@ if errorlevel 1 echo Python could not create host\.venv. Delete that folder if i
 exit /b %errorlevel%
 :install_python
 echo Installing Python 3.12 for this user with winget ...
-winget install -e --id Python.Python.3.12 --scope user --silent --accept-package-agreements --accept-source-agreements
+winget install -e --id Python.Python.3.12 --architecture x64 --scope user --silent --accept-package-agreements --accept-source-agreements
 if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set PYTHON="%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
-if not defined PYTHON echo Python 3.11 or newer could not be installed. Install it from https://www.python.org/downloads/ (tick "Add python.exe to PATH") and start Tessera again.
+if not defined PYTHON echo Python 3.11 or newer (64-bit x64) could not be installed. Install it from https://www.python.org/downloads/ (tick "Add python.exe to PATH") and start Tessera again.
 exit /b 0
 :failed
 echo Tessera could not start. See the error above.

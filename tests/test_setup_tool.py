@@ -75,6 +75,22 @@ class EnsureTests(unittest.TestCase):
             self.assertTrue(self.ensure(works=False))
         self.assertEqual(len(self.installs), 1)
 
+    def test_windows_python_that_is_not_x64_is_refused_with_the_reason(self):
+        # no cryptography or psutil wheel exists for these, so pip would try to build them and fail
+        for platform in ('win-arm64', 'win32'):
+            with self.subTest(platform), patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
+                self.messages.clear()
+                self.assertFalse(self.ensure(works=False))
+                self.assertEqual(self.installs, [])
+                text = ' '.join(self.messages)
+                self.assertIn('x64', text)
+                self.assertNotIn('internet', text)
+
+    def test_x64_and_linux_pythons_install(self):
+        for platform in ('win-amd64', 'linux-x86_64', 'linux-aarch64', 'macosx-14.0-arm64'):
+            with self.subTest(platform), patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
+                self.assertTrue(self.ensure(works=False))
+
     def test_the_decision_function(self):
         self.assertIsNone(setup_tool.needs_install('a', 'a', True))
         self.assertIn('changed', setup_tool.needs_install('a', 'b', True))
