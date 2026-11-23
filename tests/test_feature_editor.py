@@ -284,6 +284,26 @@ return {shortcuts: config.panel.shortcuts, triggers: config.triggers};
         self.assertEqual(found['shortcuts'], [{'type': 'actions', 'label': 'Home', 'icon': 'ok', 'actions': [{'type': 'page', 'page': 'Home'}]}])
         self.assertEqual(found['triggers'], [{'when': {'type': 'startup'}, 'actions': [{'type': 'hotkey', 'keys': 'a'}]}])
 
+    def test_run_now_on_a_toggle_key_asks_about_every_state_it_might_press(self):
+        found = self.run_editor(r"""
+const key = {id: 1, label: 'Mode', icon: 'ok', states: [
+  {label: 'A', icon: 'ok', actions: [{type: 'hotkey', keys: 'ctrl+c'}]},
+  {label: 'B', icon: 'ok', actions: [{type: 'shell', command: 'echo hi'}]}]};
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [key]}}}};
+profile = 'Main'; page = 'First'; selected = 1; editState = 0; history = []; future = [];
+dashboard = {device: {connected: true}};
+const asked = [], calls = [];
+askDialog = async (title, message) => { asked.push(message); return false; };
+api = async (path, data) => { calls.push(path); return path === 'command/dryrun' ? {actions: {steps: [], wait_seconds: 0}} : {message: 'ok', revision: 'r'}; };
+await testButton();
+await document.querySelector('#test-run').onclick();
+await settle();
+return {asked, ran: calls.includes('command/run-key')};
+""")
+        self.assertEqual(len(found['asked']), 1)
+        self.assertIn('runs a command', found['asked'][0])
+        self.assertFalse(found['ran'])
+
 
 if __name__ == '__main__':
     unittest.main()
