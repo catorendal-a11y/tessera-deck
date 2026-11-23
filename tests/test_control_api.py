@@ -236,7 +236,9 @@ class OfflinePressTests(unittest.TestCase):
             urllib.request.urlopen(request, timeout=3)
         with refused.exception as error:
             self.assertEqual(error.code, 400)
-            self.assertIn('not connected', json.loads(error.read())['error'])
+            said = json.loads(error.read())['error']
+            self.assertIn('not connected', said)
+            self.assertIn('USB cable', said)  # what to do next, not only what went wrong
         self.assertEqual(daemon.jobs.qsize(), 0)
 
 

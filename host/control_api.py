@@ -227,7 +227,8 @@ class ControlServer:
         button = _button(data)
         # The worker drops a press while the panel is away, so accepting it would answer OK for nothing.
         if self.daemon.panel is None or self.daemon.connection_failed.is_set():
-            raise ApiError('The panel is not connected; the key was not pressed')
+            raise ApiError('The panel is not connected, so the key was not pressed. Check its USB cable, '
+                           'or open the editor to see why it does not connect.')
         self.daemon.submit(('api-press', button))
 
     def show_page(self, data):
