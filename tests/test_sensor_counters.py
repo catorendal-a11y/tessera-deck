@@ -107,5 +107,46 @@ class RefreshTests(unittest.TestCase):
         counters._reset.assert_called_once()
 
 
+class FakeLocalizedPdh:
+    """win32pdh on a German or French Windows: the English paths are accepted by AddEnglishCounter, but
+    ExpandCounterPath, which only knows the localized names, finds nothing for them."""
+    PDH_FMT_DOUBLE = 0x200
+    arrays = {
+        sensors.ENGINE_PATH: {f'pid_7_luid_{A}_phys_0_eng_0_engtype_3D': 40.0},
+        sensors.MEMORY_PATH: {f'luid_{A}_phys_0': 2.0 * GIB},
+    }
+
+    def OpenQuery(self):
+        return 'query'
+
+    def CloseQuery(self, query):
+        pass
+
+    def CollectQueryData(self, query):
+        pass
+
+    def ExpandCounterPath(self, path):
+        return []
+
+    def AddEnglishCounter(self, query, path):
+        return path
+
+    def GetFormattedCounterArray(self, handle, fmt):
+        return dict(self.arrays[handle])
+
+    def GetFormattedCounterValue(self, handle, fmt):
+        return (0, 100.0)
+
+
+class LocalizedWindowsTests(unittest.TestCase):
+    def test_gpu_load_and_vram_are_read_where_the_localized_counter_names_hide_the_english_ones(self):
+        with patch.object(sensors, 'total_vram_bytes', return_value=4 * GIB):
+            counters = sensors.WindowsCounters()
+        with patch.object(sensors, 'win32pdh', FakeLocalizedPdh()):
+            counters.sample()  # the first call only lists the counters
+            values = counters.sample()
+        self.assertEqual((values['gpu_load'], values['vram']), (40.0, 50.0))
+
+
 if __name__ == '__main__':
     unittest.main()
