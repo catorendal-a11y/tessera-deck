@@ -6,6 +6,7 @@
 - The package list names the boards (GUITION JC1060P470C, Elecrow CrowPanel Advance 7.0 and so on) instead of their internal ids.
 - *Check for updates* downloads the package for the board the dialog found, not always the one for the GUITION v1.x board.
 - The tray's *Check for updates* notice says how to update from the editor. It still pointed to the Releases page, from before the editor could update Tessera itself.
+- The tray looks for a new version once a day and tells you once when one is out. It asks GitHub for the latest release and sends nothing about you or your setup. **Help → Check for updates automatically** in the tray menu switches it off. A Tessera from a package manager and a source checkout do not run it.
 - Editor fixes:
   - Adding a Held or Double-press step to a key with *Hold to confirm* no longer blocks saving. *Hold to confirm* is turned off and a notice says so, with undo.
   - *Move to slot* shows the key's real slot again when the move is refused.
