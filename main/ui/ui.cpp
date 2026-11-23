@@ -636,8 +636,14 @@ void sync_faders() {
 /* ---- Status -------------------------------------------------------------------------------------- */
 void draw_stat(int i,const deck_stat_t& stat) {
     if(strcmp(lv_label_get_text(stat_name[i]),stat.name))lv_label_set_text(stat_name[i],stat.name);
-    if(strcmp(lv_label_get_text(stat_value[i]),stat.value))lv_label_set_text(stat_value[i],stat.value);
-    if(strcmp(lv_label_get_text(stat_unit[i]),stat.unit))lv_label_set_text(stat_unit[i],stat.unit);
+    bool resized=false;
+    if(strcmp(lv_label_get_text(stat_value[i]),stat.value)){lv_label_set_text(stat_value[i],stat.value);resized=true;}
+    if(strcmp(lv_label_get_text(stat_unit[i]),stat.unit)){lv_label_set_text(stat_unit[i],stat.unit);resized=true;}
+    /* "123.4M /s" or "12d 23h" is wider than the card in the big font: step down until value, gap and unit fit. */
+    if(resized)for(const lv_font_t *font:{small?&lv_font_montserrat_40:&lv_font_montserrat_48,&lv_font_montserrat_32,&lv_font_montserrat_24}) {
+        lv_obj_set_style_text_font(stat_value[i],font,0);lv_obj_update_layout(stat_value[i]);
+        if(lv_obj_get_width(stat_value[i])+sc(6)+lv_obj_get_width(stat_unit[i])<=StatW-2*sc(20))break;
+    }
     set_color(stat_value[i],LV_STYLE_TEXT_COLOR,stat.color);
     set_color(stat_unit[i],LV_STYLE_TEXT_COLOR,mix(stat.color,Muted,.45f));
     const int fill=(StatW-2*sc(20))*stat.percent/100;

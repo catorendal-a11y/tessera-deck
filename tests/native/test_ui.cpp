@@ -415,6 +415,19 @@ static void test_status_screen(){
  {"name":"VRAM","value":"14","unit":"%","p":14,"color":"#B388FF"},{"name":"Network","value":"244","unit":"KB/s","p":20,"color":"#A3B2BC"}]})"));
     ui_show_view(3);updates();assert(visible("CPU load")&&visible("Disk is high")&&visible("244")&&visible("KB/s"));
     capture("status.ppm");
+    /* The longest values host/cockpit.py really sends fit their card with the unit beside them. */
+    assert(deck_model_stats_from_json(R"({"stats":[{"name":"Download","value":"123.4M","unit":"/s","p":100},
+ {"name":"Uptime","value":"12d 23h","unit":"","p":100},{"name":"CPU clock","value":"4800","unit":"MHz","p":80},
+ {"name":"GPU fan","value":"2450","unit":"RPM","p":80},{"name":"Uptime","value":"23h 59m","unit":"","p":14}]})"));
+    ui_show_view(3);updates();capture("status_long.ppm");
+    int fitted=0;
+    for(const char* value:{"123.4M","12d 23h","4800","2450","23h 59m"}){
+        auto* text=find(lv_screen_active(),value);assert(text);auto* row=lv_obj_get_parent(text);
+        lv_area_t room;lv_obj_get_coords(row,&room);
+        for(uint32_t i=0;i<lv_obj_get_child_count(row);++i){lv_area_t part;lv_obj_get_coords(lv_obj_get_child(row,i),&part);
+            if(part.x2>room.x2){fprintf(stderr,"%s: ends at %d, the card's room at %d\n",value,(int)part.x2,(int)room.x2);assert(false);}}
+        ++fitted;}
+    assert(fitted==5);
     assert(deck_model_stats_from_json(R"({"stats":[{"name":"CPU load","value":"9","unit":"%","p":9}]})"));updates();assert(visible("9")&&visible("All good"));
     ui_show_view(0);updates();assert(visible("New tab 2"));
 }
