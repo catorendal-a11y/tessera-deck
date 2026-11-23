@@ -110,10 +110,7 @@ class WorkflowTests(unittest.TestCase):
     def test_a_dry_run_of_the_release_publishes_nothing(self):
         release = read('.github/workflows/release.yml')
         self.assertIn('workflow_dispatch:', release)
-        self.assertRegex(release, r"(?m)^  publish:
-    name: [^
-]+
-    if: github\.ref_type == 'tag'")
+        self.assertRegex(release, r"(?m)^  publish:\n    name: [^\n]+\n    if: github\.ref_type == 'tag'")
         self.assertNotIn('idf.py', release, 'the firmware comes from the CI jobs; building it again took 25 minutes')
 
     def test_the_lock_file_follows_requirements_txt(self):
