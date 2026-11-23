@@ -136,12 +136,14 @@ class BackupTests(unittest.TestCase):
 
     def test_a_file_saved_with_a_byte_order_mark_or_as_utf16_is_read_everywhere(self):
         # PowerShell 5.1 Set-Content and Notepad write these, and the editor already accepts them.
+        from tessera_tray import load_config
         text = json.dumps(config('Edited'))
         for name, raw in (('utf-8 with BOM', '﻿'.encode('utf-8') + text.encode('utf-8')), ('utf-16', text.encode('utf-16'))):
             with self.subTest(name):
                 self.path.write_bytes(raw)
                 self.assertEqual(config_store.check(raw)['profiles']['Main']['pages']['First'][0]['label'], 'Edited')
                 self.assertEqual(deck.Daemon.load_profiles(self.path)['profiles']['Main']['pages']['First'][0]['label'], 'Edited')
+                self.assertEqual(load_config(self.path)['profiles']['Main']['pages']['First'][0]['label'], 'Edited')
                 self.assertIsNone(config_store.recover(self.path), 'the edits are not replaced by an older backup')
                 self.assertEqual(self.path.read_bytes(), raw)
                 backup = config_store.backups_dir(self.path)
