@@ -305,10 +305,6 @@ class ScriptStepTests(unittest.TestCase):
         self.assertIn('\n  script:{name:', core)
 
 
-if __name__ == '__main__':
-    unittest.main()
-
-
 @windows_only
 class AgentTerminalTests(unittest.TestCase):
     def test_the_agent_keys_open_the_terminal_in_the_users_folder_not_in_tessera(self):
@@ -324,3 +320,7 @@ class AgentTerminalTests(unittest.TestCase):
         for folder in found:
             shown = subprocess.run(f'echo {folder}', shell=True, cwd=ROOT, capture_output=True, text=True).stdout.strip()
             self.assertEqual(shown, os.environ['USERPROFILE'], folder)
+
+
+if __name__ == '__main__':
+    unittest.main()
