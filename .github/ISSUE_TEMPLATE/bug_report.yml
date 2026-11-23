@@ -13,7 +13,7 @@ body:
     id: version
     attributes:
       label: Tessera version
-      description: The editor's status line shows the firmware version; the host version is in the VERSION file. Write both if they differ.
+      description: The editor's status line shows the firmware version when the panel is connected; the host version is in the VERSION file. Write both if they differ.
     validations:
       required: true
   - type: dropdown
@@ -35,10 +35,10 @@ body:
       description: Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). Say so if yours is different.
       placeholder: GUITION JC1060P470C
   - type: input
-    id: windows
+    id: os
     attributes:
-      label: Windows version
-      description: Press Win+R, type winver and press Enter. For example "Windows 11 24H2".
+      label: Operating system
+      description: "On Windows, the output of winver (Win+R, type winver), for example Windows 11 24H2. On Linux, the distro and desktop, and whether the session is X11 or Wayland."
     validations:
       required: true
   - type: textarea

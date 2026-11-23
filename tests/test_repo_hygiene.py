@@ -28,6 +28,16 @@ class RepoHygieneTests(unittest.TestCase):
             self.assertIn('python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig', text, doc)
             self.assertIn('boards/tessera-p4-v3.defaults', text, doc)
 
+    def test_the_bug_report_form_asks_linux_users_for_what_triage_needs(self):
+        form = read('.github/ISSUE_TEMPLATE/bug_report.yml')
+        field = re.search(r'- type: input\s+id: (?:os|windows)\s+attributes:\s+label: (.+)\s+description: (.+)', form)
+        self.assertIsNotNone(field)
+        self.assertEqual(field.group(1), 'Operating system')
+        for word in ('winver', 'distro', 'X11', 'Wayland'):
+            self.assertIn(word, field.group(2))
+        # The status line shows the firmware version only while a panel is connected.
+        self.assertIn('when the panel is connected', form)
+
     def test_cppcheck_covers_every_firmware_source(self):
         ci = read('.github/workflows/ci.yml')
         sources = {p.relative_to(ROOT).as_posix() for p in (ROOT / 'main').rglob('*')
