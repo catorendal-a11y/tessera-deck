@@ -209,6 +209,19 @@ class FeedTests(unittest.TestCase):
         self.settle(feed)
         self.assertEqual(feed.events(settings, NOW)[0][0]['summary'], 'Lunch', 'a failed refresh keeps the last calendar')
 
+    def test_a_calendar_of_several_megabytes_is_read_and_a_huge_one_is_refused_in_plain_words(self):
+        # A calendar kept for years lists every past event: 3 MB is ordinary.
+        big = ics(['DTSTART:20261113T110000', 'SUMMARY:Lunch', 'X-NOTES:' + 'x' * 3 * 1024 * 1024]).encode()
+        feed = calendar_feed.Feed(lambda request, timeout: Reply(big))
+        feed.events({'url': 'https://example.com/a.ics'}, NOW)
+        self.settle(feed)
+        self.assertEqual(feed.events({'url': 'https://example.com/a.ics'}, NOW)[0][0]['summary'], 'Lunch')
+        huge = b'BEGIN:VCALENDAR\r\n' + b'x' * (16 * 1024 * 1024 + 1)
+        feed = calendar_feed.Feed(lambda request, timeout: Reply(huge))
+        feed.events({'url': 'https://example.com/b.ics'}, NOW)
+        self.settle(feed)
+        self.assertEqual(feed.events({'url': 'https://example.com/b.ics'}, NOW), (None, 'The calendar is over 16 MB'))
+
     def test_a_page_that_is_no_calendar_says_so(self):
         feed = calendar_feed.Feed(lambda request, timeout: Reply(b'<html>sign in</html>'))
         feed.events({'url': 'https://example.com/'}, NOW)

@@ -18,7 +18,7 @@ import urllib.request
 
 REFRESH_SECONDS = 300
 RETRY_SECONDS = 60
-MAX_BYTES = 2 * 1024 * 1024
+MAX_BYTES = 16 * 1024 * 1024  # a calendar kept for years lists every past event, several MB
 MAX_URL = 500
 LOOK_AHEAD = timedelta(days=2)
 # Repeat periods (days, weeks, months, years) one feed may walk in total: a hostile invite or feed cannot keep the host busy for minutes.
@@ -382,9 +382,10 @@ class Feed:
             with self._opener(request, timeout=10) as response:
                 data = response.read(MAX_BYTES + 1)
             if len(data) > MAX_BYTES:
-                raise ValueError('the calendar is larger than 2 MB')
-            text = data.decode('utf-8', 'replace')
-            if 'BEGIN:VCALENDAR' not in text[:2000].upper():
+                error = f'The calendar is over {MAX_BYTES >> 20} MB'  # short: the panel cuts the text at 60 characters
+            else:
+                text = data.decode('utf-8', 'replace')
+            if text is not None and 'BEGIN:VCALENDAR' not in text[:2000].upper():
                 text, error = None, 'That address is not an iCal calendar'
         except Exception as exc:  # any failure must clear _busy below, or the calendar would never refresh again
             error = f'Could not read the calendar: {exc}'[:60]
