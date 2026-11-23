@@ -141,7 +141,7 @@ class HalfwayTests(Case):
                 (self.root / 'VERSION').write_text('1.0.0\n')
                 real = os.replace
 
-                def replace(source, target):
+                def replace(source, target, failing=failing, real=real):
                     if Path(source).name == failing:
                         raise PermissionError(13, 'in use', str(source))
                     real(source, target)
