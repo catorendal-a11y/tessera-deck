@@ -28,6 +28,7 @@ import webbrowser
 from deck_control import (FIRMWARE_FLAG_PATH, ROOT, Controller, autostart_enabled,
                           save_profiles, set_autostart)
 from tesserad import SUPPORTED_PROTOCOLS, Daemon, DeviceRejected, PanelSerial, validate_config
+from panel_serial import serial
 from deck_assets import Assets
 import ambient
 import config_store
@@ -377,6 +378,8 @@ class Editor:
                 return {'boardId': info.get('boardId', firmware_update.BOARD_ID), 'firmwareVersion': None, 'protocolUnknown': True}
             raise firmware_update.PackageError(str(exc)) from exc
         except OSError as exc:
+            if isinstance(exc, getattr(serial, 'SerialTimeoutException', ())):
+                return None  # the port opened but takes no data: a blank board, whose bootloader only prints
             raise firmware_update.InstallError(f'{port} could not be opened: {exc}') from exc
         info = dict(panel.info)
         panel.close()
