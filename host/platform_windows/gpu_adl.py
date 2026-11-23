@@ -12,9 +12,17 @@ PMLOG_GFX_CLOCK, PMLOG_EDGE_TEMP, PMLOG_FAN_RPM, PMLOG_ACTIVITY, PMLOG_ASIC_POWE
 
 
 PMLOG_FAN_PERCENT = 15
+# Cards from the RX 7000 series on report the power of the whole board here and leave PMLOG_ASIC_POWER out
+# (ADL_PMLOG_BOARD_POWER in AMD's adl_defines.h; Libre Hardware Monitor reads the same slot for them).
+PMLOG_BOARD_POWER = 73
 
 
 PMLOG_SLOTS = 256
+
+
+def card_power(sensors: dict[int, int]) -> int | None:
+    """Watts the card draws: the board's reading where the card has one, else the chip's."""
+    return sensors.get(PMLOG_BOARD_POWER, sensors.get(PMLOG_ASIC_POWER))
 
 
 def parse_pmlog(sensors: dict[int, int]) -> dict[str, float]:
@@ -23,8 +31,9 @@ def parse_pmlog(sensors: dict[int, int]) -> dict[str, float]:
     temp = sensors.get(PMLOG_EDGE_TEMP, sensors.get(PMLOG_HOTSPOT_TEMP))
     if temp is not None and 0 < temp < 150:
         result['gpu_temp'] = float(temp)
-    if PMLOG_ASIC_POWER in sensors:
-        result['gpu_power'] = float(sensors[PMLOG_ASIC_POWER])
+    power = card_power(sensors)
+    if power is not None:
+        result['gpu_power'] = float(power)
     if PMLOG_GFX_CLOCK in sensors:
         result['gpu_clock'] = float(sensors[PMLOG_GFX_CLOCK])
     if PMLOG_FAN_RPM in sensors:
@@ -38,8 +47,8 @@ def pick_graphics_card(adapters: dict[int, dict[int, int]]) -> int | None:
     """The discrete card among adapter index -> PMLog slots: the one with a fan, else the most power-hungry."""
     with_fan = [index for index, slots in adapters.items() if PMLOG_FAN_RPM in slots or PMLOG_FAN_PERCENT in slots]
     if with_fan:
-        return max(with_fan, key=lambda index: adapters[index].get(PMLOG_ASIC_POWER, 0))
-    return max(adapters, key=lambda index: adapters[index].get(PMLOG_ASIC_POWER, 0), default=None)
+        return max(with_fan, key=lambda index: card_power(adapters[index]) or 0)
+    return max(adapters, key=lambda index: card_power(adapters[index]) or 0, default=None)
 
 
 class AdlReader:
