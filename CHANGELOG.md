@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Installing on a blank panel works on the real board. A board without firmware takes no data on its USB port, and the editor read that as a port it could not open, so it never got as far as asking the chip. It now asks the chip and offers the package. Tried on a GUITION JC1060P470C that was erased first: found as ESP32-P4 v1.3, installed, and running 1.2.10.
+- The log says what to do when a port takes no data, instead of "Write timeout".
+
 ## 1.2.10
 
 The new way to install on a blank panel was tried against a simulated USB port, not a real blank board, and the changes for Linux were not run on Linux. If you install on a new board or update on Linux, a report in the issues on how it went helps.
