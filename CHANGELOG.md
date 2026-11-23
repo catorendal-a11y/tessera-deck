@@ -1,11 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.2.10
 
-- The host no longer stops when something unexpected goes wrong while it connects to the panel. It writes the reason to the log and tries again, as it does for a missing panel.
-- A USB port that does not open is explained in plain words: in use by another program, not there, or (on Linux) not allowed for your user. The log used to show pyserial's own text, such as `PermissionError(13, 'Access is denied.')`.
-- A request to the control API that fails inside the host gets an answer and a line in the host log. The connection used to close without either.
-- A heartbeat thread that fails now makes the host reconnect instead of leaving the panel on its lost-PC screen.
+The new way to install on a blank panel was tried against a simulated USB port, not a real blank board, and the changes for Linux were not run on Linux. If you install on a new board or update on Linux, a report in the issues on how it went helps.
+
 - Installing firmware on a new panel takes fewer steps. When no panel answers, the firmware dialog reads the chip and its revision from the USB port, says what it found and lists only the packages for boards with that chip. A GUITION board with a v3.x chip gets its package chosen for it. The *Install anyway* box is gone: *Install* asks once before it writes everything.
 - The package list names the boards (GUITION JC1060P470C, Elecrow CrowPanel Advance 7.0 and so on) instead of their internal ids.
 - *Check for updates* downloads the package for the board the dialog found, not always the one for the GUITION v1.x board.
@@ -26,6 +24,10 @@
 - A first start that failed while it installed the packages repeats the first-run steps the next time, so the Desktop shortcut is made (Windows).
 - A host that was started again after *Stop host* in the tray (from the editor, the terminal or a firmware install) is restarted automatically again if it dies.
 - `--uninstall --purge` also deletes the logs and the other `*.local.*` files in `host/`. The uninstall names the autostart entry only when there was one.
+- The host no longer stops when something unexpected goes wrong while it connects to the panel. It writes the reason to the log and tries again, as it does for a missing panel.
+- A USB port that does not open is explained in plain words: in use by another program, not there, or (on Linux) not allowed for your user. The log used to show pyserial's own text, such as `PermissionError(13, 'Access is denied.')`.
+- A request to the control API that fails inside the host gets an answer and a line in the host log. The connection used to close without either.
+- A heartbeat thread that fails now makes the host reconnect instead of leaving the panel on its lost-PC screen.
 
 ## 1.2.9
 
