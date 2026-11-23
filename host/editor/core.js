@@ -644,6 +644,7 @@ let lastDevicePath='';
 function followDevice() {
   renderShowHere();  // runs on every status poll, like this check
   const d=dashboard.device;if(!$('#sync').checked||!d?.connected||!d.profile||document.querySelector('dialog[open]'))return;
+  if($('#inspector').contains(document.activeElement))return;  // typing: the redraw would hand the rest of the keystrokes to another key. The next poll after the field loses focus follows.
   const path=d.profile+'|'+d.page;if(path===lastDevicePath)return;lastDevicePath=path;
   if(config.profiles[d.profile]?.pages?.[d.page]&&(d.profile!==profile||d.page!==page)){showPage(d.profile,d.page);renderAll();}
 }

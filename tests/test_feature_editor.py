@@ -330,6 +330,24 @@ return Object.fromEntries(Object.entries(cases).map(([name, step]) => [name, ste
             else:
                 self.assertNotEqual(problem, '', name)
 
+    def test_the_editor_does_not_follow_the_panel_while_a_field_in_the_inspector_has_focus(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [{id: 1, label: 'A', icon: 'ok', actions: []}], Second: [{id: 1, label: 'B', icon: 'ok', actions: []}]}}}};
+profile = 'Main'; page = 'First'; selected = 1; history = []; future = [];
+dashboard = {running: true, device: {connected: true, profile: 'Main', page: 'Second'}};
+const find = document.querySelector, field = {};
+document.querySelector = selector => selector === 'dialog[open]' ? null : find(selector);
+find('#inspector').contains = node => node === field;
+renderAll = () => {};  // drawing needs a real page; what is asserted is which page the editor shows
+document.activeElement = field;
+followDevice();
+const typing = page;
+document.activeElement = null;
+followDevice();
+return {typing, after: page};
+""")
+        self.assertEqual(found, {'typing': 'First', 'after': 'Second'})
+
 
 if __name__ == '__main__':
     unittest.main()
