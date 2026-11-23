@@ -149,11 +149,18 @@ class UninstallTests(unittest.TestCase):
 
     def test_uninstall_leaves_the_autostart_entry_of_another_copy(self):
         import deck_control
-        other = self.root / 'Tessera.vbs'
-        other.write_text('TesseraShell.Run "D:\new\host\tessera_tray.py", 0, False', encoding='utf-8')
-        with patch.object(deck_control, 'startup_script_path', return_value=other):
+        from venv_paths import venv_python
+        copy = self.root / 'other copy'
+        for python in (venv_python(copy), venv_python(copy, windowless=True)):
+            python.parent.mkdir(parents=True, exist_ok=True)
+            python.write_text('')
+        entry = deck_control.startup_script_path(self.root / 'appdata')  # a startup folder of its own, not the real one
+        setup_tool.load('autostart').enable(entry, copy)  # what that copy writes
+        written = entry.read_bytes()
+        with patch.object(deck_control, 'startup_script_path', return_value=entry):
             removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link)
-        self.assertTrue(other.exists())
+        self.assertTrue(entry.exists(), "the other copy's autostart entry was deleted")
+        self.assertEqual(entry.read_bytes(), written)
         self.assertEqual(removed, [SHORTCUT])
 
     def test_uninstall_says_when_the_elevated_sensors_task_is_still_there(self):
