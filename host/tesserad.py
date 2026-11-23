@@ -957,8 +957,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.manual_focus_exe = ''
         profiles = self.config['profiles'].items()
         # The window's own program wins over a child process: Chrome runs claude.exe for its extension, and is still Chrome.
+        # Without .exe on both sides: Linux names the program 'chrome' where the rule says chrome.exe
+        exe = context['exe'].lower().removesuffix('.exe')
         own = next((name for name, p in profiles if any(
-            pattern.strip().lower().removeprefix('process:').strip() == context['exe'] for pattern in p.get('match', []))), None)
+            pattern.strip().lower().removeprefix('process:').strip().removesuffix('.exe') == exe
+            for pattern in p.get('match', []))), None)
         match = own or next((name for name, p in profiles
                              if any(matches_foreground(pattern, context) for pattern in p.get('match', []))), None)
         if match:

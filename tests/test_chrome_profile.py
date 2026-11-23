@@ -1,6 +1,7 @@
 """The bundled Chrome screen: shown when Chrome is in front, complete and consistent."""
 import json
 from pathlib import Path
+import shutil
 import sys
 import unittest
 from unittest.mock import Mock, patch
@@ -57,6 +58,20 @@ class ChromeProfileTests(unittest.TestCase):
         daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
         shown = {'exe': 'chrome.exe', 'title': 'new tab - google chrome', 'processes': ['chrome.exe']}
         with patch.object(deck, 'foreground_context', return_value=shown):
+            daemon.focus_tick()
+        self.assertEqual(daemon.jobs.get_nowait(), ('focus-profile', 'Chrome'))
+
+    def test_on_linux_chrome_with_a_claude_tab_and_a_claude_child_stays_on_chrome(self):
+        """Linux names programs without .exe: the window's own program must still win over a title or a child."""
+        from platform_linux import input as linux_input
+        path = host_support.FOLDER / 'profiles.default.linux.json'
+        shutil.copyfile(ROOT / 'host/profiles.default.linux.json', path)
+        daemon = host_support.test_daemon(path, port='TEST', no_focus=False)
+        daemon.panel, daemon.log, daemon.publish_runtime = Mock(), Mock(), Mock()
+        shown = {'exe': 'chrome', 'title': 'claude - google chrome', 'processes': ['chrome', 'claude']}
+        with patch.object(deck, 'foreground_context', return_value=shown), \
+                patch.object(deck, 'matches_foreground', linux_input.matches_foreground), \
+                patch.object(deck, 'is_neutral_window', linux_input.is_neutral_window):
             daemon.focus_tick()
         self.assertEqual(daemon.jobs.get_nowait(), ('focus-profile', 'Chrome'))
 
