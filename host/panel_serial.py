@@ -30,6 +30,8 @@ PANEL_SIZE = (1024, 600)  # what firmware without "w"/"h" in get_info has
 OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
 OTA_CHUNK = 512  # image bytes per AD_OTA_DATA line; OTA_CHUNK in main/main.cpp
 OTA_WINDOW = 2048  # the panel acknowledges every OTA_WINDOW bytes; OTA_ACK_BYTES in main/main.cpp
+OTA_ANSWER_SECONDS = 5  # the panel answers a window within tens of milliseconds; after this long the answer is lost
+OTA_LOST_ANSWERS = 2  # windows in a row that may stay unanswered; unread windows would overflow the panel's buffer
 IMG_CHUNK = 512  # image bytes per AD_IMG_DATA line to a panel with "imgAck":1; ImgChunk in main/deck_images.cpp
 IMG_WINDOW = 2048  # such a panel acknowledges every IMG_WINDOW image bytes; ImgAckBytes in main/deck_images.cpp
 # Handshake "reset" reasons that mean the panel crashed or lost power rather than being restarted on purpose.
@@ -184,17 +186,44 @@ class PanelSerial:
                     raise OSError(line)
         raise TimeoutError(f'The panel did not answer {command}')
 
+    def ota_confirmed(self, done, seconds):
+        """True when the panel confirms it holds `done` bytes of the image, False when no answer comes in time.
+
+        A confirmation of fewer bytes is the answer to an earlier window that arrived late, and is passed over.
+        """
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            for line in self.read_lines():
+                if not line.startswith('AD_OTA_DATA '):
+                    continue
+                count = line.removeprefix('AD_OTA_DATA OK ')
+                if count.isdecimal() and int(count) == done:
+                    return True
+                if not (count.isdecimal() and int(count) < done):
+                    raise OSError(line)
+        return False
+
     def ota_upload(self, data, progress=lambda percent: None):
-        """Stream an application image into the panel's idle slot; the panel verifies it and restarts into it."""
+        """Stream an application image into the panel's idle slot; the panel verifies it and restarts into it.
+
+        Firmware up to 1.2.10 now and then loses a line it prints right after a flash write, which is when it answers a
+        window. Its answer names the bytes it holds in all, so the next answer makes a lost one good: the upload goes
+        on after a silent window. A panel that really missed data refuses the next line (FAIL offset), and AD_OTA_END
+        refuses an image that is not complete.
+        """
         with self.write_lock:
             self.send_line(f'AD_OTA_BEGIN {len(data)} {hashlib.sha256(data).hexdigest()}')
             self.expect('AD_OTA_BEGIN', 'OK', 30)
+            silent = 0
             for offset in range(0, len(data), OTA_CHUNK):
                 self.send_line(f'AD_OTA_DATA {offset} ' + data[offset:offset + OTA_CHUNK].hex())
                 done = min(len(data), offset + OTA_CHUNK)
                 if done % OTA_WINDOW == 0 or done == len(data):  # wait while the panel erases and writes flash
-                    self.expect('AD_OTA_DATA', f'OK {done}', 15)
-                    progress(done * 100 / len(data))
+                    if self.ota_confirmed(done, OTA_ANSWER_SECONDS):
+                        silent = 0
+                        progress(done * 100 / len(data))
+                    elif (silent := silent + 1) > OTA_LOST_ANSWERS:
+                        raise TimeoutError('The panel did not answer AD_OTA_DATA')
             self.send_line('AD_OTA_END')
             self.expect('AD_OTA_END', 'OK', 60)  # the panel checks the whole image before it answers
 

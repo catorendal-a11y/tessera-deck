@@ -257,19 +257,26 @@ def detect_chip(port: str, runner: Callable | None = None) -> dict:
     return {'chip': chip, 'revision': f'{major}.{minor}', 'boards': boards}
 
 
-def serial_ota(port: str, data: bytes, progress: Callable[[float], None]) -> None:
+def serial_ota(port: str, data: bytes, progress: Callable[[float], None], version: str | None = None) -> None:
     """Send the application over the panel's own USB connection (the host is stopped, so the port is free)."""
     from panel_serial import PanelSerial
+    boot, sent_all = None, False
     for attempt in (1, 2):
         panel = PanelSerial(port, lambda *_: None)
         try:
+            # The answer to AD_OTA_END can get lost like any other (see ota_upload). A panel that has restarted since
+            # and runs the version that was sent took the image: sending it again would only install it twice.
+            if sent_all and panel.info.get('bootId') != boot and version and panel.info.get('firmwareVersion') == version:
+                progress(100)
+                return
+            boot = panel.info.get('bootId')
             panel.ota_upload(data, progress)
             return
-        except TimeoutError:
-            # Seen on a panel that had run for hours: it stopped acknowledging partway, and a second try worked.
-            # The panel keeps its running firmware either way, so one fresh start of the upload is safe.
+        except TimeoutError as exc:
+            # The panel keeps its running firmware until it has checked a whole image, so one fresh start is safe.
             if attempt == 2:
                 raise
+            sent_all = 'AD_OTA_END' in str(exc)
             try:
                 panel.send_line('AD_OTA_ABORT')
             except OSError:
@@ -315,7 +322,8 @@ def install(package: Package, port: str, identify: Callable[[str], dict | None],
     if mode == 'app' and has_slots:
         progress('writing', 0)
         try:
-            (ota or serial_ota)(port, package.app.data, lambda percent: progress('writing', percent))
+            send = ota or (lambda *arguments: serial_ota(*arguments, version=package.version))
+            send(port, package.app.data, lambda percent: progress('writing', percent))
         except (OSError, ValueError) as exc:  # TimeoutError is an OSError
             raise InstallError(f'The update over USB failed ({exc}). The panel keeps its current firmware; '
                                'unplug and plug in the cable and try again.') from exc

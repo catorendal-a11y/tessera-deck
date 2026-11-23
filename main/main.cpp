@@ -28,6 +28,7 @@
 #endif
 #include "esp_system.h"
 #include "esp_random.h"
+#include "esp_rom_sys.h"
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "esp_ota_ops.h"
@@ -57,6 +58,33 @@ static const char *const BOARD_ID = "tessera-p4";
  * boards/tessera-s3-8048s070.defaults). Replies and logs share it through stdout either way. */
 #ifdef CONFIG_ESP_CONSOLE_UART
 static constexpr uart_port_t HOST_UART = static_cast<uart_port_t>(CONFIG_ESP_CONSOLE_UART_NUM);
+#else
+/* ESP-IDF throws a console write away while its USB monitor says no host is connected. The monitor looks once per tick
+ * for the frame marker the PC sends every millisecond. Our tick is a millisecond too, so now and then a look falls
+ * between two markers, and after a few of those the monitor says "not connected" until its next look. A line printed
+ * in that millisecond never left the panel: measured as 1 answer in 12216 during a firmware update, most often right
+ * after a flash write, and the host then gave the update up. So a "not connected" is only believed once it has lasted
+ * a few looks. main/CMakeLists.txt routes the driver's question here (--wrap). */
+extern "C" bool __real_usb_serial_jtag_is_connected(void);
+static std::atomic<uint32_t> s_usb_gaps{0};  /* times a false "not connected" was caught, for get_info */
+extern "C" bool __wrap_usb_serial_jtag_is_connected(void)
+{
+    static std::atomic<bool> gone{false};
+    if (__real_usb_serial_jtag_is_connected()) {
+        gone = false;
+        return true;
+    }
+    if (gone) return false;  /* really unplugged: do not wait again at every line */
+    for (int i = 0; i < 16; ++i) {  /* 4 ms: four looks of the monitor */
+        esp_rom_delay_us(250);
+        if (__real_usb_serial_jtag_is_connected()) {
+            s_usb_gaps++;
+            return true;
+        }
+    }
+    gone = true;
+    return false;
+}
 #endif
 
 static void host_link_start(void)
@@ -557,6 +585,9 @@ static void usb_console_task(void *)
                 cJSON_AddNumberToObject(reply,"notify",1);  /* shows AD_NOTIFY as a banner; older firmware gets a Windows notification */
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
                 cJSON_AddNumberToObject(reply,"draws",s_draws.exchange(0));
+#ifndef CONFIG_ESP_CONSOLE_UART
+                cJSON_AddNumberToObject(reply,"usbGaps",s_usb_gaps.load());
+#endif
                 cJSON_AddNumberToObject(reply,"drawMaxMs",s_draw_max_us.exchange(0)/1000.0);
                 app_confirm();  /* the host can talk to this firmware: keep it */
                 char *text=cJSON_PrintUnformatted(reply);

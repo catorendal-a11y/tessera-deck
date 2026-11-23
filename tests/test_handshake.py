@@ -127,31 +127,48 @@ class RestartTests(unittest.TestCase):
 
 
 class OtaPanel(FakeSerial):
-    """Acts as the firmware's AD_OTA_* receiver and keeps the image it got."""
+    """Acts as the firmware's AD_OTA_* receiver and keeps the image it got. `lost` names the windows (1 is the first)
+    whose answer never leaves the panel, `late` those whose answer only comes with the next one, and `dropped` the
+    data lines the panel never gets."""
+    lost, late, dropped = (), (), ()
+
     def write(self, raw):
         self.written.extend(raw)
         for line in raw.decode().splitlines():
             if line.startswith('AD_OTA_BEGIN '):
-                self.size, self.image = int(line.split()[1]), bytearray()
+                self.size, self.image, self.lines, self.held = int(line.split()[1]), bytearray(), 0, b''
                 self.pending.extend(b'AD_OTA_BEGIN OK\n')
             elif line.startswith('AD_OTA_DATA '):
+                self.lines += 1
+                if self.lines in self.dropped:
+                    continue
                 _, offset, data = line.split(' ', 2)
-                assert int(offset) == len(self.image)
+                if int(offset) != len(self.image):  # as the firmware does: refuse and forget the upload
+                    self.pending.extend(b'AD_OTA_DATA FAIL offset\n')
+                    continue
                 self.image.extend(bytes.fromhex(data))
                 if len(self.image) % panel_serial.OTA_WINDOW == 0 or len(self.image) == self.size:
-                    self.pending.extend(f'{{"type":"wake"}}\nAD_OTA_DATA OK {len(self.image)}\n'.encode())
+                    window = -(-len(self.image) // panel_serial.OTA_WINDOW)
+                    answer = f'{{"type":"wake"}}\nAD_OTA_DATA OK {len(self.image)}\n'.encode()
+                    if window in self.late:
+                        self.held = answer
+                    elif window not in self.lost:
+                        self.pending.extend(self.held + answer)
+                        self.held = b''
             elif line == 'AD_OTA_END':
                 self.pending.extend(self.end_reply)
         return len(raw)
 
 
 class OtaUploadTests(unittest.TestCase):
-    def upload(self, data, end_reply=b'AD_OTA_END OK\n'):
+    def upload(self, data, end_reply=b'AD_OTA_END OK\n', **faults):
         link = deck.PanelSerial.__new__(deck.PanelSerial)
         link.write_lock, link.rx, link.ser = threading.RLock(), bytearray(), OtaPanel()
         link.ser.end_reply = end_reply
+        vars(link.ser).update(faults)
         percents = []
-        link.ota_upload(data, percents.append)
+        with patch.object(panel_serial, 'OTA_ANSWER_SECONDS', .05):
+            link.ota_upload(data, percents.append)
         return link.ser, percents
 
     def test_the_image_arrives_in_order_and_progress_reaches_100(self):
@@ -165,6 +182,32 @@ class OtaUploadTests(unittest.TestCase):
         with self.assertRaises(OSError) as raised:
             self.upload(b'x' * 100, b'AD_OTA_END FAIL checksum\n')
         self.assertIn('FAIL checksum', str(raised.exception))
+
+    def test_an_answer_the_panel_lost_does_not_stop_the_upload(self):
+        # measured on a GUITION panel with firmware 1.2.9: 1 answer in 12216 never left it, and it had all the data
+        data = bytes(range(256)) * 40  # five windows
+        for lost in ((2,), (2, 3), (5,)):  # one, two in a row, and the last one before AD_OTA_END
+            with self.subTest(lost=lost):
+                fake, percents = self.upload(data, lost=lost)
+                self.assertEqual(bytes(fake.image), data)
+                self.assertIn(b'AD_OTA_END\n', fake.written)
+                self.assertEqual(percents, sorted(percents))
+
+    def test_an_answer_that_comes_late_is_passed_over(self):
+        data = bytes(range(256)) * 40
+        fake, percents = self.upload(data, late=(2,))
+        self.assertEqual(bytes(fake.image), data)
+        self.assertEqual(percents[-1], 100)
+
+    def test_a_panel_that_stays_silent_window_after_window_is_a_timeout(self):
+        with self.assertRaisesRegex(TimeoutError, 'AD_OTA_DATA'):
+            self.upload(bytes(range(256)) * 40, lost=(2, 3, 4))
+
+    def test_data_the_panel_never_got_is_refused_by_the_panel_and_reported(self):
+        with self.assertRaises(OSError) as raised:
+            self.upload(bytes(range(256)) * 40, dropped=(6,))  # a line of the second window
+        self.assertIn('FAIL offset', str(raised.exception))
+        self.assertNotIsInstance(raised.exception, TimeoutError)
 
 
 class PortSelectionTests(unittest.TestCase):

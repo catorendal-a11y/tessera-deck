@@ -76,7 +76,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 
 | Message | When | What the host does |
 |---|---|---|
-| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"w":N,"h":N,"imgCache":N,"reset":"…","ota":1,"imgAck":1,"notify":1,"layoutSaved":N,"draws":N,"drawMaxMs":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
+| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"w":N,"h":N,"imgCache":N,"reset":"…","ota":1,"imgAck":1,"notify":1,"layoutSaved":N,"draws":N,"drawMaxMs":N,"usbGaps":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
 | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed. `hold` is present for a long press. | Runs the key's actions. |
 | `{"type":"wake"}` | A touch woke the dimmed panel. | Resets the idle timer. No key is pressed. |
 | `{"type":"brightness","level":N}` | The brightness slider was released. | Stores the level (1 to 100). |
@@ -103,6 +103,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
 | `notify` | `1` when the panel shows `AD_NOTIFY` banners. Missing on older firmware. |
 | `draws`, `drawMaxMs` | Screen updates since the previous `get_info`, and how long the slowest took to draw and send to the panel, in ms. Reading them starts a new count. Missing on older firmware. |
+| `usbGaps` | Times since the start that the USB driver wrongly took the PC for unplugged for a moment and the firmware held on to the line it was printing. Only on boards with a USB console, and missing on firmware up to 1.2.10, which lost such a line. |
 
 A pressed key stays highlighted until the host answers with `AD_FEEDBACK`. Without a host it flashes red at once.
 
