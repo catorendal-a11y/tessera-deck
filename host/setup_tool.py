@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from platform_support import IS_LINUX, load
+from platform_support import IS_LINUX, IS_WINDOWS, load
 
 ROOT = Path(__file__).resolve().parents[1]
 HASH_FILE = ROOT / 'host/.venv/requirements.sha256'
@@ -106,9 +106,22 @@ def forget_claude_hooks(home: Path | None = None, emit: Callable[[str], None] = 
     return True
 
 
+def sensors_task_exists() -> bool:
+    """True when `Tessera.cmd --sensors` left its sign-in task (Windows), which runs Libre Hardware Monitor as administrator."""
+    if not IS_WINDOWS:
+        return False
+    from process_flags import NO_WINDOW
+    try:
+        return subprocess.run(['schtasks', '/Query', '/TN', 'Tessera Sensors'], capture_output=True,
+                              creationflags=NO_WINDOW).returncode == 0
+    except OSError:
+        return False
+
+
 def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: Callable[[str], None] = print,
               root: Path = ROOT, link: Path | None = None,
-              autostart: Callable[[bool], object] | None = None) -> list[str]:
+              autostart: Callable[[bool], object] | None = None,
+              sensors_task: Callable[[], bool] | None = None) -> list[str]:
     """Remove what Tessera put outside its folder (autostart entry, Desktop shortcut). User data stays unless `purge`.
 
     Raises OSError after the report when a purge could not delete everything.
@@ -133,6 +146,9 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
         path.unlink()
     if shortcuts:
         removed.append(load('labels').SHORTCUT_NAME)
+    if sensors_task and sensors_task():
+        emit('The sensors task still starts Libre Hardware Monitor with administrator rights at every sign-in. Run '
+             + load('labels').LAUNCHER + ' --sensors-off before you delete this folder; its copy in %ProgramFiles%\\Tessera stays.')
     if purge:
         answer = confirm('This permanently deletes your profiles, icons, backups, counters and downloads. '
                          'Type YES to continue: ').strip()
@@ -238,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == 'uninstall':
         try:
-            uninstall(args.purge)
+            uninstall(args.purge, sensors_task=sensors_task_exists)
             forget_claude_hooks()
         except OSError as exc:
             print(exc)

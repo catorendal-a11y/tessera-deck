@@ -154,6 +154,8 @@ Tessera.cmd --uninstall
 
 This removes the autostart entry and the Desktop shortcut. Your profiles, icons and backups stay. Add `--purge` to
 delete them too (Tessera asks you to type `YES` first). To remove the program itself, delete its folder afterwards.
+If you ever ran `Tessera.cmd --sensors`, run `Tessera.cmd --sensors-off` first: the sign-in task that starts Libre Hardware Monitor
+with administrator rights stays until then, and so does its copy in `%ProgramFiles%\Tessera`, which you can delete by hand.
 
 ## Troubleshooting
 

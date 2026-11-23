@@ -147,6 +147,20 @@ class UninstallTests(unittest.TestCase):
         turn_off.assert_called_once_with(False)
         self.assertEqual(removed, [SHORTCUT])
 
+    def test_uninstall_says_when_the_elevated_sensors_task_is_still_there(self):
+        # --sensors makes a sign-in task that runs Libre Hardware Monitor as administrator; deleting the folder
+        # does not remove it, so the user is told to run --sensors-off first
+        setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link,
+                             self.removed_autostart.append, lambda: True)
+        text = ' '.join(self.messages)
+        self.assertIn('--sensors-off', text)
+        self.assertIn('administrator', text)
+
+    def test_uninstall_stays_quiet_about_sensors_when_there_is_no_task(self):
+        setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link,
+                             self.removed_autostart.append, lambda: False)
+        self.assertNotIn('--sensors-off', ' '.join(self.messages))
+
     def test_a_purge_also_deletes_every_copy_of_the_profiles(self):
         copies = ('host/profiles-unreadable.local.json', 'host/profiles-unreadable-1.local.json',
                   'host/profiles-previous.local.json', 'host/profiles.json.abc123.tmp')
@@ -165,7 +179,7 @@ class UninstallTests(unittest.TestCase):
                 raise PermissionError(13, 'Access is denied', str(path))
             return unlink(path, *args, **kwargs)
         with patch('pathlib.Path.unlink', autospec=True, side_effect=locked), \
-                patch.object(setup_tool, 'uninstall', lambda purge: uninstall(
+                patch.object(setup_tool, 'uninstall', lambda purge, **_: uninstall(
                     purge, lambda prompt: 'YES', self.messages.append, self.root, self.link,
                     self.removed_autostart.append)), \
                 patch('builtins.print') as printed:
