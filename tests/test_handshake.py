@@ -96,6 +96,22 @@ class HandshakeTests(unittest.TestCase):
                 panel('COM4', info(protocol=protocol))
             self.assertIn('not supported', str(raised.exception))
 
+    def test_the_port_is_locked_for_this_host_while_it_is_open(self):
+        # pyserial takes flock on POSIX only when `exclusive` is set before open(); esptool and idf.py take the same
+        # lock, so with it they report a busy port instead of flashing through the host's pings.
+        class Locking(FakeSerial):
+            exclusive = None
+
+            def open(self):
+                self.locked = self.exclusive
+
+        FakeSerial.script = info(protocol=2)
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Locking)):
+            deck.PanelSerial('COM4', Mock())
+        self.assertIs(FakeSerial.opened[0].locked, True)
+        refused = OSError(errno.EAGAIN, 'Could not exclusively lock port /dev/ttyUSB0: [Errno 11] Resource temporarily unavailable')
+        self.assertIn('in use by another program', deck.port_trouble('/dev/ttyUSB0', refused))
+
     def test_silence_and_garbage_are_rejected_not_configured(self):
         for script in (b'', b'not json\n{"type":"info"\n', b'{"type":"wake"}\n'):
             with self.assertRaises(deck.DeviceRejected):

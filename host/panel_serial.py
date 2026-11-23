@@ -88,6 +88,9 @@ class PanelSerial:
         self.ser.port, self.ser.baudrate = port, baud
         self.ser.timeout, self.ser.write_timeout = 0.1, 2
         self.ser.dtr = self.ser.rts = False  # on the UART boards these lines drive EN and IO0
+        # On Linux this takes flock, which esptool and idf.py also take, so they see a busy port instead of flashing
+        # through the host's pings. A monitor that does not lock can still open it. Windows opens ports exclusively.
+        self.ser.exclusive = True
         self.ser.open()
         self.info = {}
         try:
