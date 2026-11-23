@@ -100,11 +100,11 @@ class LauncherTests(unittest.TestCase):
         (self.folder / '.local/share/gnome-shell/extensions/tessera-windows@tessera').mkdir(parents=True)
         self.assertEqual(self.notes(tools, XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='ubuntu:GNOME'), '')
 
-    def test_installing_the_gnome_extension_warns_on_a_gnome_older_than_the_one_it_is_marked_for(self):
-        # the extension's metadata.json lists GNOME 51 only; an older Shell refuses to enable it
+    def test_installing_the_gnome_extension_warns_on_a_gnome_other_than_the_one_it_is_marked_for(self):
+        # the extension's metadata.json lists GNOME 51 only; another Shell version refuses to enable it
         shutil.copytree(ROOT / 'host/linux/gnome-extension', self.folder / 'host/linux/gnome-extension')
         shell = self.folder / 'bin/gnome-shell'
-        for version, warned in (('50.1', True), ('51.0', False)):
+        for version, warned in (('50.1', True), ('51.0', False), ('52.0', True)):
             shell.write_text(f'#!/bin/sh\necho "GNOME Shell {version}"\n')
             shell.chmod(shell.stat().st_mode | stat.S_IXUSR)
             done = subprocess.run(['bash', str(self.folder / 'Tessera.sh'), '--gnome-extension'], capture_output=True, text=True,

@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 NAME = 'org.tessera.Windows'
 PATH = '/org/tessera/Windows'
 MISSING = ('The Tessera extension for GNOME Shell is not installed or not enabled, so Tessera cannot find or move '
-           'windows. It is marked for GNOME 51 or newer. Install it with ./Tessera.sh --gnome-extension '
+           'windows. It is marked for GNOME 51 only. Install it with ./Tessera.sh --gnome-extension '
            '(tessera --gnome-extension for the AUR package), '
            'sign in again, then turn it on: '
            'gnome-extensions enable tessera-windows@tessera')
