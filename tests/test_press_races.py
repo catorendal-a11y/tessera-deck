@@ -99,6 +99,28 @@ class PageChangeDuringWaitTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn('page changed', daemon.last_action['error'])
 
+    def test_a_step_that_does_not_use_the_page_still_runs_after_the_page_changed(self):
+        """Key 1 is [delay, set]: the opened program takes focus and the profile follows. The set step must run."""
+        daemon = make_daemon()
+        button(daemon)['actions'] = [{'type': 'delay', 'ms': 300}, {'type': 'set', 'variable': 'ran', 'value': 'yes'}]
+
+        def change_page():
+            with daemon.state_lock:
+                daemon.switch_page('status')
+
+        def wait(seconds):
+            other = threading.Thread(target=change_page)
+            other.start()
+            other.join(2)
+            return False
+
+        daemon.stop.wait = wait
+        with daemon.state_lock:
+            ok = daemon.dispatch_press(1)
+        self.assertEqual(daemon.page, 'status')
+        self.assertEqual(daemon.custom_vars.get('ran'), 'yes')
+        self.assertTrue(ok)
+
 
 class InputLockTests(unittest.TestCase):
     def test_waiting_for_slow_typing_releases_the_state_lock(self):

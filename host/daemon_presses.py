@@ -152,18 +152,20 @@ class PressMixin:
         ok, error = False, ''
         try:
             self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ' (double)' if double else ''))
-            steps, done = resolved.get(action_list_name(hold, double), []), 0
+            steps, done, moved = resolved.get(action_list_name(hold, double), []), 0, False
             for action in steps:
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
+                # a step that waits releases the state lock: another thread may have changed page or profile. Only
+                # press and state steps pick keys of the current page, so only they would reach the wrong key; a
+                # hotkey or typing after "open app, delay" must still run when auto switching followed that app
+                if moved and action['type'] in ('press', 'state'):
+                    raise RuntimeError('The page changed while the key was waiting')
                 where = (self.profile, self.page)
                 self.run_action(action)
                 done += 1
-                # a step that waits releases the state lock: another thread may have changed page or profile, and the
-                # next step would then reach keys of a page the user did not press on
                 waited = action['type'] in BLOCKING_ACTIONS or (action['type'] == 'text' and action.get('delay_ms'))
-                if waited and done < len(steps) and (self.profile, self.page) != where:
-                    raise RuntimeError('The page changed while the key was waiting')
+                moved = moved or (waited and (self.profile, self.page) != where)
             if (button.get('states') and not hold and not double and not button.get('bind')
                     and state_key not in self.state_set_by_action):
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])
