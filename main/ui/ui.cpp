@@ -201,13 +201,13 @@ void flash(int slot,uint32_t color,uint32_t ms) {
     lv_anim_set_repeat_count(&pulse,LV_ANIM_REPEAT_INFINITE);lv_anim_start(&pulse);
 }
 void send_press(int slot,bool hold) {
+    /* Without a host nothing runs the action: say so at once, and keep nothing back, or a PC that wakes from sleep
+     * or answers late would run the press the panel just showed as refused. */
+    if(!deck_model_host_linked(HostTimeoutMs)){flash(slot,AlertBg,500);return;}
     /* Refused when a new layout arrived since this grid was built: the key at this slot may belong to it. */
     if(!deck_model_record_touch(ids[slot],hold,button_version))return;
     awaiting[ids[slot]]=true;stale[ids[slot]]=false;
-    /* Without a host nothing runs the action: say so at once instead of
-     * flashing as if it worked. */
-    if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
-    else flash(slot,AlertBg,500);
+    flash(slot,PressedBg,PendingMs);
 }
 void press(lv_event_t *event) {
     const int slot=slot_of(event);

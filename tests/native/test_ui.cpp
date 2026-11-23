@@ -125,8 +125,9 @@ static void test_long_press_reports_hold(){
     /* A key with a hold action reports a hold past the long-press time, and nothing else. */
     const int before=deck_model_last_event_id();hold(key_x(4),key_y(4),700);deck_event_t events[2]{};
     assert(deck_model_events_since(before,events,2)==1&&events[0].button_id==4&&events[0].hold);
-    /* A key without one still reports a single plain press however long it is held. */
-    const int again=deck_model_last_event_id();hold(key_x(1),key_y(1),700);
+    /* A key without one still reports a single plain press however long it is held. A press goes out only while
+     * the host is there, so keep it there. */
+    keep_host(1000);const int again=deck_model_last_event_id();hold(key_x(1),key_y(1),700);
     assert(deck_model_events_since(again,events,2)==1&&events[0].button_id==1&&!events[0].hold);
 }
 static void test_dimmed_touch_only_wakes(){
@@ -220,11 +221,12 @@ static void test_confirm_key(){
     /* Sliding off the key before the ring is full cancels too. */
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(5),key_y(5)};for(int i=0;i<12;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
-    /* So does sliding off downward onto the key below, or slowly sideways a few pixels per read. */
-    touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(1),key_y(7)};for(int i=0;i<12;++i)step();
+    /* So does sliding off downward onto the key below, or slowly sideways a few pixels per read. The host stays
+     * linked, or the press would be refused for that reason instead. */
+    keep_host(1000);touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(1),key_y(7)};for(int i=0;i<12;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
     /* Slow means 2 px a read, under LVGL's gesture speed, from 4 px inside the right edge into the gap. */
-    touch_at={rail_w+pad+key_w-4,key_y(1)};touching=true;for(int i=0;i<4;++i)step();
+    keep_host(1000);touch_at={rail_w+pad+key_w-4,key_y(1)};touching=true;for(int i=0;i<4;++i)step();
     for(int i=0;i<12;++i){touch_at.x+=2;step();}
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
     /* A screen that comes up under the finger, such as a permission question, cancels the hold: nothing may run on the
@@ -232,7 +234,7 @@ static void test_confirm_key(){
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();assert(arcs_in(tile)==1);
     deck_model_request_view(1);for(int i=0;i<12;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
-    ui_show_view(0);updates();
+    ui_show_view(0);keep_host(1000);
     /* A plain key still presses on a tap. */
     tap(key_x(3),key_y(3));assert(deck_model_last_event_id()==before+2);
     deck_model_replace_buttons(saved,saved_count);updates();
@@ -270,7 +272,8 @@ static void test_host_disconnect_reconnect(){
     assert(visible("NO PC")&&ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"pc\":false"));
     ui_show_view(1);updates();assert(visible("PC not connected")&&visible("Start Tessera on the PC, or check the USB cable"));
     ui_show_view(0);updates();
-    const int before=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
+    /* The red flash says nothing runs, so nothing is kept for a PC that wakes up or answers later. */
+    const int before=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before);
     auto* tile=lv_obj_get_parent(find(lv_screen_active(),"Close tab"));
     assert(lv_color_eq(lv_obj_get_style_bg_color(tile,LV_PART_MAIN),lv_color_hex(ui_palette::AlertBg))&&!lv_anim_get(tile,nullptr));
     ui_show_view(1);deck_model_note_host();updates();
@@ -381,7 +384,7 @@ static void test_panel_lock(){
     drag(key_x(7),key_y(7),key_x(7)+sc(400),key_y(7));assert(taken().empty());
     hold(rail_x(),logo_y(),1000);assert(deck_model_locked()&&taken().empty());
     hold(rail_x(),logo_y(),2200);assert(!deck_model_locked()&&taken()==R"({"type":"unlocked"})"&&taken().empty());
-    updates();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
+    keep_host(1000);tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
 }
 static void test_lock_covers_agents_and_mixer(){
     /* A locked panel still shows a question, but Allow, the faders and mute do nothing until it is unlocked. */
@@ -582,7 +585,7 @@ static void test_boot_screen(){
     assert(!visible("v9.8.7")&&visible("14:32")&&deck_model_screen()==DECK_SCREEN_DECK&&boot_deleted);
     /* A finger down since boot presses nothing when it lifts over a key: LVGL presses no widget it was dragged onto. */
     const int before=deck_model_last_event_id();
-    ui_boot_start();touch_at={key_x(4),key_y(4)};touching=true;for(int t=0;t<1560;t+=40)step();
+    ui_boot_start();touch_at={key_x(4),key_y(4)};touching=true;for(int t=0;t<1560;t+=40){deck_model_note_host();step();}
     assert(visible("14:32"));touching=false;updates();assert(deck_model_last_event_id()==before&&taken().empty());
     tap(key_x(4),key_y(4));assert(deck_model_last_event_id()==before+1);
     /* An ambient request meanwhile waits for the boot screen, then wins; a touch brings the deck back. */
@@ -638,7 +641,7 @@ static void test_notice_banner(){
     ui_boot_start();step();assert(deck_model_notice_from_line("ok 5 Panel ready"));
     for(int t=0;t<800;t+=40)step();assert(!banners()&&visible("v9.8.7"));
     for(int t=0;t<1000;t+=40)step();assert(banner_of("Panel ready")&&visible("14:32"));
-    const int ready=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==ready+1);
+    deck_model_note_host();const int ready=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==ready+1);
     deck_model_request_feedback(1,DECK_FEEDBACK_OK);keep_host(6000);assert(!banners());while(!taken().empty()){}
 }
 static void test_touch_across_screen_change(){
@@ -658,7 +661,7 @@ static void test_touch_across_screen_change(){
     ui_show_view(0);updates();
     /* A finger held on a hold key through the end of the boot screen: LVGL already waits for the release when it
      * deletes the boot screen the finger pressed. */
-    ui_boot_start();touch_at={key_x(1),key_y(1)};touching=true;for(int t=0;t<2400;t+=40)step();
+    ui_boot_start();touch_at={key_x(1),key_y(1)};touching=true;for(int t=0;t<2400;t+=40){deck_model_note_host();step();}
     touching=false;updates();assert(visible("Held")&&deck_model_last_event_id()==before);
     tap(key_x(2),key_y(2));assert(deck_model_last_event_id()==before+1);
     deck_model_request_feedback(2,DECK_FEEDBACK_OK);keep_host(1000);while(!taken().empty()){}
