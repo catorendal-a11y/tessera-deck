@@ -169,11 +169,15 @@ def update_check_state(path: Path | None = None) -> dict:
         return {}
 
 
+UPDATE_CHECK_LOCK = threading.Lock()  # the menu switch, the question and the daily look write from their own threads
+
+
 def save_update_check(path: Path | None = None, **changes) -> None:
+    """Change keys of the state file. Read, change and write happen under one lock, so no writer loses another's key."""
+    from config_store import write_atomic
     path = path or UPDATE_CHECK_PATH
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(dict(update_check_state(path), **changes)), encoding='utf-8')
-    os.replace(temporary, path)
+    with UPDATE_CHECK_LOCK:
+        write_atomic(path, json.dumps(dict(update_check_state(path), **changes)).encode('utf-8'))
 
 
 def auto_update_check_enabled(path: Path | None = None) -> bool:

@@ -266,6 +266,7 @@ class TrayRestartTests(unittest.TestCase):
         self.assertIn('Panel → Panel firmware and updates', text)  # the notice says where to update
 
 
+@unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
 class AutoUpdateCheckTests(unittest.TestCase):
     """The tray's own daily look at the releases: once a day, one notice per release, and an off switch."""
 
