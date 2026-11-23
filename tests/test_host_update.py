@@ -127,6 +127,32 @@ class HalfwayTests(Case):
         self.assertFalse([path for path in self.root.rglob('*.new')])
         self.assertNotEqual(calls[0], 'VERSION')
 
+    def test_a_file_that_cannot_be_replaced_puts_every_file_back(self):
+        # files before the locked one were already swapped: the folder must go back to one version, not stay mixed
+        from unittest.mock import patch
+        files = {'host/added.py': 'brand new\n', 'host/tesserad.py': 'new host\n', 'host/editor/app.js': 'new editor\n',
+                 'VERSION': '9.9.9\n'}
+        package = self.saved(host_zip(files))
+        for failing in ('app.js', 'app.js.new'):  # the editor is held open when its old file is moved, or when the new one lands
+            with self.subTest(failing):
+                (self.root / 'host/editor').mkdir(parents=True, exist_ok=True)
+                (self.root / 'host/tesserad.py').write_text('old host\n')
+                (self.root / 'host/editor/app.js').write_text('old editor\n')
+                (self.root / 'VERSION').write_text('1.0.0\n')
+                real = os.replace
+
+                def replace(source, target):
+                    if Path(source).name == failing:
+                        raise PermissionError(13, 'in use', str(source))
+                    real(source, target)
+                with patch('updates.os.replace', replace), self.assertRaises(PermissionError):
+                    updates.install_host(package, self.root)
+                self.assertEqual((self.root / 'host/tesserad.py').read_text(), 'old host\n')
+                self.assertEqual((self.root / 'host/editor/app.js').read_text(), 'old editor\n')
+                self.assertEqual((self.root / 'VERSION').read_text(), '1.0.0\n')
+                self.assertFalse((self.root / 'host/added.py').exists())
+                self.assertEqual([path.name for path in self.root.rglob('*') if path.suffix in ('.new', '.old')], [])
+
     def test_version_is_written_last(self):
         from unittest.mock import patch
         calls = []
