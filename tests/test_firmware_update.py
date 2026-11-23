@@ -344,6 +344,35 @@ class EditorFirmwareTests(unittest.TestCase):
         import tesserad
         self.assertIn('no firmware yet', tesserad.port_trouble('COM4', serial.SerialTimeoutException('Write timeout')))
 
+    def test_a_board_that_prints_at_another_speed_counts_as_silent(self):
+        # An erased S3 behind a CH340 loops its ROM message at 115200; read at 921600 that is bytes without a newline.
+        import panel_serial
+        import types
+
+        class Garbled:
+            port, in_waiting = 'COM9', 4096
+
+            def __init__(self):
+                self.dtr = self.rts = False
+
+            def open(self):
+                pass
+
+            def close(self):
+                pass
+
+            def reset_input_buffer(self):
+                pass
+
+            def write(self, raw):
+                return len(raw)
+
+            def read(self, size):
+                return b'\x00\x80' * (size // 2)
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Garbled)), \
+                patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.3):
+            self.assertIsNone(Editor.identify_panel('COM9'), 'no answer: the chip is asked next')
+
     def test_installing_stops_the_host_flashes_and_always_restarts_it(self):
         calls = []
         with patch.object(self.editor, 'firmware_port', return_value='COM4'), \
