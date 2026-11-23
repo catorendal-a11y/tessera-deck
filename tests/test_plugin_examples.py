@@ -115,6 +115,22 @@ class HomeAssistantTests(unittest.TestCase):
                 module.states()
         self.assertEqual(module.reason(caught.exception), 'certificate not trusted')
 
+    def test_https_to_a_plain_http_home_assistant_says_to_use_http(self):
+        import urllib.error
+
+        class Plain(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Plain)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        module = load('home-assistant', {'url': f'https://127.0.0.1:{server.server_port}', 'token': 'secret',
+                                         'entities': 'light.kitchen'})
+        with self.assertRaises(urllib.error.URLError) as caught:
+            module.states()
+        self.assertEqual(module.reason(caught.exception), 'use http://, not https://')
+
 
 class FakeObs:
     """A WebSocket server that speaks just enough OBS WebSocket 5, with a password."""
