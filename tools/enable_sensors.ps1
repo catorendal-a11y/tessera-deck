@@ -17,7 +17,10 @@
 #>
 param(
     [switch]$Remove,
-    [switch]$Once
+    [switch]$Once,
+    # Who the sign-in task is for. The elevated copy may run as another account (a standard user approves UAC with an
+    # administrator's password), so the user who started the script passes their own SID on.
+    [string]$UserSid
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,6 +39,7 @@ if (-not $IsAdmin) {
     $Arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
     if ($Remove) { $Arguments += '-Remove' }
     if ($Once) { $Arguments += '-Once' }
+    $Arguments += @('-UserSid', $Identity.User.Value)
     try { Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $Arguments -Wait }
     catch { Write-Host 'Cancelled. Nothing was changed.'; Start-Sleep -Seconds 3 }
     return
@@ -91,7 +95,8 @@ try {
     Install-AdminCopy
     Add-FirewallBlock
     if (-not $Once) {
-        $User = "$($Identity.Name)"
+        if (-not $UserSid) { $UserSid = $Identity.User.Value }
+        $User = ([Security.Principal.SecurityIdentifier]$UserSid).Translate([Security.Principal.NTAccount]).Value
         $Action = New-ScheduledTaskAction -Execute $Exe -WorkingDirectory $InstallDir
         $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
         $Principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive -RunLevel Highest
@@ -103,6 +108,15 @@ try {
     if (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue)) {
         if ($Once) { Start-Process -FilePath $Exe -WorkingDirectory $InstallDir }
         else { Start-ScheduledTask -TaskName $TaskName }
+        # The task starts the program in the session of the user it was made for; say so if nothing came up.
+        $Waited = 0
+        while (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue) -and $Waited -lt 10) {
+            Start-Sleep -Seconds 1
+            $Waited++
+        }
+        if (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue)) {
+            throw 'Libre Hardware Monitor did not start. If you are not signed in as the account that approved the prompt, sign in and run Tessera.cmd --sensors again.'
+        }
     }
     if ($Once) { Write-Host 'Done. Libre Hardware Monitor is running. Tessera.cmd --sensors starts it at every sign-in.' }
     else { Write-Host 'Done. Libre Hardware Monitor starts at every sign-in and is running now.' }
