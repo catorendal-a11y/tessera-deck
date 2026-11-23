@@ -455,10 +455,12 @@ class Editor:
             if info is not None:
                 board = info.get('boardId', firmware_update.BOARD_ID)
                 found = {'port': port, 'board': board, 'firmware': info.get('firmwareVersion'), 'boards': [board]}
-            elif not restart and (device := self.usb_device(port)) is not None and device.vid != ESPRESSIF_VID:
-                return {'port': port, 'ask': device.description or port}
             else:
-                found = dict(firmware_update.detect_chip(port), port=port)
+                device = self.usb_device(port)
+                uart = device is not None and device.vid != ESPRESSIF_VID
+                if uart and not restart:
+                    return {'port': port, 'ask': device.description or port}
+                found = dict(firmware_update.detect_chip(port, uart=uart), port=port)
             self.found_boards = found['boards']
             return found
         finally:

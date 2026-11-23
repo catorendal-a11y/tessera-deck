@@ -492,7 +492,7 @@ class EditorDetectTests(unittest.TestCase):
             self.editor.command('update-check', {})
         self.assertEqual(check.call_args.kwargs['board'], 'tessera-p4-v3')
 
-    def look_at_a_lone_silent_port(self, vid, data):
+    def look_at_a_lone_silent_port(self, vid, data, chip='Chip is ESP32-S3 (QFN56) (revision v0.2)\n'):
         """firmware-detect with only COM7 plugged in, whose device never answers; returns (result, esptool runs)."""
         import io
         import types
@@ -522,7 +522,7 @@ class EditorDetectTests(unittest.TestCase):
 
         def esptool(arguments, **kwargs):
             runs.append(arguments)
-            return types.SimpleNamespace(stdout=io.StringIO('Chip is ESP32-S3 (QFN56) (revision v0.2)\n'), wait=lambda: 0,
+            return types.SimpleNamespace(stdout=io.StringIO(chip), wait=lambda: 0,
                                          kill=lambda: None)
         device = types.SimpleNamespace(device='COM7', vid=vid, serial_number=None, description='USB-SERIAL CH340 (COM7)')
         with patch('serial.tools.list_ports.comports', return_value=[device]), \
@@ -545,6 +545,14 @@ class EditorDetectTests(unittest.TestCase):
         found, runs = self.look_at_a_lone_silent_port(0x303A, {})
         self.assertEqual(found['chip'], 'esp32s3')
         self.assertIn('read-mac', runs[0])
+
+    def test_a_p4_behind_a_usb_uart_bridge_is_a_crowpanel_not_a_guition_board(self):
+        # The GUITION P4 talks over the chip's own USB (VID 0x303A); the CrowPanel P4 through its CH340 UART bridge.
+        v3, v1 = 'Chip is ESP32-P4 (revision v3.1)\n', 'Chip is ESP32-P4 (revision v1.3)\n'
+        with self.assertRaisesRegex(fw.InstallError, 'CrowPanel.*v3'):
+            self.look_at_a_lone_silent_port(0x1A86, {'restart': True}, v3)
+        self.assertEqual(self.look_at_a_lone_silent_port(0x1A86, {'restart': True}, v1)[0]['boards'], ['tessera-p4-crowpanel7'])
+        self.assertEqual(self.look_at_a_lone_silent_port(0x303A, {}, v3)[0]['boards'], ['tessera-p4-v3'])
 
     def test_the_package_list_carries_the_board_names(self):
         self.assertEqual(self.editor.command('firmware-list', {})['names']['tessera-p4-v3'], fw.BOARD_NAMES['tessera-p4-v3'])
