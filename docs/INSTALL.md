@@ -122,6 +122,14 @@ idf.py -B build/idf6 build
 idf.py -B build/idf6 -p COMx flash          # first time: bootloader, partition table and app
 ```
 
+For a GUITION board with a v3.x chip (see above), build the v3 image instead. It starts from the tested v1.x `sdkconfig`, minus the chip revision options, which `boards/tessera-p4-v3.defaults` sets:
+
+```powershell
+python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
+idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
+idf.py -B build/tessera-p4-v3 -p COMx flash
+```
+
 To update only the app and keep the bootloader, partition table and stored settings:
 
 ```powershell

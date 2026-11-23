@@ -21,6 +21,13 @@ class RepoHygieneTests(unittest.TestCase):
             missing = {name for name in called if not re.search(r'\b' + name + r'\s*\(\s*\)\s*\{', read(stub))}
             self.assertFalse(missing, f'{stub} lacks stubs for {sorted(missing)}')
 
+    def test_the_docs_say_how_to_build_the_v3_chip_image(self):
+        # A default build caps the chip revision at v1.99, so esptool refuses it on a v3.x GUITION board.
+        for doc in ('docs/INSTALL.md', 'docs/DEVELOPMENT.md'):
+            text = read(doc)
+            self.assertIn('python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig', text, doc)
+            self.assertIn('boards/tessera-p4-v3.defaults', text, doc)
+
     def test_cppcheck_covers_every_firmware_source(self):
         ci = read('.github/workflows/ci.yml')
         sources = {p.relative_to(ROOT).as_posix() for p in (ROOT / 'main').rglob('*')

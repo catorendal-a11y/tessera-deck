@@ -130,6 +130,14 @@ idf.py -B build/idf6 build
 python tools/package_firmware.py build/idf6 dist    # writes dist/tessera-firmware-<version>.zip
 ```
 
+For a GUITION board with a v3.x chip ([INSTALL.md](INSTALL.md#flash-the-panel)), build the v3 image instead. It starts from the tested v1.x `sdkconfig`, minus the chip revision options, which `boards/tessera-p4-v3.defaults` sets:
+
+```powershell
+python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
+idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
+python tools/package_firmware.py build/tessera-p4-v3 dist --board tessera-p4-v3
+```
+
 The first build downloads LVGL and the other components into `managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). The screen is drawn by one thread (`CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1` in `sdkconfig.defaults`); two threads garbled text and icons, see [VERIFICATION.md](../VERIFICATION.md#screen-speed). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
 
 ## Native LVGL tests and render tools
