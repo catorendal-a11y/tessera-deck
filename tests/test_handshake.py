@@ -333,6 +333,20 @@ class PortSelectionTests(unittest.TestCase):
             self.assertIn('in use', deck.port_trouble('COM4', refused(error)))
         self.assertIn('no firmware yet', deck.port_trouble('COM4', serial.SerialTimeoutException('Write timeout')))
 
+    def test_a_device_that_goes_away_during_the_handshake_says_to_replug_it(self):
+        import serial
+        # pyserial 3.5 serialwin32 wraps repr(ctypes.WinError()) in brackets once the port is open, so the code is not last
+        errors = ("WriteFile failed (OSError(22, 'The device is not connected.', None, 1167))",
+                  "ReadFile failed (PermissionError(13, 'A device attached to the system is not functioning.', None, 31))",
+                  "ClearCommError failed (PermissionError(13, 'The device does not recognize the command.', None, 22))",
+                  "GetOverlappedResult failed (OSError(22, 'The semaphore timeout period has expired.', None, 121))",
+                  "Cannot configure port, something went wrong. Original message: "
+                  "OSError(22, 'A device which does not exist was specified.', None, 433)")
+        for error in errors:
+            with self.subTest(error=error):
+                self.assertEqual(deck.port_trouble('COM4', serial.SerialException(error)),
+                                 'The USB device on COM4 stopped responding. Unplug it and plug it in again.')
+
 
 class ReconnectProbeTests(unittest.TestCase):
     """What the reconnect loop opens while no panel answers. Every open of a UART board restarts it on Linux, and on

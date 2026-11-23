@@ -149,16 +149,18 @@ def panel_label(text):
 def port_trouble(port, exc):
     """Why a serial port did not open, in plain words where pyserial says it: its own text names Python exceptions."""
     text, code = str(exc), getattr(exc, 'errno', None)
-    # On Windows pyserial ends its text with repr(ctypes.WinError()), whose last number is the Windows error code.
-    # Python files several codes under PermissionError, so the class name alone does not mean "in use".
-    found = re.search(r', (\d+)\)$', text)
+    # On Windows pyserial ends its text with repr(ctypes.WinError()), whose last number is the Windows error code; once
+    # the port is open it puts that in brackets ("WriteFile failed (...)"). Python files several codes under
+    # PermissionError, so the class name alone does not mean "in use".
+    found = re.search(r', (\d+)\)+$', text)
     windows = int(found.group(1)) if found else None
     if code == errno.ENOENT or 'FileNotFoundError' in text:
         return f'{port} is not there. Check the USB cable.'
     # EAGAIN: another program holds the port's lock (flock); access denied, sharing violation: it is open elsewhere
     if code in (errno.EBUSY, errno.EAGAIN, errno.EWOULDBLOCK) or windows in (5, 32):
         return f'{port} is in use by another program. Close the serial monitor, flasher or second Tessera that has it open.'
-    if windows in (22, 31, 121, 433):  # the driver lost the device: after sleep, a flaky cable, an absent Bluetooth port
+    # the driver lost the device: after sleep, a flaky cable, an absent Bluetooth port, unplugged mid-handshake (1167)
+    if windows in (22, 31, 121, 433, 1167):
         return f'The USB device on {port} stopped responding. Unplug it and plug it in again.'
     if code == errno.EACCES:
         return f'{port} may not be opened by your user. Join the group uucp (Arch) or dialout (Debian, Ubuntu) and sign in again.'
