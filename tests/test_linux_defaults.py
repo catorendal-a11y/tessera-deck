@@ -27,6 +27,12 @@ def actions():
                     yield from state.get('actions', [])
 
 
+def shell_commands(profile, page, label):
+    """The shell commands of the key with this label."""
+    return [action['command'] for button in LINUX['profiles'][profile]['pages'][page] if button.get('label') == label
+            for action in button.get('actions', []) if action.get('type') == 'shell']
+
+
 class LinuxDefaultTests(unittest.TestCase):
     def test_it_is_a_valid_configuration(self):
         tesserad.validate_config(config_store.migrate(json.loads(json.dumps(LINUX))))
@@ -71,6 +77,16 @@ class LinuxDefaultTests(unittest.TestCase):
         everything = json.dumps(LINUX)
         for candidate in ('plasma-systemmonitor', 'systemsettings kcm_bluetooth', 'systemsettings kcm_pulseaudio'):
             self.assertIn(candidate, everything)
+
+    def test_the_terminal_keys_find_the_default_terminal_of_fedora_gnome_mate_lxqt_and_cosmic(self):
+        # Fedora 41 and later ship Ptyxis and no gnome-terminal or x-terminal-emulator
+        terminal, = shell_commands('main', 'main', 'Terminal')
+        agent, = shell_commands('Claude Code', 'main', 'Continue')
+        self.assertIn('exec setsid -f ptyxis --new-window)', terminal)
+        self.assertIn('exec setsid -f ptyxis -- claude -c)', agent)
+        for name, flag in (('kgx', '--'), ('mate-terminal', '-x'), ('qterminal', '-e'), ('cosmic-term', '-e')):
+            self.assertIn(f'exec setsid -f {name})', terminal)
+            self.assertIn(f'exec setsid -f {name} {flag} claude -c)', agent)
 
     def test_the_agent_profiles_start_their_tool_in_a_terminal(self):
         commands = [action['command'] for action in actions() if action.get('type') == 'shell']

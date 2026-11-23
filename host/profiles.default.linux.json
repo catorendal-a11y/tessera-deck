@@ -26,7 +26,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; }",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis --new-window) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis --new-window, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1199,7 +1199,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; }",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis --new-window) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis --new-window, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]
@@ -1729,7 +1729,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis -- codex) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx -- codex) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal -x codex) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal -e codex) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term -e codex) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -1742,7 +1742,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex resume --last) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex resume --last) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex resume --last) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex resume --last) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex resume --last) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e codex resume --last) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- codex resume --last) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis -- codex resume --last) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx -- codex resume --last) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e codex resume --last) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x codex resume --last) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal -x codex resume --last) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal -e codex resume --last) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term -e codex resume --last) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e codex resume --last) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -2011,7 +2011,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis -- claude) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx -- claude) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal -x claude) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal -e claude) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term -e claude) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ],
@@ -2032,7 +2032,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -c) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -c) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -c) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -c) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -c) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -c) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -c) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis -- claude -c) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx -- claude -c) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -c) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -c) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal -x claude -c) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal -e claude -c) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term -e claude -c) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -c) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -2045,7 +2045,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -r) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -r) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -r) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -r) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -r) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; })",
+                "command": "cd \"$HOME\" && ((command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator -e claude -r) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal -- claude -r) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis -- claude -r) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx -- claude -r) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole -e claude -r) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal -x claude -r) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal -x claude -r) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal -e claude -r) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term -e claude -r) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm -e claude -r) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; })",
                 "timeout": 10
               }
             ]
@@ -2587,7 +2587,7 @@
             "actions": [
               {
                 "type": "shell",
-                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, xterm is installed' >&2; exit 1; }",
+                "command": "(command -v x-terminal-emulator >/dev/null 2>&1 && exec setsid -f x-terminal-emulator) || (command -v gnome-terminal >/dev/null 2>&1 && exec setsid -f gnome-terminal) || (command -v ptyxis >/dev/null 2>&1 && exec setsid -f ptyxis --new-window) || (command -v kgx >/dev/null 2>&1 && exec setsid -f kgx) || (command -v konsole >/dev/null 2>&1 && exec setsid -f konsole) || (command -v xfce4-terminal >/dev/null 2>&1 && exec setsid -f xfce4-terminal) || (command -v mate-terminal >/dev/null 2>&1 && exec setsid -f mate-terminal) || (command -v qterminal >/dev/null 2>&1 && exec setsid -f qterminal) || (command -v cosmic-term >/dev/null 2>&1 && exec setsid -f cosmic-term) || (command -v xterm >/dev/null 2>&1 && exec setsid -f xterm) || { echo 'none of: x-terminal-emulator, gnome-terminal, ptyxis --new-window, kgx, konsole, xfce4-terminal, mate-terminal, qterminal, cosmic-term, xterm is installed' >&2; exit 1; }",
                 "timeout": 10
               }
             ]

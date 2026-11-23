@@ -28,7 +28,12 @@ def launch(*programs):
     return shell(f'{chain} || {none_installed(programs)}')
 
 
-TERMINAL = launch('x-terminal-emulator', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm')
+# Each terminal with the option after which it takes the command to run. Ptyxis is the default on Fedora 41 and later,
+# kgx (GNOME Console) on GNOME without gnome-terminal, mate-terminal on MATE, qterminal on LXQt and cosmic-term on COSMIC.
+TERMINALS = (('x-terminal-emulator', '-e'), ('gnome-terminal', '--'), ('ptyxis', '--'), ('kgx', '--'), ('konsole', '-e'),
+             ('xfce4-terminal', '-x'), ('mate-terminal', '-x'), ('qterminal', '-e'), ('cosmic-term', '-e'), ('xterm', '-e'))
+# --new-window: Ptyxis opens a new window when one is already open, as the other terminals do
+TERMINAL = launch(*(f'{name} --new-window' if name == 'ptyxis' else name for name, _ in TERMINALS))
 SETTINGS = launch('cinnamon-settings', 'gnome-control-center', 'systemsettings', 'xfce4-settings-manager')
 MIXER = launch('pavucontrol', 'pavucontrol-qt', 'gnome-control-center sound', 'systemsettings kcm_pulseaudio')
 CHANGES = {
@@ -79,10 +84,8 @@ ZCODE_EXE = re.compile(r'^start "" "%LOCALAPPDATA%\\Programs\\ZCode\\ZCode\.exe"
 
 def in_terminal(command):
     """Open the first available terminal emulator in the home folder and run `command` in it, detached."""
-    runs = (('x-terminal-emulator', '-e'), ('gnome-terminal', '--'), ('konsole', '-e'), ('xfce4-terminal', '-x'),
-            ('xterm', '-e'))
-    chain = ' || '.join(f'(command -v {name} >/dev/null 2>&1 && exec setsid -f {name} {flag} {command})' for name, flag in runs)
-    return {'type': 'shell', 'command': f'cd "$HOME" && ({chain} || {none_installed([name for name, _ in runs])})', 'timeout': 10}
+    chain = ' || '.join(f'(command -v {name} >/dev/null 2>&1 && exec setsid -f {name} {flag} {command})' for name, flag in TERMINALS)
+    return {'type': 'shell', 'command': f'cd "$HOME" && ({chain} || {none_installed([name for name, _ in TERMINALS])})', 'timeout': 10}
 
 
 def linux_action(action):
