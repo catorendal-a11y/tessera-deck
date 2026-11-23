@@ -15,6 +15,7 @@ You need Python 3.12 or newer with `venv`, and these tools:
 |---|---|---|
 | `xdotool` | `xdotool` | keys, typing, mouse, windows |
 | `xclip` | `xclip` | the clipboard action |
+| `wmctrl` | `wmctrl` | maximize, restore, topmost and close, only when `xdotool` is older than 3.20210804 (Debian 12, Ubuntu 22.04 and 24.04) |
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
 | PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional), and the tray icon on Wayland |

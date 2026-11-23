@@ -8,7 +8,7 @@ import subprocess
 from platform_linux import BackendUnavailable
 
 TIMEOUT = 5.0
-HINT = {'xdotool': 'xdotool', 'xclip': 'xclip', 'wl-copy': 'wl-clipboard', 'wl-paste': 'wl-clipboard'}
+HINT = {'xdotool': 'xdotool', 'xclip': 'xclip', 'wmctrl': 'wmctrl', 'wl-copy': 'wl-clipboard', 'wl-paste': 'wl-clipboard'}
 
 
 def run(args: list[str], stdin: str | None = None, timeout: float = TIMEOUT, detach: bool = False) -> str:

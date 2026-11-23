@@ -151,6 +151,31 @@ class WindowTests(unittest.TestCase):
         x11.X11Backend(off).window_op('9', 'topmost')
         self.assertIn(['xdotool', 'windowstate', '--add', 'ABOVE', '9'], off.calls)
 
+    def test_an_old_xdotool_without_windowstate_and_windowquit_falls_back_to_wmctrl(self):
+        # xdotool before 3.20210804 (Debian 12, Ubuntu 22.04 and 24.04, Mint) does not know these commands and exits 1
+        calls = []
+
+        def old_xdotool(args, **kwargs):
+            calls.append(args)
+            if args[0] == 'xdotool' and ('windowstate' in args or 'windowquit' in args):
+                raise OSError(f'xdotool failed: xdotool: Unknown command: {args[1] if args[1] != "getactivewindow" else args[2]}')
+            return ''
+        backend = x11.X11Backend(old_xdotool)
+        for op in ('close', 'maximize', 'restore'):
+            self.assertTrue(backend.window_op('9', op), op)
+        self.assertTrue(backend.window_op(None, 'close'))
+        self.assertEqual([c for c in calls if c[0] == 'wmctrl'], [
+            ['wmctrl', '-i', '-c', '9'],
+            ['wmctrl', '-i', '-r', '9', '-b', 'add,maximized_vert,maximized_horz'],
+            ['wmctrl', '-i', '-r', '9', '-b', 'remove,maximized_vert,maximized_horz'],
+            ['wmctrl', '-c', ':ACTIVE:']])
+
+    def test_a_real_xdotool_failure_is_not_hidden_by_the_fallback(self):
+        def broken(args, **kwargs):
+            raise OSError('xdotool failed: BadWindow')
+        with self.assertRaisesRegex(OSError, 'BadWindow'):
+            x11.X11Backend(broken).window_op('9', 'close')
+
     def test_every_window_operation_of_the_host_is_handled(self):
         for op in input_common.WINDOW_OPERATIONS:
             fake = FakeRun({'xrandr': 'Monitors: 1\n 0: +*A 100/1x100/1+0+0 A', 'getwindowgeometry': 'X=0 Y=0 WIDTH=1 HEIGHT=1',
