@@ -241,6 +241,28 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(self.grants[0][:5], ('demo', frozenset({'var', 'vars'}), 'demo.', True, False))
         self.assertEqual(Path(kwargs['cwd']).name, 'demo')
 
+    def test_a_keyring_secret_that_cannot_be_read_yet_holds_the_plugin_back_until_it_can(self):
+        import platform_linux.secrets as keyring_secrets  # importable everywhere; only the keyring behind it is Linux
+        sealed = '$(keyring:abc)'
+        answers = [OSError('locked')]
+
+        def fetch(identifier):
+            answer = answers[0]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
+                patch.object(keyring_secrets, 'fetch', fetch):
+            self.manager.sync(self.enabled(token=sealed))
+            self.assertEqual(self.spawned, [], 'started with an empty token while the keyring was locked')
+            status = self.manager.status(self.enabled(token=sealed))[0]
+            self.assertIn('keyring', status['error'])
+            answers[0] = 'abc123'  # the keyring is unlocked
+            self.now[0] += 61
+            self.manager.sync(self.enabled(token=sealed))
+        self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
+
     @unittest.skipUnless(os.name == 'nt', 'DPAPI is Windows only')
     def test_an_encrypted_secret_reaches_the_plugin_in_plain_text_only(self):
         sealed = secrets_store.protect('abc123')

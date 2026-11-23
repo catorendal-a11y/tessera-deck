@@ -251,12 +251,21 @@ class PluginManager:
     def _start(self, manifest: Manifest, settings: dict) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         # remembered through crashes, so sync() can tell when the user changed the settings of a plugin that gave up
-        self.history.setdefault(manifest.id, _blank())['settings'] = settings
+        state = self.history.setdefault(manifest.id, _blank())
+        state['settings'] = settings
+        opened = secrets_store.open_settings(settings)
+        if any(opened[key] == '' and str(value).startswith(secrets_store.KEYRING_PREFIX) for key, value in settings.items()):
+            # a locked keyring (Linux, at autostart) gives '': starting now would show "add the token" for one the user
+            # did enter, and the plugin would never see it once the keyring opens. Try again every minute, not counted as a crash.
+            state.update(state='crashed', error='the system keyring is locked or has no value for it',
+                         next=self._clock() + BACKOFF_SECONDS[-1])
+            self._log(f'Plugin {manifest.id} waits: {state["error"]}')
+            return
         token = self._grant(manifest.id, manifest.routes(), f'{manifest.id}.', 'events' in manifest.permissions,
                             'read' in manifest.permissions)
         environment = {key: os.environ[key] for key in ENV_KEEP if key in os.environ}
         environment.update({'PYTHONUTF8': '1', 'PYTHONUNBUFFERED': '1', 'TESSERA_API': self._api_url(), 'TESSERA_TOKEN': token,
-                            'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(secrets_store.open_settings(settings))})
+                            'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(opened)})
         log_path = self.log_dir / f'{manifest.id}.log'
         self._rotate_log(manifest.id)
         try:  # a locked or full log folder must not leak the token granted above or retry without back-off
