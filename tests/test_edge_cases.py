@@ -113,6 +113,15 @@ class LinuxSideTests(unittest.TestCase):
             self.assertFalse(linux_autostart.is_enabled(Path(folder) / 'missing.desktop', here))
 
 
+    def test_with_the_arch_package_the_entry_starts_the_wrapper_and_is_found_again(self):
+        # /usr/bin/tessera syncs the copy after a package update and sets TESSERA_PACKAGED; the copy's own python does neither
+        with tempfile.TemporaryDirectory() as folder:
+            data, entry = Path(folder) / 'data', Path(folder) / 'tessera.desktop'
+            with patch.dict('os.environ', {'TESSERA_PACKAGED': '1'}):
+                linux_autostart.enable(entry, data)
+                self.assertIn('Exec="tessera" "--tray"', entry.read_text(encoding='utf-8'))
+                self.assertTrue(linux_autostart.is_enabled(entry, data))
+
 class AutostartTests(unittest.TestCase):
     def test_start_with_the_desktop_writes_the_entry_on_linux(self):
         with tempfile.TemporaryDirectory() as folder:
