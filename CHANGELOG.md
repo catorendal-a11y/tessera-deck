@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- The GPU power gauge works on Radeon RX 7000 and RX 9000 cards without extra software. These cards report the power of the whole board in another place than older cards, and Tessera only read the old one, so the gauge showed `--` (#47). Checked against AMD's own list of readings and against a card of the older kind (RX 6950 XT); no RX 7000 or RX 9000 card was at hand, so a report from one is welcome.
+- The docs and the hint in the editor say how to use a Libre Hardware Monitor you already run: switch on its Remote Web Server (port 8085). Before, they only described installing a second copy.
+
 ## 1.2.10
 
 The new way to install on a blank panel was tried against a simulated USB port, not a real blank board, and the changes for Linux were not run on Linux. If you install on a new board or update on Linux, a report in the issues on how it went helps.

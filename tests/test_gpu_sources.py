@@ -18,6 +18,15 @@ INTEGRATED = {1: 600, 2: 3000, 3: 1200, 7: 100, 16: 1240, 17: 10, 18: 8, 19: 0, 
 
 
 class AmdTests(unittest.TestCase):
+    def test_a_card_that_reports_board_power_instead_of_chip_power_still_shows_its_watts(self):
+        # RX 7000 and RX 9000: no slot 23, the whole board in slot 73 (issue 47, an RX 9070 that showed "--")
+        newer = {slot: value for slot, value in DISCRETE.items() if slot != 23} | {73: 63}
+        self.assertEqual(gpu_adl.parse_pmlog(newer)['gpu_power'], 63.0)
+        self.assertEqual(gpu_adl.parse_pmlog(DISCRETE | {73: 63})['gpu_power'], 63.0, 'the board reading wins')
+        self.assertNotIn('gpu_power', gpu_adl.parse_pmlog({8: 50}))
+        fanless = {slot: value for slot, value in newer.items() if slot not in (14, 15)}
+        self.assertEqual(gpu_adl.pick_graphics_card({0: INTEGRATED, 3: fanless}), 3, 'picked by its board power')
+
     def test_the_slots_become_gauge_values(self):
         self.assertEqual(gpu_adl.parse_pmlog(DISCRETE), {'gpu_temp': 47.0, 'gpu_power': 43.0, 'gpu_clock': 0.0,
                                                      'gpu_fan': 301.0, 'gpu_load': 0.0})
