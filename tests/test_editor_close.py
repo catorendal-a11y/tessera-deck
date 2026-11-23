@@ -6,7 +6,7 @@ import threading
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
@@ -149,6 +149,41 @@ class FirmwareInstallTests(unittest.TestCase):
         download.assert_not_called()  # the restart would cut esptool off mid-write
         restart.assert_not_called()
         self.assertIn('firmware', str(raised.exception))
+
+    def test_a_firmware_install_is_refused_while_the_program_update_runs(self):
+        import firmware_update
+        from test_firmware_update import fake_build
+        folder = Path(self.temp.name)
+        package = firmware_update.build_package(fake_build(folder), folder / 'dist', '1.2.3', 2)
+        editor = tessera_app.Editor(self.profiles, Mock(**{'processes.return_value': []}),
+                                    dashboard=lambda: {'running': False, 'device': {}})
+        editor.last_release = {'newer': True, 'latest': '9.9.9'}
+        downloading, go_on, refused = threading.Event(), threading.Event(), []
+
+        def download(release, target):
+            downloading.set()
+            go_on.wait(5)
+            return target / 'tessera.zip'
+
+        def press_install():
+            try:
+                editor.command('firmware-install', {'package': str(package)})
+            except ValueError as exc:
+                refused.append(str(exc))
+        no_port = firmware_update.InstallError('No USB port was found.')  # an install let through ends here, before any port
+        with patch('updates.download_host', download), patch('updates.install_host', return_value=3), \
+                patch('tessera_app.subprocess.run', return_value=Mock(returncode=0, stdout='', stderr='')), \
+                patch.object(tessera_app.Editor, 'restart_soon'), patch.object(tessera_app.Editor, 'firmware_port', side_effect=no_port), \
+                patch('tessera_app.FIRMWARE_FLAG_PATH', folder / 'firmware-install.local.json'):
+            update = threading.Thread(target=editor.install_host_update)
+            update.start()
+            self.assertTrue(downloading.wait(5))
+            press_install()  # while the new version downloads
+            go_on.set()
+            update.join(5)
+            press_install()  # after the restart was set off: it ends this editor in a moment
+        self.assertEqual(len(refused), 2, 'an install ran while the program update could restart the editor')
+        self.assertEqual(editor.firmware_job, {'state': 'idle'})
 
     def test_closing_the_window_waits_for_a_running_firmware_install(self):
         servers, install, real = [], {}, tessera_app.make_server

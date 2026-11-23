@@ -528,29 +528,34 @@ class Editor:
         if os.environ.get('TESSERA_PACKAGED'):
             raise ValueError('This Tessera comes from a package. Update it with your package manager, '
                              'for example yay -Syu tessera-deck for the AUR package.')
-        if self.firmware_lock.locked():
+        if not self.firmware_lock.acquire(blocking=False):
             # the restart ends this editor, and with it the install: esptool would be cut off mid-write
             raise ValueError('The panel firmware is being installed. Update Tessera when it is done.')
-        import tempfile
         try:
-            with tempfile.TemporaryDirectory() as folder:
-                written = updates.install_host(updates.download_host(self.last_release, Path(folder)), ROOT)
-        except PermissionError as exc:
-            raise ValueError(f'A file is in use and could not be replaced: {Path(exc.filename or "").name}. '
-                             'Quit Tessera from the tray icon, start it again and update once more.') from exc
-        except OSError as exc:
-            raise ValueError('The update could not be downloaded or written. Check your internet connection and try again.') from exc
-        except zipfile.BadZipFile as exc:
-            raise ValueError('The update file cannot be read as a zip; nothing was changed.') from exc
-        latest = self.last_release['latest']
-        # the restart has no console, so a failed package step would go unseen: run it here, where the dialog can say so
-        step = subprocess.run([str(venv_python(ROOT)), str(ROOT / 'host/setup_tool.py'), 'ensure'], capture_output=True, text=True,
-                              errors='replace', creationflags=NO_WINDOW, stdin=subprocess.DEVNULL)
-        if step.returncode != 0:
-            detail = ' '.join((step.stdout + step.stderr).split())[-300:]
-            raise ValueError(f'Tessera {latest} is in place, but its packages could not be installed: {detail} '
-                             'The update will finish when Tessera is started with a network connection.')
-        self.restart_soon()
+            import tempfile
+            try:
+                with tempfile.TemporaryDirectory() as folder:
+                    written = updates.install_host(updates.download_host(self.last_release, Path(folder)), ROOT)
+            except PermissionError as exc:
+                raise ValueError(f'A file is in use and could not be replaced: {Path(exc.filename or "").name}. '
+                                 'Quit Tessera from the tray icon, start it again and update once more.') from exc
+            except OSError as exc:
+                raise ValueError('The update could not be downloaded or written. Check your internet connection and try again.') from exc
+            except zipfile.BadZipFile as exc:
+                raise ValueError('The update file cannot be read as a zip; nothing was changed.') from exc
+            latest = self.last_release['latest']
+            # the restart has no console, so a failed package step would go unseen: run it here, where the dialog can say so
+            step = subprocess.run([str(venv_python(ROOT)), str(ROOT / 'host/setup_tool.py'), 'ensure'], capture_output=True, text=True,
+                                  errors='replace', creationflags=NO_WINDOW, stdin=subprocess.DEVNULL)
+            if step.returncode != 0:
+                detail = ' '.join((step.stdout + step.stderr).split())[-300:]
+                raise ValueError(f'Tessera {latest} is in place, but its packages could not be installed: {detail} '
+                                 'The update will finish when Tessera is started with a network connection.')
+            self.restart_soon()
+        except BaseException:
+            self.firmware_lock.release()
+            raise
+        # the lock stays held on success: the restart ends this editor in a moment and would cut off an install started now
         return {'version': latest, 'files': written,
                 'message': f'Tessera {latest} is in place. This window closes and opens again in a few seconds. '
                            'Then update the panel here if this dialog offers newer firmware.'}
