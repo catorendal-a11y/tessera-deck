@@ -169,16 +169,20 @@ def update_check_state(path: Path | None = None) -> dict:
         return {}
 
 
+UPDATE_CHECK_LOCK = threading.Lock()  # the menu switch, the question and the daily look write from their own threads
+
+
 def save_update_check(path: Path | None = None, **changes) -> None:
+    """Change keys of the state file. Read, change and write happen under one lock, so no writer loses another's key."""
+    from config_store import write_atomic
     path = path or UPDATE_CHECK_PATH
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(dict(update_check_state(path), **changes)), encoding='utf-8')
-    os.replace(temporary, path)
+    with UPDATE_CHECK_LOCK:
+        write_atomic(path, json.dumps(dict(update_check_state(path), **changes)).encode('utf-8'))
 
 
 def auto_update_check_enabled(path: Path | None = None) -> bool:
-    """The daily look at the project's releases; on unless switched off in the tray's Help menu."""
-    return update_check_state(path).get('enabled', True) is not False
+    """The daily look at the project's releases: off until the user says yes to the question or ticks it in the Help menu."""
+    return update_check_state(path).get('enabled') is True
 
 
 def update_notice(current: str, release: dict) -> tuple[str, str]:
@@ -342,8 +346,9 @@ class TrayApp:
         self.background(work)
 
     def auto_update_check(self, now=None, uptime=None):
-        """Once a day, ask GitHub for the newest release and say so once per release. The request names nothing about
-        this PC. A package manager's Tessera and a source checkout are updated another way, so they are not asked for."""
+        """Once a day, if the user chose it, ask GitHub for the newest release and say so once per release. The request
+        names nothing about this PC. A package manager's Tessera and a source checkout are updated another way, so they
+        are neither asked the question nor looked up."""
         now = time.time() if now is None else now
         uptime = time.monotonic() - self.started if uptime is None else uptime
         if uptime < max(UPDATE_CHECK_DELAY, self.update_look_after):
@@ -352,7 +357,13 @@ class TrayApp:
         state = update_check_state()
         last = state.get('checked')
         recent = isinstance(last, (int, float)) and 0 <= now - last < UPDATE_CHECK_SECONDS
-        if recent or state.get('enabled', True) is False or os.environ.get('TESSERA_PACKAGED') or (ROOT / '.git').exists():
+        if os.environ.get('TESSERA_PACKAGED') or (ROOT / '.git').exists():
+            return
+        if 'enabled' not in state:  # not chosen yet: ask once, in a thread of its own (the dialog waits for the answer)
+            save_update_check(enabled=False)  # written first: a question that is closed or lost is not asked again
+            self.background(self.ask_about_update_check)
+            return
+        if recent or state['enabled'] is not True:
             return
         save_update_check(checked=now)  # before the request: a PC without a network asks again tomorrow, not every 2 s
 
@@ -368,6 +379,18 @@ class TrayApp:
                 save_update_check(told=release['latest'])
                 self.tell(*update_notice(current, release))
         self.background(work)
+
+    def ask_about_update_check(self):
+        """Once: may the tray look for new versions by itself? Where there is no dialog (Linux) the answer is no, and
+        the Help menu has the switch."""
+        if load('dialogs').ask_yes_no('Look for new versions of Tessera once a day?\n\n'
+                                      'Tessera then asks GitHub for the newest release and tells you when one is out. '
+                                      'Nothing about you or your PC is sent.\n\n'
+                                      'You can change this later in the tray menu: Help → Check for updates automatically.',
+                                      'Tessera'):
+            save_update_check(enabled=True)
+            self.update_look_after = 0.0  # look now, not at the next ten-minute mark
+            self.icon.update_menu()
 
     def ask_about_autostart(self):
         """Once per folder, at the first panel connection: the panel does nothing after a restart until Tessera runs, so
