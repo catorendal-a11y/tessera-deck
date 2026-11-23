@@ -161,10 +161,10 @@ class PressMixin:
                 # hotkey or typing after "open app, delay" must still run when auto switching followed that app
                 if moved and action['type'] in ('press', 'state'):
                     raise RuntimeError('The page changed while the key was waiting')
-                where = (self.profile, self.page)
+                # asked before the step runs: a press step waits when its key does, and that key is on this page
+                where, waited = (self.profile, self.page), self.waits([action])
                 self.run_action(action)
                 done += 1
-                waited = action['type'] in BLOCKING_ACTIONS or (action['type'] == 'text' and action.get('delay_ms'))
                 moved = moved or (waited and (self.profile, self.page) != where)
             if (button.get('states') and not hold and not double and not button.get('bind')
                     and state_key not in self.state_set_by_action):

@@ -99,6 +99,33 @@ class PageChangeDuringWaitTests(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn('page changed', daemon.last_action['error'])
 
+    def test_a_press_step_after_a_child_key_that_waits_does_not_run_a_key_of_the_new_page(self):
+        """Key 1 is [press 3, press 2] and key 3 is [delay]. The page changes during key 3's delay: key 2 of the
+        new page must not run."""
+        daemon = make_daemon()
+        button(daemon, 1)['actions'] = [{'type': 'press', 'id': 3}, {'type': 'press', 'id': 2}]
+        button(daemon, 3)['actions'] = [{'type': 'delay', 'ms': 300}]
+        status_key = next(b for b in daemon.config['profiles']['main']['pages']['status'] if b['id'] == 2)
+        status_key['actions'] = [{'type': 'set', 'variable': 'ran', 'value': 'status key 2'}]
+
+        def change_page():
+            with daemon.state_lock:
+                daemon.switch_page('status')
+
+        def wait(seconds):
+            other = threading.Thread(target=change_page)
+            other.start()
+            other.join(2)
+            return False
+
+        daemon.stop.wait = wait
+        with daemon.state_lock:
+            ok = daemon.dispatch_press(1)
+        self.assertEqual(daemon.page, 'status')
+        self.assertIsNone(daemon.custom_vars.get('ran'))
+        self.assertFalse(ok)
+        self.assertIn('page changed', daemon.last_action['error'])
+
     def test_a_step_that_does_not_use_the_page_still_runs_after_the_page_changed(self):
         """Key 1 is [delay, set]: the opened program takes focus and the profile follows. The set step must run."""
         daemon = make_daemon()
