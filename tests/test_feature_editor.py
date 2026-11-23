@@ -195,5 +195,45 @@ return {order: [versionOrder('1.2.3', '1.10.0'), versionOrder('1.2.3', '1.2.3'),
             'blank': 'There is no firmware package for Tessera 1.2.3 here. Check for updates downloads it.', 'none': ''})
 
 
+    def test_a_step_on_a_held_key_turns_hold_to_confirm_off(self):
+        found = self.run_editor(r"""
+const key = () => ({id: 1, label: 'Off', icon: 'ok', confirm: true, actions: [{type: 'hotkey', keys: 'a'}]});
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [key()]}}}};
+profile = 'Main'; page = 'First'; selected = 1; history = [];
+activeActions(); editList = 'hold_actions';
+addAction('hotkey', 1);
+const held = config.profiles.Main.pages.First[0], toast1 = String(document.querySelector('#toast').textContent);
+config.profiles.Main.pages.First = [key()]; editList = 'actions';
+addAction('hotkey', 1);
+return {held: [held.confirm ?? null, held.hold_actions.length], toast: toast1, tap: config.profiles.Main.pages.First[0].confirm};
+""")
+        self.assertEqual(found['held'], [None, 1])
+        self.assertIn('Hold to confirm was turned off', found['toast'])
+        self.assertTrue(found['tap'])
+
+    def test_a_refused_move_to_slot_draws_the_inspector_again(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [{id: 2, label: 'W', icon: 'ok', span: 2, actions: []}]}}}};
+profile = 'Main'; page = 'First'; selected = 2;
+let drawn = 0; renderInspector = () => { drawn++; };
+moveSlot(2, 6);  // a wide key does not fit across the end of a row
+return {drawn, still: config.profiles.Main.pages.First[0].id, selected};
+""")
+        self.assertEqual(found, {'drawn': 1, 'still': 2, 'selected': 2})
+
+    def test_cancelling_a_new_subpage_takes_the_folder_key_back(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [], Other: []}}}};
+profile = 'Main'; page = 'First'; selected = 1; history = []; future = [];
+let closed = null; dialog = () => {};
+document.querySelector('#form-dialog').addEventListener = (name, fn) => { closed = fn; };
+addAction('folder');
+const made = config.profiles.Main.pages.First.length;
+closed();
+return {made, left: config.profiles.Main.pages.First.length};
+""")
+        self.assertEqual(found, {'made': 1, 'left': 0})
+
+
 if __name__ == '__main__':
     unittest.main()
