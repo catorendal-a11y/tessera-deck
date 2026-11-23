@@ -195,6 +195,8 @@ def _starts(event: dict, until: datetime, budget: list | None = None):
     if frequency in ('DAILY', 'WEEKLY'):  # jump over the years before the window instead of walking them
         period = interval * (1 if frequency == 'DAILY' else 7)
         skip = max(0, ((until - LOOK_AHEAD * 2).date() - first).days // period - 1)
+        if frequency == 'DAILY' and by_day and count is not None:
+            skip = 0  # days dropped by BYDAY are not counted, so COUNT needs the walk
         if skip:  # what COUNT has already used up in the skipped weeks or days
             made = skip if frequency == 'DAILY' else skip * len(days) - sum(day < first.weekday() for day in days)
     elif frequency in ('MONTHLY', 'YEARLY') and count is None:  # the same jump; COUNT needs the walk to count
@@ -212,7 +214,9 @@ def _starts(event: dict, until: datetime, budget: list | None = None):
                 if budget[0] < 0:
                     raise OverflowError('The calendar repeats too much')
             if frequency == 'DAILY':
-                yield first + timedelta(days=step * interval)
+                day = first + timedelta(days=step * interval)
+                if not by_day or day.weekday() in days:  # DAILY;BYDAY=MO,TU,... is "every weekday"
+                    yield day
             elif frequency == 'WEEKLY':
                 monday = first - timedelta(days=first.weekday()) + timedelta(weeks=step * interval)
                 for weekday in days:
