@@ -8,9 +8,12 @@ the tool that works there:
   (`systemctl --user enable --now ydotool`). The device sends key positions, so text is turned into keys with the
   session's own layout (xkb.py): "@" is AltGr+2 on a Norwegian keyboard and Shift+2 on a US one. Caps Lock is read
   from the keyboard's LED, so text comes out in the case it was written in; with no LED to read it is taken as off.
-  Where `ydotool` is not installed, input goes through the desktop's RemoteDesktop portal instead (portal.py): the
-  desktop asks once, and keys are sent as keysyms, so the layout does not matter and any character can be typed. The
-  portal has no absolute pointer position.
+  Where `ydotool` is not installed or `ydotoold` is not running (no socket, see ydotool_ready), input goes through the
+  desktop's RemoteDesktop portal instead (portal.py): the desktop asks once, and keys are sent as keysyms, so no key
+  position has to be worked out. GNOME drops a keysym that no key of the layout in use types, so text and the letters
+  and digits of a hotkey are checked against the layout first and refused with the clipboard hint. Where the layout in
+  use cannot be read they are sent unchecked; on GNOME that is any session with more than one layout. The portal has
+  no absolute pointer position.
 - **Windows** (the window in front for smart profiles, focus, minimize, ...) go through `kdotool`, which asks KWin.
   A compositor without such a tool gets a separate part (`windows`), filled by the compositor's own extension: GNOME
   Shell has one (gnome_windows.py, the extension is in host/linux/gnome-extension). Other compositors have neither yet:
@@ -251,10 +254,11 @@ class WaylandBackend(DesktopBackend):
         else:
             raise ValueError(f'Unknown mouse operation: {op}')
 
-    # input through the RemoteDesktop portal, where ydotool is not installed
+    # input through the RemoteDesktop portal, where ydotool is not installed or its daemon is not running
     def refuse_missing(self, chars) -> None:
         """The portal sends keysyms, and GNOME drops one that no key of the layout in use types, without an error. A
-        character behind a dead key has no keysym key either. An unreadable layout is not checked."""
+        character behind a dead key has no keysym key either. A layout that cannot be read is not checked, and neither
+        is a GNOME session with more than one layout: GNOME does not tell which one is in use."""
         try:
             keymap = self.keymap()
         except BackendUnavailable:
