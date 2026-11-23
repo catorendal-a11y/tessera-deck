@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.2.11
+
+Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
 
 - Installing on a blank panel works on the real board. A board without firmware takes no data on its USB port, and the editor read that as a port it could not open, so it never got as far as asking the chip. It now asks the chip and offers the package. Tried on a GUITION JC1060P470C that was erased first: found as ESP32-P4 v1.3, installed, and running 1.2.10.
 - The log says what to do when a port takes no data, instead of "Write timeout".
@@ -10,6 +12,7 @@
 - The GPU power gauge works on Radeon RX 7000 and RX 9000 cards without extra software. These cards report the power of the whole board in another place than older cards, and Tessera only read the old one, so the gauge showed `--` (#47). Checked against AMD's own list of readings and against a card of the older kind (RX 6950 XT); no RX 7000 or RX 9000 card was at hand, so a report from one is welcome.
 - The FPS gauge also works with Libre Hardware Monitor on a Radeon card: it reads the frame rate the Radeon driver reports for a game in full screen. Before, FPS needed HWiNFO with PresentMon. The selection was checked against the real readings of an idle PC; no game was running for the test, so tell me if the gauge stays at `--` in a game.
 - The docs and the hint in the editor say how to use a Libre Hardware Monitor you already run: switch on its Remote Web Server (port 8085). Before, they only described installing a second copy.
+- The CrowPanel Advance 7.0 (ESP32-S3) build runs on a tester's V1.5 board: picture, colours, touch and brightness. The docs no longer call it untried.
 
 ## 1.2.10
 
