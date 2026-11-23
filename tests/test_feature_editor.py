@@ -234,6 +234,25 @@ return {made, left: config.profiles.Main.pages.First.length};
 """)
         self.assertEqual(found, {'made': 1, 'left': 0})
 
+    def test_the_rail_refuses_a_shortcut_that_copied_an_unfinished_step(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: []}}}}; profile = 'Main'; page = 'First';
+const toasts = [];
+toast = message => toasts.push(message);
+const apply = actions => {
+  railDraft = {order: ['keys'], on: new Set(['keys']), shortcuts: [{type: 'actions', label: 'Go', icon: 'lc:e0ff', actions}]};
+  document.querySelector('#rail-apply').onclick();
+  return config.panel?.shortcuts ?? null;
+};
+const unfinished = apply([{type: 'http', method: 'GET', url: ''}]);
+const told = [...toasts];
+const finished = apply([{type: 'http', method: 'GET', url: 'https://example.com'}]);
+return {unfinished, told, finished};
+""")
+        self.assertIsNone(found['unfinished'])
+        self.assertIn('not finished', found['told'][0])
+        self.assertEqual(found['finished'], [{'type': 'actions', 'label': 'Go', 'icon': 'lc:e0ff', 'actions': [{'type': 'http', 'method': 'GET', 'url': 'https://example.com'}]}])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -944,6 +944,9 @@ $('#rail-close').onclick = $('#rail-cancel').onclick = () => $('#rail-dialog').c
 $('#rail-apply').onclick = () => {
   const d = railDraft;
   if (d.shortcuts.some(s => s.type === 'actions' && !s.actions?.length)) { toast('A shortcut that runs steps needs steps: copy them from a key.'); return; }
+  // The host refuses a configuration with an unfinished step, and nothing on a key points at this copy.
+  const unfinished = d.shortcuts.flatMap((s, index) => (s.actions || []).map(stepProblem).filter(Boolean).map(problem => `Shortcut ${index + 1} has a step that is not finished (${problem}): finish it on the key and copy the steps again.`))[0];
+  if (unfinished) { toast(unfinished); return; }
   savePanel({screens: d.order.filter(id => d.on.has(id)), shortcuts: d.shortcuts.map(s => s.type === 'actions'
     ? {type: 'actions', actions: s.actions, label: (s.label || '').slice(0, 40), icon: s.icon}
     : {profile: s.profile, page: s.page, icon: s.icon})});
