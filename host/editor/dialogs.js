@@ -80,12 +80,20 @@ async function openFirmware() {
     if (blank && info.job.state !== 'running') await detectPanel();
   } catch (error) { showError(error); }
 }
-async function detectPanel() {
+async function detectPanel(restart = false) {
   $('#firmware-device').textContent = 'Looking for the panel on USB …';
   $('#firmware-detect').hidden = $('#firmware-install').disabled = true;
   let failed = '';
-  try { firmwareFound = await api('command/firmware-detect', {}); }
+  try { firmwareFound = await api('command/firmware-detect', {restart}); }
   catch (error) { firmwareFound = null; failed = error.message; }
+  // A silent USB serial adapter can be an Arduino or a 3D printer: reading its chip restarts it, so ask first.
+  if (firmwareFound?.ask) {
+    const {port, ask} = firmwareFound;
+    firmwareFound = null;
+    if (await confirmDialog(`Restart the device on ${port}?`, `${ask} does not answer as a Tessera panel. To read which chip it has, Tessera restarts it. If it is a 3D printer or another device that is busy, choose Cancel and unplug it first.`, {ok: 'Restart and look'}))
+      return detectPanel(true);
+    failed = `${port} was not restarted. Connect only the panel and look again.`;
+  }
   if (firmwareFound) $('#firmware-mode').value = firmwareFound.board ? 'app' : 'full';
   try { await refreshFirmware(); }
   catch (error) { $('#firmware-detect').hidden = false; throw error; }  // the list failed: leave a way to look again

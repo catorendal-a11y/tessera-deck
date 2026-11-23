@@ -492,6 +492,60 @@ class EditorDetectTests(unittest.TestCase):
             self.editor.command('update-check', {})
         self.assertEqual(check.call_args.kwargs['board'], 'tessera-p4-v3')
 
+    def look_at_a_lone_silent_port(self, vid, data):
+        """firmware-detect with only COM7 plugged in, whose device never answers; returns (result, esptool runs)."""
+        import io
+        import types
+        import panel_serial
+
+        class Silent:
+            port, in_waiting = 'COM7', 0
+
+            def __init__(self):
+                self.dtr = self.rts = False
+
+            def open(self):
+                pass
+
+            def close(self):
+                pass
+
+            def reset_input_buffer(self):
+                pass
+
+            def write(self, raw):
+                return len(raw)
+
+            def read(self, size):
+                return b''
+        runs = []
+
+        def esptool(arguments, **kwargs):
+            runs.append(arguments)
+            return types.SimpleNamespace(stdout=io.StringIO('Chip is ESP32-S3 (QFN56) (revision v0.2)\n'), wait=lambda: 0,
+                                         kill=lambda: None)
+        device = types.SimpleNamespace(device='COM7', vid=vid, serial_number=None, description='USB-SERIAL CH340 (COM7)')
+        with patch('serial.tools.list_ports.comports', return_value=[device]), \
+                patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Silent)), \
+                patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.1), \
+                patch.object(fw.subprocess, 'Popen', esptool), \
+                patch.dict('os.environ', {'TESSERA_PORT': 'COM7'}):
+            return self.editor.command('firmware-detect', data), runs
+
+    def test_a_lone_silent_usb_serial_adapter_is_restarted_only_after_the_user_says_yes(self):
+        # A CH340 is also the bridge of many Arduinos and 3D printers; esptool's reset would restart a running print.
+        found, runs = self.look_at_a_lone_silent_port(0x1A86, {})
+        self.assertEqual(runs, [], 'esptool must not reset the device before the user agrees')
+        self.assertEqual((found['port'], found['ask']), ('COM7', 'USB-SERIAL CH340 (COM7)'))
+        found, runs = self.look_at_a_lone_silent_port(0x1A86, {'restart': True})
+        self.assertEqual(found['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
+        self.assertEqual(len(runs), 1)
+
+    def test_a_lone_silent_espressif_port_is_asked_for_its_chip_at_once(self):
+        found, runs = self.look_at_a_lone_silent_port(0x303A, {})
+        self.assertEqual(found['chip'], 'esp32s3')
+        self.assertIn('read-mac', runs[0])
+
     def test_the_package_list_carries_the_board_names(self):
         self.assertEqual(self.editor.command('firmware-list', {})['names']['tessera-p4-v3'], fw.BOARD_NAMES['tessera-p4-v3'])
 

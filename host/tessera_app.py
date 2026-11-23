@@ -38,7 +38,7 @@ import firmware_update
 import iconify
 import plugins
 import updates
-from host_runtime import InstanceLock
+from host_runtime import ESPRESSIF_VID, InstanceLock
 from action_preview import preview
 from import_review import export_left_out, redact_secrets, review, strip_executable
 
@@ -426,9 +426,21 @@ class Editor:
         raise firmware_update.InstallError(f'No Tessera panel answered on {", ".join(ports)}. Unplug the other '
                                            'USB serial devices, or connect only the panel, and try again.')
 
-    def detect_panel(self):
+    @staticmethod
+    def usb_device(port):
+        # The pyserial listing entry of `port` (vid, description), or None when it cannot be listed.
+        try:
+            from serial.tools import list_ports
+            return next((item for item in list_ports.comports() if item.device == port), None)
+        except Exception:  # the same as host_runtime.port_baud: a driver that cannot be listed
+            return None
+
+    def detect_panel(self, restart=False):
         """What is on the USB port when the host has no panel: the board and firmware if it answers, otherwise the
-        chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install."""
+        chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install.
+
+        Asking the chip restarts the device. A silent USB serial adapter (CH340) may be an Arduino or a 3D printer,
+        so for one the answer is {'port', 'ask': its description} until the user agrees (restart=True)."""
         if not self.firmware_lock.acquire(blocking=False):
             raise ValueError('A firmware installation is already running')
         was_running = False
@@ -443,6 +455,8 @@ class Editor:
             if info is not None:
                 board = info.get('boardId', firmware_update.BOARD_ID)
                 found = {'port': port, 'board': board, 'firmware': info.get('firmwareVersion'), 'boards': [board]}
+            elif not restart and (device := self.usb_device(port)) is not None and device.vid != ESPRESSIF_VID:
+                return {'port': port, 'ask': device.description or port}
             else:
                 found = dict(firmware_update.detect_chip(port), port=port)
             self.found_boards = found['boards']
@@ -672,7 +686,7 @@ class Editor:
         if command == 'firmware-list':
             return self.firmware_list()
         if command == 'firmware-detect':
-            return self.detect_panel()
+            return self.detect_panel(data.get('restart') is True)
         if command == 'firmware-install':
             return self.install_firmware(data)
         if command == 'firmware-progress':
