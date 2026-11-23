@@ -176,6 +176,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.last_action = None
         self.custom_vars = {}
         self.trigger_state = {}
+        self.file_stats = {}  # path -> the last os.stat of a file trigger, see file_mtime
         self.stop = threading.Event()
         self.jobs = queue.Queue(maxsize=JOB_QUEUE_SIZE)
         self.enqueue_lock = threading.Lock()

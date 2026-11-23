@@ -1,5 +1,6 @@
 """Presses that cross a dimmed panel, a page change, slow typing, a busy worker or another thread."""
 import copy
+import os
 from pathlib import Path
 import sys
 import threading
@@ -145,6 +146,44 @@ class InputLockTests(unittest.TestCase):
         self.assertEqual(page, 'status', 'the page key waited behind the hotkey until the typing ended')
         send.assert_not_called()
         daemon.panel.feedback.assert_any_call(1, False)
+
+
+class OfflineFileTriggerTests(unittest.TestCase):
+    def test_a_file_trigger_on_an_offline_share_does_not_hold_up_presses(self):
+        """os.stat on a share that is offline can hang for many seconds; the main loop runs it under the state lock."""
+        daemon = make_daemon()
+        offline = os.path.join('Z:' + os.sep, 'offline', 'x.txt')
+        daemon.config['triggers'] = [{'when': {'type': 'file', 'path': offline}, 'actions': []}]
+        button(daemon, 2)['actions'] = [{'type': 'page', 'page': 'status'}]
+        share, asked, real_stat = threading.Event(), threading.Event(), os.stat
+
+        def stat(path, *args, **kwargs):
+            if path == offline:
+                asked.set()
+                share.wait(10)  # the share answers when the test ends
+                raise OSError('The network path was not found')
+            return real_stat(path, *args, **kwargs)
+
+        def main_loop_tick():
+            with daemon.state_lock:
+                daemon.trigger_tick(1)
+
+        worker = threading.Thread(target=daemon.worker_loop, daemon=True)
+        with patch('daemon_ticks.os.stat', stat):
+            tick = threading.Thread(target=main_loop_tick, daemon=True)
+            tick.start()
+            self.assertTrue(asked.wait(2))
+            worker.start()
+            daemon.enqueue(('press', 2, None, False, time.monotonic()))
+            done = threading.Thread(target=daemon.jobs.join, daemon=True)
+            done.start()
+            done.join(3)
+            page = daemon.page
+            share.set()
+            tick.join(2)
+            daemon.stop.set()
+            worker.join(2)
+        self.assertEqual(page, 'status', 'the press waited for the file trigger on the offline share')
 
 
 class DoubleTapTimingTests(unittest.TestCase):
