@@ -350,6 +350,17 @@ class ReconnectProbeTests(unittest.TestCase):
         self.listed = [types.SimpleNamespace(device='COM5', vid=0x1A86, serial_number='PANEL123')]  # hung, still on USB
         self.assertEqual(self.attempts(self.daemon(), 6).count('COM5'), 6)
 
+    def test_a_panel_with_firmware_this_host_does_not_speak_is_opened_once_and_the_reason_stays(self):
+        self.state.write_text(json.dumps({'port': 'COM6'}), encoding='utf-8')  # the CH340 panel, used before
+        self.listed = [types.SimpleNamespace(device='COM6', vid=0x1A86, serial_number=None)]
+        FakeSerial.script = info(boardId='tessera-s3-crowpanel7', protocol=99)  # a newer firmware zip, an older host
+        daemon = self.daemon(port='')
+        for _ in range(4):
+            with self.assertRaises(OSError) as raised:
+                daemon.open_panel()
+            self.assertIn('update the firmware or the host', str(raised.exception))
+        self.assertEqual([fake.port for fake in FakeSerial.opened], ['COM6'])
+
     def test_with_tessera_port_set_only_that_port_is_opened(self):
         import os
         os.environ['TESSERA_PORT'] = 'COM8'

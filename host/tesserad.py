@@ -1042,7 +1042,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             except DeviceRejected as exc:
                 failures.append(str(exc))
                 # A silent remembered or named panel is always asked again: it may hang and come back without leaving USB.
-                if port in installed and (exc.kind == 'board' or exc.kind == 'silent' and port != pinned
+                # Firmware this host does not speak stays so until it is flashed. The editor's install restarts the host,
+                # which forgets this; after another flasher the panel is asked again once it is unplugged or the host restarts.
+                if port in installed and (exc.kind in ('board', 'protocol') or exc.kind == 'silent' and port != pinned
                                           and not is_remembered_panel(port, self.device_state_path, installed)):
                     silent = (entry[2] if entry else 0) + 1
                     self.passed_over[port] = [installed[port], str(exc), silent if exc.kind == 'silent' else SILENT_TRIES]
