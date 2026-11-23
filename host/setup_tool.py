@@ -96,9 +96,10 @@ def forget_claude_hooks(home: Path | None = None, emit: Callable[[str], None] = 
     import claude_setup
     from venv_paths import venv_python
     try:
-        if not any(claude_setup.state(home).values()):
+        deckctl = ROOT / 'host/deckctl.py'
+        if not any(claude_setup.state(home, deckctl).values()):  # hooks of another copy are that copy's
             return False
-        claude_setup.update(False, False, venv_python(ROOT), ROOT / 'host/deckctl.py', home)
+        claude_setup.update(False, False, venv_python(ROOT), deckctl, home, only_this=True)
     except (OSError, ValueError) as exc:
         emit(f"Could not remove Tessera's hooks from Claude Code: {exc}")
         return False
@@ -132,12 +133,12 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
         sys.path.insert(0, str(root / 'host'))
         from deck_control import set_autostart as autostart
     try:
-        had_entry = True  # a stand-in has no entry to look at
+        mine = True  # a stand-in has no entry to look at
         if own_autostart:
-            from deck_control import startup_script_path
-            had_entry = startup_script_path().exists()
-        autostart(False)
-        if had_entry:
+            from deck_control import autostart_enabled
+            mine = autostart_enabled()  # an entry that starts another copy stays: that copy still needs it
+        if mine:
+            autostart(False)
             removed.append('start with ' + load('labels').AUTOSTART_NAME)
     except OSError as exc:
         emit(f'Could not remove the autostart entry: {exc}')

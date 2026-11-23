@@ -75,7 +75,7 @@ class UpdateCheckTests(unittest.TestCase):
 class UninstallTests(unittest.TestCase):
     def test_uninstall_takes_the_hooks_out_of_claude_code(self):
         with tempfile.TemporaryDirectory() as home:
-            claude_setup.update(True, True, Path('python'), Path('deckctl.py'), home=Path(home))
+            claude_setup.update(True, True, Path('python'), setup_tool.ROOT / 'host/deckctl.py', home=Path(home))
             self.assertEqual(claude_setup.state(Path(home)), {'events': True, 'permission': True})
             said = []
             self.assertTrue(setup_tool.forget_claude_hooks(Path(home), said.append))
@@ -83,6 +83,15 @@ class UninstallTests(unittest.TestCase):
             self.assertIn('Claude Code', said[0])
             self.assertFalse(setup_tool.forget_claude_hooks(Path(home), said.append))  # nothing left to remove
             self.assertEqual(len(said), 1)
+
+    def test_uninstalling_one_copy_leaves_the_hooks_of_another_copy(self):
+        with tempfile.TemporaryDirectory() as home:
+            other = Path('D:/new-tessera/host/deckctl.py')
+            claude_setup.update(True, True, Path('python'), other, home=Path(home))
+            said = []
+            self.assertFalse(setup_tool.forget_claude_hooks(Path(home), said.append))
+            self.assertEqual(claude_setup.state(Path(home), other), {'events': True, 'permission': True})
+            self.assertEqual(said, [])
 
 
 class DisplayTests(host_support.HostCase):

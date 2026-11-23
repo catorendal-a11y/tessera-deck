@@ -144,7 +144,16 @@ class UninstallTests(unittest.TestCase):
         gone = self.root / 'no-such-entry'
         with patch.object(deck_control, 'startup_script_path', return_value=gone),                 patch.object(deck_control, 'set_autostart') as turn_off:
             removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link)
-        turn_off.assert_called_once_with(False)
+        turn_off.assert_not_called()  # nothing of this folder starts at sign-in
+        self.assertEqual(removed, [SHORTCUT])
+
+    def test_uninstall_leaves_the_autostart_entry_of_another_copy(self):
+        import deck_control
+        other = self.root / 'Tessera.vbs'
+        other.write_text('TesseraShell.Run "D:\new\host\tessera_tray.py", 0, False', encoding='utf-8')
+        with patch.object(deck_control, 'startup_script_path', return_value=other):
+            removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link)
+        self.assertTrue(other.exists())
         self.assertEqual(removed, [SHORTCUT])
 
     def test_uninstall_says_when_the_elevated_sensors_task_is_still_there(self):
