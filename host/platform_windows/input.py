@@ -57,6 +57,8 @@ if IS_WINDOWS:
     user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
     user32.SendInput.restype = wintypes.UINT
     user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+    user32.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
     user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
     user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
     user32.GetWindowTextLengthW.restype = ctypes.c_int
@@ -120,7 +122,14 @@ def send_mouse(op, x=0, y=0, amount=0, press=None):
         press(0x1, x, y)
     elif op == 'moveto':
         # with the virtual-desk flag 0..65535 spans every monitor, so scale with the virtual screen, not the primary one
-        left, top, width, height = (user32.GetSystemMetrics(index) for index in (76, 77, 78, 79))
+        # The daemon is DPI-unaware, so the metrics would be scaled-down pixels; per-monitor aware (-4), for this thread only,
+        # gives the real pixels the user typed.
+        old = user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
+        try:
+            left, top, width, height = (user32.GetSystemMetrics(index) for index in (76, 77, 78, 79))
+        finally:
+            if old:
+                user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(old))
         press(0x8001 | 0x4000, round((x - left) * 65535 / max(1, width - 1)), round((y - top) * 65535 / max(1, height - 1)))
     else:
         raise ValueError(f'Unknown mouse operation: {op}')
