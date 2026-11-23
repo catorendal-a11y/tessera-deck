@@ -296,6 +296,7 @@ class BackgroundMixin:
             self.cockpit_sent['AD_AGENTS'] = payload
             if asking:  # after the lanes: a panel that opens the screen first finds no question there and goes back
                 self.panel.send_line('AD_VIEW agents')
+                self.permissions.shown()
 
     def cockpit_tick(self, now):
         """Keep the agents, mixer and status screens of a cockpit panel current: once a second, only what changed."""
