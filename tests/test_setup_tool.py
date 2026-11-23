@@ -2,6 +2,8 @@
 import os
 import json
 from pathlib import Path
+import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -177,6 +179,24 @@ class UninstallTests(unittest.TestCase):
                              self.removed_autostart.append, lambda: False)
         self.assertNotIn('--sensors-off', ' '.join(self.messages))
 
+    def test_the_uninstall_command_asks_schtasks_about_the_sensors_task(self):
+        uninstall = setup_tool.uninstall
+
+        def here(purge, sensors_task):  # main's own task check; the rest stays in the temporary folder
+            return uninstall(purge, lambda prompt: '', self.messages.append, self.root, self.link,
+                             self.removed_autostart.append, sensors_task)
+        for code, warned in ((0, True), (1, False)):
+            with self.subTest(schtasks=code):
+                self.messages.clear()
+                answer = subprocess.CompletedProcess([], code, b'', b'')
+                with patch.object(setup_tool, 'uninstall', here), patch.object(setup_tool, 'forget_claude_hooks') as hooks, \
+                        patch.object(setup_tool, 'IS_WINDOWS', True), \
+                        patch('subprocess.run', return_value=answer) as schtasks:
+                    self.assertEqual(setup_tool.main(['uninstall']), 0)
+                self.assertEqual(schtasks.call_args.args[0][:2], ['schtasks', '/Query'])
+                hooks.assert_called_once()
+                self.assertEqual('--sensors-off' in ' '.join(self.messages), warned)
+
     def test_a_purge_also_deletes_every_copy_of_the_profiles(self):
         copies = ('host/profiles-unreadable.local.json', 'host/profiles-unreadable-1.local.json',
                   'host/profiles-previous.local.json', 'host/profiles.json.abc123.tmp')
@@ -214,6 +234,37 @@ class UninstallTests(unittest.TestCase):
         removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link, broken)
         self.assertEqual(removed, [SHORTCUT])
         self.assertTrue(any('autostart' in message for message in self.messages))
+
+
+class SensorsTaskTests(unittest.TestCase):
+    """Whether `Tessera.cmd --sensors` left its sign-in task, with schtasks' answers faked at the subprocess call."""
+
+    def ask(self, code=0, stderr=b'', error=None):
+        answer = subprocess.CompletedProcess([], code, b'', stderr)
+        with patch.object(setup_tool, 'IS_WINDOWS', True), \
+                patch('subprocess.run', return_value=answer, side_effect=error) as run:
+            return setup_tool.sensors_task_exists(), run
+
+    def test_the_query_names_the_task_that_enable_sensors_registers(self):
+        script = (ROOT / 'tools/enable_sensors.ps1').read_text(encoding='utf-8')
+        name = re.search(r"^\$TaskName = '([^']+)'", script, re.M).group(1)
+        found, run = self.ask(0)
+        self.assertTrue(found)
+        self.assertEqual(run.call_args.args[0], ['schtasks', '/Query', '/TN', name])
+        self.assertTrue(run.call_args.kwargs['capture_output'], "schtasks' table stays out of the uninstall report")
+
+    def test_a_missing_task_or_a_refused_query_counts_as_no_task(self):
+        for stderr in (b'ERROR: The system cannot find the file specified.\r\n', b'ERROR: Access is denied.\r\n'):
+            with self.subTest(stderr=stderr):
+                self.assertFalse(self.ask(1, stderr)[0])
+
+    def test_no_schtasks_program_counts_as_no_task(self):
+        self.assertFalse(self.ask(error=FileNotFoundError(2, 'The system cannot find the file specified'))[0])
+
+    def test_linux_runs_nothing(self):
+        with patch.object(setup_tool, 'IS_WINDOWS', False), patch('subprocess.run') as run:
+            self.assertFalse(setup_tool.sensors_task_exists())
+        run.assert_not_called()
 
 
 class DiagnosticsTests(unittest.TestCase):
