@@ -111,7 +111,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   `ctrl+slash` is Ctrl+Shift+7 on a Norwegian keyboard, where `/` is Shift+7.
 - **The mouse**: `moveto` lands a little off when pointer acceleration is on, because uinput has no absolute pointer.
   Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
-- **Without `ydotool`** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
+- **Without `ydotool`, or with its daemon not running,** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
   RemoteDesktop portal (`host/platform_linux/portal.py`) instead. **The desktop asks once** whether Tessera may control
   keyboard and mouse, when the first key is pressed. That key does not wait for the answer: the press fails (the host
   log says why), so answer the dialog and press the key again. The permission is kept
@@ -120,7 +120,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   file does not revoke it: Tessera can then no longer restore the permission and asks again at its next start, but a
   session that is running goes on. Stop the host to end the running session. The portal takes
   characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
-  possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
+  possible, because the portal only allows relative moves. `ydotool` is used when it is installed and its daemon is running (its socket exists); Tessera decides this when the first key is pressed, so start `ydotoold` before Tessera. Otherwise the portal is used, which also covers the old `ydotool` 0.1.x of Debian 12 and Ubuntu, which has no daemon and takes other commands.
 - **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
 - **The tray icon** on Plasma is the X11 one, through XWayland: Plasma shows it with `xembedsniproxy`, with the

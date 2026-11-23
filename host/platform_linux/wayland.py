@@ -95,10 +95,26 @@ def desktop_windows(environ=None):
     return None
 
 
-def session_backend() -> WaylandBackend:
-    """The backend of this session: ydotool for input where it is installed, else the RemoteDesktop portal; the
-    window part of the desktop."""
-    return WaylandBackend(remote=None if shutil.which('ydotool') else RemoteDesktop(), windows=desktop_windows())
+def ydotool_ready(environ=None) -> bool:
+    """ydotool is installed and its daemon is up. The client talks to the daemon over a socket it looks for in
+    $YDOTOOL_SOCKET, else $XDG_RUNTIME_DIR/.ydotool_socket, else /tmp/.ydotool_socket (ydotool 1.0). ydotool 0.1.x has no
+    daemon and no socket, and its commands are different, so it is not used either."""
+    environ = os.environ if environ is None else environ
+    if shutil.which('ydotool') is None:
+        return False
+    if environ.get('YDOTOOL_SOCKET'):
+        socket = environ['YDOTOOL_SOCKET']
+    elif environ.get('XDG_RUNTIME_DIR'):
+        socket = environ['XDG_RUNTIME_DIR'] + '/.ydotool_socket'
+    else:
+        socket = '/tmp/.ydotool_socket'
+    return os.path.exists(socket)
+
+
+def session_backend(environ=None) -> WaylandBackend:
+    """The backend of this session: ydotool for input where it is installed and its daemon runs, else the RemoteDesktop
+    portal; the window part of the desktop."""
+    return WaylandBackend(remote=None if ydotool_ready(environ) else RemoteDesktop(), windows=desktop_windows(environ))
 
 
 class WaylandBackend(DesktopBackend):

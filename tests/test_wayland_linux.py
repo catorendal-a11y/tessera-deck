@@ -7,6 +7,7 @@ Where ydotool is not installed, input goes through the RemoteDesktop portal: tho
 the portal protocol runs against a scripted D-Bus connection. No desktop, no portal and no tool is needed."""
 import contextlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 import os
@@ -19,7 +20,7 @@ import unittest.mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
-from platform_linux import BackendUnavailable, gnome_windows, keysyms, portal, wayland, xkb
+from platform_linux import BackendUnavailable, gnome_windows, keysyms, portal, tools, wayland, xkb
 import input_common
 
 
@@ -454,11 +455,27 @@ class PortalInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             wl.send_mouse('fly')
 
-    def test_ydotool_is_used_where_it_is_installed_and_the_portal_where_it_is_not(self):
-        with unittest.mock.patch.object(wayland.shutil, 'which', return_value='/usr/bin/ydotool'):
-            self.assertIsNone(wayland.session_backend().remote)
-        with unittest.mock.patch.object(wayland.shutil, 'which', return_value=None):
-            self.assertIsInstance(wayland.session_backend().remote, portal.RemoteDesktop)
+    def test_ydotool_is_used_where_it_is_installed_and_its_daemon_is_up_and_the_portal_where_it_is_not(self):
+        # the client looks for the daemon at $YDOTOOL_SOCKET, else $XDG_RUNTIME_DIR/.ydotool_socket (ydotool 1.0, Client/ydotool.c)
+        with tempfile.TemporaryDirectory() as runtime:
+            socket = Path(runtime, '.ydotool_socket')
+            with unittest.mock.patch.object(wayland.shutil, 'which', return_value='/usr/bin/ydotool'):
+                self.assertIsInstance(wayland.session_backend({'XDG_RUNTIME_DIR': runtime}).remote, portal.RemoteDesktop)
+                socket.touch()  # the daemon is up
+                self.assertIsNone(wayland.session_backend({'XDG_RUNTIME_DIR': runtime}).remote)
+                self.assertIsNone(wayland.session_backend({'YDOTOOL_SOCKET': str(socket)}).remote)
+                self.assertIsInstance(wayland.session_backend({'YDOTOOL_SOCKET': runtime + '/other'}).remote, portal.RemoteDesktop)
+            with unittest.mock.patch.object(wayland.shutil, 'which', return_value=None):
+                self.assertIsInstance(wayland.session_backend({'XDG_RUNTIME_DIR': runtime}).remote, portal.RemoteDesktop)
+
+    def test_a_tool_that_explains_itself_on_stdout_is_shown_to_the_user(self):
+        # ydotool 1.0 prints "Please check if ydotoold is running." on stdout and exits 2
+        text = "failed to connect socket `/run/x': No such file or directory\nPlease check if ydotoold is running.\n"
+        done = subprocess.CompletedProcess(['ydotool'], 2, stdout=text, stderr='')
+        with unittest.mock.patch.object(tools.shutil, 'which', return_value='/usr/bin/ydotool'), \
+                unittest.mock.patch.object(tools.subprocess, 'run', return_value=done):
+            with self.assertRaisesRegex(OSError, 'ydotoold is running'):
+                tools.run(['ydotool', 'key', '1:1'])
 
 
 class Message:

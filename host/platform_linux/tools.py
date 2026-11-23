@@ -28,5 +28,5 @@ def run(args: list[str], stdin: str | None = None, timeout: float = TIMEOUT, det
     except subprocess.TimeoutExpired as exc:
         raise OSError(f'{args[0]} did not answer within {timeout:g} seconds') from exc
     if done.returncode != 0:
-        raise OSError(f'{args[0]} failed: {(done.stderr or "").strip()[:200] or done.returncode}')
+        raise OSError(f'{args[0]} failed: {(done.stderr or done.stdout or "").strip()[:200] or done.returncode}')
     return done.stdout
