@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:  # a dry run from the Actions page: builds and packages everything, publishes nothing
 
 permissions:
   contents: read
@@ -12,63 +13,49 @@ jobs:
     name: CI checks
     uses: ./.github/workflows/ci.yml
 
-  release:
-    name: Build the release files
+  # Seconds, and first: a wrong tag stops the release before anything is built.
+  tag:
+    name: Check the tag and the changelog
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false  # no job here pushes; keep the token out of .git/config, where any later step could read it
       - name: Check the tag matches VERSION
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
           test "v$(tr -d '\r\n' < VERSION)" = "${GITHUB_REF_NAME}" || { echo "Tag ${GITHUB_REF_NAME} does not match VERSION"; exit 1; }
       - name: Check CHANGELOG.md has a section for VERSION
+        if: github.ref_type == 'tag'
         shell: bash
         run: |
           heading="## $(tr -d '\r\n' < VERSION)"
           tr -d '\r' < CHANGELOG.md | grep -qxF "${heading}" || { echo "CHANGELOG.md has no '${heading}' heading: rename '## Unreleased'"; exit 1; }
-      - name: Build firmware
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py -B build/idf6 build
-      # The S3 boards: one build and one package each. The board file adds the target, the display and the partition table.
-      - name: Build firmware for the ESP32-S3 boards
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          for board in tessera-s3-ws7 tessera-s3-8048s070 tessera-s3-crowpanel7; do
-            idf.py -B build/$board -DSDKCONFIG=build/$board/sdkconfig -DIDF_TARGET=esp32s3 -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/$board.defaults" build
-          done
-      # The CrowPanel Advance 7.0 has the GUITION board's chip; its board file sets the screen, pins and host link.
-      - name: Build firmware for the CrowPanel Advance 7.0
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          idf.py -B build/tessera-p4-crowpanel7 -DSDKCONFIG=build/tessera-p4-crowpanel7/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/crowpanel-p4-7.defaults" build
-      # Newer GUITION boards have a v3.x chip; an image for v1.x does not start on it.
-      - name: Build firmware for the GUITION board with a v3.x chip
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          python3 tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig  # the tested v1.x config minus the revision options
-          idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
-      - name: Native LVGL render and model tests
-        shell: bash
-        run: |
-          . $IDF_PATH/export.sh
-          cmake -S tests/native -B build/native -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/native --parallel
-          build/native/test_ui build/native/out
+
+  # The firmware packages are the ones the CI jobs above built and packaged, one job per board side by side.
+  # Building all six again here, one after the other, made a release take 25 minutes longer.
+  release:
+    name: Build the release files
+    needs: [ci, tag]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false  # no job here pushes; keep the token out of .git/config, where any later step could read it
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: tessera-firmware*
+          path: dist
+          merge-multiple: true
       - name: Package firmware and host
         shell: bash
         run: |
-          python3 tools/package_firmware.py build/idf6 dist
-          for board in tessera-s3-ws7 tessera-s3-8048s070 tessera-s3-crowpanel7 tessera-p4-crowpanel7 tessera-p4-v3; do
-            python3 tools/package_firmware.py build/$board dist --board $board
+          version="$(tr -d '\r\n' < VERSION)"
+          for board in "" -tessera-s3-ws7 -tessera-s3-8048s070 -tessera-s3-crowpanel7 -tessera-p4-crowpanel7 -tessera-p4-v3; do
+            test -s "dist/tessera-firmware${board}-${version}.zip" || { echo "dist/tessera-firmware${board}-${version}.zip is missing"; ls -l dist; exit 1; }
           done
+          test "$(ls dist/tessera-firmware-*.zip | wc -l)" = 6 || { echo "expected 6 firmware packages"; ls -l dist; exit 1; }
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git archive --format=zip --prefix="tessera-${GITHUB_REF_NAME}/" -o "dist/tessera-host-${GITHUB_REF_NAME}.zip" HEAD
           python3 -c "import glob,os,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'a'); [z.write(f,'tessera-'+sys.argv[2]+'/firmware/'+os.path.basename(f)) for f in sorted(glob.glob('dist/tessera-firmware-*.zip'))]; z.close()" "dist/tessera-host-${GITHUB_REF_NAME}.zip" "${GITHUB_REF_NAME}"
@@ -102,6 +89,7 @@ jobs:
   # container failed the 0.6.1 release twice when the Ubuntu archive could not be reached.
   publish:
     name: Publish the release
+    if: github.ref_type == 'tag'  # a dry run stops after the files are built
     needs: [release, host-tests, ci]
     runs-on: ubuntu-latest
     permissions:
