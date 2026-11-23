@@ -250,6 +250,8 @@ void swipe(lv_event_t *) {
     for(int i=0;i<rail_count;++i)if(rail_list[i].kind==ViewKeys){
         char line[40];snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",i);deck_model_queue_line(line);return;}
 }
+/* The touch that is down now is spent: it must not press or hold what shows next. */
+void wait_release_all() {for(auto *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_wait_release(indev);}
 /* A touch on a dimmed panel only wakes it, wherever it lands, and never
  * reaches a key: the indev ignores the rest of the touch until release. */
 void wake_touch(lv_event_t *event) {
@@ -692,6 +694,7 @@ void refresh_rail() {
 void set_view(int next) {
     if(next<0||next>=ViewCount)return;
     confirm_stop();  /* a hold on a confirm key does not outlive the screen it was made on */
+    if(next!=view)wait_release_all();  /* nor does any other touch: a hidden key would still get its click */
     view=next;
     for(int i=0;i<ViewCount;++i)lv_obj_set_hidden(views[i],i!=view);
     if(view==ViewAgents&&(agents_dirty||agents_version!=deck_model_agents_version()))build_agents();
@@ -912,7 +915,7 @@ void show_ambient(bool on) {
 }
 void ambient_touched(lv_event_t *) {
     if(deck_model_screen()!=DECK_SCREEN_AMBIENT)return;
-    show_ambient(false);deck_model_note_touch_return();deck_model_request_wake();
+    show_ambient(false);deck_model_note_touch_return();deck_model_request_wake();wait_release_all();  /* the waking touch only wakes */
 }
 void build_ambient() {
     ambient=lv_obj_create(nullptr);flat(ambient,Bg);

@@ -628,6 +628,29 @@ static void test_notice_banner(){
     const int ready=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==ready+1);
     deck_model_request_feedback(1,DECK_FEEDBACK_OK);keep_host(6000);assert(!banners());while(!taken().empty()){}
 }
+static void test_touch_across_screen_change(){
+    /* A finger that is down when the screen or view changes is spent: it presses nothing on what shows next. */
+    deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
+    deck_button_t keys[2]{};int n=0;
+    assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Held","hold":true},{"id":2,"label":"Plain"}]})",keys,2,&n));
+    assert(deck_model_replace_buttons(keys,n));keep_host(1000);
+    const int before=deck_model_last_event_id();
+    /* The touch that wakes the clock, kept on a key with a hold action. */
+    deck_model_request_screen(DECK_SCREEN_AMBIENT);updates();assert(deck_model_screen()==DECK_SCREEN_AMBIENT);
+    hold(key_x(1),key_y(1),900);assert(deck_model_screen()==DECK_SCREEN_DECK);assert(deck_model_last_event_id()==before);
+    /* A key held while the host switches to the agents view. */
+    touch_at={key_x(2),key_y(2)};touching=true;for(int i=0;i<3;++i)step();
+    deck_model_request_view(1);for(int i=0;i<3;++i)step();
+    touching=false;updates();assert(deck_model_last_event_id()==before);
+    ui_show_view(0);updates();
+    /* A finger held on a hold key through the end of the boot screen: LVGL already waits for the release when it
+     * deletes the boot screen the finger pressed. */
+    ui_boot_start();touch_at={key_x(1),key_y(1)};touching=true;for(int t=0;t<2400;t+=40)step();
+    touching=false;updates();assert(visible("Held")&&deck_model_last_event_id()==before);
+    tap(key_x(2),key_y(2));assert(deck_model_last_event_id()==before+1);
+    deck_model_request_feedback(2,DECK_FEEDBACK_OK);keep_host(1000);while(!taken().empty()){}
+    deck_model_replace_buttons(saved,saved_count);updates();
+}
 int main(int argc,char** argv){
     output=argc>1?argv[1]:".";std::filesystem::create_directories(output);
     alignas(64)static uint32_t buffer[1024*600];
@@ -652,7 +675,8 @@ int main(int argc,char** argv){
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"image upload with acknowledgements",test_image_upload_ack},{"key styling",test_key_styling},
      {"tap after a layout swap",test_tap_after_layout_swap},{"image fills its key",test_image_fills_its_key},
-     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack},{"boot screen",test_boot_screen},{"notice banner",test_notice_banner}};
+     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack},{"boot screen",test_boot_screen},{"notice banner",test_notice_banner},
+     {"touch across a screen change",test_touch_across_screen_change}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
     capture("deck.ppm");puts("Standalone Deck model, context and render checks passed.");
 }
