@@ -766,6 +766,9 @@ document.addEventListener('pointercancel',event=>endDrag(event,true));
 document.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopImmediatePropagation();}},true);
 /* Unfinished keys are not on the PC (a save leaves them out), so they count as unsaved work although nothing is dirty. */
 const unsavedWork=()=>dirty||Boolean(config&&draftProblems().length);
+/* The native window asks this before it closes (it has no beforeunload on Windows): send the edit that waits for its
+   timer, then say whether anything is still unsaved. */
+async function flushBeforeClose(){clearTimeout(saveTimer);try{await save();}catch{}return unsavedWork();}
 window.addEventListener('beforeunload',event=>{if(unsavedWork()){event.preventDefault();event.returnValue='';}});
 async function start() {
   const code=location.hash.slice(1);  // a one-time launch code, traded for this page's session key
