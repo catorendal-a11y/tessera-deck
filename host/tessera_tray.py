@@ -99,7 +99,7 @@ def stopped_in_terminal(since: float | None) -> bool:
 
 
 def load_config(path: Path = PROFILES_PATH) -> dict:
-    return json.loads(Path(path).read_text(encoding='utf-8'))
+    return json.loads(Path(path).read_bytes())  # bytes: a BOM or UTF-16 file reads too
 
 
 def command_for_profile(config: dict, name: str) -> dict:

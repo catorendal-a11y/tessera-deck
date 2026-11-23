@@ -105,7 +105,8 @@ def check(data: bytes) -> dict:
     """The migrated, validated configuration in `data`; ValueError when the host could not use it."""
     from config_check import validate_config  # config_check imports this module
     try:
-        return validate_config(migrate(json.loads(data.decode('utf-8'))))
+        # bytes, not text: json also reads a BOM and UTF-16, as the editor does
+        return validate_config(migrate(json.loads(data)))
     except (UnicodeDecodeError, TypeError, KeyError, AttributeError, RecursionError) as exc:
         raise ValueError(f'The configuration cannot be read: {exc}') from exc
 
@@ -150,7 +151,7 @@ def list_backups(path: Path) -> list[dict]:
     found = []
     for file in reversed(_backup_files(backups_dir(path))):
         try:
-            data = json.loads(file.read_text(encoding='utf-8'))
+            data = json.loads(file.read_bytes())
             profiles = data['profiles']
             buttons = sum(len(page) for profile in profiles.values() for page in profile['pages'].values())
             found.append({'name': file.name, 'saved': time.strftime('%Y-%m-%d %H:%M:%S',
@@ -172,10 +173,10 @@ def read_backup(path: Path, name: str) -> dict:
     check_backup_name(name)
     file = backups_dir(path) / name
     try:
-        return migrate(json.loads(file.read_text(encoding='utf-8')))
+        return migrate(json.loads(file.read_bytes()))
     except FileNotFoundError as exc:
         raise ValueError('That backup no longer exists') from exc
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError) as exc:
         raise ValueError(f'That backup cannot be read: {exc}') from exc
 
 
