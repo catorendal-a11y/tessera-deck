@@ -1,4 +1,5 @@
-"""Closing the editor: unsaved edits and unfinished keys must not vanish without a question (audit p1-32, p1-33), and a firmware install that is running (p1-20)."""
+"""Closing the editor: unsaved edits and unfinished keys must not vanish without a question, and neither closing the
+window nor a program update may cut off a firmware install that is running."""
 import json
 import sys
 import tempfile
