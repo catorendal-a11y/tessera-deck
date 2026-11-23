@@ -47,6 +47,18 @@ def imports_work(python: str = sys.executable) -> bool:
     return subprocess.run([python, '-c', MODULE_PROBE], capture_output=True).returncode == 0
 
 
+def venv_made_by_other_python() -> bool:
+    """True when this venv was made by another major.minor Python than the one running now (pyvenv.cfg `version`)."""
+    try:
+        for line in (Path(sys.prefix) / 'pyvenv.cfg').read_text(encoding='utf-8').splitlines():
+            key, _, value = line.partition('=')
+            if key.strip() == 'version':
+                return tuple(int(part) for part in value.strip().split('.')[:2]) != sys.version_info[:2]
+    except (OSError, ValueError):
+        pass
+    return False
+
+
 def install_command(python: str, requirements: Path) -> tuple[list[str], Path]:
     """The pip command and the file it installs: the lock file with its hashes when it sits next to requirements."""
     lock = requirements.with_suffix('.lock')
@@ -70,6 +82,10 @@ def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_
     reason = needs_install(stored, current, probe(python))
     if reason is None:
         return True
+    if venv_made_by_other_python():
+        # the venv keeps the old minor version's folder, so the new Python finds nothing in it and pip is gone too
+        emit('Python changed since host/.venv was made. Delete the folder host/.venv and start Tessera again.')
+        return False
     emit(f'Installing the host dependencies ({reason}) ...')
     run = install or (lambda command: subprocess.run(command).returncode)
     if run(command) != 0:

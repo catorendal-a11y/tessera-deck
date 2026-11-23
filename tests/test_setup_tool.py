@@ -58,6 +58,23 @@ class EnsureTests(unittest.TestCase):
         self.assertFalse(self.hash_file.exists())
         self.assertTrue(any('internet connection' in message for message in self.messages))
 
+    def test_a_venv_made_by_another_python_is_not_blamed_on_the_internet(self):
+        # the distro moved python3 to a new minor version: the venv's lib/python3.N is now empty for the new one
+        (self.folder / 'pyvenv.cfg').write_text('home = /usr/bin\nversion = 3.9.1\n')
+        with patch.object(setup_tool.sys, 'prefix', str(self.folder)):
+            self.assertFalse(self.ensure(works=False))
+        self.assertEqual(self.installs, [])
+        text = ' '.join(self.messages)
+        self.assertIn('host/.venv', text)
+        self.assertNotIn('internet', text)
+
+    def test_a_venv_of_the_same_python_still_installs(self):
+        major_minor = '%d.%d.1' % sys.version_info[:2]
+        (self.folder / 'pyvenv.cfg').write_text(f'version = {major_minor}\n')
+        with patch.object(setup_tool.sys, 'prefix', str(self.folder)):
+            self.assertTrue(self.ensure(works=False))
+        self.assertEqual(len(self.installs), 1)
+
     def test_the_decision_function(self):
         self.assertIsNone(setup_tool.needs_install('a', 'a', True))
         self.assertIn('changed', setup_tool.needs_install('a', 'b', True))
