@@ -948,7 +948,7 @@ $('#rail-apply').onclick = () => {
   const d = railDraft;
   if (d.shortcuts.some(s => s.type === 'actions' && !s.actions?.length)) { toast('A shortcut that runs steps needs steps: copy them from a key.'); return; }
   // The host refuses a configuration with an unfinished step, and nothing on a key points at this copy.
-  const unfinished = d.shortcuts.flatMap((s, index) => (s.actions || []).map(stepProblem).filter(Boolean).map(problem => `Shortcut ${index + 1} has a step that is not finished (${problem}): finish it on the key and copy the steps again.`))[0];
+  const unfinished = d.shortcuts.flatMap((s, index) => (s.actions || []).map(a => stepProblem(a)).filter(Boolean).map(problem => `Shortcut ${index + 1} has a step that is not finished (${problem}): finish it on the key and copy the steps again.`))[0];
   if (unfinished) { toast(unfinished); return; }
   savePanel({screens: d.order.filter(id => d.on.has(id)), shortcuts: d.shortcuts.map(s => s.type === 'actions'
     ? {type: 'actions', actions: s.actions, label: (s.label || '').slice(0, 40), icon: s.icon}
@@ -1027,7 +1027,7 @@ $('#auto-apply').onclick = () => {
   const problem = autoDraft.map((rule, index) => {
     const when = rule.when, at = `Automatic action ${index + 1}`;
     if (!rule.actions?.length) return `${at} needs steps: copy them from a key.`;
-    const step = rule.actions.map(stepProblem).find(Boolean);
+    const step = rule.actions.map(a => stepProblem(a)).find(Boolean);
     if (step) return `${at} has a step that is not finished (${step}): finish it on the key and copy the steps again.`;
     if (when.type === 'file' && !when.path) return `${at} needs the file to watch.`;
     if (when.type === 'variable' && !VARIABLE_NAME.test(when.name || '')) return `${at} needs a variable name of letters, digits, dots, dashes or underscores.`;

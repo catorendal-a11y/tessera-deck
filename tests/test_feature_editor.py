@@ -253,6 +253,19 @@ return {unfinished, told, finished};
         self.assertIn('not finished', found['told'][0])
         self.assertEqual(found['finished'], [{'type': 'actions', 'label': 'Go', 'icon': 'lc:e0ff', 'actions': [{'type': 'http', 'method': 'GET', 'url': 'https://example.com'}]}])
 
+    def test_rail_and_automatic_actions_apply_with_a_page_step_after_the_first(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [], Other: []}}}}; profile = 'Main'; page = 'First';
+toast = () => {};
+const steps = [{type: 'hotkey', keys: 'ctrl+c'}, {type: 'page', page: 'Other'}, {type: 'folder', page: 'Other'}];
+railDraft = {order: ['keys'], on: new Set(['keys']), shortcuts: [{type: 'actions', label: 'Go', icon: 'lc:e0ff', actions: steps}]};
+document.querySelector('#rail-apply').onclick();
+autoDraft = [{when: {type: 'startup'}, actions: steps}];
+document.querySelector('#auto-apply').onclick();
+return {rail: config.panel?.shortcuts?.length ?? null, auto: config.triggers?.length ?? null};
+""")
+        self.assertEqual(found, {'rail': 1, 'auto': 1})
+
     def test_a_key_pasted_into_a_profile_without_its_page_stays_a_draft(self):
         found = self.run_editor(r"""
 const folder = {id: 1, label: 'Status', icon: 'folder', actions: [{type: 'folder', page: 'status'}]};
