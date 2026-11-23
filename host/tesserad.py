@@ -1074,9 +1074,12 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         wait, show = self.reconnect.failed(reason)
                         if show:
                             self.log(f'USB: {reason}; retrying in {wait} seconds')
-                        self.publish_runtime(False, exc, force=True)
                         self.connection_failed.set()
                         retry_at, connect_error = time.monotonic() + wait, exc
+                        try:  # after the retry is set: what failed above can fail again here, and must not end the loop
+                            self.publish_runtime(False, exc, force=True)
+                        except Exception as report:
+                            self.log(f'USB: the state could not be published: {report!r}')
                 if not startup_fired:  # after the first try to connect, with or without a panel
                     self.fire_trigger({'type': 'startup'})
                     startup_fired = True

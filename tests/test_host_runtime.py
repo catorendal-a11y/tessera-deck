@@ -881,6 +881,9 @@ class HostRuntimeTests(HostCase):
             daemon.log, daemon.pc.start, daemon.pc.stop = Mock(), Mock(), Mock()
             daemon.agent_scan_at = daemon.stats_scan_at = float('inf')
             daemon.open_panel = Mock(side_effect=RuntimeError('Install host/requirements.txt first'))
+            publish = daemon.publish_runtime
+            # the report of the failure fails too: that must not end the loop either
+            daemon.publish_runtime = lambda *given, **named: (_ for _ in ()).throw(KeyError('page')) if len(given) > 1 and isinstance(given[1], Exception) else publish(*given, **named)
             daemon.fire_trigger = lambda when: daemon.stop.set()
             timer = threading.Timer(5, daemon.stop.set)
             timer.start()
@@ -890,6 +893,7 @@ class HostRuntimeTests(HostCase):
                     patch.object(deck, 'PluginManager', return_value=Mock(**{'status.return_value': []})):
                 daemon.run()  # before: the RuntimeError ended the host
             self.assertTrue(any('RuntimeError: Install host/requirements.txt first' in str(entry) for entry in daemon.log.call_args_list))
+            self.assertTrue(any('could not be published' in str(entry) for entry in daemon.log.call_args_list))
 
     def test_a_command_file_held_open_by_a_scanner_waits_for_the_next_second(self):
         with tempfile.TemporaryDirectory() as directory:
