@@ -171,6 +171,24 @@ class InputTests(unittest.TestCase):
         self.assertEqual(no.key_strokes(['equals']), [(11, True, False)])  # "=" is Shift+0 there
         self.assertEqual(no.key_strokes(['grave']), [(41, False, False)])  # behind a dead key: the US position
 
+    def test_a_letter_in_a_hotkey_is_the_key_that_types_it_in_the_layout(self):
+        # German: z sits where a US keyboard has y (code 21) and y where it has z (44); French: a is the q position (16)
+        class Layout:  # stands in for libxkbcommon: the keys of a QWERTZ keyboard that differ from US
+            keys = {'z': (21, False, False), 'y': (44, False, False), 'a': (30, False, False), 'Z': (21, True, False)}
+
+            def strokes(self, char, caps_lock=False):
+                return [self.keys[char]] if char in self.keys else None
+        fake = FakeRun()
+        backend = wayland.WaylandBackend(fake, keymap=Layout(), plasma=True)
+        self.assertEqual(backend.key_strokes(['ctrl', 'z']), [(29, False, False), (21, False, False)])
+        self.assertEqual(backend.key_strokes(['y']), [(44, False, False)])
+        self.assertEqual(backend.key_strokes(['q']), [(16, False, False)])  # the layout has no q key here: the US position
+        self.assertEqual(backend.key_strokes(['5']), [(6, False, False)])   # digits stay on their position
+
+    def test_a_letter_in_a_hotkey_follows_the_real_german_and_french_layouts(self):
+        self.assertEqual(self.backend('de')[0].key_strokes(['z']), [(21, False, False)])
+        self.assertEqual(self.backend('fr')[0].key_strokes(['a']), [(16, False, False)])
+
     def test_a_hotkey_holds_the_shift_or_altgr_its_punctuation_needs_in_the_layout(self):
         no, fake = self.backend('no')
         no.send_keys(['ctrl', 'slash'])       # "/" is Shift+7: never the US slash key, which types "-" there

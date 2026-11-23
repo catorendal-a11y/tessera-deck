@@ -56,7 +56,7 @@ KEYCODES.update(zip((f'numpad{i}' for i in (7, 8, 9, 4, 5, 6, 1, 2, 3, 0)), (71,
 KEYCODES.update({f'f{i}': 58 + i for i in range(1, 11)})
 KEYCODES.update({'f11': 87, 'f12': 88})
 KEYCODES.update({f'f{i}': 170 + i for i in range(13, 25)})
-# Punctuation in a hotkey means the character: on a Norwegian keyboard ctrl+minus is the key that types "-", not the
+# Punctuation and letters in a hotkey mean the character: on a Norwegian keyboard ctrl+minus is the key that types "-", not the
 # key in the US minus position, and ctrl+slash is Ctrl+Shift+7, which is how "/" is typed there. The US position is
 # the fallback for a character the layout has no single key for (a dead key, or none).
 PUNCTUATION = {'comma': ',', 'period': '.', 'slash': '/', 'grave': '`', 'lbracket': '[', 'rbracket': ']',
@@ -138,12 +138,17 @@ class WaylandBackend(DesktopBackend):
             if name not in KEYCODES:
                 raise ValueError(f'Unknown key: {name!r}')
             found = None
-            if name in PUNCTUATION:
+            letter = len(name) == 1 and name.isalpha()
+            if name in PUNCTUATION or letter:
                 try:
                     keymap = keymap or self.keymap()
-                    found = keymap.strokes(PUNCTUATION[name])
+                    found = keymap.strokes(PUNCTUATION.get(name, name))
                 except BackendUnavailable:
                     pass  # the layout is unknown: the US positions
+            # A letter is the key that types it (ctrl+z is the key that types "z" on a German keyboard), but only when that
+            # is a plain key: with Shift or AltGr the US position keeps the shortcut working on a non-Latin layout.
+            if letter and found and (len(found) != 1 or found[0][1] or found[0][2]):
+                found = None
             strokes.append(found[0] if found and len(found) == 1 else (KEYCODES[name], False, False))
         return strokes
 
