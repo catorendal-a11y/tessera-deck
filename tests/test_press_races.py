@@ -72,6 +72,33 @@ class SlowPressPageTests(unittest.TestCase):
         daemon.panel.feedback.assert_called_once_with(1, False)
 
 
+class PageChangeDuringWaitTests(unittest.TestCase):
+    def test_a_press_step_after_a_wait_does_not_run_a_key_of_the_new_page(self):
+        """Key 1 is [delay, press 2]. During the delay the page changes: key 2 of the new page must not run."""
+        daemon = make_daemon()
+        button(daemon)['actions'] = [{'type': 'delay', 'ms': 300}, {'type': 'press', 'id': 2}]
+        status_key = next(b for b in daemon.config['profiles']['main']['pages']['status'] if b['id'] == 2)
+        status_key['actions'] = [{'type': 'set', 'variable': 'ran', 'value': 'status key 2'}]
+
+        def change_page():  # the main loop takes the lock the delay released and changes page
+            with daemon.state_lock:
+                daemon.switch_page('status')
+
+        def wait(seconds):
+            other = threading.Thread(target=change_page)
+            other.start()
+            other.join(2)
+            return False
+
+        daemon.stop.wait = wait
+        with daemon.state_lock:
+            ok = daemon.dispatch_press(1)
+        self.assertEqual(daemon.page, 'status')
+        self.assertIsNone(daemon.custom_vars.get('ran'))
+        self.assertFalse(ok)
+        self.assertIn('page changed', daemon.last_action['error'])
+
+
 class InputLockTests(unittest.TestCase):
     def test_waiting_for_slow_typing_releases_the_state_lock(self):
         daemon = make_daemon()
