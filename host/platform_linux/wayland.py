@@ -339,6 +339,10 @@ class WaylandBackend(DesktopBackend):
                 return found[0]
         return None
 
+    def check_windows(self):
+        if not self.plasma and self.windows and hasattr(self.windows, 'check'):
+            self.windows.check()
+
     def window_op(self, window, op):
         if not self.plasma:
             if self.windows:

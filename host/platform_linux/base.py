@@ -41,6 +41,9 @@ class DesktopBackend:
         """minimize, maximize, restore, close, topmost, next_monitor or focus on `window` (None: the one in front)."""
         raise NotImplementedError
 
+    def check_windows(self) -> None:
+        """Raise BackendUnavailable with what to install when the window questions can only ever answer "none"."""
+
 
 class NoDesktopBackend(DesktopBackend):
     """No graphical session (a console, or an SSH login): input and windows are refused with a reason."""

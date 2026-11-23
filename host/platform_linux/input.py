@@ -123,7 +123,11 @@ def window_action(op, process=''):
         raise ValueError(f'Unknown window operation: {op}')
     if process:
         window = process_window(process)
-        return bool(window) and backend().window_op(window, op)
+        if not window:
+            backend().check_windows()  # "no such window" is wrong where the desktop cannot tell windows at all
+            return False
+        return backend().window_op(window, op)
     if backend().active_window() is None:
+        backend().check_windows()
         return False
     return backend().window_op(None, op)

@@ -775,6 +775,26 @@ class GnomeWindowsTests(unittest.TestCase):
         with self.assertRaisesRegex(BackendUnavailable, r'--gnome-extension.*gnome-extensions enable'):
             windows.window_op(None, 'close')
 
+    def test_a_window_key_without_the_extension_says_what_to_install_instead_of_no_such_window(self):
+        from platform_linux import input as linux_input
+        absent = BackendUnavailable(gnome_windows.MISSING)
+        windows, _ = self.windows({'Active': absent, 'Find': absent, 'Operate': absent})
+        backend = wayland.WaylandBackend(FakeRun(), plasma=False, windows=windows)
+        firefox = types.SimpleNamespace(info={'pid': 5, 'name': 'firefox', 'exe': '/usr/bin/firefox'})
+        with unittest.mock.patch.object(linux_input, 'backend', lambda: backend),                 unittest.mock.patch.object(linux_input.psutil, 'process_iter', return_value=[firefox]):
+            for process in ('', 'firefox'):  # the window in front, and the window of a program
+                with self.assertRaisesRegex(BackendUnavailable, r'gnome-extensions enable', msg=process):
+                    linux_input.window_action('minimize', process)
+
+    def test_a_window_key_with_the_extension_and_no_window_still_finds_none(self):
+        from platform_linux import input as linux_input
+        windows, _ = self.windows({'Active': '', 'Find': ''})
+        backend = wayland.WaylandBackend(FakeRun(), plasma=False, windows=windows)
+        firefox = types.SimpleNamespace(info={'pid': 5, 'name': 'firefox', 'exe': '/usr/bin/firefox'})
+        with unittest.mock.patch.object(linux_input, 'backend', lambda: backend),                 unittest.mock.patch.object(linux_input.psutil, 'process_iter', return_value=[firefox]):
+            self.assertFalse(linux_input.window_action('minimize'))
+            self.assertFalse(linux_input.window_action('minimize', 'firefox'))
+
     def test_a_service_that_is_not_on_the_bus_is_the_missing_extension(self):
         class Connection:
             def send_and_get_reply(self, message, timeout=None):

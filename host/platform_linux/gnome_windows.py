@@ -72,6 +72,10 @@ class GnomeWindows:
                 log.warning(MISSING)
             return empty
 
+    def check(self):
+        """Raises BackendUnavailable(MISSING) without the extension: active_window and find_window say only "none"."""
+        self._call('Active', '', ())
+
     def active_window(self):
         reply = self._quiet('Active', '', (), ('',))[0]
         if not reply:
