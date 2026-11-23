@@ -3,6 +3,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +102,19 @@ class WorkflowTests(unittest.TestCase):
         self.assertIsNotNone(job, 'ci.yml has no job that installs the lock on Linux')
         self.assertIn('runs-on: ubuntu-latest', job.group(1))
         self.assertIn('pip install --require-hashes -r host/requirements.lock', job.group(1))
+
+    def test_the_linux_lock_job_imports_what_the_first_start_checks_for(self):
+        # pip installs a lock that lacks keyring without a word; the first start then finds it missing.
+        job = re.search(r'(?m)^  host-lock-linux:\n((?:    .*\n|\n)+)', read('.github/workflows/ci.yml')).group(1)
+        probe = re.search(r'xvfb-run -a "\$RUNNER_TEMP/venv/bin/python" -c "([^"]+)"', job)
+        self.assertIsNotNone(probe, 'host-lock-linux does not import the packages the first start checks for')
+        self.assertLess(job.index('pip install --require-hashes -r host/requirements.lock'), probe.start())
+        self.assertIn('MODULE_PROBE', probe.group(1))
+        # Without site-packages the step must stop on a missing import, as the first start would.
+        result = subprocess.run([sys.executable, '-S', '-c', probe.group(1)], cwd=ROOT, capture_output=True,
+                                text=True, timeout=60)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('No module named', result.stderr)
 
     def test_the_smoke_test_installs_the_hashed_lock(self):
         smoke = read('.github/workflows/editor-smoke.yml')
