@@ -106,6 +106,7 @@ try {
             -Settings $Settings -Force | Out-Null
     }
     if (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue)) {
+        Write-Host 'If Libre Hardware Monitor asks to install PawnIO, click OK: without it there is no CPU temperature.'
         if ($Once) { Start-Process -FilePath $Exe -WorkingDirectory $InstallDir }
         else { Start-ScheduledTask -TaskName $TaskName }
         # The task starts the program in the session of the user it was made for; say so if nothing came up.

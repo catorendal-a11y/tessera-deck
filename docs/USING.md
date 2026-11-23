@@ -313,6 +313,8 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 
 To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
 
+The first time it starts, Libre Hardware Monitor asks to install its PawnIO driver. Click OK: without it the CPU temperature and power stay `--` while the tile shows `LIVE`, and the box comes back at every sign-in until it is installed.
+
 If you already run Libre Hardware Monitor yourself, you do not need a second copy: in its window choose **Options → Remote Web Server → Run**. Tessera reads `http://127.0.0.1:8085/data.json`, so leave the port at 8085 and the server without a password. The sensor tile turns to `LIVE` within a few seconds.
 
 ### Control from scripts and AI tools
