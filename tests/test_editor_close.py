@@ -1,5 +1,7 @@
-"""Closing the editor: unsaved edits and unfinished keys must not vanish without a question (audit p1-32, p1-33)."""
+"""Closing the editor: unsaved edits and unfinished keys must not vanish without a question (audit p1-32, p1-33), and a firmware install that is running (p1-20)."""
+import json
 import sys
+import tempfile
 import threading
 import types
 import unittest
@@ -8,6 +10,7 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
+import tessera_app
 import test_editor
 from test_editor import run_editor
 
@@ -126,6 +129,44 @@ class WindowCloseTests(unittest.TestCase):
         window, outcome = self.close_with(unsaved=True, answer=True)
         self.assertEqual(len(window.asked), 1)
         self.assertTrue(outcome['closed'])
+
+
+class FirmwareInstallTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.profiles = Path(self.temp.name) / 'profiles.json'
+        self.profiles.write_text(json.dumps({'default_profile': 'Main', 'profiles': {'Main': {'match': [], 'pages': {'First': []}}}}))
+
+    def test_the_program_update_is_refused_while_the_panel_firmware_is_installing(self):
+        editor = tessera_app.Editor(self.profiles, dashboard=lambda: {'running': False, 'device': {}})
+        editor.last_release = {'newer': True, 'latest': '9.9.9'}
+        editor.firmware_lock.acquire()
+        self.addCleanup(editor.firmware_lock.release)
+        with patch('updates.download_host') as download, patch.object(tessera_app.Editor, 'restart_soon') as restart:
+            with self.assertRaises(ValueError) as raised:
+                editor.install_host_update()
+        download.assert_not_called()  # the restart would cut esptool off mid-write
+        restart.assert_not_called()
+        self.assertIn('firmware', str(raised.exception))
+
+    def test_closing_the_window_waits_for_a_running_firmware_install(self):
+        servers, install, real = [], {}, tessera_app.make_server
+
+        def make_server(*args, **kwargs):
+            servers.append(real(*args, **kwargs))
+            return servers[-1]
+
+        def window(launch_url):
+            # the install is running when the window closes, and ends a second and a half later
+            lock = servers[0].editor.firmware_lock
+            lock.acquire()
+            install['lock'] = lock
+            threading.Timer(1.5, lock.release).start()
+            return True
+        with patch.object(sys, 'argv', ['tessera_app.py', '--profiles', str(self.profiles)]),                 patch.object(tessera_app, 'make_server', make_server), patch.object(tessera_app, 'open_window', window):
+            tessera_app.main()
+        self.assertFalse(install['lock'].locked(), 'the editor ended while the install still ran')
 
 
 if __name__ == '__main__':

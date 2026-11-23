@@ -528,6 +528,9 @@ class Editor:
         if os.environ.get('TESSERA_PACKAGED'):
             raise ValueError('This Tessera comes from a package. Update it with your package manager, '
                              'for example yay -Syu tessera-deck for the AUR package.')
+        if self.firmware_lock.locked():
+            # the restart ends this editor, and with it the install: esptool would be cut off mid-write
+            raise ValueError('The panel firmware is being installed. Update Tessera when it is done.')
         import tempfile
         try:
             with tempfile.TemporaryDirectory() as folder:
@@ -1050,6 +1053,8 @@ def main():
             server_thread = threading.Thread(target=server.serve_forever, daemon=True)
             server_thread.start()
             if open_window(server.launch_url):
+                while server.editor.firmware_lock.locked():  # the install runs in this process: leaving now would cut esptool off mid-write
+                    time.sleep(.5)
                 server.shutdown()
                 server_thread.join(timeout=3)
                 return
