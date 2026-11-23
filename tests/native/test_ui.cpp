@@ -220,6 +220,13 @@ static void test_confirm_key(){
     /* Sliding off the key before the ring is full cancels too. */
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(5),key_y(5)};for(int i=0;i<12;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    /* So does sliding off downward onto the key below, or slowly sideways a few pixels per read. */
+    touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(1),key_y(7)};for(int i=0;i<12;++i)step();
+    touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    /* Slow means 2 px a read, under LVGL's gesture speed, from 4 px inside the right edge into the gap. */
+    touch_at={rail_w+pad+key_w-4,key_y(1)};touching=true;for(int i=0;i<4;++i)step();
+    for(int i=0;i<12;++i){touch_at.x+=2;step();}
+    touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
     /* A screen that comes up under the finger, such as a permission question, cancels the hold: nothing may run on the
      * PC while another screen shows. */
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();assert(arcs_in(tile)==1);

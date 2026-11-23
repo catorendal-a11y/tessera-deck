@@ -216,7 +216,7 @@ void press(lv_event_t *event) {
 }
 /* A confirm key: a ring fills over ConfirmMs while the finger stays, and only then is the press sent
  * (by update()); lifting the finger or sliding off early sends nothing. */
-lv_obj_t *confirm_ring=nullptr;int confirm_slot=-1;uint32_t confirm_started=0;
+lv_obj_t *confirm_ring=nullptr;int confirm_slot=-1;uint32_t confirm_started=0;lv_indev_t *confirm_indev=nullptr;
 void confirm_fill(void *arc,int32_t value) {lv_arc_set_value(static_cast<lv_obj_t*>(arc),value);}
 void confirm_stop() {if(confirm_ring)lv_obj_delete(confirm_ring);confirm_ring=nullptr;confirm_slot=-1;}  /* the delete ends its anim */
 void confirm_touch(lv_event_t *event) {
@@ -226,13 +226,16 @@ void confirm_touch(lv_event_t *event) {
     if(lv_event_get_code(event)!=LV_EVENT_PRESSED||deck_model_locked())return;
     auto *tile=keys[slot];const int size=LV_MIN(lv_obj_get_width(tile),lv_obj_get_height(tile))-sc(28);
     auto *arc=confirm_ring=make_ring(tile,size,sc(8),Bg,Accent,0);lv_obj_center(arc);
-    confirm_slot=slot;confirm_started=millis();
+    confirm_slot=slot;confirm_started=millis();confirm_indev=lv_indev_active();
     lv_anim_t fill;lv_anim_init(&fill);lv_anim_set_var(&fill,arc);lv_anim_set_exec_cb(&fill,confirm_fill);
     lv_anim_set_values(&fill,0,100);lv_anim_set_duration(&fill,ConfirmMs);lv_anim_start(&fill);
 }
 void confirm_tick() {
     if(confirm_slot<0)return;
     if(deck_model_locked()){confirm_stop();return;}
+    /* LVGL keeps a pressed key pressed wherever the finger goes, so PRESS_LOST never comes: check the point here. */
+    if(confirm_indev){lv_point_t at;lv_indev_get_point(confirm_indev,&at);lv_area_t area;lv_obj_get_coords(keys[confirm_slot],&area);
+        if(at.x<area.x1||at.x>area.x2||at.y<area.y1||at.y>area.y2){confirm_stop();return;}}
     if(millis()-confirm_started<ConfirmMs)return;
     const int slot=confirm_slot;confirm_stop();send_press(slot,false);
 }
