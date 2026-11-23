@@ -1,6 +1,6 @@
 """The update check against the project's GitHub releases, and the verified downloads.
 
-The check runs when the user presses the button, and once a day from the tray unless that is switched off
+The check runs when the user presses the button, and once a day from the tray if the user chose that
 (tessera_tray.auto_update_check). Nothing is downloaded until the user asks for it. Only the project's own release API and GitHub's
 download hosts are used, downloads are limited in size, and a firmware package or a program zip is kept only
 when its SHA-256 matches the SHA256SUMS file published with the same release.
