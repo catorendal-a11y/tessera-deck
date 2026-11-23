@@ -558,6 +558,78 @@ class EditorDetectTests(unittest.TestCase):
         self.assertEqual(self.editor.command('firmware-list', {})['names']['tessera-p4-v3'], fw.BOARD_NAMES['tessera-p4-v3'])
 
 
+class Board:
+    """An A/B panel as ESP-IDF's bootloader runs it: an image written over USB boots on probation, the firmware
+    confirms it when it answers get_info (main.cpp app_confirm), and a reset before that boots the old image again."""
+
+    def __init__(self, running, new):
+        self.running, self.new, self.previous, self.boot, self.probation = running, new, None, 7, False
+
+    def reset(self):
+        if self.probation:
+            self.running, self.probation = self.previous, False
+        self.boot += 1
+
+
+class BoardPort:
+    """The panel's serial port. On Linux opening it raises DTR and RTS, which resets a UART board (RESETS_ON_OPEN)."""
+    board = None
+
+    def __init__(self):
+        self.port, self.dtr, self.rts, self.pending, self.size, self.held = None, False, False, bytearray(), 0, 0
+
+    def open(self):
+        if str(self.port).startswith('/dev/'):
+            self.board.reset()
+
+    def close(self):
+        pass
+
+    def reset_input_buffer(self):
+        self.pending.clear()
+
+    @property
+    def in_waiting(self):
+        return len(self.pending)
+
+    def read(self, count):
+        data, self.pending = bytes(self.pending[:count]), self.pending[count:]
+        return data
+
+    def write(self, raw):
+        board = self.board
+        for line in raw.decode().splitlines():
+            if line == '{"cmd":"get_info"}':
+                board.probation = False
+                self.pending.extend((json.dumps({'type': 'info', 'boardId': 'tessera-p4', 'protocol': 2, 'ota': 1,
+                                                 'firmwareVersion': board.running, 'bootId': board.boot}) + '\n').encode())
+            elif line.startswith('AD_OTA_BEGIN '):
+                self.size, self.held = int(line.split()[1]), 0
+                self.pending.extend(b'AD_OTA_BEGIN OK\n')
+            elif line.startswith('AD_OTA_DATA '):
+                self.held += len(bytes.fromhex(line.split(' ', 2)[2]))
+                if self.held == self.size:
+                    self.pending.extend(f'AD_OTA_DATA OK {self.held}\n'.encode())
+            elif line == 'AD_OTA_END':
+                self.pending.extend(b'AD_OTA_END OK\n')
+                board.previous, board.running, board.probation = board.running, board.new, True
+                board.boot += 1  # esp_restart into the new slot
+        return len(raw)
+
+
+class LinuxUpdateTests(unittest.TestCase):
+    def test_an_update_on_a_board_that_resets_when_the_port_opens_keeps_the_new_firmware(self):
+        import types
+        import panel_serial
+        BoardPort.board = Board('1.0.0', '1.2.3')
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=BoardPort)), \
+                patch.object(panel_serial, 'RESETS_ON_OPEN', True), \
+                patch.object(panel_serial, 'SETTLE_AFTER_RESET_SECONDS', 0):
+            fw.serial_ota('/dev/ttyUSB0', b'\x00' * 100, lambda percent: None, version='1.2.3')
+            host = panel_serial.PanelSerial('/dev/ttyUSB0', lambda *_: None)  # the host starts again after the update
+        self.assertEqual(host.info['firmwareVersion'], '1.2.3')
+
+
 class SerialOtaRetryTests(unittest.TestCase):
     def test_a_timed_out_upload_is_aborted_and_tried_once_more(self):
         from unittest import mock
@@ -574,6 +646,9 @@ class SerialOtaRetryTests(unittest.TestCase):
             def ota_upload(self, data, progress):
                 if len(panels) == 1:
                     raise TimeoutError('The panel did not answer AD_OTA_DATA')
+
+            def resets_on_open(self):
+                return False
 
             def send_line(self, line):
                 self.sent.append(line)
@@ -601,6 +676,9 @@ class SerialOtaRetryTests(unittest.TestCase):
                 self.uploads += 1
                 if len(panels) == 1:
                     raise TimeoutError('The panel did not answer AD_OTA_END')
+
+            def resets_on_open(self):
+                return False
 
             def send_line(self, line):
                 pass
@@ -634,6 +712,9 @@ class SerialOtaRetryTests(unittest.TestCase):
 
             def ota_upload(self, data, progress):
                 raise TimeoutError('The panel did not answer AD_OTA_DATA')
+
+            def resets_on_open(self):
+                return False
 
             def send_line(self, line):
                 pass

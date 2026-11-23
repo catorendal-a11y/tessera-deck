@@ -266,6 +266,32 @@ def detect_chip(port: str, runner: Callable | None = None, uart: bool = False) -
     return {'chip': chip, 'revision': f'{major}.{minor}', 'boards': boards}
 
 
+NEW_FIRMWARE_SECONDS = 30  # the new image checks itself and boots in a few seconds
+
+
+def await_new_firmware(panel, boot, version: str | None) -> None:
+    """Wait on the open port until the restarted panel answers get_info, which makes it keep the new image.
+
+    On Linux opening the port resets the panel. The new image is on probation until it has answered once, and a
+    reset before that boots the old one again, so the host must not open the port before this returns.
+    """
+    from panel_serial import DeviceRejected
+    deadline = time.monotonic() + NEW_FIRMWARE_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            panel.verify()
+        except DeviceRejected as exc:
+            if exc.kind != 'silent':
+                raise
+            continue  # still booting
+        if panel.info.get('bootId') == boot:
+            continue  # the answer of the old firmware before it restarted
+        if version and panel.info.get('firmwareVersion') != version:
+            raise OSError(f'The panel started firmware {panel.info.get("firmwareVersion")} again, not {version}')
+        return
+    raise OSError('The panel did not answer after the update')
+
+
 def serial_ota(port: str, data: bytes, progress: Callable[[float], None], version: str | None = None) -> None:
     """Send the application over the panel's own USB connection (the host is stopped, so the port is free)."""
     from panel_serial import PanelSerial
@@ -280,6 +306,8 @@ def serial_ota(port: str, data: bytes, progress: Callable[[float], None], versio
                 return
             boot = panel.info.get('bootId')
             panel.ota_upload(data, progress)
+            if panel.resets_on_open():
+                await_new_firmware(panel, boot, version)
             return
         except TimeoutError as exc:
             # The panel keeps its running firmware until it has checked a whole image, so one fresh start is safe.
