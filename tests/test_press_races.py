@@ -124,6 +124,28 @@ class InputLockTests(unittest.TestCase):
         send.assert_called_once_with('ctrl+c')
         self.assertFalse(daemon.input_lock.locked())
 
+    def test_a_hotkey_key_during_slow_typing_does_not_hold_up_the_next_press(self):
+        """The worker runs every press in turn: a hotkey that waits for slow typing would leave a page key behind it."""
+        daemon = make_daemon()
+        button(daemon, 1)['actions'] = [{'type': 'hotkey', 'keys': 'ctrl+c'}]
+        button(daemon, 2)['actions'] = [{'type': 'page', 'page': 'status'}]
+        daemon.input_lock.acquire()  # slow typing on another thread holds the keyboard
+        worker = threading.Thread(target=daemon.worker_loop, daemon=True)
+        with patch.object(deck, 'send_hotkey') as send:
+            worker.start()
+            daemon.enqueue(('press', 1, None, False, time.monotonic()))
+            daemon.enqueue(('press', 2, None, False, time.monotonic()))
+            both_done = threading.Thread(target=daemon.jobs.join, daemon=True)
+            both_done.start()
+            both_done.join(3)
+            page = daemon.page
+            daemon.input_lock.release()
+            daemon.stop.set()
+            worker.join(2)
+        self.assertEqual(page, 'status', 'the page key waited behind the hotkey until the typing ended')
+        send.assert_not_called()
+        daemon.panel.feedback.assert_any_call(1, False)
+
 
 class DoubleTapTimingTests(unittest.TestCase):
     def setUp(self):

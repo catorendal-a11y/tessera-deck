@@ -181,6 +181,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.enqueue_lock = threading.Lock()
         self.state_lock = SuspendableRLock()
         self.input_lock = threading.Lock()  # keyboard and mouse sequences never interleave
+        self.worker_ident = None  # set by worker_loop
         self.slow_slots = threading.BoundedSemaphore(SLOW_LANE_LIMIT)
         self.reconnect = ReconnectBackoff()
         self.sent_brightness = None  # the brightness last sent to the panel, to notice when quiet hours begin or end
@@ -923,6 +924,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.dimmed = False
 
     def worker_loop(self):
+        self.worker_ident = threading.get_ident()  # input_turn refuses to wait for the keyboard on this thread
         while not self.stop.is_set():
             try:
                 job = self.jobs.get(timeout=.2)

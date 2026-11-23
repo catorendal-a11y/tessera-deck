@@ -35,6 +35,9 @@ class PressMixin:
         slow keys and every queued press would wait behind it.
         """
         if not self.input_lock.acquire(blocking=False):
+            if threading.get_ident() == self.worker_ident:
+                # the worker runs every press in turn: waiting here leaves all later presses to go stale
+                raise RuntimeError('The keyboard is busy: another key is still typing')
             with self.state_lock.suspended():
                 self.input_lock.acquire()
         try:
