@@ -1,13 +1,19 @@
 """One editor window: a second start waits for the first instead of opening a window of its own."""
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
+import os
 from pathlib import Path
+import socket
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
+import deckctl
 import tessera_app
+from control_api import proof
 
 
 class RunningEditorTests(unittest.TestCase):
@@ -28,7 +34,7 @@ class RunningEditorTests(unittest.TestCase):
     def test_a_running_editor_whose_window_is_not_up_yet_is_waited_for(self):
         process, answer = self.running()
         with tempfile.TemporaryDirectory() as folder, patch('psutil.Process', return_value=process), \
-                patch.object(tessera_app.urllib.request, 'urlopen', return_value=answer), \
+                patch.object(tessera_app.LOCAL, 'open', return_value=answer), \
                 patch.object(tessera_app, 'open_window') as open_window, \
                 patch.object(tessera_app, 'activate_window', return_value=False):
             record = self.record(folder)
@@ -51,7 +57,7 @@ class RunningEditorTests(unittest.TestCase):
     def test_a_visible_editor_is_brought_forward_and_an_older_build_is_stopped(self):
         process, answer = self.running()
         with tempfile.TemporaryDirectory() as folder, patch('psutil.Process', return_value=process), \
-                patch.object(tessera_app.urllib.request, 'urlopen', return_value=answer), \
+                patch.object(tessera_app.LOCAL, 'open', return_value=answer), \
                 patch.object(tessera_app, 'open_window') as open_window, \
                 patch.object(tessera_app, 'activate_window', return_value=True) as activate:
             self.assertTrue(tessera_app.show_running_editor(self.record(folder), 'b1'))
@@ -66,9 +72,59 @@ class RunningEditorTests(unittest.TestCase):
             stranger = Mock()
             stranger.cmdline.return_value = ['notepad.exe', 'notes.txt']
             stranger.create_time.return_value = 100.0
-            with patch('psutil.Process', return_value=stranger), patch.object(tessera_app.urllib.request, 'urlopen') as urlopen:
+            with patch('psutil.Process', return_value=stranger), patch.object(tessera_app.LOCAL, 'open') as urlopen:
                 self.assertFalse(tessera_app.show_running_editor(self.record(folder), 'b1'))
                 urlopen.assert_not_called()
+
+
+class LocalServer(BaseHTTPRequestHandler):
+    """A stand-in for the editor's and the host's own server on this PC."""
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get('Content-Length') or 0))
+        body = b'{"ok": true}'
+        self.send_response(200)
+        self.send_header('X-Deck-Proof', proof('t', self.headers['X-Deck-Nonce'] or ''))
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    do_GET = do_POST
+
+    def log_message(self, *args):
+        pass
+
+
+class ProxyTests(unittest.TestCase):
+    """A proxy from HTTP_PROXY or the Windows settings must not take the calls to this PC's own servers."""
+    def setUp(self):
+        server = HTTPServer(('127.0.0.1', 0), LocalServer)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        self.port = server.server_port
+        with socket.socket() as spare:  # a port nothing listens on: the company proxy that cannot be reached
+            spare.bind(('127.0.0.1', 0))
+            dead = spare.getsockname()[1]
+        environment = {name: f'http://127.0.0.1:{dead}' for name in ('HTTP_PROXY', 'http_proxy')}
+        patcher = patch.dict(os.environ, environment)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for name in ('NO_PROXY', 'no_proxy'):
+            os.environ.pop(name, None)
+
+    def test_the_second_start_reaches_the_running_editor_through_a_proxy(self):
+        process = Mock()
+        process.cmdline.return_value = ['python.exe', str(Path(tessera_app.__file__).resolve()), '--editor']
+        process.create_time.return_value = 100.0
+        with tempfile.TemporaryDirectory() as folder:
+            record = Path(folder) / 'editor.json'
+            record.write_text(json.dumps({'pid': 7, 'created': 100.0, 'url': f'http://127.0.0.1:{self.port}/',
+                                          'token': 't', 'build': 'b1'}))
+            with patch('psutil.Process', return_value=process), patch.object(tessera_app, 'activate_window', return_value=True):
+                self.assertTrue(tessera_app.show_running_editor(record, 'b1'))
+
+    def test_deckctl_reaches_the_host_through_a_proxy(self):
+        self.assertEqual(deckctl.call({'port': self.port, 'token': 't'}, 'POST', '/api/x', {}), {'ok': True})
 
 
 class WindowSizeTests(unittest.TestCase):

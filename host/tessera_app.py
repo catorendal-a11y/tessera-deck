@@ -952,6 +952,10 @@ def make_server(editor, port=0, token=None):
     return server
 
 
+# This PC's own editor is never behind a proxy, whatever HTTP_PROXY or the Windows settings say.
+LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def show_running_editor(record, build, open_if_hidden=False):
     """Bring the running editor to the front. False when there is none yet; an editor of another build is stopped.
 
@@ -970,14 +974,14 @@ def show_running_editor(record, build, open_if_hidden=False):
             return False
         request = urllib.request.Request(previous['url'] + 'api/session', data=b'{}',
                                          headers={'Content-Type': 'application/json', 'X-Deck-Token': previous['token']})
-        with urllib.request.urlopen(request, timeout=2) as response:
+        with LOCAL.open(request, timeout=2) as response:
             if response.status != 200:
                 return False
         if previous.get('build') == build:
             def launch_url():  # a one-time code: the record's token never goes into an address
                 request = urllib.request.Request(previous['url'] + 'api/session', data=b'{"launch": true}',
                                                  headers={'Content-Type': 'application/json', 'X-Deck-Token': previous['token']})
-                with urllib.request.urlopen(request, timeout=2) as response:
+                with LOCAL.open(request, timeout=2) as response:
                     return previous['url'] + '#' + json.loads(response.read())['launch']
             if previous.get('browser'):  # the editor runs in a browser tab, which has no window of its own to raise
                 webbrowser.open(launch_url())
