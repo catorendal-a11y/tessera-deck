@@ -51,8 +51,10 @@ DTR and RTS before the host can lower them, and those lines drive the board's re
 open port instead of reopening it. Expect the panel to restart once when the host starts, and again whenever the host
 (re)opens the port. Do not run a serial monitor (`idf.py monitor`) at the same time: only one program can hold the port.
 
-If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`. Without it the host tries the Espressif and CH340
-ports it finds and keeps the one that answers like a panel.
+If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`, and the host opens no other port. Without it the
+host tries the Espressif and CH340 ports it finds and keeps the one that answers like a panel. Opening a port restarts a
+board with a USB-UART bridge, so a device that is not a panel is asked at most three times, and again only after it has
+been unplugged and plugged in.
 
 ## What is different from Windows
 

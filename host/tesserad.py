@@ -36,7 +36,8 @@ from substitution import ENV_REFERENCE, check_web_url, expand_environment, subst
 from pc_state import PcState
 import remote_devices
 from system_audio import MediaReader, control_audio, control_media, read_audio
-from host_runtime import DEFAULT_PORT, InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
+from host_runtime import (DEFAULT_PORT, InstanceLock, SuspendableRLock, _installed_ports, candidate_ports,
+                          is_remembered_panel, remember_port, session_locked)
 from system_stats import SystemStats, gauge_state
 
 # The engine's building blocks live in their own modules; the names stay importable from here for the apps,
@@ -107,6 +108,9 @@ def rotate_log():
 PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke',
               'screen-deck')
 CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
+# Silent handshakes before the reconnect loop leaves a device alone until it is plugged in again. A panel that is still
+# booting can miss one or two; every open restarts a UART board on Linux, and holds the port from other programs.
+SILENT_TRIES = 3
 
 
 class ReconnectBackoff:
@@ -199,6 +203,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.panel_factory = panel_factory
         self.panel = None
         self.connection_failed = threading.Event()
+        self.passed_over = {}  # port -> [its USB serial number, why it is not the panel, silent answers so far]
         self.folder_stack = []
         self.button_states = {}
         self.profile_stamp = Path(args.profiles).stat().st_mtime_ns
@@ -1009,11 +1014,28 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
     def open_panel(self):
         """Open the first candidate port that completes the identity and protocol handshake."""
         failures = []
-        for port in candidate_ports(self.args.port, self.device_state_path):
+        pinned = os.environ.get('TESSERA_PORT')  # the user named the panel's port: no other device is opened
+        try:
+            installed = _installed_ports()
+        except (ImportError, OSError):
+            installed = {}
+        # A device that was unplugged, or another one on its port, is asked again.
+        self.passed_over = {port: entry for port, entry in self.passed_over.items()
+                            if port in installed and installed[port] == entry[0]}
+        for port in [pinned] if pinned else candidate_ports(self.args.port, self.device_state_path, installed):
+            entry = self.passed_over.get(port)
+            if entry and entry[2] >= SILENT_TRIES:
+                failures.append(entry[1])
+                continue
             try:
                 return self.panel_factory(port, self.log), port
             except DeviceRejected as exc:
                 failures.append(str(exc))
+                # A silent remembered or named panel is always asked again: it may hang and come back without leaving USB.
+                if port in installed and (exc.kind == 'board' or exc.kind == 'silent' and port != pinned
+                                          and not is_remembered_panel(port, self.device_state_path, installed)):
+                    silent = (entry[2] if entry else 0) + 1
+                    self.passed_over[port] = [installed[port], str(exc), silent if exc.kind == 'silent' else SILENT_TRIES]
             except OSError as exc:
                 failures.append(port_trouble(port, exc))
         raise OSError('; '.join(failures) or 'No USB port found')

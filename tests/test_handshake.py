@@ -271,5 +271,63 @@ class PortSelectionTests(unittest.TestCase):
         self.assertNotIn('PermissionError', text)
 
 
+class ReconnectProbeTests(unittest.TestCase):
+    """What the reconnect loop opens while no panel answers. Every open of a UART board restarts it on Linux, and on
+    Windows it holds the port for the handshake, so another program's upload or monitor gets "Access is denied"."""
+    DEVKIT = types.SimpleNamespace(device='COM8', vid=0x303A, serial_number='DEVKIT1')  # someone's ESP32-S3 devkit
+    CLONE = types.SimpleNamespace(device='COM9', vid=0x1A86, serial_number=None)  # an Arduino clone with a CH340
+
+    def setUp(self):
+        import os
+        import tempfile
+        FakeSerial.opened, FakeSerial.script = [], b''  # nothing on any port answers get_info
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.state = Path(folder.name) / 'deck-device.local.json'
+        self.state.write_text(json.dumps({'serial': 'PANEL123'}), encoding='utf-8')  # a panel was used before
+        self.listed = [self.DEVKIT, self.CLONE]
+        for patcher in (patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.05),
+                        patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=FakeSerial)),
+                        patch('serial.tools.list_ports.comports', lambda: list(self.listed)),
+                        patch.dict(os.environ)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        os.environ.pop('TESSERA_PORT', None)
+
+    def daemon(self, port='COM4'):
+        daemon = host_support.test_daemon(port=port, no_focus=True)
+        daemon.log, daemon.device_state_path = Mock(), self.state
+        return daemon
+
+    def attempts(self, daemon, count):
+        for _ in range(count):
+            with self.assertRaises(OSError):
+                daemon.open_panel()
+        return [fake.port for fake in FakeSerial.opened]
+
+    def test_other_devices_are_left_alone_after_a_few_silent_answers(self):
+        opened = self.attempts(self.daemon(), 8)  # the panel is unplugged: about a minute of retries
+        self.assertLessEqual(opened.count('COM8'), 3)
+        self.assertLessEqual(opened.count('COM9'), 3)
+
+    def test_a_device_that_was_unplugged_and_plugged_in_again_is_asked_again(self):
+        daemon = self.daemon()
+        self.attempts(daemon, 4)
+        self.listed = [self.CLONE]
+        self.attempts(daemon, 1)
+        self.listed = [self.DEVKIT, self.CLONE]
+        FakeSerial.opened = []
+        self.assertIn('COM8', self.attempts(daemon, 1))
+
+    def test_the_remembered_panel_is_asked_on_every_attempt_even_when_it_stays_silent(self):
+        self.listed = [types.SimpleNamespace(device='COM5', vid=0x1A86, serial_number='PANEL123')]  # hung, still on USB
+        self.assertEqual(self.attempts(self.daemon(), 6).count('COM5'), 6)
+
+    def test_with_tessera_port_set_only_that_port_is_opened(self):
+        import os
+        os.environ['TESSERA_PORT'] = 'COM8'
+        self.assertEqual(set(self.attempts(self.daemon(port='COM8'), 3)), {'COM8'})
+
+
 if __name__ == '__main__':
     unittest.main()
