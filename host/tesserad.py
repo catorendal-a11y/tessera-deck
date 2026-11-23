@@ -147,6 +147,9 @@ def port_trouble(port, exc):
         return f'{port} is in use by another program. Close the serial monitor, flasher or second Tessera that has it open.'
     if code == errno.EACCES:
         return f'{port} may not be opened by your user. Join the group uucp (Arch) or dialout (Debian, Ubuntu) and sign in again.'
+    if 'timeout' in text.lower():  # it opened but takes no data: the bootloader of a board without firmware only prints
+        return (f'{port} does not take data. If the panel has no firmware yet, install it in the editor: '
+                'Panel, then Panel firmware and updates.')
     return f'{port}: {exc}'
 
 
