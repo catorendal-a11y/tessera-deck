@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Updating the panel over USB ("Update (keeps settings)") no longer stops with "The panel did not answer AD_OTA_DATA". The panel had all the data; its answer got lost on the way and Tessera gave up, or started over and gave up the second time. Tessera now goes on when an answer stays away, since the next answer tells how much the panel holds, and a panel that really missed data still refuses the next line. This works with the firmware that is on panels today. Tried on a GUITION JC1060P470C: seven updates in a row between 1.2.9 and 1.2.10 went through, two of them past a lost answer.
+- The firmware no longer loses such a line. On boards whose USB port is the chip's own (GUITION, Waveshare ESP32-S3-Touch-LCD-7), the USB driver of ESP-IDF throws away what the firmware prints while it takes the PC for unplugged, and with a 1000 Hz tick it does that for a millisecond now and then, most often right after a flash write. Measured on the GUITION panel: 1 answer in 12,216 lost before, none in 15,270 after. `get_info` has a new field `usbGaps` that counts how often this was caught.
+- When the answer to the last step of an update is the one that gets lost, Tessera asks the restarted panel which firmware it runs instead of sending the whole image a second time.
+
 ## 1.2.10
 
 The new way to install on a blank panel was tried against a simulated USB port, not a real blank board, and the changes for Linux were not run on Linux. If you install on a new board or update on Linux, a report in the issues on how it went helps.

@@ -465,6 +465,8 @@ class SerialOtaRetryTests(unittest.TestCase):
         panels = []
 
         class FakePanel:
+            info = {'bootId': 7, 'firmwareVersion': '1.0.0'}
+
             def __init__(self, port, log):
                 self.sent = []
                 panels.append(self)
@@ -483,11 +485,50 @@ class SerialOtaRetryTests(unittest.TestCase):
         self.assertEqual(len(panels), 2)
         self.assertEqual(panels[0].sent, ['AD_OTA_ABORT'])
 
+    def lost_end_answer(self, after):
+        """Uploads seen when the answer to AD_OTA_END stays away and the panel then reports `after`."""
+        from unittest import mock
+        import panel_serial
+        panels, percents = [], []
+
+        class FakePanel:
+            def __init__(self, port, log):
+                self.info = after if panels else {'bootId': 7, 'firmwareVersion': '1.0.0'}
+                self.uploads = 0
+                panels.append(self)
+
+            def ota_upload(self, data, progress):
+                self.uploads += 1
+                if len(panels) == 1:
+                    raise TimeoutError('The panel did not answer AD_OTA_END')
+
+            def send_line(self, line):
+                pass
+
+            def close(self):
+                pass
+        with mock.patch.object(panel_serial, 'PanelSerial', FakePanel), mock.patch.object(fw.time, 'sleep'):
+            fw.serial_ota('COM4', b'app', percents.append, version='1.2.3')
+        return [panel.uploads for panel in panels], percents
+
+    def test_a_lost_last_answer_is_settled_by_asking_the_restarted_panel(self):
+        uploads, percents = self.lost_end_answer({'bootId': 8, 'firmwareVersion': '1.2.3'})
+        self.assertEqual(uploads, [1, 0], 'the panel runs the new firmware: nothing is sent twice')
+        self.assertEqual(percents, [100])
+
+    def test_a_panel_that_did_not_take_the_image_gets_it_again(self):
+        for after in ({'bootId': 7, 'firmwareVersion': '1.0.0'}, {'bootId': 8, 'firmwareVersion': '1.0.0'},
+                      {'bootId': 7, 'firmwareVersion': '1.2.3'}):  # not restarted, restarted into the old one, same version as before
+            with self.subTest(after=after):
+                self.assertEqual(self.lost_end_answer(after)[0], [1, 1])
+
     def test_a_second_timeout_is_reported(self):
         from unittest import mock
         import panel_serial
 
         class FakePanel:
+            info = {'bootId': 7, 'firmwareVersion': '1.0.0'}
+
             def __init__(self, port, log):
                 pass
 

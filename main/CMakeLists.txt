@@ -41,3 +41,8 @@ idf_component_register(
         esp_driver_uart
 )
 
+# The USB console's "is a host connected?" goes through main.cpp, which does not believe a millisecond of "no".
+if(NOT CONFIG_ESP_CONSOLE_UART)
+    target_link_libraries(${COMPONENT_LIB} INTERFACE "-Wl,--wrap=usb_serial_jtag_is_connected")
+endif()
+
