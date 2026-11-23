@@ -169,6 +169,26 @@ class EditorCommandTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 editor.command('review', {'config': {'profiles': {}}})
 
+    def test_a_file_from_the_other_system_imports_with_its_system_specific_steps_adjusted(self):
+        # Written on Linux, imported here: a .sh script, a program name without .exe and a panel app without .exe.
+        config = {'default_profile': 'Main', 'panel': {'apps': ['firefox']}, 'profiles': {'Main': {'match': [], 'pages': {'First': [
+            {'id': 1, 'label': 'Sh', 'actions': [{'type': 'script', 'path': '/home/me/x.sh'}, {'type': 'hotkey', 'keys': 'ctrl+c'}]},
+            {'id': 2, 'label': 'Mute', 'actions': [{'type': 'audio', 'target': 'app:firefox', 'op': 'toggle'}]}]}}}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            result = editor.command('review', {'config': config})
+            adapted = result['config']
+            deck.validate_config(adapted)
+            keys = adapted['profiles']['Main']['pages']['First']
+            self.assertEqual(keys[0]['actions'], [{'type': 'hotkey', 'keys': 'ctrl+c'}], 'the script that cannot run here is dropped')
+            self.assertEqual(keys[1]['actions'][0]['target'], 'app:firefox.exe')
+            self.assertEqual(adapted['panel']['apps'], ['firefox.exe'])
+            self.assertEqual(sorted(result['adjusted']), ["Profile 'Main' / page 'First' / button 1 'Sh'",
+                                                          "Profile 'Main' / page 'First' / button 2 'Mute'", 'panel apps'])
+            self.assertEqual(review(editor.command('sanitize', {'config': config})['config']), [])
+
 
 class SubstitutionTests(unittest.TestCase):
     def daemon(self):

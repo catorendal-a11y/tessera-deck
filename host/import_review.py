@@ -5,6 +5,7 @@ import copy
 import re
 import urllib.parse
 
+from program_name import SUFFIX
 from substitution import ENV_REFERENCE
 
 # Header and address field names that carry a credential: Authorization, Private-Token, X-Api-Key, ?key=, ?sig=
@@ -130,6 +131,40 @@ def review(config: dict) -> list[dict]:
         findings[MAX_LISTED:] = [{'where': 'The file', 'kind': 'more', 'risk': 'high', 'automatic': False,
                                   'detail': f'has {more} more actions like these that are not listed'}]
     return findings
+
+
+def adapt_to_this_system(config: dict):
+    """A copy that this PC accepts, and where it changed. A file made on the other system holds script paths and program
+    names that are wrong here: the script steps this system cannot run are dropped, and a program name gets the .exe
+    Windows needs. validate_config stays strict, so without this the import is refused before the user can choose."""
+    from config_check import _check_script  # here, not at the top: config_check reaches this module through secrets_store
+    from pc_state import APP_TARGET
+    adapted, where = copy.deepcopy(config), []
+    for place, owner, key, _ in list(iter_actions(adapted)):
+        kept = []
+        for action in owner[key]:
+            if isinstance(action, dict) and action.get('type') == 'script':
+                try:
+                    _check_script(action, None, None)
+                except ValueError as exc:
+                    if str(exc).startswith('script:'):
+                        where.append(place)
+                        continue
+            target = action.get('target') if isinstance(action, dict) and action.get('type') == 'audio' else None
+            if isinstance(target, str) and not APP_TARGET.fullmatch(target) and APP_TARGET.fullmatch(target + '.exe'):
+                action['target'] = target + '.exe'
+                where.append(place)
+            kept.append(action)
+        owner[key] = kept
+    panel = adapted.get('panel')
+    apps = panel.get('apps') if isinstance(panel, dict) else None
+    if isinstance(apps, list):
+        fixed = [f'{app}.exe' if isinstance(app, str) and not re.fullmatch(rf'[A-Za-z0-9_.-]{{1,35}}{SUFFIX}', app)
+                 and re.fullmatch(rf'[A-Za-z0-9_.-]{{1,31}}{SUFFIX}', app + '.exe') else app for app in apps]
+        if fixed != apps:
+            panel['apps'] = fixed
+            where.append('panel apps')
+    return adapted, list(dict.fromkeys(where))
 
 
 def strip_executable(config: dict) -> dict:

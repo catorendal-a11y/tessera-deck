@@ -40,7 +40,7 @@ import plugins
 import updates
 from host_runtime import InstanceLock
 from action_preview import preview
-from import_review import export_left_out, redact_secrets, review, strip_executable
+from import_review import adapt_to_this_system, export_left_out, redact_secrets, review, strip_executable
 
 WEB = Path(__file__).with_name('editor')
 
@@ -678,10 +678,10 @@ class Editor:
         if command == 'firmware-progress':
             return {'job': dict(self.firmware_job)}
         if command == 'review':
-            config = validate_config(data.get('config') or {})
-            return {'findings': review(config)}
+            config, adjusted = adapt_to_this_system(data.get('config') or {})
+            return {'findings': review(validate_config(config)), 'config': config, 'adjusted': adjusted}
         if command == 'sanitize':
-            return {'config': strip_executable(validate_config(data.get('config') or {}))}
+            return {'config': strip_executable(validate_config(adapt_to_this_system(data.get('config') or {})[0]))}
         if command in ('activate', 'run-key'):
             config = self.read()['config']
             profile, page = data.get('profile'), data.get('page')
