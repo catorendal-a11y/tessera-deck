@@ -216,6 +216,30 @@ class ControlApiTests(unittest.TestCase):
         self.assertEqual(self.daemon.submit.call_count, control_api.RATE_BURST)
 
 
+class OfflinePressTests(unittest.TestCase):
+    """deckctl press and a plugin's POST /v1/press while the panel is unplugged: the worker drops panel jobs then, so a
+    press that is accepted never runs. The caller must hear it instead of getting OK."""
+
+    def test_a_press_while_the_panel_is_not_connected_is_refused_with_the_reason(self):
+        import host_support
+        daemon = host_support.test_daemon(port='COM4', no_focus=True)
+        daemon.log = Mock()
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        api = ControlServer(daemon, Path(temp.name) / 'api.json')
+        api.start()
+        self.addCleanup(api.stop)
+        request = urllib.request.Request(f'http://127.0.0.1:{api.server.server_port}/v1/press', method='POST',
+                                         data=b'{"button": 1}', headers={'Content-Type': 'application/json',
+                                                                         'X-Deck-Token': api.token})
+        with self.assertRaises(urllib.error.HTTPError) as refused:
+            urllib.request.urlopen(request, timeout=3)
+        with refused.exception as error:
+            self.assertEqual(error.code, 400)
+            self.assertIn('not connected', json.loads(error.read())['error'])
+        self.assertEqual(daemon.jobs.qsize(), 0)
+
+
 class NoticeTests(unittest.TestCase):
     """The host side of a notice: the panel's banner when its firmware has one, a Windows notification otherwise."""
 

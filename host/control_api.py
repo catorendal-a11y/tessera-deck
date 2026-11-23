@@ -224,7 +224,11 @@ class ControlServer:
         self.daemon.submit(*jobs)
 
     def press(self, data):
-        self.daemon.submit(('api-press', _button(data)))
+        button = _button(data)
+        # The worker drops a press while the panel is away, so accepting it would answer OK for nothing.
+        if self.daemon.panel is None or self.daemon.connection_failed.is_set():
+            raise ApiError('The panel is not connected; the key was not pressed')
+        self.daemon.submit(('api-press', button))
 
     def show_page(self, data):
         config = self.daemon.config['profiles']
