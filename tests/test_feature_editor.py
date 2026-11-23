@@ -253,6 +253,23 @@ return {unfinished, told, finished};
         self.assertIn('not finished', found['told'][0])
         self.assertEqual(found['finished'], [{'type': 'actions', 'label': 'Go', 'icon': 'lc:e0ff', 'actions': [{'type': 'http', 'method': 'GET', 'url': 'https://example.com'}]}])
 
+    def test_a_key_pasted_into_a_profile_without_its_page_stays_a_draft(self):
+        found = self.run_editor(r"""
+const folder = {id: 1, label: 'Status', icon: 'folder', actions: [{type: 'folder', page: 'status'}]};
+config = {default_profile: 'main', profiles: {
+  main: {match: [], pages: {first: [folder], status: []}},
+  coding: {match: [], pages: {first: []}}}};
+profile = 'main'; page = 'first'; selected = 1; history = []; future = [];
+copyButton();
+profile = 'coding'; page = 'first'; selected = 2;
+pasteButton();
+const sent = savable(config);
+return {drafts: draftProblems(), sent: sent.profiles.coding.pages.first.map(k => k.actions), kept: savable(config).profiles.main.pages.first[0].actions};
+""")
+        self.assertEqual([(d['profile'], d['id']) for d in found['drafts']], [('coding', 2)])
+        self.assertEqual(found['sent'], [[]])
+        self.assertEqual(found['kept'], [{'type': 'folder', 'page': 'status'}])
+
 
 if __name__ == '__main__':
     unittest.main()
