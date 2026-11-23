@@ -91,6 +91,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn('python -m pip_audit --require-hashes -r host/requirements.lock', audit)
         self.assertRegex(audit, r'(?m)^permissions:\n  contents: read$')
 
+    def test_the_linux_half_of_the_lock_is_audited_and_installed(self):
+        """Tessera.sh installs the lock with hashes; the Windows-only jobs skip the keyring and secretstorage blocks."""
+        audit = read('.github/workflows/audit.yml')
+        self.assertRegex(audit, r'runs-on: \$\{\{ matrix\.os \}\}')
+        self.assertRegex(audit, r'os: \[[^\]]*windows-latest[^\]]*\]')
+        self.assertRegex(audit, r'os: \[[^\]]*ubuntu-latest[^\]]*\]')
+        job = re.search(r'(?m)^  host-lock-linux:\n((?:    .*\n|\n)+)', read('.github/workflows/ci.yml'))
+        self.assertIsNotNone(job, 'ci.yml has no job that installs the lock on Linux')
+        self.assertIn('runs-on: ubuntu-latest', job.group(1))
+        self.assertIn('pip install --require-hashes -r host/requirements.lock', job.group(1))
+
     def test_the_smoke_test_installs_the_hashed_lock(self):
         smoke = read('.github/workflows/editor-smoke.yml')
         self.assertIn('pip install --require-hashes -r host/requirements.lock', smoke)

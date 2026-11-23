@@ -18,8 +18,12 @@ permissions:
 
 jobs:
   lock:
-    name: Audit host/requirements.lock
-    runs-on: windows-latest  # the lock has Windows-only packages
+    name: Audit host/requirements.lock on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]  # pip-audit skips the entries marked for the other system, so each system audits its own half
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
