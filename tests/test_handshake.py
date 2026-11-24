@@ -465,6 +465,33 @@ class ReconnectProbeTests(unittest.TestCase):
                 self.assertEqual(said[1][0], 'Panel firmware …')
                 self.assertEqual(said[2], error)  # the second line still names the busy COM4
 
+    def test_a_board_that_needs_a_replug_does_not_hide_the_blank_panel_in_the_editor(self):
+        import serial
+        from test_editor import run_editor
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port == 'COM4':  # an Arduino clone with a CH340, after sleep
+                    raise serial.SerialException("could not open port 'COM4': PermissionError(13, 'A device attached to the system is not functioning.', None, 31)")
+
+            def write(self, raw):
+                if self.port == 'COM7':  # nothing reads the USB Serial/JTAG port of a P4 without firmware
+                    raise serial.SerialTimeoutException('Write timeout')
+                return super().write(raw)
+
+        self.state.unlink()
+        self.listed = [types.SimpleNamespace(device='COM4', vid=0x1A86, serial_number=None),
+                       types.SimpleNamespace(device='COM7', vid=0x303A, serial_number=None)]
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                self.assertRaises(OSError) as raised:
+            self.daemon(port='COM4').open_panel()
+        error = str(raised.exception)
+        self.assertIn('stopped responding', error)
+        said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+        self.assertTrue(said[0].startswith('No panel found'), said[0])
+        self.assertEqual(said[1][0], 'Panel firmware …')
+        self.assertEqual(said[2], error)  # the second line still names COM4
+
     def test_a_panel_pulled_out_during_the_handshake_is_told_to_be_replugged_in_the_editor(self):
         import serial
         from test_editor import run_editor
@@ -482,6 +509,7 @@ class ReconnectProbeTests(unittest.TestCase):
         said = run_editor(self, f'return panelProblem({json.dumps(error)});')
         self.assertIn('Unplug', said[0])
         self.assertNotIn('firmware', said[0])
+        self.assertNotIn('The panel', said[0])  # the host's text says only "the USB device on COM5": it may be another board
         self.assertNotIn('Panel firmware …', [action[0] for action in said[1:] if isinstance(action, list)])
         self.assertIn(error, said)
 

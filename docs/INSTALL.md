@@ -171,7 +171,7 @@ When something blocks you, a bar at the bottom of the editor names the cause and
 | The USB host has stopped, so the panel does not react to presses. | Press *Start host*, or use the tray. *Show the host log* says why it stopped. Edits are still saved. The tray restarts a host that dies by itself after 5 s, 15 s, 60 s, then every 5 minutes. |
 | The host could not start: … | Press *Show the host log*. |
 | Another program is using the panel's USB port. | Close Arduino IDE, PuTTY, Thonny or any other serial program. The panel connects by itself. Flashing from source also needs the host stopped. |
-| The panel stopped responding over USB. | Unplug the panel and plug it in again. This happens when it is pulled out while the host talks to it, after sleep, or with a loose cable. |
+| A USB device stopped responding. | Unplug the device on the port the second line names and plug it in again. That is usually the panel, but it can be another ESP32 or CH340 board. This happens when it is pulled out while the host talks to it, after sleep, or with a loose cable. |
 | The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port). On a CrowPanel, use the USB-C port marked UART. |
 | The panel firmware is too old for this Tessera. | Press *Panel firmware …* and update. |
 | No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port, not the high-speed one), or on a CrowPanel the USB-C port marked UART. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
