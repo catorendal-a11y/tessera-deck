@@ -67,9 +67,10 @@ return await flushBeforeClose();
 
 
 class FakeWindow:
-    """pywebview's window as far as the close path sees it: the page answers evaluate_js, destroy ends the window."""
+    """pywebview's window as far as the close path sees it: the page answers evaluate_js, and destroy closes the window
+    the way pywebview does, by firing closing again, so a handler that holds every close keeps the window open."""
     def __init__(self, unsaved):
-        self.unsaved, self.destroyed, self.asked, self.scripts = unsaved, threading.Event(), [], []
+        self.unsaved, self.destroyed, self.asked, self.scripts, self.closes = unsaved, threading.Event(), [], [], 0
         self.events = types.SimpleNamespace(closing=Handlers(), resized=Handlers(), moved=Handlers(), shown=threading.Event())
 
     def evaluate_js(self, script, callback=None):
@@ -82,7 +83,9 @@ class FakeWindow:
         return self.answer
 
     def destroy(self):
-        self.destroyed.set()
+        if not self.events.closing.fire():
+            self.closes += 1
+            self.destroyed.set()
 
 
 class Handlers:
@@ -119,17 +122,21 @@ class WindowCloseTests(unittest.TestCase):
         self.assertEqual(window.scripts, ['flushBeforeClose()'])
         self.assertTrue(outcome['cancelled'])  # the close is held until the page has answered
         self.assertTrue(outcome['closed'])
+        self.assertEqual(window.closes, 1)
         self.assertEqual(window.asked, [])
 
     def test_unsaved_work_is_asked_about_and_the_window_stays_on_no(self):
         window, outcome = self.close_with(unsaved=True, answer=False)
         self.assertEqual(len(window.asked), 1)
         self.assertFalse(outcome['closed'])
+        self.assertEqual(window.closes, 0)
 
     def test_unsaved_work_is_dropped_only_on_yes(self):
         window, outcome = self.close_with(unsaved=True, answer=True)
         self.assertEqual(len(window.asked), 1)
         self.assertTrue(outcome['closed'])
+        self.assertEqual(window.closes, 1)
+        self.assertEqual(window.scripts, ['flushBeforeClose()'])  # the second closing, from destroy, does not ask the page again
 
 
 class FirmwareInstallTests(unittest.TestCase):
