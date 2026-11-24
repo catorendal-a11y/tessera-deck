@@ -18,8 +18,10 @@ def shell(command):
 
 
 def none_installed(names):
-    """What the chain says when nothing in it is installed; the key's error shows this instead of a bare exit code 1."""
-    return f"{{ echo 'none of: {', '.join(names)} is installed' >&2; exit 1; }}"
+    """What the chain says when nothing in it is installed; the key's error shows this instead of a bare exit code 1.
+    It names each program once, without its arguments ('gnome-control-center sound' is gnome-control-center)."""
+    programs = ', '.join(dict.fromkeys(name.split()[0] for name in names))
+    return f"{{ echo 'None of these programs is installed: {programs}. Install one with your package manager.' >&2; exit 1; }}"
 
 
 def launch(*programs):
