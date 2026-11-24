@@ -1,5 +1,6 @@
 """Presses that cross a dimmed panel, a page change, slow typing, a busy worker or another thread."""
 import copy
+import os
 from pathlib import Path
 import sys
 import threading
@@ -72,6 +73,125 @@ class SlowPressPageTests(unittest.TestCase):
         daemon.panel.feedback.assert_called_once_with(1, False)
 
 
+class PageChangeDuringWaitTests(unittest.TestCase):
+    def test_a_press_step_after_a_wait_does_not_run_a_key_of_the_new_page(self):
+        """Key 1 is [delay, press 2]. During the delay the page changes: key 2 of the new page must not run."""
+        daemon = make_daemon()
+        button(daemon)['actions'] = [{'type': 'delay', 'ms': 300}, {'type': 'press', 'id': 2}]
+        status_key = next(b for b in daemon.config['profiles']['main']['pages']['status'] if b['id'] == 2)
+        status_key['actions'] = [{'type': 'set', 'variable': 'ran', 'value': 'status key 2'}]
+
+        def change_page():  # the main loop takes the lock the delay released and changes page
+            with daemon.state_lock:
+                daemon.switch_page('status')
+
+        def wait(seconds):
+            other = threading.Thread(target=change_page)
+            other.start()
+            other.join(2)
+            return False
+
+        daemon.stop.wait = wait
+        with daemon.state_lock:
+            ok = daemon.dispatch_press(1)
+        self.assertEqual(daemon.page, 'status')
+        self.assertIsNone(daemon.custom_vars.get('ran'))
+        self.assertFalse(ok)
+        self.assertIn('page changed', daemon.last_action['error'])
+
+    def test_a_press_step_after_a_child_key_that_waits_does_not_run_a_key_of_the_new_page(self):
+        """Key 1 is [press 3, press 2] and key 3 is [delay]. The page changes during key 3's delay: key 2 of the
+        new page must not run."""
+        daemon = make_daemon()
+        button(daemon, 1)['actions'] = [{'type': 'press', 'id': 3}, {'type': 'press', 'id': 2}]
+        button(daemon, 3)['actions'] = [{'type': 'delay', 'ms': 300}]
+        status_key = next(b for b in daemon.config['profiles']['main']['pages']['status'] if b['id'] == 2)
+        status_key['actions'] = [{'type': 'set', 'variable': 'ran', 'value': 'status key 2'}]
+
+        def change_page():
+            with daemon.state_lock:
+                daemon.switch_page('status')
+
+        def wait(seconds):
+            other = threading.Thread(target=change_page)
+            other.start()
+            other.join(2)
+            return False
+
+        daemon.stop.wait = wait
+        with daemon.state_lock:
+            ok = daemon.dispatch_press(1)
+        self.assertEqual(daemon.page, 'status')
+        self.assertIsNone(daemon.custom_vars.get('ran'))
+        self.assertFalse(ok)
+        self.assertIn('page changed', daemon.last_action['error'])
+
+    def test_a_child_key_that_changes_the_page_itself_after_its_wait_is_not_stopped(self):
+        """Key 1 is [press 3, press 2] and key 3 is [delay, page status]. Nothing else changes the page, so key 2
+        of the status page runs, as it does when the steps sit in key 1 itself."""
+        daemon = make_daemon()
+        button(daemon, 1)['actions'] = [{'type': 'press', 'id': 3}, {'type': 'press', 'id': 2}]
+        button(daemon, 3)['actions'] = [{'type': 'delay', 'ms': 50}, {'type': 'page', 'page': 'status'}]
+        status_key = next(b for b in daemon.config['profiles']['main']['pages']['status'] if b['id'] == 2)
+        status_key['actions'] = [{'type': 'set', 'variable': 'ran', 'value': 'status key 2'}]
+        with daemon.state_lock:
+            ok = daemon.dispatch_press(1)
+        self.assertIsNone(daemon.last_action['error'])
+        self.assertTrue(ok)
+        self.assertEqual(daemon.custom_vars.get('ran'), 'status key 2')
+
+    def test_a_press_step_after_waiting_for_slow_typing_does_not_run_a_key_of_the_new_page(self):
+        """Key 1 runs on the slow lane. Its hotkey waits for another key's slow typing, and the page changes
+        meanwhile: key 2 of the new page must not run."""
+        daemon = make_daemon()
+        button(daemon, 1)['actions'] = [{'type': 'set', 'variable': 'started', 'value': 'yes'},
+                                        {'type': 'hotkey', 'keys': 'ctrl+c'}, {'type': 'press', 'id': 2},
+                                        {'type': 'delay', 'ms': 10}]
+        status_key = next(b for b in daemon.config['profiles']['main']['pages']['status'] if b['id'] == 2)
+        status_key['actions'] = [{'type': 'set', 'variable': 'ran', 'value': 'status key 2'}]
+
+        def until(condition):
+            for _ in range(200):
+                if condition():
+                    return
+                time.sleep(0.01)
+            self.fail('the slow key did not get there')
+
+        daemon.input_lock.acquire()  # slow typing on another thread holds the keyboard
+        with patch.object(deck, 'send_hotkey') as send:
+            self.assertTrue(daemon.start_press(1))
+            until(lambda: daemon.custom_vars.get('started'))
+            with daemon.state_lock:  # free once the hotkey waits for the keyboard
+                daemon.switch_page('status')
+            daemon.input_lock.release()
+            until(lambda: not daemon.slow_running)
+        send.assert_called_once_with('ctrl+c')
+        self.assertIsNone(daemon.custom_vars.get('ran'))
+        self.assertIn('page changed', daemon.last_action['error'])
+
+    def test_a_step_that_does_not_use_the_page_still_runs_after_the_page_changed(self):
+        """Key 1 is [delay, set]: the opened program takes focus and the profile follows. The set step must run."""
+        daemon = make_daemon()
+        button(daemon)['actions'] = [{'type': 'delay', 'ms': 300}, {'type': 'set', 'variable': 'ran', 'value': 'yes'}]
+
+        def change_page():
+            with daemon.state_lock:
+                daemon.switch_page('status')
+
+        def wait(seconds):
+            other = threading.Thread(target=change_page)
+            other.start()
+            other.join(2)
+            return False
+
+        daemon.stop.wait = wait
+        with daemon.state_lock:
+            ok = daemon.dispatch_press(1)
+        self.assertEqual(daemon.page, 'status')
+        self.assertEqual(daemon.custom_vars.get('ran'), 'yes')
+        self.assertTrue(ok)
+
+
 class InputLockTests(unittest.TestCase):
     def test_waiting_for_slow_typing_releases_the_state_lock(self):
         daemon = make_daemon()
@@ -96,6 +216,66 @@ class InputLockTests(unittest.TestCase):
         self.assertTrue(free.is_set(), 'the state lock stayed held while waiting for the keyboard')
         send.assert_called_once_with('ctrl+c')
         self.assertFalse(daemon.input_lock.locked())
+
+    def test_a_hotkey_key_during_slow_typing_does_not_hold_up_the_next_press(self):
+        """The worker runs every press in turn: a hotkey that waits for slow typing would leave a page key behind it."""
+        daemon = make_daemon()
+        button(daemon, 1)['actions'] = [{'type': 'hotkey', 'keys': 'ctrl+c'}]
+        button(daemon, 2)['actions'] = [{'type': 'page', 'page': 'status'}]
+        daemon.input_lock.acquire()  # slow typing on another thread holds the keyboard
+        worker = threading.Thread(target=daemon.worker_loop, daemon=True)
+        with patch.object(deck, 'send_hotkey') as send:
+            worker.start()
+            daemon.enqueue(('press', 1, None, False, time.monotonic()))
+            daemon.enqueue(('press', 2, None, False, time.monotonic()))
+            both_done = threading.Thread(target=daemon.jobs.join, daemon=True)
+            both_done.start()
+            both_done.join(3)
+            page = daemon.page
+            daemon.input_lock.release()
+            daemon.stop.set()
+            worker.join(2)
+        self.assertEqual(page, 'status', 'the page key waited behind the hotkey until the typing ended')
+        send.assert_not_called()
+        daemon.panel.feedback.assert_any_call(1, False)
+
+
+class OfflineFileTriggerTests(unittest.TestCase):
+    def test_a_file_trigger_on_an_offline_share_does_not_hold_up_presses(self):
+        """os.stat on a share that is offline can hang for many seconds; the main loop runs it under the state lock."""
+        daemon = make_daemon()
+        offline = os.path.join('Z:' + os.sep, 'offline', 'x.txt')
+        daemon.config['triggers'] = [{'when': {'type': 'file', 'path': offline}, 'actions': []}]
+        button(daemon, 2)['actions'] = [{'type': 'page', 'page': 'status'}]
+        share, asked, real_stat = threading.Event(), threading.Event(), os.stat
+
+        def stat(path, *args, **kwargs):
+            if path == offline:
+                asked.set()
+                share.wait(10)  # the share answers when the test ends
+                raise OSError('The network path was not found')
+            return real_stat(path, *args, **kwargs)
+
+        def main_loop_tick():
+            with daemon.state_lock:
+                daemon.trigger_tick(1)
+
+        worker = threading.Thread(target=daemon.worker_loop, daemon=True)
+        with patch('daemon_ticks.os.stat', stat):
+            tick = threading.Thread(target=main_loop_tick, daemon=True)
+            tick.start()
+            self.assertTrue(asked.wait(2))
+            worker.start()
+            daemon.enqueue(('press', 2, None, False, time.monotonic()))
+            done = threading.Thread(target=daemon.jobs.join, daemon=True)
+            done.start()
+            done.join(3)
+            page = daemon.page
+            share.set()
+            tick.join(2)
+            daemon.stop.set()
+            worker.join(2)
+        self.assertEqual(page, 'status', 'the press waited for the file trigger on the offline share')
 
 
 class DoubleTapTimingTests(unittest.TestCase):
