@@ -208,15 +208,18 @@ async function testButton(id = selected) {
   section('When pressed', result.actions || {steps: [], wait_seconds: 0});
   if (result.hold_actions) section('When held', result.hold_actions);
   if (result.double_actions) section('When double-pressed', result.double_actions);
-  $('#test-run').onclick = () => runKey(id, payload.actions).catch(showError);
+  if (base.states) box.append(text('p', 'Run now presses the state the panel is showing, which may not be the one listed here.', 'hint'));
+  $('#test-run').onclick = () => runKey(id, base).catch(showError);
   const panelHere = !!dashboard?.device?.connected;  // the host refuses run-key without the panel
   $('#test-run').disabled = !panelHere;
   $('#test-run').title = panelHere ? '' : 'Connect the panel first: Run now presses the key on it.';
   $('#test-dialog').showModal();
 }
 /* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */
-async function runKey(id, actions) {
+async function runKey(id, base) {
   const risky = {shell: 'runs a command', script: 'runs a script', http: 'sends a web request', plugin: 'sends a plugin command', text: 'types text'};
+  // The host presses whichever state the key is in, so every state counts, not only the one on screen.
+  const actions = [base, ...(base.states || [])].flatMap(holder => holder.actions || []);
   const effects = [...new Set(actions.map(a => risky[a.type]).filter(Boolean))];
   if (effects.length && !await confirmDialog('Run this key now?', `This key ${effects.join(', ')} on this PC.`, {ok: 'Run now'})) return;
   await save();  // the host runs what is saved
@@ -954,6 +957,9 @@ $('#rail-close').onclick = $('#rail-cancel').onclick = () => $('#rail-dialog').c
 $('#rail-apply').onclick = () => {
   const d = railDraft;
   if (d.shortcuts.some(s => s.type === 'actions' && !s.actions?.length)) { toast('A shortcut that runs steps needs steps: copy them from a key.'); return; }
+  // The host refuses a configuration with an unfinished step, and nothing on a key points at this copy.
+  const unfinished = d.shortcuts.flatMap((s, index) => (s.actions || []).map(a => stepProblem(a)).filter(Boolean).map(problem => `Shortcut ${index + 1} has a step that is not finished (${problem}): finish it on the key and copy the steps again.`))[0];
+  if (unfinished) { toast(unfinished); return; }
   savePanel({screens: d.order.filter(id => d.on.has(id)), shortcuts: d.shortcuts.map(s => s.type === 'actions'
     ? {type: 'actions', actions: s.actions, label: (s.label || '').slice(0, 40), icon: s.icon}
     : {profile: s.profile, page: s.page, icon: s.icon})});
@@ -1031,7 +1037,7 @@ $('#auto-apply').onclick = () => {
   const problem = autoDraft.map((rule, index) => {
     const when = rule.when, at = `Automatic action ${index + 1}`;
     if (!rule.actions?.length) return `${at} needs steps: copy them from a key.`;
-    const step = rule.actions.map(stepProblem).find(Boolean);
+    const step = rule.actions.map(a => stepProblem(a)).find(Boolean);
     if (step) return `${at} has a step that is not finished (${step}): finish it on the key and copy the steps again.`;
     if (when.type === 'file' && !when.path) return `${at} needs the file to watch.`;
     if (when.type === 'variable' && !VARIABLE_NAME.test(when.name || '')) return `${at} needs a variable name of letters, digits, dots, dashes or underscores.`;

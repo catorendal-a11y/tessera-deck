@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
@@ -11,6 +11,13 @@
 - Closing or reloading the editor in a browser warns while a key is still a draft.
 - Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.
 - A firmware install and a Tessera update can no longer run at the same time. The *Update Tessera* button is greyed out while the panel firmware installs, and a firmware install started during an update is refused with the update named as the reason.
+
+- A firmware update over USB on Linux keeps the new firmware. Before, the host opened the port again too early, the panel restarted into the old firmware, and on the GUITION board the update was reported as failed when its USB port went away during the restart.
+- An update over USB that ends without the new firmware running says what to try next. Before, it said the panel kept its current firmware, which is not known once the image is written. After such an update, the next install is no longer forced to a full install.
+- The firmware dialog asks before it restarts a USB serial device that is not a panel, such as an Arduino or a 3D printer behind a CH340, and a full install after Cancel stops instead of restarting it.
+- A CrowPanel P4 without firmware is no longer offered the GUITION package. A v3.x chip on a CrowPanel is told there is no firmware for it yet.
+- A blank CH340 board that prints its start message at 115200 is found and installed. Before, the editor said the port could not be opened.
+- The host can start again at once after the editor was closed or crashed during a firmware install. Before, *Start host* stayed grey for 10 minutes.
 
 - A *Hold to confirm* key is cancelled when the finger slides off it in any direction, or flicks up or down on it. Before, only a fast swipe to the side cancelled it, and sliding down still sent the press after 600 ms.
 - A touch that wakes the clock presses nothing. The same goes for a finger that is down when the screen changes, for example to a permission question or when the PC shows the clock.
@@ -24,12 +31,17 @@
 - A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
 - On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
 
-- A firmware update over USB on Linux keeps the new firmware. Before, the host opened the port again too early, the panel restarted into the old firmware, and on the GUITION board the update was reported as failed when its USB port went away during the restart.
-- An update over USB that ends without the new firmware running says what to try next. Before, it said the panel kept its current firmware, which is not known once the image is written. After such an update, the next install is no longer forced to a full install.
-- The firmware dialog asks before it restarts a USB serial device that is not a panel, such as an Arduino or a 3D printer behind a CH340, and a full install after Cancel stops instead of restarting it.
-- A CrowPanel P4 without firmware is no longer offered the GUITION package. A v3.x chip on a CrowPanel is told there is no firmware for it yet.
-- A blank CH340 board that prints its start message at 115200 is found and installed. Before, the editor said the port could not be opened.
-- The host can start again at once after the editor was closed or crashed during a firmware install. Before, *Start host* stayed grey for 10 minutes.
+Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
+
+- A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
+- A key pasted into a profile that lacks its page or folder stays a draft.
+- Deleting a profile also removes the rail shortcuts and automatic actions that opened its pages.
+- *Apply* on a rail shortcut refuses a step that was copied unfinished.
+
+Other fixes:
+
+- *Run now* on a toggle key asks about every state, not only the one being edited, and *Test* says which state *Run now* presses.
+- The editor no longer follows the panel's page while you type in the inspector. Before, the rest of what you typed could land in another key.
 
 ## 1.2.11
 
