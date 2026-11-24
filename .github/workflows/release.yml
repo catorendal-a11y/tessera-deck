@@ -34,7 +34,7 @@ jobs:
           tr -d '\r' < CHANGELOG.md | grep -qxF "${heading}" || { echo "CHANGELOG.md has no '${heading}' heading: rename '## Unreleased'"; exit 1; }
 
   # The firmware packages are the ones the CI jobs above built and packaged, one job per board side by side.
-  # Building all six again here, one after the other, made a release take 25 minutes longer.
+  # Building all seven again here, one after the other, made a release take 25 minutes longer.
   release:
     name: Build the release files
     needs: [ci, tag]
@@ -55,7 +55,7 @@ jobs:
           for board in "" -tessera-s3-ws7 -tessera-s3-ws7b -tessera-s3-8048s070 -tessera-s3-crowpanel7 -tessera-p4-crowpanel7 -tessera-p4-v3; do
             test -s "dist/tessera-firmware${board}-${version}.zip" || { echo "dist/tessera-firmware${board}-${version}.zip is missing"; ls -l dist; exit 1; }
           done
-          test "$(ls dist/tessera-firmware-*.zip | wc -l)" = 6 || { echo "expected 6 firmware packages"; ls -l dist; exit 1; }
+          test "$(ls dist/tessera-firmware-*.zip | wc -l)" = 7 || { echo "expected 7 firmware packages"; ls -l dist; exit 1; }
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
           git archive --format=zip --prefix="tessera-${GITHUB_REF_NAME}/" -o "dist/tessera-host-${GITHUB_REF_NAME}.zip" HEAD
           python3 -c "import glob,os,sys,zipfile; z=zipfile.ZipFile(sys.argv[1],'a'); [z.write(f,'tessera-'+sys.argv[2]+'/firmware/'+os.path.basename(f)) for f in sorted(glob.glob('dist/tessera-firmware-*.zip'))]; z.close()" "dist/tessera-host-${GITHUB_REF_NAME}.zip" "${GITHUB_REF_NAME}"

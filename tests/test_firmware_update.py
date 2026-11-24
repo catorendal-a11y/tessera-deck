@@ -563,7 +563,7 @@ class EditorDetectTests(unittest.TestCase):
         self.assertEqual(runs, [], 'esptool must not reset the device before the user agrees')
         self.assertEqual((found['port'], found['ask']), ('COM7', 'USB-SERIAL CH340 (COM7)'))
         found, runs = self.look_at_a_lone_silent_port(0x1A86, {'restart': True})
-        self.assertEqual(found['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
+        self.assertEqual(found['boards'], ['tessera-s3-ws7', 'tessera-s3-ws7b', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
         self.assertEqual(len(runs), 1)
 
     def test_a_lone_silent_espressif_port_is_asked_for_its_chip_at_once(self):

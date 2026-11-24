@@ -35,7 +35,8 @@ V3_BOARDS = frozenset({'tessera-p4-v3'})  # ESP32-P4 builds for chip revision v3
 P4_UART_BOARDS = frozenset({'tessera-p4-crowpanel7'})  # P4 boards whose host link is a USB-UART bridge (CH340)
 BOARD_NAMES = {'tessera-p4': 'GUITION JC1060P470C', 'tessera-p4-v3': 'GUITION JC1060P470C (v3.x chip)',
                'tessera-p4-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-P4)',
-               'tessera-s3-ws7': 'Waveshare ESP32-S3-Touch-LCD-7', 'tessera-s3-ws7b': 'Waveshare ESP32-S3-Touch-LCD-7B',
+               'tessera-s3-ws7': 'Waveshare ESP32-S3-Touch-LCD-7 (800 x 480)',
+               'tessera-s3-ws7b': 'Waveshare ESP32-S3-Touch-LCD-7B (1024 x 600)',
                'tessera-s3-8048s070': 'Sunton ESP32-8048S070',
                'tessera-s3-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-S3)'}
 # "Chip is" before esptool 5; "Unknown ESP32-P4" for a package version esptool has no name for

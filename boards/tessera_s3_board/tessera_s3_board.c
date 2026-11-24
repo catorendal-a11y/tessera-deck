@@ -99,6 +99,7 @@ esp_err_t bsp_display_brightness_set(int brightness_percent)
 #define EXIO_LCD_VDD (1 << 6)
 #define EXIO_REG_MODE 0x02
 #define EXIO_REG_OUT 0x03
+#define EXIO_REG_PWM 0x05
 #define TOUCH_INT GPIO_NUM_4
 static i2c_master_dev_handle_t s_exio;
 static uint8_t s_exio_out;
@@ -122,6 +123,10 @@ static esp_err_t board_io_start(void)
     const uint8_t mode[2] = {EXIO_REG_MODE, 0xFF};
     ESP_RETURN_ON_ERROR(i2c_master_transmit(s_exio, mode, sizeof mode, 100), TAG, "IO extension mode");
     ESP_RETURN_ON_ERROR(exio_write(s_exio_out), TAG, "IO extension outputs");
+    /* Register 0x05 dims the backlight, inverted (0 is full, Waveshare's examples stop at 247). This build never dims,
+     * but the extension does not reset with the ESP32, so a value left by other firmware would keep the screen dim. */
+    const uint8_t pwm[2] = {EXIO_REG_PWM, 0};
+    ESP_RETURN_ON_ERROR(i2c_master_transmit(s_exio, pwm, sizeof pwm, 100), TAG, "IO extension backlight PWM");
     vTaskDelay(pdMS_TO_TICKS(20));
     ESP_RETURN_ON_ERROR(exio_write(s_exio_out | EXIO_LCD_RST), TAG, "IO extension outputs");
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -252,8 +257,9 @@ static esp_lcd_panel_handle_t panel_start(void)
     cfg.timings.flags.pclk_active_neg = 1;
 #elif CONFIG_TESSERA_BOARD_S3_WS7B
     /* Pins and porches from Waveshare's ESP32-S3-Touch-LCD-7B 06_LCD example (data0..15 are B3-7, G2-7, R3-7). The
-     * example clocks the 1024 x 600 panel at 30 MHz (33 Hz); this build starts lower, as on the -7 board, because the
-     * frame buffers in PSRAM fall behind at full speed while flash is written. */
+     * example clocks the 1024 x 600 panel at 30 MHz (33 Hz). 21 MHz (23 Hz) reads PSRAM about as fast as the -7 at
+     * 16 MHz, the clock that made the -7 picture jump; on a real 7B it stayed still through a firmware update and a
+     * page of key images uploading. If it jumps on another board, 16 MHz is the next step down. */
     static const gpio_num_t data[16] = {14, 38, 18, 17, 10, 39, 0, 45, 48, 47, 21, 1, 2, 42, 41, 40};
     cfg.hsync_gpio_num = GPIO_NUM_46;
     cfg.vsync_gpio_num = GPIO_NUM_3;
