@@ -104,8 +104,9 @@ class WindowsCounters:
         self._query = win32pdh.OpenQuery()
         self._handles = {}
         for pattern in (ENGINE_PATH, MEMORY_PATH):
-            # One wildcard counter per pattern, added by its English name: ExpandCounterPath only knows the localized
-            # names, so on a German or French Windows it finds nothing for these paths.
+            # One wildcard counter per pattern, added by its English name. ExpandCounterPath takes the names in the
+            # display language of Windows, so on a German or French Windows it would find nothing for these English
+            # paths. AddEnglishCounter should find them there too, but that was only checked on English Windows.
             try:
                 self._handles[pattern] = win32pdh.AddEnglishCounter(self._query, pattern)
             except Exception:

@@ -108,8 +108,9 @@ class RefreshTests(unittest.TestCase):
 
 
 class FakeLocalizedPdh:
-    """win32pdh on a German or French Windows: the English paths are accepted by AddEnglishCounter, but
-    ExpandCounterPath, which only knows the localized names, finds nothing for them."""
+    """win32pdh as we expect it on a German or French Windows: AddEnglishCounter accepts the English paths, and
+    ExpandCounterPath, which takes the localized names, finds nothing for them. This is an assumption from the English
+    counter names; it has not been tried on a localized Windows."""
     PDH_FMT_DOUBLE = 0x200
     arrays = {
         sensors.ENGINE_PATH: {f'pid_7_luid_{A}_phys_0_eng_0_engtype_3D': 40.0},
