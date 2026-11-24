@@ -1,5 +1,8 @@
 """One editor window: a second start waits for the first instead of opening a window of its own."""
+import contextlib
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import io
+import itertools
 import json
 import os
 from pathlib import Path
@@ -15,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import deckctl
 import tessera_app
 from control_api import proof
+from host_runtime import InstanceLock
 
 
 class RunningEditorTests(unittest.TestCase):
@@ -76,6 +80,27 @@ class RunningEditorTests(unittest.TestCase):
             with patch('psutil.Process', return_value=stranger), patch.object(tessera_app.LOCAL, 'open') as urlopen:
                 self.assertFalse(tessera_app.show_running_editor(self.record(folder), 'b1'))
                 urlopen.assert_not_called()
+
+
+class SecondStartTests(unittest.TestCase):
+    def test_a_second_start_that_gets_no_answer_says_so_before_it_gives_up(self):
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / 'host').mkdir()
+            running = InstanceLock(Path(folder) / 'host/editor.local.lock')  # the first editor holds the lock
+            self.assertTrue(running.acquire())
+            stderr = io.StringIO()
+            try:
+                with patch.object(sys, 'argv', ['tessera_app.py', '--editor']), patch.object(tessera_app, 'ROOT', Path(folder)), \
+                        patch.object(tessera_app, 'load'), patch.object(tessera_app, 'Controller'), \
+                        patch.object(tessera_app, 'editor_build_id', return_value='b1'), \
+                        patch.object(tessera_app, 'show_running_editor', return_value=False) as show, \
+                        patch.object(tessera_app.time, 'monotonic', side_effect=itertools.count(0, 5)), \
+                        patch.object(tessera_app.time, 'sleep'), contextlib.redirect_stderr(stderr):
+                    tessera_app.main()
+            finally:
+                running.release()
+        show.assert_called()
+        self.assertIn('did not answer', stderr.getvalue())
 
 
 class LocalServer(BaseHTTPRequestHandler):

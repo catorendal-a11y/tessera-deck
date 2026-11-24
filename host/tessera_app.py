@@ -1023,7 +1023,11 @@ def main():
     if not args.profiles and not args.no_browser:
         deadline = time.monotonic() + 20
         while not lock.acquire():
-            if show_running_editor(record, build) or time.monotonic() > deadline:
+            if show_running_editor(record, build):
+                return
+            if time.monotonic() > deadline:
+                print('The Tessera editor is already running but did not answer within 20 seconds. '
+                      'Close it and start Tessera again.', file=sys.stderr, flush=True)
                 return
             time.sleep(.3)
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
