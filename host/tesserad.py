@@ -541,7 +541,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         if state == 'crashed':
             raise ValueError(f'{manifest.name} has stopped')
         if state == 'waiting':
-            raise ValueError(f'{manifest.name} is waiting for the system keyring: unlock it')
+            raise ValueError(f'{manifest.name} is waiting for its secret: unlock the keyring, or type it again in the editor')
 
     def run_action(self, action):
         kind = action['type']
