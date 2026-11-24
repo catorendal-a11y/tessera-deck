@@ -168,6 +168,19 @@ class RestartOnTheSameLinkTests(unittest.TestCase):
     def test_the_same_boot_keeps_the_connection(self):
         self.assertFalse(self.connected(boot_after=7).connection_failed.wait(0.5))
 
+    def test_an_answer_read_from_the_old_link_does_not_fail_the_new_one(self):
+        daemon = host_support.test_daemon(port='COM9', no_focus=True)
+        daemon.log, daemon.publish_runtime = Mock(), Mock()
+        old, new = Mock(), Mock()
+        daemon.panel, daemon.device_info = old, {'bootId': 7}
+
+        def read_lines():  # the host connected again while this read was waiting
+            daemon.panel, daemon.device_info = new, {'bootId': 8}
+            return ['{"type": "info", "bootId": 7}']
+        old.read_lines.side_effect = read_lines
+        daemon.reader_loop(old)
+        self.assertFalse(daemon.connection_failed.is_set())
+
 
 class OtaPanel(FakeSerial):
     """Acts as the firmware's AD_OTA_* receiver and keeps the image it got. `lost` names the windows (1 is the first)
@@ -400,6 +413,17 @@ class ReconnectProbeTests(unittest.TestCase):
         FakeSerial.opened = []
         self.assertIn('COM8', self.attempts(daemon, 1))
 
+    def test_a_device_replugged_between_two_attempts_is_asked_again(self):
+        # The wait between attempts grows to 10 s; the host's one-second tick sees a replug inside it.
+        daemon = self.daemon()
+        self.attempts(daemon, 4)
+        self.listed = [self.CLONE]
+        daemon.port_tick()
+        self.listed = [self.DEVKIT, self.CLONE]
+        daemon.port_tick()
+        FakeSerial.opened = []
+        self.assertIn('COM8', self.attempts(daemon, 1))
+
     def test_the_remembered_panel_is_asked_on_every_attempt_even_when_it_stays_silent(self):
         self.listed = [types.SimpleNamespace(device='COM5', vid=0x1A86, serial_number='PANEL123')]  # hung, still on USB
         self.assertEqual(self.attempts(self.daemon(), 6).count('COM5'), 6)
@@ -464,6 +488,39 @@ class ReconnectProbeTests(unittest.TestCase):
                 self.assertTrue(said[0].startswith('No panel found'), said[0])
                 self.assertEqual(said[1][0], 'Panel firmware …')
                 self.assertEqual(said[2], error)  # the second line still names the busy COM4
+
+    def test_two_busy_ports_do_not_cut_the_blank_panel_out_of_the_editor_error(self):
+        import serial
+        import tempfile
+        from test_editor import run_editor
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port in ('COM3', 'COM4'):  # two CH340 Arduinos, each in a serial monitor
+                    raise serial.SerialException(f"could not open port '{self.port}': PermissionError(13, 'Access is denied.', None, 5)")
+
+            def write(self, raw):
+                if self.port == 'COM7':  # nothing reads the USB Serial/JTAG port of a P4 without firmware
+                    raise serial.SerialTimeoutException('Write timeout')
+                return super().write(raw)
+
+        self.state.unlink()
+        self.listed = [types.SimpleNamespace(device='COM3', vid=0x1A86, serial_number=None),
+                       types.SimpleNamespace(device='COM4', vid=0x1A86, serial_number=None),
+                       types.SimpleNamespace(device='COM7', vid=0x303A, serial_number=None)]
+        daemon = self.daemon(port='COM4')
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                self.assertRaises(OSError) as raised:
+            daemon.open_panel()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        daemon.runtime_path = Path(folder.name) / 'runtime.json'
+        daemon.publish_runtime(False, raised.exception, force=True)
+        error = json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['error']  # what the editor reads
+        self.assertEqual(error, str(raised.exception))
+        self.assertIn('COM7 does not take data', error)
+        said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+        self.assertTrue(said[0].startswith('No panel found'), said[0])
 
     def test_a_board_that_needs_a_replug_does_not_hide_the_blank_panel_in_the_editor(self):
         import serial

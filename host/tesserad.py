@@ -304,7 +304,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         state = {'pid': os.getpid(), 'updated': now, 'connected': bool(connected),
                  'port': self.port, 'profile': profile, 'page': page, 'gauges': gauges, 'widgets': widgets,
                  'dimmed': self.dimmed,
-                 'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
+                 # whole: one line per port, and the editor's advice looks at every one of them
+                 'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error) if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'), 'reset': self.device_info.get('reset'),
                  'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer,
@@ -817,7 +818,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('mute', message['id'][:80]))
                         elif message.get('type') == 'agent' and message.get('do') in cockpit.AGENT_ACTIONS and cockpit.agent_exe(message.get('id')):
                             self.agent_touch(message['id'], message['do'])
-                        elif message.get('type') == 'info' and message.get('bootId') != self.device_info.get('bootId'):
+                        elif (message.get('type') == 'info' and panel is self.panel  # not a line left over from the old link
+                              and message.get('bootId') != self.device_info.get('bootId')):
                             # It restarted on the same link: connect again, which logs the restart and sets it up anew.
                             self.connection_failed.set()
                     elif self.args.verbose and line:
@@ -1038,6 +1040,18 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         except OSError:
             pass  # the next command replaces it
 
+    def forget_unplugged(self, installed):
+        """A device that was unplugged, or another one on its port, is asked again."""
+        self.passed_over = {port: entry for port, entry in self.passed_over.items()
+                            if port in installed and installed[port] == entry[0]}
+
+    def port_tick(self):
+        """Each second while no panel is connected: the wait between attempts grows to 10 s, and a replug inside it
+        must still count. Listing the ports opens none of them."""
+        if self.passed_over and (self.panel is None or self.connection_failed.is_set()):
+            with contextlib.suppress(ImportError, OSError):
+                self.forget_unplugged(_installed_ports())
+
     def open_panel(self):
         """Open the first candidate port that completes the identity and protocol handshake."""
         failures = []
@@ -1046,9 +1060,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             installed = _installed_ports()
         except (ImportError, OSError):
             installed = {}
-        # A device that was unplugged, or another one on its port, is asked again.
-        self.passed_over = {port: entry for port, entry in self.passed_over.items()
-                            if port in installed and installed[port] == entry[0]}
+        self.forget_unplugged(installed)
         for port in [pinned] if pinned else candidate_ports(self.args.port, self.device_state_path, installed):
             entry = self.passed_over.get(port)
             if entry and entry[2] >= SILENT_TRIES:
@@ -1102,6 +1114,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         self.note_panel_restart(previous_boot)
                         self.cockpit_sent = {}
                         remember_port(self.port, self.device_state_path)
+                        self.drop_queued_presses()  # before the flag: the API takes presses again once it clears
                         self.connection_failed.clear()
                         if self.question_open():  # after the flag: the worker skips a question while the link is down
                             self.enqueue(('question',))
@@ -1109,7 +1122,6 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
                         self.clock_sent_at = float('-inf')
                         threading.Thread(target=self.heartbeat_loop, args=(self.panel,), daemon=True).start()
-                        self.drop_queued_presses()
                         self.ambient_active, self.ambient_requested, self.ambient_sent = False, False, ''
                         with self.state_lock:
                             self.last_activity = time.monotonic()
@@ -1140,7 +1152,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 now = time.monotonic()
                 for tick, arguments in ((self.agent_tick, (now,)), (self.stats_tick, (now,)), (self.ambient_tick, (now,)),
                                         (self.plugin_tick, (now,)), (self.cockpit_tick, (now,)), (self.agent_notice_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
-                                        (self.reload_profiles, ())):
+                                        (self.port_tick, ()), (self.reload_profiles, ())):
                     try:
                         tick(*arguments)
                     except Exception as exc:
