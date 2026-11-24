@@ -216,6 +216,27 @@ class EditorCommandTests(unittest.TestCase):
             deck.validate_config(result['config'])
             self.assertEqual(result['config']['panel']['apps'], [name + '.exe'])
 
+    @windows_only
+    def test_a_rail_shortcut_left_without_steps_here_is_dropped_and_the_file_still_imports(self):
+        # A shortcut whose only step is a .sh script has nothing left on this PC; one with another step stays.
+        config = {'default_profile': 'Main', 'profiles': {'Main': {'match': [], 'pages': {'First': []}}},
+                  'panel': {'shortcuts': [
+                      {'type': 'actions', 'label': 'Backup', 'actions': [{'type': 'script', 'path': '/home/me/backup.sh'}]},
+                      {'type': 'actions', 'label': 'Copy', 'actions': [{'type': 'script', 'path': '/home/me/x.sh'}, {'type': 'hotkey', 'keys': 'ctrl+c'}]}]}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            result = editor.command('review', {'config': config})
+            deck.validate_config(result['config'])
+            self.assertEqual(result['config']['panel']['shortcuts'],
+                             [{'type': 'actions', 'label': 'Copy', 'actions': [{'type': 'hotkey', 'keys': 'ctrl+c'}]}])
+            self.assertEqual(result['adjusted'], ["Rail shortcut 1 'Backup'", "Rail shortcut 2 'Copy'"])
+            self.assertEqual(review(editor.command('sanitize', {'config': config})['config']), [])
+            config['panel']['shortcuts'][1]['actions'] = []
+            with self.assertRaises(ValueError, msg='a shortcut that was empty in the file is still refused'):
+                editor.command('review', {'config': config})
+
     def test_the_plugin_list_names_the_program_the_consent_dialog_shows(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / 'profiles.json'

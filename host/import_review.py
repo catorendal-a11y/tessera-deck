@@ -139,7 +139,7 @@ def adapt_to_this_system(config: dict):
     Windows needs. validate_config stays strict, so without this the import is refused before the user can choose."""
     from config_check import _check_script  # here, not at the top: config_check reaches this module through secrets_store
     from pc_state import APP_TARGET
-    adapted, where = copy.deepcopy(config), []
+    adapted, where, emptied = copy.deepcopy(config), [], []
     for place, owner, key, _ in list(iter_actions(adapted)):
         kept = []
         for action in owner[key]:
@@ -155,9 +155,13 @@ def adapt_to_this_system(config: dict):
                 action['target'] = target + '.exe'
                 where.append(place)
             kept.append(action)
+        if owner[key] and not kept:
+            emptied.append(owner)
         owner[key] = kept
     panel = adapted.get('panel')
-    apps = panel.get('apps') if isinstance(panel, dict) else None
+    if isinstance(panel, dict) and isinstance(panel.get('shortcuts'), list):  # a rail shortcut needs a step; a key may be empty
+        panel['shortcuts'] = [item for item in panel['shortcuts'] if not any(item is gone for gone in emptied)]
+    apps =panel.get('apps') if isinstance(panel, dict) else None
     if isinstance(apps, list):
         fixed = [f'{app}.exe' if isinstance(app, str) and not re.fullmatch(rf'[A-Za-z0-9_.-]{{1,35}}{SUFFIX}', app)
                  and re.fullmatch(rf'[A-Za-z0-9_.-]{{1,35}}{SUFFIX}', app + '.exe') else app for app in apps]
