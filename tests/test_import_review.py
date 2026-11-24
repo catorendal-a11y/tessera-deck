@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import tesserad as deck
 import host_support  # noqa: E402
+from platform_marks import linux_only, windows_only
 from import_review import export_left_out, redact_secrets, review, strip_executable
 from tessera_app import Editor
 
@@ -168,6 +169,60 @@ class EditorCommandTests(unittest.TestCase):
             self.assertEqual(review(safe), [])
             with self.assertRaises(ValueError):
                 editor.command('review', {'config': {'profiles': {}}})
+
+    @linux_only
+    def test_a_file_from_windows_imports_here_with_its_windows_script_dropped(self):
+        config = {'default_profile': 'Main', 'profiles': {'Main': {'match': [], 'pages': {'First': [
+            {'id': 1, 'label': 'Ps', 'actions': [{'type': 'script', 'path': 'C:\\Users\\me\\x.ps1'}, {'type': 'hotkey', 'keys': 'ctrl+c'}]}]}}}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            result = editor.command('review', {'config': config})
+            deck.validate_config(result['config'])
+            self.assertEqual(result['config']['profiles']['Main']['pages']['First'][0]['actions'], [{'type': 'hotkey', 'keys': 'ctrl+c'}])
+            self.assertEqual(result['adjusted'], ["Profile 'Main' / page 'First' / button 1 'Ps'"])
+
+    @windows_only
+    def test_a_file_from_the_other_system_imports_with_its_system_specific_steps_adjusted(self):
+        # Written on Linux, imported here: a .sh script, a program name without .exe and a panel app without .exe.
+        config = {'default_profile': 'Main', 'panel': {'apps': ['firefox']}, 'profiles': {'Main': {'match': [], 'pages': {'First': [
+            {'id': 1, 'label': 'Sh', 'actions': [{'type': 'script', 'path': '/home/me/x.sh'}, {'type': 'hotkey', 'keys': 'ctrl+c'}]},
+            {'id': 2, 'label': 'Mute', 'actions': [{'type': 'audio', 'target': 'app:firefox', 'op': 'toggle'}]}]}}}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            result = editor.command('review', {'config': config})
+            adapted = result['config']
+            deck.validate_config(adapted)
+            keys = adapted['profiles']['Main']['pages']['First']
+            self.assertEqual(keys[0]['actions'], [{'type': 'hotkey', 'keys': 'ctrl+c'}], 'the script that cannot run here is dropped')
+            self.assertEqual(keys[1]['actions'][0]['target'], 'app:firefox.exe')
+            self.assertEqual(adapted['panel']['apps'], ['firefox.exe'])
+            self.assertEqual(sorted(result['adjusted']), ["Profile 'Main' / page 'First' / button 1 'Sh'",
+                                                          "Profile 'Main' / page 'First' / button 2 'Mute'", 'panel apps'])
+            self.assertEqual(review(editor.command('sanitize', {'config': config})['config']), [])
+
+    @windows_only
+    def test_a_long_panel_app_name_from_the_other_system_gets_exe_like_a_short_one(self):
+        name = 'a' * 35  # the longest name panel.apps accepts before .exe
+        config = {'default_profile': 'Main', 'panel': {'apps': [name]}, 'profiles': {'Main': {'match': [], 'pages': {'First': []}}}}
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            result = editor.command('review', {'config': config})
+            deck.validate_config(result['config'])
+            self.assertEqual(result['config']['panel']['apps'], [name + '.exe'])
+
+    def test_the_plugin_list_names_the_program_the_consent_dialog_shows(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'profiles.json'
+            path.write_text(json.dumps(bundle()))
+            editor = Editor(path, dashboard=lambda: {'running': False, 'device': {}})
+            rows = {row['id']: row for row in editor.command('plugins', {})['plugins']}
+            self.assertEqual(rows['obs']['command'], ['python', 'main.py'])
 
 
 class SubstitutionTests(unittest.TestCase):
