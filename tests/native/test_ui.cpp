@@ -425,11 +425,13 @@ static void test_status_screen(){
     /* The longest values host/cockpit.py really sends fit their card with the unit beside them. */
     std::string longest=R"({"stats":[{"name":"Download","value":"123.4M","unit":"/s","p":100},
  {"name":"Uptime","value":"12d 23h","unit":"","p":100},{"name":"CPU clock","value":"4800","unit":"MHz","p":80},
- {"name":"GPU fan","value":"2450","unit":"RPM","p":80},{"name":"Uptime","value":"23h 59m","unit":"","p":14}]})";
+ {"name":"GPU fan","value":"2450","unit":"RPM","p":80},{"name":"Uptime","value":"23h 59m","unit":"","p":14},
+ {"name":"Uptime","value":"3d 23h","unit":"","p":40}]})";
     assert(deck_model_stats_from_json(longest.c_str()));
     ui_show_view(3);updates();capture("status_long.ppm");
+    /* Without the smaller fonts 4800, 2450 and 3d 23h overflow only on 800 x 480, so CI runs this test at that size too. */
     int clipped=0;
-    for(const char* value:{"123.4M","12d 23h","4800","2450","23h 59m"}){
+    for(const char* value:{"123.4M","12d 23h","4800","2450","23h 59m","3d 23h"}){
         auto* row=lv_obj_get_parent(find(lv_screen_active(),value));
         lv_area_t room;lv_obj_get_coords(row,&room);
         for(uint32_t i=0;i<lv_obj_get_child_count(row);++i){lv_area_t part;lv_obj_get_coords(lv_obj_get_child(row,i),&part);
