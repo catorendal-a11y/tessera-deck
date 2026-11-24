@@ -351,10 +351,9 @@ return {asked, ran: calls.includes('command/run-key')};
 config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [{id: 1, label: 'A', icon: 'ok', actions: []}], Second: [{id: 1, label: 'B', icon: 'ok', actions: []}]}}}};
 profile = 'Main'; page = 'First'; selected = 1; history = []; future = [];
 dashboard = {running: true, device: {connected: true, profile: 'Main', page: 'Second'}};
-const find = document.querySelector, field = {};
+const find = document.querySelector, field = {dataset: {}};  // stands in for a text field in the inspector; renderGrid reads its dataset
 document.querySelector = selector => selector === 'dialog[open]' ? null : find(selector);
 find('#inspector').contains = node => node === field;
-renderAll = () => {};  // drawing needs a real page; what is asserted is which page the editor shows
 document.activeElement = field;
 followDevice();
 const typing = page;
