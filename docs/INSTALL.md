@@ -136,6 +136,12 @@ To update only the app and keep the bootloader, partition table and stored setti
 python -m esptool --chip esp32p4 -p COMx -b 460800 write-flash 0xd000 build\idf6\ota_data_initial.bin 0x10000 build\idf6\tessera.bin
 ```
 
+On a board with a v3.x chip, write the files from the v3 build instead. The partition layout is the same:
+
+```powershell
+python -m esptool --chip esp32p4 -p COMx -b 460800 write-flash 0xd000 build\tessera-p4-v3\ota_data_initial.bin 0x10000 build\tessera-p4-v3\tessera.bin
+```
+
 The OTA data image makes the bootloader start `ota_0` again, even if an update over USB left the other slot active.
 
 ## Update the Windows program
