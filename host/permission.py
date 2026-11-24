@@ -84,6 +84,13 @@ class Desk:
             self._changed()
         return question['decision']
 
+    def shown(self):
+        """The panel has just brought the open question forward. The guard counts from here: a busy worker can show
+        it seconds after it was asked, and a touch right then was still aimed at what stood there before."""
+        with self._lock:
+            if self._open is not None:
+                self._open['since'] = time.monotonic()
+
     def answer(self, agent: str, decision: str) -> bool:
         """The panel's button; False when no question for that agent is open (the button then does something else)."""
         with self._lock:
