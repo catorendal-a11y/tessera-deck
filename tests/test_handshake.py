@@ -465,6 +465,26 @@ class ReconnectProbeTests(unittest.TestCase):
                 self.assertEqual(said[1][0], 'Panel firmware …')
                 self.assertEqual(said[2], error)  # the second line still names the busy COM4
 
+    def test_a_panel_pulled_out_during_the_handshake_is_told_to_be_replugged_in_the_editor(self):
+        import serial
+        from test_editor import run_editor
+
+        class Pulled(FakeSerial):
+            def write(self, raw):  # usbser.sys answers access denied once the P4 is gone from an open port
+                raise serial.SerialException("WriteFile failed (PermissionError(13, 'Access is denied.', None, 5))")
+
+        self.listed = [types.SimpleNamespace(device='COM5', vid=0x303A, serial_number='PANEL123')]  # the remembered P4
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Pulled)), \
+                self.assertRaises(OSError) as raised:
+            self.daemon(port='COM5').open_panel()
+        error = str(raised.exception)
+        self.assertIn('stopped responding', error)
+        said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+        self.assertIn('Unplug', said[0])
+        self.assertNotIn('firmware', said[0])
+        self.assertNotIn('Panel firmware …', [action[0] for action in said[1:] if isinstance(action, list)])
+        self.assertIn(error, said)
+
     def test_with_tessera_port_set_only_that_port_is_opened(self):
         import os
         os.environ['TESSERA_PORT'] = 'COM8'
