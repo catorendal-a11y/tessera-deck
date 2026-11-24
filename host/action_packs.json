@@ -716,7 +716,7 @@
       "actions": [
         {
           "type": "shell",
-          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex"
+          "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k codex"
         }
       ]
     },
@@ -728,7 +728,7 @@
       "actions": [
         {
           "type": "shell",
-          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex resume --last"
+          "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k codex resume --last"
         }
       ]
     },
@@ -892,7 +892,7 @@
       "actions": [
         {
           "type": "shell",
-          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude"
+          "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k claude"
         }
       ]
     },
@@ -904,7 +904,7 @@
       "actions": [
         {
           "type": "shell",
-          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -c"
+          "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k claude -c"
         }
       ]
     },
@@ -916,7 +916,7 @@
       "actions": [
         {
           "type": "shell",
-          "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -r"
+          "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k claude -r"
         }
       ]
     },
@@ -2007,7 +2007,7 @@
               "actions": [
                 {
                   "type": "shell",
-                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex"
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k codex"
                 }
               ]
             },
@@ -2019,7 +2019,7 @@
               "actions": [
                 {
                   "type": "shell",
-                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude"
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k claude"
                 }
               ]
             },
@@ -3644,7 +3644,7 @@
               "actions": [
                 {
                   "type": "shell",
-                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex"
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k codex"
                 }
               ]
             },
@@ -3656,7 +3656,7 @@
               "actions": [
                 {
                   "type": "shell",
-                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k codex resume --last"
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k codex resume --last"
                 }
               ]
             },
@@ -3922,7 +3922,7 @@
               "actions": [
                 {
                   "type": "shell",
-                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude"
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k claude"
                 }
               ]
             },
@@ -3934,7 +3934,7 @@
               "actions": [
                 {
                   "type": "shell",
-                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -c"
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k claude -c"
                 }
               ]
             },
@@ -3946,7 +3946,7 @@
               "actions": [
                 {
                   "type": "shell",
-                  "command": "start \"\" wt.exe -w 0 nt -d \"%CD%\" cmd.exe /k claude -r"
+                  "command": "start \"\" wt.exe -w 0 nt -d \"%USERPROFILE%\" cmd.exe /k claude -r"
                 }
               ]
             },

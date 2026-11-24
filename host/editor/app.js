@@ -517,8 +517,10 @@ async function importConfig(file) {
   if(!data.profiles||!Object.keys(data.profiles).length)throw new Error('The file contains no profiles.');
   delete data.left_out;
   const {assets:bundledAssets,redacted,...bundle}=data;
-  const {findings}=await api('command/review',{config:bundle});
-  const choice=await importPreview(file.name,data,findings);if(!choice)return;
+  const {findings,config:adapted,adjusted}=await api('command/review',{config:bundle});
+  // Script steps and program names of the other system, already adjusted for this PC.
+  Object.assign(data,adapted);Object.assign(bundle,adapted);
+  const choice=await importPreview(file.name,data,findings,adjusted);if(!choice)return;
   if(findings.length&&!choice.keepRisky){
     // Take every section the host cleaned, the rail shortcuts in panel too, not only profiles and rules.
     const safe=await api('command/sanitize',{config:bundle});Object.assign(data,safe.config);
@@ -544,7 +546,7 @@ function addProfiles(profiles) {
   return {config:merged,names};
 }
 /* What a file brings before anything changes: its profiles, pages and keys, what the host flagged, and add or replace. */
-function importPreview(fileName,data,findings) {
+function importPreview(fileName,data,findings,adjusted=[]) {
   const d=$('#import-dialog'),count=list=>Array.isArray(list)?list.length:0,plural=(n,word)=>`${n} ${word}${n===1?'':'s'}`;
   $('#import-source').textContent=`From “${fileName}”: ${plural(Object.keys(data.profiles).length,'profile')}, ${plural(count(data.triggers),'automatic rule')}.`;
   $('#import-contents').replaceChildren(...Object.entries(data.profiles).map(([name,item])=>{
@@ -556,7 +558,9 @@ function importPreview(fileName,data,findings) {
     text('p',`${plural(findings.length,'action')} in the file run programs, run commands or use the network. They are removed unless you keep them.`,'error'),
     element('ul',{class:'import-findings'},...findings.map(f=>text('li',`${f.risk.toUpperCase()}${f.automatic?' (automatic)':''}: ${f.where} ${f.detail}`))),
     element('label',{class:'check-option'},keep,element('span',{},text('strong','Keep these actions'),text('small','Only if you trust where the file came from.')))]
-    :[text('p','Nothing in the file runs programs, runs commands or uses the network.','hint')]));
+    :[text('p','Nothing in the file runs programs, runs commands or uses the network.','hint')]),
+    ...(adjusted.length?[text('p','The file came from another system. Script steps that cannot run here were left out, and program names got .exe where needed, in:','hint'),
+      element('ul',{class:'import-findings'},...adjusted.map(item=>text('li',item)))]:[]));
   $('#import-cancel').onclick=()=>d.close('cancel');d.returnValue='';
   return new Promise(resolve=>{
     d.addEventListener('close',()=>resolve(d.returnValue==='ok'?{mode:d.querySelector('[name=import-mode]:checked').value,keepRisky:keep.checked}:null),{once:true});
@@ -764,7 +768,12 @@ function endDrag(event,cancel=false) {
 document.addEventListener('pointerup',event=>endDrag(event));
 document.addEventListener('pointercancel',event=>endDrag(event,true));
 document.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopImmediatePropagation();}},true);
-window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
+/* Unfinished keys are not on the PC (a save leaves them out), so they count as unsaved work although nothing is dirty. */
+const unsavedWork=()=>dirty||Boolean(config&&draftProblems().length);
+/* The native window asks this before it closes (it has no beforeunload on Windows): send the edit that waits for its
+   timer, then say whether anything is still unsaved. */
+async function flushBeforeClose(){clearTimeout(saveTimer);try{await save();}catch{}return unsavedWork();}
+window.addEventListener('beforeunload',event=>{if(unsavedWork()){event.preventDefault();event.returnValue='';}});
 async function start() {
   const code=location.hash.slice(1);  // a one-time launch code, traded for this page's session key
   if(code){window.history.replaceState(null,'',location.pathname);const response=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json','X-Deck-Launch':code},body:'{}'});if(!response.ok)throw new Error('Open the program with Tessera.cmd.');deckSession=(await response.json()).session;try{sessionStorage.setItem('deck-session',deckSession);}catch{}}
