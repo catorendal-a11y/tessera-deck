@@ -149,7 +149,9 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
         removed.append(load('labels').SHORTCUT_NAME)
     if sensors_task and sensors_task():
         emit('The sensors task still starts Libre Hardware Monitor with administrator rights at every sign-in. Run '
-             + load('labels').LAUNCHER + ' --sensors-off before you delete this folder; its copy in %ProgramFiles%\\Tessera stays.')
+             + load('labels').LAUNCHER + ' --sensors-off before you delete this folder. That leaves Libre Hardware Monitor'
+             " itself in %ProgramFiles%\\Tessera: quit it, then delete that folder too (Windows asks for administrator"
+             ' permission).')
     if purge:
         answer = confirm('This permanently deletes your profiles, icons, backups, counters and downloads. '
                          'Type YES to continue: ').strip()
