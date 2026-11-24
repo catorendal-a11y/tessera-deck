@@ -118,14 +118,26 @@ class HomeAssistantTests(unittest.TestCase):
     def test_https_to_a_plain_http_home_assistant_says_to_use_http(self):
         import urllib.error
 
-        class Plain(BaseHTTPRequestHandler):
-            def log_message(self, *args):
-                pass
+        # A plain http server answers the TLS hello with a 400. This one reads the whole hello before it closes: on Linux
+        # a close with unread bytes sends a reset, which throws away the 400 before the client reads it.
+        server = socket.create_server(('127.0.0.1', 0))
+        self.addCleanup(server.close)
 
-        server = ThreadingHTTPServer(('127.0.0.1', 0), Plain)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
-        self.addCleanup(server.shutdown)
-        module = load('home-assistant', {'url': f'https://127.0.0.1:{server.server_port}', 'token': 'secret',
+        def answer():
+            connection, _ = server.accept()
+            with connection:
+                connection.settimeout(5)
+                connection.recv(65536)
+                connection.sendall(b'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+                connection.shutdown(socket.SHUT_WR)
+                try:
+                    while connection.recv(65536):  # the rest of the hello, until the client closes
+                        pass
+                except OSError:
+                    pass
+
+        threading.Thread(target=answer, daemon=True).start()
+        module = load('home-assistant', {'url': f'https://127.0.0.1:{server.getsockname()[1]}', 'token': 'secret',
                                          'entities': 'light.kitchen'})
         with self.assertRaises(urllib.error.URLError) as caught:
             module.states()
