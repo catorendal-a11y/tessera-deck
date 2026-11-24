@@ -79,8 +79,8 @@ CHANGES = {
 }
 
 
-# The agent profiles start their tool in Windows Terminal: start "" wt.exe -w 0 nt -d "%CD%" cmd.exe /k claude -c
-WINDOWS_TERMINAL = re.compile(r'^start "" wt\.exe -w 0 nt -d "%CD%" cmd\.exe /k (?P<command>.+)$')
+# The agent profiles start their tool in Windows Terminal: start "" wt.exe -w 0 nt -d "%USERPROFILE%" cmd.exe /k claude -c
+WINDOWS_TERMINAL = re.compile(r'^start "" wt\.exe -w 0 nt -d "%USERPROFILE%" cmd\.exe /k (?P<command>.+)$')
 ZCODE_EXE = re.compile(r'^start "" "%LOCALAPPDATA%\\Programs\\ZCode\\ZCode\.exe"$')
 
 

@@ -46,7 +46,7 @@ class LinuxDefaultTests(unittest.TestCase):
     def test_no_windows_launcher_or_variable_is_left_in_a_command(self):
         for action in actions():
             text = json.dumps(action)
-            for leftover in ('wt.exe', 'cmd.exe', '%CD%', '%LOCALAPPDATA%', 'ms-settings', 'sndvol', 'mmsys.cpl', 'explorer.exe'):
+            for leftover in ('wt.exe', 'cmd.exe', '%USERPROFILE%', '%LOCALAPPDATA%', 'ms-settings', 'sndvol', 'mmsys.cpl', 'explorer.exe'):
                 self.assertNotIn(leftover, text)
 
     @linux_only  # bash on a Windows PC is often the WSL stub, which cannot run these commands

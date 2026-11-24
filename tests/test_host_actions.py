@@ -305,5 +305,22 @@ class ScriptStepTests(unittest.TestCase):
         self.assertIn('\n  script:{name:', core)
 
 
+@windows_only
+class AgentTerminalTests(unittest.TestCase):
+    def test_the_agent_keys_open_the_terminal_in_the_users_folder_not_in_tessera(self):
+        # The host runs from the Tessera folder, so %CD% in the command is that folder. Ask cmd what the folder
+        # in each command becomes there.
+        import re
+        import subprocess
+        found = []
+        for name in ('host/profiles.default.json', 'host/action_packs.json'):
+            for match in re.finditer(r'nt -d \\"([^"\\]+)\\"', (ROOT / name).read_text(encoding='utf-8')):
+                found.append(match[1])
+        self.assertGreaterEqual(len(found), 5)
+        for folder in found:
+            shown = subprocess.run(f'echo {folder}', shell=True, cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            self.assertEqual(shown, os.environ['USERPROFILE'], folder)
+
+
 if __name__ == '__main__':
     unittest.main()
