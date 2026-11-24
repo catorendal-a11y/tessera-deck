@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-This guide covers daily use of the editor and the panel. [Install](INSTALL.md) covers setup and flashing. The steps and commands are written for Windows. [Tessera on Linux](LINUX.md) lists what differs there; where this page says `python host\deckctl.py`, use `host/.venv/bin/python host/deckctl.py`.
+This guide covers daily use of the editor and the panel. [Install](INSTALL.md) covers setup and flashing. The steps and commands are written for Windows. [Tessera on Linux](LINUX.md) lists what differs there; where this page says `host\.venv\Scripts\python.exe host\deckctl.py`, use `host/.venv/bin/python host/deckctl.py`.
 
 ## The editor at a glance
 
@@ -188,7 +188,7 @@ To see what Claude Code is doing, and to answer its permission questions on the 
 2. Tick *Show what Claude Code is doing (working, waiting for you, idle)* and *Answer Claude's permission questions on the panel*. Press *Apply*.
 3. Restart Claude Code.
 
-This adds hooks to `~/.claude/settings.json`, keeps your other hooks and makes a backup first. The question appears on the agents screen, and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog. Tessera never allows anything on its own. To do it by hand, merge the output of `python host\deckctl.py hooks claude` and `python host\deckctl.py hooks claude-permission`.
+This adds hooks to `~/.claude/settings.json`, keeps your other hooks and makes a backup first. The question appears on the agents screen, and **Allow** or **Deny** is the answer. If the panel is not connected, nobody answers within 25 seconds, or the request is too long to show in full, Claude Code shows its normal dialog. Tessera never allows anything on its own. To do it by hand, merge the output of `host\.venv\Scripts\python.exe host\deckctl.py hooks claude` and `host\.venv\Scripts\python.exe host\deckctl.py hooks claude-permission`.
 
 ### Display settings
 
@@ -311,23 +311,25 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 | Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks; on a Radeon card also the FPS of a full-screen game |
 | HWiNFO | Running with shared memory enabled (`host\Enable-HWiNFO.ps1`, as administrator, turns it on) | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
-To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
+To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. On a standard Windows account it cannot, because Libre Hardware Monitor needs administrator rights: `--sensors` starts it once after the prompt, and you run it again after each sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
+
+The first time it starts, Libre Hardware Monitor asks to install its PawnIO driver. Click OK: without it the CPU temperature and power stay `--` while the tile shows `LIVE`, and the box comes back at every sign-in until it is installed.
 
 If you already run Libre Hardware Monitor yourself, you do not need a second copy: in its window choose **Options → Remote Web Server → Run**. Tessera reads `http://127.0.0.1:8085/data.json`, so leave the port at 8085 and the server without a password. The sensor tile turns to `LIVE` within a few seconds.
 
 ### Control from scripts and AI tools
 
-The host publishes a per-run token in `host/deck-api.local.json`; `host/deckctl.py` uses it:
+The host publishes a per-run token in `host/deck-api.local.json`; `host/deckctl.py` uses it. Run it with the Python from Tessera's own environment, as below: a system `python` does not have the packages it needs:
 
 ```powershell
-python host\deckctl.py var claude working     # labels can use $(var:claude)
-python host\deckctl.py state 3 next           # set a toggle key's state
-python host\deckctl.py page main status       # show a page
-python host\deckctl.py press 5                # press key 5
-python host\deckctl.py ok 5                   # flash key 5 green (alert 5: red)
-python host\deckctl.py say Build passed --level ok   # a short message on the panel
-python host\deckctl.py get claude             # print one variable; exit code 1 when it is not set
-python host\deckctl.py status                 # everything as JSON, with the profiles and their pages; also: wake, dim
+host\.venv\Scripts\python.exe host\deckctl.py var claude working     # labels can use $(var:claude)
+host\.venv\Scripts\python.exe host\deckctl.py state 3 next           # set a toggle key's state
+host\.venv\Scripts\python.exe host\deckctl.py page main status       # show a page
+host\.venv\Scripts\python.exe host\deckctl.py press 5                # press key 5
+host\.venv\Scripts\python.exe host\deckctl.py ok 5                   # flash key 5 green (alert 5: red)
+host\.venv\Scripts\python.exe host\deckctl.py say Build passed --level ok   # a short message on the panel
+host\.venv\Scripts\python.exe host\deckctl.py get claude             # print one variable; exit code 1 when it is not set
+host\.venv\Scripts\python.exe host\deckctl.py status                 # everything as JSON, with the profiles and their pages; also: wake, dim
 ```
 
 `say` takes 1 to 100 characters on one line; longer text or a line break is refused and `deckctl` exits with 1. It shows the text in a banner at the top of the panel for `--seconds` (1 to 30, default 6), with a colored edge for `--level` `info`, `ok`, `warn` or `error`. A tap on the banner closes it. A `warn` or `error` message wakes a dimmed panel, except while Windows is locked. Without a panel that can show it (none connected, or firmware older than the banner), the message becomes a tray notification that follows the *Show Windows notifications* setting, and is otherwise dropped.
@@ -336,9 +338,9 @@ Each token is limited to 20 calls a second (bursts of 40, then `429`), and every
 
 **Claude Code.** *Connect Claude Code …* (above) wires this up. Every hook runs `deckctl adapter claude`, which reads the hook's JSON from stdin and sets `$(var:claude)` (`working`, `waiting`, `idle`, `ended`), `$(var:claude.tool)`, `$(var:claude.project)` and `$(var:claude.message)`. It always exits 0, so a stopped host never disturbs Claude Code.
 
-**Codex.** Codex reports only finished turns through its `notify` setting. Point it at `python host\deckctl.py adapter codex` and `$(var:codex)`, `codex.project` and `codex.message` are set when a turn completes. While Codex works, a key still shows `$(agent:codex)` from process detection.
+**Codex.** Codex reports only finished turns through its `notify` setting. Point it at `host\.venv\Scripts\python.exe host\deckctl.py adapter codex` and `$(var:codex)`, `codex.project` and `codex.message` are set when a turn completes. While Codex works, a key still shows `$(agent:codex)` from process detection.
 
-**Any other tool.** `python host\deckctl.py adapter generic NAME STATE [MESSAGE]` sets `$(var:NAME)` and `$(var:NAME.message)`. Adapters live in `host/adapters.py`.
+**Any other tool.** `host\.venv\Scripts\python.exe host\deckctl.py adapter generic NAME STATE [MESSAGE]` sets `$(var:NAME)` and `$(var:NAME.message)`. Adapters live in `host/adapters.py`.
 
 **Your own program.** Write a [plugin](PLUGINS.md): a separate process with its own limited token that sets values, reads key presses and receives commands from a key.
 

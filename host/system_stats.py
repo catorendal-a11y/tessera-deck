@@ -12,10 +12,13 @@ from gpu_sources import GpuReaders
 
 LHM_EXE = Path(__file__).resolve().parent / 'sensors' / 'LibreHardwareMonitor' / 'LibreHardwareMonitor.exe'
 HINT_NOT_RUNNING = ('CPU temperature and power need Libre Hardware Monitor, which is installed but not running. '
-                    'Run Tessera.cmd --sensors once: it starts at every sign-in after that.')
+                    'Run Tessera.cmd --sensors to start it. On an administrator account it then starts at every '
+                    'sign-in; on a standard account, run --sensors again after each sign-in.')
 HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If you already run it, switch on '
                       'Options > Remote Web Server > Run (port 8085). If not, run powershell -ExecutionPolicy Bypass '
                       '-File tools\\setup_sensors.ps1 in the Tessera folder, then Tessera.cmd --sensors.')
+HINT_NO_CPU_TEMP = ('Libre Hardware Monitor is running but reports no CPU temperature. It asks to install its PawnIO driver; '
+                    'if you cancelled that box, close Libre Hardware Monitor, start it again and click OK.')
 
 
 # Sensor names that identify a graphics card on any vendor; integrated ones are demoted below.
@@ -187,7 +190,12 @@ class SystemStats:
         self.display['net_up'] = _rate(up)
         self.display['uptime'] = _uptime(time.time() - psutil.boot_time())
         self.display['sensor_status'] = 'LIVE' if readings else 'BASIC'
-        self.hint = '' if readings or self.native_sensors else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED
+        if self.native_sensors:
+            self.hint = ''
+        elif lhm_readings and 'cpu_temp' not in sensor_values:
+            self.hint = HINT_NO_CPU_TEMP
+        else:
+            self.hint = '' if readings else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED
         return dict(self.display)
 
 

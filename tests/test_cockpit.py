@@ -204,7 +204,7 @@ class CockpitDaemonTests(HostCase):
         speaker = Mock(**{'GetMasterVolumeLevelScalar.return_value': 0.5, 'GetMute.return_value': False})
         from platform_windows import audio as win_audio
         with patch('platform_windows.audio._with_audio', side_effect=lambda work: work({'speaker': speaker, 'mic': None})), \
-                patch('pycaw.pycaw.AudioUtilities.GetAllSessions', return_value=[]):
+                patch('platform_windows.audio._all_sessions', return_value=[]):
             self.assertEqual([fader['id'] for fader in win_audio.read_mixer()], ['speaker'])
 
     def test_a_missing_sound_device_does_not_stop_the_other_screens(self):

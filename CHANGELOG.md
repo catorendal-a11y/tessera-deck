@@ -2,21 +2,32 @@
 
 ## Unreleased
 
+- A Tessera update that cannot replace a file in use (an open editor file, a virus scanner) puts the folder back as it was. Before, it could leave half old and half new files.
+- On a PC with a proxy, a second start and the tray's *Open editor* reach the editor that is already running, and `deckctl` reaches the host. Before, they waited 20 s and gave up.
+- A second start that gets no answer from the running editor says so in a message box (a notification on Linux). If the editor answered but its window could not be shown, it says the editor is already open.
+- A 32-bit, arm64 or MSYS2 Python on Windows is refused with the reason and a pointer to the x64 Python from python.org. A Linux venv left behind by a Python upgrade says to delete it. Before, both were blamed on the internet.
+
 - A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
+
+- Uninstalling one copy of Tessera no longer removes another copy's *Start with Windows* entry or its Claude Code hooks. The editor shows the hooks of a moved copy as off.
+- Uninstall says when the administrator sensors task is still there, how to turn it off, and how to remove Libre Hardware Monitor from `%ProgramFiles%\Tessera`.
+- The *Start with Windows* tick in the tray shows the new state right after a click, and changes when the entry is changed elsewhere.
+- The `deckctl` examples in the guide and on the website run with Tessera's own Python.
 
 - Closing the editor window on Windows saves an edit that was still waiting to be saved. If the save fails, the editor asks before it closes and drops the change. Before, a change made just before closing was lost without a word.
 - Closing or reloading the editor in a browser warns while a key is still a draft.
 - Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.
 - A firmware install and a Tessera update can no longer run at the same time. The *Update Tessera* button is greyed out while the panel firmware installs, and a firmware install started during an update is refused with the update named as the reason.
 
-- A *Hold to confirm* key is cancelled when the finger slides off it in any direction, or flicks up or down on it. Before, only a fast swipe to the side cancelled it, and sliding down still sent the press after 600 ms.
-- A touch that wakes the clock presses nothing. The same goes for a finger that is down when the screen changes, for example to a permission question or when the PC shows the clock.
-- Long status values such as `123.4M /s` and `12d 23h` fit their card. The value gets a smaller font when it needs one, also on 800 × 480 panels.
-- A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
-- A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
+- A firmware update over USB on Linux keeps the new firmware. Before, the host opened the port again too early, the panel restarted into the old firmware, and on the GUITION board the update was reported as failed when its USB port went away during the restart.
+- An update over USB that ends without the new firmware running says what to try next. Before, it said the panel kept its current firmware, which is not known once the image is written. After such an update, the next install is no longer forced to a full install.
+- The firmware dialog asks before it restarts a USB serial device that is not a panel, such as an Arduino or a 3D printer behind a CH340, and a full install after Cancel stops instead of restarting it.
+- A CrowPanel P4 without firmware is no longer offered the GUITION package. A v3.x chip on a CrowPanel is told there is no firmware for it yet.
+- A blank CH340 board that prints its start message at 115200 is found and installed. Before, the editor said the port could not be opened.
+- The host can start again at once after the editor was closed or crashed during a firmware install. Before, *Start host* stayed grey for 10 minutes.
 
 - While the panel is away, the host no longer opens every Espressif and CH340 port on each retry. A board that stays silent three times or answers as another board is left alone until it is plugged in again, and with `TESSERA_PORT` set only that port is opened. On Linux each of those opens restarted a UART board.
 - A CrowPanel or Sunton panel that restarts without leaving USB gets its page, rail and lock again. The host asks the panel every 5 s and sets it up again after a restart.
@@ -25,11 +36,26 @@
 - A new panel without Tessera firmware gets the firmware hint even when an Arduino or another board next to it is busy or needs a replug. Before, the message named the other port.
 - On Linux the host locks the panel port, so esptool and a second host report it as busy instead of sharing it. A panel with firmware this host does not speak is opened once and its reason stays, instead of a restart every 10 s.
 
+- A *Hold to confirm* key is cancelled when the finger slides off it in any direction, or flicks up or down on it. Before, only a fast swipe to the side cancelled it, and sliding down still sent the press after 600 ms.
+- A touch that wakes the clock presses nothing. The same goes for a finger that is down when the screen changes, for example to a permission question or when the PC shows the clock.
+- Long status values such as `123.4M /s` and `12d 23h` fit their card. The value gets a smaller font when it needs one, also on 800 × 480 panels.
+- A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
+- A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
+
 - A key that waits (a delay, a shell or HTTP step, slow typing) stops when another program or key changes the page during the wait. Before, its next *Press* step ran the key in that slot on the new page. The panel says what happened: "The page changed while this key waited. Open its page and press it again." A key that changes the page itself still goes on, and so do hotkey and typing steps after an app opened and the profile followed it.
 - A hotkey key pressed while another key is still typing slowly fails at once and flashes red, and the keys pressed after it keep working. Before, they queued behind it and were dropped.
 - A file trigger on a network share that hangs no longer holds up the panel's keys.
 - A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
 - On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
+
+Windows fixes:
+
+- *Move the pointer to* lands on the pixel you typed on a display scaled above 100%. Before, at 150% it landed half as far again to the right and down.
+- GPU load and VRAM show on German, French and other localized Windows.
+- A program that plays on another output device, such as a headset while the speakers are the default, keeps its volume and mute keys and its slot in the mixer.
+- The media progress bar advances while the music plays, not only when the track changes.
+- `--sensors` on a standard account starts Libre Hardware Monitor at once and says to run it again after each sign-in. It no longer sets up a sign-in task for the administrator who approved the prompt.
+- A Libre Hardware Monitor that shows no CPU temperature says why, and the setup says to click OK on its PawnIO box.
 
 Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
 
