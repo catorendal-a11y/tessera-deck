@@ -51,9 +51,11 @@ DTR and RTS before the host can lower them, and those lines drive the board's re
 open port instead of reopening it. Expect the panel to restart once when the host starts, and again whenever the host
 (re)opens the port. Do not run a serial monitor (`idf.py monitor`) at the same time: only one program can hold the port.
 
-An *Update* over USB keeps the port open until the new firmware has answered, because a restart before that brings
-back the old firmware. The GUITION board leaves USB for a moment while it restarts, so there the installer waits about a
-minute, until the new firmware has kept itself, before it opens the port again. The dialog stays at 100 % meanwhile.
+An *Update* over USB keeps the port open until the new firmware has answered: opening it again would restart a board
+with a USB-UART bridge, and a restart before that answer brings back the old firmware. If the board leaves USB while it
+restarts into the new firmware (a board on the chip's own USB, like the GUITION board, may do that), the open port
+breaks. The installer then closes it, waits a little over a minute until the new firmware has kept itself, and opens
+the port again to check the version. The dialog stays at 100 % meanwhile.
 
 If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`. Without it the host tries the Espressif and CH340
 ports it finds and keeps the one that answers like a panel.
