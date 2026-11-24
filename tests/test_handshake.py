@@ -431,6 +431,36 @@ class ReconnectProbeTests(unittest.TestCase):
         self.assertIn('COM7 does not take data', str(raised.exception))
         self.assertNotIn('in use', str(raised.exception))
 
+    def test_an_arduino_held_by_another_program_does_not_hide_the_blank_panel_in_the_editor(self):
+        import serial
+        from test_editor import run_editor
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port == 'COM4':  # an Arduino clone with a CH340, its serial monitor open in Arduino IDE
+                    raise serial.SerialException("could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)")
+
+            def write(self, raw):
+                if self.port == 'COM7' and usb_jtag:  # nothing reads the USB Serial/JTAG port of a P4 without firmware
+                    raise serial.SerialTimeoutException('Write timeout')
+                return super().write(raw)
+
+        self.state.unlink()  # a new user: no panel was connected before
+        FakeSerial.script = b'ESP-ROM:esp32s3-20210327\r\nwaiting for download\r\n'  # the ROM of a blank UART board
+        for usb_jtag in (True, False):
+            with self.subTest(usb_jtag=usb_jtag):
+                self.listed = [types.SimpleNamespace(device='COM4', vid=0x1A86, serial_number=None),
+                               types.SimpleNamespace(device='COM7', vid=0x303A if usb_jtag else 0x1A86, serial_number=None)]
+                with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                        self.assertRaises(OSError) as raised:
+                    self.daemon(port='COM4').open_panel()
+                error = str(raised.exception)
+                self.assertIn('COM4 is in use', error)  # a CH340 can be a panel, so the host still asks it
+                said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+                self.assertTrue(said[0].startswith('No panel found'), said[0])
+                self.assertEqual(said[1][0], 'Panel firmware …')
+                self.assertEqual(said[2], error)  # the second line still names the busy COM4
+
     def test_with_tessera_port_set_only_that_port_is_opened(self):
         import os
         os.environ['TESSERA_PORT'] = 'COM8'
