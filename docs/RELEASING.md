@@ -39,11 +39,14 @@ The configuration file has its own `version` (currently 2). Opening an older fil
 | Job | Steps |
 |---|---|
 | `ci` | Runs the whole CI workflow (`ci.yml`) on the tagged commit: host tests, lint, dependency audit, firmware static analysis, firmware build, native tests and the image cache benchmark. |
-| `release` (ESP-IDF 6.1 container) | Checks that the tag equals `v` plus `VERSION`. Checks that `CHANGELOG.md` has a `## <version>` heading. Builds the firmware with `idf.py -B build/idf6 build`, and each board in `boards/` with its board file. Runs the native LVGL tests. Packages each build with `tools/package_firmware.py`. Makes `tessera-host-<tag>.zip` from `git archive` with the firmware packages inside, and a copy named `tessera-host.zip` for the fixed address `releases/latest/download/tessera-host.zip`. Writes `SHA256SUMS`. |
+| `tag` | Checks that the tag equals `v` plus `VERSION`, and that `CHANGELOG.md` has a `## <version>` heading. |
+| `release` | Starts when `ci` and `tag` have passed. Takes the six firmware packages the `ci` jobs built and packaged (one job per board, side by side) and stops if one is missing. Makes `tessera-host-<tag>.zip` from `git archive` with the firmware packages inside, and a copy named `tessera-host.zip` for the fixed address `releases/latest/download/tessera-host.zip`. Writes `SHA256SUMS`. |
 | `host-tests` (Windows) | Installs `host/requirements.lock` with `--require-hashes` and runs the host tests. |
 | `publish` | Starts only when `ci`, `release` and `host-tests` all pass. Takes the release notes from the `CHANGELOG.md` section, word for word, and stops if the section is empty. Signs a build attestation for the zips. Creates the GitHub release with `tessera-firmware-<version>.zip` (GUITION with a v1.x chip), `tessera-firmware-<board>-<version>.zip` for the other boards (`tessera-p4-v3` is the GUITION board with a v3.x chip), `tessera-host-<tag>.zip` and `SHA256SUMS`. |
 
 The workflow stops early when the tag does not match `VERSION` or the changelog heading is missing, so a wrong tag does not publish anything.
+
+To try the workflow without a release, start it by hand: **Actions → Release → Run workflow**. That builds and packages everything and skips the `publish` job; the files are in the run's `dist` artifact.
 
 Anyone can check that a download came from this workflow:
 
