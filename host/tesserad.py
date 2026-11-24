@@ -1047,7 +1047,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
 
     def port_tick(self):
         """Each second while no panel is connected: the wait between attempts grows to 10 s, and a replug inside it
-        must still count. Listing the ports opens none of them."""
+        must still count. Listing the ports opens none of them. A replug quicker than a second can be missed: pyserial
+        gives no id per connection, and a reset (also a flasher's) keeps the port in the list."""
         if self.passed_over and (self.panel is None or self.connection_failed.is_set()):
             with contextlib.suppress(ImportError, OSError):
                 self.forget_unplugged(_installed_ports())
