@@ -307,7 +307,7 @@ const hostJson=v=>Array.isArray(v)?'['+v.map(hostJson).join(', ')+']':v&&typeof 
   :JSON.stringify(v).replace(/[\u007f-\uffff]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
 function pluginArgsProblem(args) {
   if(!args||typeof args!=='object'||Array.isArray(args))return 'write the arguments as a JSON object, for example {"name": "Gaming"}';
-  return hostJson(args).length>1024?'keep the arguments under 1024 characters':'';
+  return hostJson(args).length>1024?'shorten the arguments to at most 1024 characters':'';
 }
 function valueProblem(a,pages) {
   const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
@@ -333,9 +333,9 @@ function valueProblem(a,pages) {
   if(['page','folder'].includes(a.type)&&pages&&!pages.includes(a.page))return 'choose a page of this profile';  // a pasted key can name a page only another profile has
   // Size limits of config_check.py and live_state.py
   if(a.type==='toggle'&&a.values!==undefined&&!(Array.isArray(a.values)&&a.values.length===2&&a.values.every(v=>typeof v==='string'&&chars(v)<=64)&&a.values[0]!==a.values[1]))return 'give the toggle two different values of at most 64 characters';
-  if(a.type==='timer'&&chars(a.notify||'')>120)return 'keep the message under 120 characters';
-  if(a.type==='set'&&chars(a.value??'')>1000)return 'keep the value under 1000 characters';
-  if(['window','open'].includes(a.type)&&chars(a.process||'')>260)return 'keep the process name under 260 characters';
+  if(a.type==='timer'&&chars(a.notify||'')>120)return 'shorten the message to at most 120 characters';
+  if(a.type==='set'&&chars(a.value??'')>1000)return 'shorten the value to at most 1000 characters';
+  if(['window','open'].includes(a.type)&&chars(a.process||'')>260)return 'shorten the process name to at most 260 characters';
   if(a.type==='mouse'&&['x','y'].some(k=>a[k]!==undefined&&!whole(a[k],-20000,20000)))return 'keep the pointer position within 20000 pixels of the screen origin';
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
   if(a.type==='timer'&&a.seconds!==undefined&&!whole(a.seconds,1,604800))return 'use a timer length from 1 second to 7 days';
