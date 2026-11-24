@@ -18,6 +18,11 @@
 - A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
 - A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
 
+- A plugin whose secret is in a locked keyring waits and starts once the keyring is unlocked or the secret is typed again. Its key says to do one of those. Before, the plugin started with an empty secret, and the unlock prompt froze the host until someone answered it.
+- A meeting that repeats on weekdays no longer shows up on Saturday and Sunday, and one with a set number of repeats that began years ago shows up again.
+- A calendar of up to 16 MB is read. Before, the limit was 2 MB, and the message about a bigger one was cut off mid-word.
+- Home Assistant says when the certificate is the problem, when the address lacks `http://` or `https://`, and when an `https://` address only speaks http. Before, all of these said "not reachable" or "certificate not trusted".
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
