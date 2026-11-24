@@ -38,6 +38,13 @@
 - A blank CH340 board that prints its start message at 115200 is found and installed. Before, the editor said the port could not be opened.
 - The host can start again at once after the editor was closed or crashed during a firmware install. Before, *Start host* stayed grey for 10 minutes.
 
+- While the panel is away, the host no longer opens every Espressif and CH340 port on each retry. A board that stays silent three times or answers as another board is left alone until it is plugged in again, and with `TESSERA_PORT` set only that port is opened. On Linux each of those opens restarted a UART board.
+- A CrowPanel or Sunton panel that restarts without leaving USB gets its page, rail and lock again. The host asks the panel every 5 s and sets it up again after a restart.
+- `deckctl press` and `POST /v1/press` answer that the panel is not connected and the key was not pressed. Before, they answered OK.
+- A USB device that stopped responding, or was pulled out during the handshake on Windows, is reported with the advice to unplug it and plug it in again. Before, the editor said the port was busy or offered a firmware install.
+- A new panel without Tessera firmware gets the firmware hint even when an Arduino or another board next to it is busy or needs a replug. Before, the message named the other port.
+- On Linux the host locks the panel port, so esptool and a second host report it as busy instead of sharing it. A panel with firmware this host does not speak is opened once and its reason stays, instead of a restart every 10 s.
+
 - A *Hold to confirm* key is cancelled when the finger slides off it in any direction, or flicks up or down on it. Before, only a fast swipe to the side cancelled it, and sliding down still sent the press after 600 ms.
 - A touch that wakes the clock presses nothing. The same goes for a finger that is down when the screen changes, for example to a permission question or when the PC shows the clock.
 - Long status values such as `123.4M /s` and `12d 23h` fit their card. The value gets a smaller font when it needs one, also on 800 × 480 panels.

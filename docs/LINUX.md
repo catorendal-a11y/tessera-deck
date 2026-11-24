@@ -50,7 +50,10 @@ Boards with a USB-UART bridge (the CrowPanel, and the Sunton S3 board) restart w
 DTR and RTS before the host can lower them, and those lines drive the board's reset. The host allows for it. It waits up to
 10 s for the answer, then 1.5 s more while the board shows its boot screen, and it resends a damaged layout on the same
 open port instead of reopening it. Expect the panel to restart once when the host starts, and again whenever the host
-(re)opens the port. Do not run a serial monitor (`idf.py monitor`) at the same time: only one program can hold the port.
+(re)opens the port. The host locks the port while it has it open, so esptool and `idf.py flash` report a busy port
+instead of flashing past it. Stop the host before you flash. A serial monitor that does not take that lock can still
+open the port, but then it takes some of the panel's answers and the host reconnects, which restarts the panel: do not
+run one at the same time.
 
 An *Update* over USB keeps the port open until the new firmware has answered: opening it again would restart a board
 with a USB-UART bridge, and a restart before that answer brings back the old firmware. If the board leaves USB while it
@@ -58,8 +61,10 @@ restarts into the new firmware (a board on the chip's own USB, like the GUITION 
 breaks. The installer then closes it, waits a little over a minute until the new firmware has kept itself, and opens
 the port again to check the version. The dialog stays at 100 % meanwhile.
 
-If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`. Without it the host tries the Espressif and CH340
-ports it finds and keeps the one that answers like a panel.
+If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`, and the host opens no other port. Without it the
+host tries the Espressif and CH340 ports it finds and keeps the one that answers like a panel. Opening a port restarts a
+board with a USB-UART bridge, so a device that is not a panel is asked at most three times, and again only after it has
+been unplugged and plugged in.
 
 ## What is different from Windows
 

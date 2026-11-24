@@ -475,7 +475,8 @@ class HostTests(HostCase):
             daemon.heartbeat(daemon.panel, 1000.0 + deck.CLOCK_INTERVAL)
             daemon.config['display'] = {'clock': '12h'}  # a new format is sent at the next beat
             daemon.heartbeat(daemon.panel, 1002.0 + deck.CLOCK_INTERVAL)
-        sent = [call.args[0] for call in daemon.panel.send_line.call_args_list]
+        sent = [call.args[0] for call in daemon.panel.send_line.call_args_list
+                if call.args[0] != '{"cmd":"get_info"}']  # the boot check, tested in test_handshake.py
         self.assertEqual(sent, ['AD_PING', 'AD_TIME 2026-10-20T14:05:33 24h', 'AD_PING',
                                 'AD_PING', 'AD_TIME 2026-10-20T14:05:33 24h', 'AD_PING', 'AD_TIME 2026-10-20T14:05:33 12h'])
 
