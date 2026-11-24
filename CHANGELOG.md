@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+Windows fixes:
+
+- *Move the pointer to* lands on the pixel you typed on a display scaled above 100%. Before, at 150% it landed half as far again to the right and down.
+- GPU load and VRAM show on German, French and other localized Windows.
+- A program that plays on another output device, such as a headset while the speakers are the default, keeps its volume and mute keys and its slot in the mixer.
+- The media progress bar advances while the music plays, not only when the track changes.
+- `--sensors` on a standard account starts Libre Hardware Monitor at once and says to run it again after each sign-in. It no longer sets up a sign-in task for the administrator who approved the prompt.
+- A Libre Hardware Monitor that shows no CPU temperature says why, and the setup says to click OK on its PawnIO box.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
