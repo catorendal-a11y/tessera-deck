@@ -257,8 +257,8 @@ class PluginManager:
         if any(opened[key] == '' and str(value).startswith(secrets_store.KEYRING_PREFIX) for key, value in settings.items()):
             # a locked keyring (Linux, at autostart) gives '': starting now would show "add the token" for one the user
             # did enter, and the plugin would never see it once the keyring opens. Try again every minute, not counted as a crash.
-            state.update(state='crashed', error='the system keyring is locked or has no value for it',
-                         next=self._clock() + BACKOFF_SECONDS[-1])
+            state.update(state='waiting', error='The system keyring is locked or does not have this secret. Unlock it, '
+                                                 'or type the secret again.', next=self._clock() + BACKOFF_SECONDS[-1])
             self._log(f'Plugin {manifest.id} waits: {state["error"]}')
             return
         token = self._grant(manifest.id, manifest.routes(), f'{manifest.id}.', 'events' in manifest.permissions,

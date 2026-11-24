@@ -56,6 +56,25 @@ class PluginKeyTests(unittest.TestCase):
         self.assert_refused(self.daemon(state='crashed'), 'OBS Studio has stopped')
         self.assert_refused(self.daemon(state='failed'), 'OBS Studio has stopped: turn it off and on in More → Plugins')
 
+    def test_a_plugin_held_back_by_a_locked_keyring_says_to_unlock_it_not_that_it_stopped(self):
+        import action_preview
+        import platform_linux.secrets as keyring_secrets
+        import secrets_store
+        daemon = self.daemon(state='stopped')
+        daemon.plugins._spawn = Mock()
+        daemon.config['plugins']['obs']['settings'] = {'password': '$(keyring:abc)'}
+        with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
+                patch.object(keyring_secrets, 'fetch', side_effect=OSError('locked')):
+            daemon.plugins.sync(daemon.config['plugins'])
+        daemon.plugins._spawn.assert_not_called()
+        status = next(item for item in daemon.plugins.status(daemon.config['plugins']) if item['id'] == 'obs')
+        self.assertEqual(status['state'], 'waiting')  # what the plugin list in the editor shows
+        self.assertIn('unlock it', status['error'].lower())
+        said = 'OBS Studio is waiting for the system keyring: unlock it'
+        self.assertEqual(action_preview.preview([{'type': 'plugin', 'plugin': 'obs', 'command': 'record'}], {},
+                                                plugins=[status])['steps'][0]['text'], said)
+        self.assert_refused(daemon, said)
+
     def test_a_plugin_that_is_not_installed_turns_the_press_red(self):
         daemon = self.daemon(plugin='ghost')
         self.assertFalse(daemon.dispatch_press(1))

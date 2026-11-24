@@ -170,6 +170,8 @@ def _plugin_problem(plugin_id, plugins) -> str:
         return f'{name} is off: turn it on in More → Plugins'
     if known.get('state') == 'failed':
         return f'{name} has stopped: turn it off and on in More → Plugins'
+    if known.get('state') == 'waiting':
+        return f'{name} is waiting for the system keyring: unlock it'
     return f'{name} has stopped' if known.get('state') == 'crashed' else ''
 
 
