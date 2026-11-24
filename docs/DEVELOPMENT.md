@@ -142,7 +142,7 @@ cmake --build build/native
 build\native\test_ui.exe build\previews
 ```
 
-`test_ui` asserts on the model and the UI: image cache limits, key colors, the ambient screen, hold events, the rail, the agents, mixer and status screens, wide keys and text contrast. It writes 1024 x 600 frames as `.ppm` files to the folder you give.
+`test_ui` asserts on the model and the UI: image cache limits, key colors, the ambient screen, hold events, the rail, the agents, mixer and status screens, wide keys and text contrast. It writes 1024 x 600 frames as `.ppm` files to the folder you give. Set `TESSERA_SCREEN=800x480` to run it on the small layout of the 800 x 480 boards; CI runs both sizes.
 
 One Python tool builds on the native build:
 
@@ -196,7 +196,7 @@ GitHub Actions runs these on every pull request and every push to main:
 | `ci.yml`, host-linux | The tests that are not Windows-only, on Linux under Xvfb (Python 3.11 and 3.14) |
 | `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock` (Python 3.11 and 3.14) |
 | `ci.yml`, firmware-analysis | `cppcheck` on the firmware sources |
-| `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests, and the image cache benchmark with `--check`, with and without `--old-firmware` |
+| `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests at 1024 x 600 and 800 x 480, and the image cache benchmark with `--check`, with and without `--old-firmware` |
 | `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the three S3 boards, each with its board file |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 
