@@ -391,7 +391,7 @@ class Editor:
             raise ValueError('Choose a firmware package and an install mode')
         package = firmware_update.load_package(Path(path), SUPPORTED_PROTOCOLS)
         if not self.firmware_lock.acquire(blocking=False):
-            raise ValueError('A firmware installation is already running')
+            raise ValueError('A firmware install or a Tessera update is already running. Try again when it is done.')
         self.firmware_job = {'state': 'running', 'stage': 'checking', 'percent': 0, 'version': package.version}
         threading.Thread(target=self.run_firmware_install, args=(package, mode, force),
                          name='firmware-install', daemon=True).start()
@@ -430,7 +430,7 @@ class Editor:
         """What is on the USB port when the host has no panel: the board and firmware if it answers, otherwise the
         chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install."""
         if not self.firmware_lock.acquire(blocking=False):
-            raise ValueError('A firmware installation is already running')
+            raise ValueError('A firmware install or a Tessera update is already running. Try again when it is done.')
         was_running = False
         try:
             was_running = bool(self.controller.processes())

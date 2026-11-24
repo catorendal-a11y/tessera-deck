@@ -191,6 +191,7 @@ class FirmwareInstallTests(unittest.TestCase):
             update.join(5)
             press_install()  # after the restart was set off: it ends this editor in a moment
         self.assertEqual(len(refused), 2, 'an install ran while the program update could restart the editor')
+        self.assertIn('Tessera update', refused[0])  # the refusal names the update, not only a firmware install
         self.assertEqual(editor.firmware_job, {'state': 'idle'})
 
     def test_the_update_button_is_off_while_the_firmware_installs(self):
