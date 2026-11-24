@@ -102,7 +102,8 @@ def reason(exc):
     cause = exc.reason if isinstance(exc, urllib.error.URLError) else exc  # urllib wraps what the socket layer raised
     if isinstance(cause, ssl.SSLCertVerificationError):
         return 'certificate not trusted'
-    if isinstance(cause, ssl.SSLError) and cause.reason == 'WRONG_VERSION_NUMBER':  # https:// to a plain http server
+    # https:// to a plain http server. Ubuntu's OpenSSL 3.5 says record layer failure where others say wrong version.
+    if isinstance(cause, ssl.SSLError) and getattr(cause, 'reason', None) in ('WRONG_VERSION_NUMBER', 'RECORD_LAYER_FAILURE'):
         return 'use http://, not https://'
     if 'unknown url type' in str(cause):  # an address typed without http:// or https://
         return 'address must start with http:// or https://'

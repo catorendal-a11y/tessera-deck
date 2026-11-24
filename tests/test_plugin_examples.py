@@ -142,6 +142,11 @@ class HomeAssistantTests(unittest.TestCase):
         with self.assertRaises(urllib.error.URLError) as caught:
             module.states()
         self.assertEqual(module.reason(caught.exception), 'use http://, not https://', repr(caught.exception.reason))
+        # The OpenSSL 3.5 of Ubuntu 26.04 names the same answer a record layer failure (seen on the CI runner).
+        import ssl
+        failed = ssl.SSLError(1, '[SSL: RECORD_LAYER_FAILURE] record layer failure')
+        failed.reason = 'RECORD_LAYER_FAILURE'
+        self.assertEqual(module.reason(urllib.error.URLError(failed)), 'use http://, not https://')
 
 
 class FakeObs:
