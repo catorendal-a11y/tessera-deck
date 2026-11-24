@@ -768,7 +768,12 @@ function endDrag(event,cancel=false) {
 document.addEventListener('pointerup',event=>endDrag(event));
 document.addEventListener('pointercancel',event=>endDrag(event,true));
 document.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopImmediatePropagation();}},true);
-window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue='';}});
+/* Unfinished keys are not on the PC (a save leaves them out), so they count as unsaved work although nothing is dirty. */
+const unsavedWork=()=>dirty||Boolean(config&&draftProblems().length);
+/* The native window asks this before it closes (it has no beforeunload on Windows): send the edit that waits for its
+   timer, then say whether anything is still unsaved. */
+async function flushBeforeClose(){clearTimeout(saveTimer);try{await save();}catch{}return unsavedWork();}
+window.addEventListener('beforeunload',event=>{if(unsavedWork()){event.preventDefault();event.returnValue='';}});
 async function start() {
   const code=location.hash.slice(1);  // a one-time launch code, traded for this page's session key
   if(code){window.history.replaceState(null,'',location.pathname);const response=await fetch('/api/session',{method:'POST',headers:{'Content-Type':'application/json','X-Deck-Launch':code},body:'{}'});if(!response.ok)throw new Error('Open the program with Tessera.cmd.');deckSession=(await response.json()).session;try{sessionStorage.setItem('deck-session',deckSession);}catch{}}

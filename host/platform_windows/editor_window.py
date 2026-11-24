@@ -2,6 +2,7 @@
 editor that is already open."""
 import logging
 import os
+import threading
 
 APP_USER_MODEL_ID = 'Tessera.Editor'
 
@@ -73,12 +74,47 @@ def fit_to_work_area(window):
         pass
 
 
+def make_closing():
+    """The window's closing handler. WebView2 never runs the page's beforeunload, so the page is asked here: it sends the
+    edit that is still waiting for its timer, and if anything is left unsaved the user decides. The question runs on its
+    own thread because the handler runs on the window's thread, which the page's answer needs."""
+    asked, leaving = threading.Event(), threading.Event()
+
+    def ask(window):
+        try:
+            answer, got = [], threading.Event()
+            window.evaluate_js('flushBeforeClose()', lambda result: (answer.append(result), got.set()))
+            got.wait(8)
+            if answer and answer[0] is True and not window.create_confirmation_dialog(
+                    'Tessera', 'Some changes are not saved. Close the editor and lose them?'):
+                return
+            leaving.set()
+            window.destroy()
+        except Exception:
+            logging.getLogger(__name__).warning('Could not ask the editor page before closing', exc_info=True)
+            leaving.set()
+            window.destroy()
+        finally:
+            asked.clear()
+
+    def closing(window, geometry, save_geometry):
+        if leaving.is_set():
+            return None
+        if not asked.is_set():
+            asked.set()
+            save_geometry(dict(geometry))
+            threading.Thread(target=ask, args=(window,), daemon=True).start()
+        return False
+    return closing
+
+
 def open_native_window(url, geometry_of, save_geometry, min_window, root):
     """Open the editor in a native WebView2 window. True when the window was shown and closed; False on any failure
     (the caller then opens a browser). `geometry_of(screen)` and `save_geometry(dict)` remember the last size and place."""
     if os.name != 'nt':
         return False  # the caller opens a browser tab
     brand_taskbar_identity()
+    closing = make_closing()
     try:
         import webview
         webview.settings['ALLOW_DOWNLOADS'] = True  # Export saves through a download; pywebview cancels them all without this
@@ -91,7 +127,7 @@ def open_native_window(url, geometry_of, save_geometry, min_window, root):
         geometry = {}
         window.events.resized += lambda width, height: geometry.update(width=width, height=height)
         window.events.moved += lambda x, y: geometry.update(x=x, y=y)
-        window.events.closing += lambda: save_geometry(dict(geometry))
+        window.events.closing += lambda: closing(window, geometry, save_geometry)
         webview.start(fit_to_work_area if x is None else None, (window,), private_mode=True,
                       storage_path=str(root / 'host/.webview-data'), icon=str(root / 'host/tessera.ico'))
         return True
