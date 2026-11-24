@@ -16,6 +16,7 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import deckctl
+import diagnostics
 import tessera_app
 from control_api import proof
 from host_runtime import InstanceLock
@@ -97,10 +98,13 @@ class SecondStartTests(unittest.TestCase):
                         patch.object(tessera_app.time, 'monotonic', side_effect=itertools.count(0, 5)), \
                         patch.object(tessera_app.time, 'sleep'), contextlib.redirect_stderr(stderr):
                     tessera_app.main()
+                # pythonw and the tray throw stderr away: the host log (tray: Open log, Show problems) must have it too
+                problems = diagnostics.recent_problems(Path(folder) / 'host/deck.local.log')
             finally:
                 running.release()
         show.assert_called()
         self.assertIn('did not answer', stderr.getvalue())
+        self.assertTrue(any('did not answer' in line for line in problems), problems)
 
 
 class LocalServer(BaseHTTPRequestHandler):

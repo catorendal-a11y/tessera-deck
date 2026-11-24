@@ -1026,8 +1026,12 @@ def main():
             if show_running_editor(record, build):
                 return
             if time.monotonic() > deadline:
-                print('The Tessera editor is already running but did not answer within 20 seconds. '
-                      'Close it and start Tessera again.', file=sys.stderr, flush=True)
+                message = ('The editor could not open: the Tessera editor that is already running did not answer '
+                           'within 20 seconds. Close it and start Tessera again.')
+                print(message, file=sys.stderr, flush=True)
+                # pythonw and the tray throw stderr away, so the host log (Open log in the tray) gets it too
+                with contextlib.suppress(OSError), (ROOT / 'host/deck.local.log').open('a', encoding='utf-8') as stream:
+                    stream.write(f'[{time.strftime("%H:%M:%S")}] {message}\n')
                 return
             time.sleep(.3)
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
