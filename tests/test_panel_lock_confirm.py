@@ -98,6 +98,15 @@ class PanelBrightnessTests(unittest.TestCase):
         self.assertEqual(self.display()['night']['brightness'], 25)
         self.assertNotEqual(self.display().get('brightness'), 25)
 
+    def test_the_slider_saves_into_a_file_with_a_byte_order_mark_or_in_utf16(self):
+        # The host reads these (Notepad and PowerShell 5.1 write them), so the slider has to save into them too.
+        text = self.path.read_text(encoding='utf-8')
+        for name, raw in (('utf-8 with BOM', '﻿'.encode('utf-8') + text.encode('utf-8')), ('utf-16', text.encode('utf-16'))):
+            with self.subTest(name):
+                self.path.write_bytes(raw)
+                self.daemon.handle_job(('panel-brightness', 40))
+                self.assertEqual(self.display()['brightness'], 40)
+
 
 if __name__ == '__main__':
     unittest.main()
