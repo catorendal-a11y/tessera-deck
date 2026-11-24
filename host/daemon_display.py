@@ -56,7 +56,7 @@ class DisplayMixin:
         hours), so the host does not send the old level back on the next connect."""
         from deck_control import save_profiles  # deck_control imports this daemon
         path = Path(self.args.profiles)
-        config = json.loads(path.read_text(encoding='utf-8'))
+        config = json.loads(path.read_bytes())  # bytes: a BOM or UTF-16 file reads too
         display = dict(config.get('display', {}))
         night = display.get('night')
         if in_quiet_hours(night, self.minute_of_day()):
