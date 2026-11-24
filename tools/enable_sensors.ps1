@@ -126,7 +126,7 @@ try {
     if ($StandardAccount) {
         Write-Host 'Done. Libre Hardware Monitor is running now and stops when you sign out.'
         Write-Host 'Windows cannot start it at sign-in without a prompt on a standard account, because it needs administrator rights.'
-        Write-Host 'Run Tessera.cmd --sensors again after you sign in. On an administrator account, --sensors makes it start by itself.'
+        Write-Host 'Run Tessera.cmd --sensors again after each sign-in. On an administrator account, --sensors makes it start by itself.'
     }
     elseif ($Once) { Write-Host 'Done. Libre Hardware Monitor is running. Tessera.cmd --sensors starts it at every sign-in.' }
     else { Write-Host 'Done. Libre Hardware Monitor starts at every sign-in and is running now.' }
