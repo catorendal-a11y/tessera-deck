@@ -816,7 +816,7 @@ void update_lock() {
     lv_arc_set_value(lock_ring,static_cast<int32_t>(held>=LockHoldMs?100:held*100/LockHoldMs));
     if(held<LockHoldMs)return;
     deck_model_set_locked(false);deck_model_queue_line("{\"type\":\"unlocked\"}");
-    for(auto *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_wait_release(indev);  /* the same touch must not tap what shows next */
+    wait_release_all();  /* the same touch must not tap what shows next */
 }
 
 void update_link() {
