@@ -38,12 +38,24 @@ class PressMixin:
             if threading.get_ident() == self.worker_ident:
                 # the worker runs every press in turn: waiting here leaves all later presses to go stale
                 raise RuntimeError('Another key is still typing. Press this key again when it is done.')
-            with self.state_lock.suspended():
+            with self.waiting():
                 self.input_lock.acquire()
         try:
             yield
         finally:
             self.input_lock.release()
+
+    @contextlib.contextmanager
+    def waiting(self):
+        """Release state_lock for a wait, and count it when another thread changed the page or profile meanwhile.
+
+        dispatch_press reads the count: a page step of the key itself is not a change made while it waited.
+        """
+        where = (self.profile, self.page)
+        with self.state_lock.suspended():
+            yield
+        if (self.profile, self.page) != where:
+            self.local.page_moves = getattr(self.local, 'page_moves', 0) + 1
 
     def is_slow(self, button_id, hold, double=False):
         button = next((b for b in self.effective_buttons() if b['id'] == button_id), None)
@@ -152,20 +164,19 @@ class PressMixin:
         ok, error = False, ''
         try:
             self.log(f'Button {button_id}: {button["label"]}' + (' (hold)' if hold else ' (double)' if double else ''))
-            steps, done, moved = resolved.get(action_list_name(hold, double), []), 0, False
+            steps, done = resolved.get(action_list_name(hold, double), []), 0
+            moves = getattr(self.local, 'page_moves', 0)
             for action in steps:
                 if self.stop.is_set():
                     raise RuntimeError('Stopping')
-                # a step that waits releases the state lock: another thread may have changed page or profile. Only
-                # press and state steps pick keys of the current page, so only they would reach the wrong key; a
-                # hotkey or typing after "open app, delay" must still run when auto switching followed that app
-                if moved and action['type'] in ('press', 'state'):
+                # a wait releases the state lock, and another thread may have changed page or profile meanwhile
+                # (waiting() counts it, also inside a key this one pressed). Only press and state steps pick keys of
+                # the current page, so only they would reach the wrong key; a hotkey or typing after "open app,
+                # delay" must still run when auto switching followed that app
+                if action['type'] in ('press', 'state') and getattr(self.local, 'page_moves', 0) != moves:
                     raise RuntimeError('The page changed while this key waited. Open its page and press it again.')
-                # asked before the step runs: a press step waits when its key does, and that key is on this page
-                where, waited = (self.profile, self.page), self.waits([action])
                 self.run_action(action)
                 done += 1
-                moved = moved or (waited and (self.profile, self.page) != where)
             if (button.get('states') and not hold and not double and not button.get('bind')
                     and state_key not in self.state_set_by_action):
                 self.button_states[state_key] = (self.button_states.get(state_key, 0) + 1) % len(button['states'])

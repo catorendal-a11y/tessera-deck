@@ -551,7 +551,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'text':
             text, pause = self.substitute(action['text']), action.get('delay_ms', 0) / 1000
             if pause:  # typing slowly can take minutes: let other keys, the API and the main loop run meanwhile
-                with self.state_lock.suspended(), self.input_lock:
+                with self.waiting(), self.input_lock:
                     send_text(text, pause, self.stop.wait)  # a stopping host ends the typing
             else:
                 with self.input_turn():
@@ -562,13 +562,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 open_target(target)
         elif kind == 'shell':
             command, timeout = self.substitute(action['command'], 'shell'), action.get('timeout', 30)
-            with self.state_lock.suspended():  # the panel and API stay responsive while it runs
+            with self.waiting():  # the panel and API stay responsive while it runs
                 try:
                     run_command(command, timeout, self.stop)
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
         elif kind == 'script':
-            with self.state_lock.suspended():
+            with self.waiting():
                 try:
                     run_script(action['path'], action.get('timeout', 30), self.stop)
                 except CommandFailed as exc:
@@ -587,7 +587,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
                 method=action.get('method', 'GET'), headers=headers,
                 data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
-            with self.state_lock.suspended():
+            with self.waiting():
                 try:
                     with WEB_OPENER.open(request, timeout=action.get('timeout', 5)) as response:
                         response.read(65536)
@@ -596,7 +596,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 except http.client.InvalidURL:  # its message quotes the path, which can hold a webhook token
                     raise CommandFailed('The web address is not valid') from None
         elif kind == 'delay':
-            with self.state_lock.suspended():
+            with self.waiting():
                 self.stop.wait(action.get('ms', 100)/1000)
         elif kind == 'page':
             self.switch_page(action['page'])
