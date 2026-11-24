@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from platform_support import IS_LINUX, IS_WINDOWS, load
+from platform_support import IS_LINUX, load
 
 ROOT = Path(__file__).resolve().parents[1]
 HASH_FILE = ROOT / 'host/.venv/requirements.sha256'
@@ -105,18 +105,6 @@ def forget_claude_hooks(home: Path | None = None, emit: Callable[[str], None] = 
         return False
     emit("Removed Tessera's hooks from Claude Code (a backup of its settings is next to them).")
     return True
-
-
-def sensors_task_exists() -> bool:
-    """True when `Tessera.cmd --sensors` left its sign-in task (Windows), which runs Libre Hardware Monitor as administrator."""
-    if not IS_WINDOWS:
-        return False
-    from process_flags import NO_WINDOW
-    try:
-        return subprocess.run(['schtasks', '/Query', '/TN', 'Tessera Sensors'], capture_output=True,
-                              creationflags=NO_WINDOW).returncode == 0
-    except OSError:
-        return False
 
 
 def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: Callable[[str], None] = print,
@@ -257,7 +245,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == 'uninstall':
         try:
-            uninstall(args.purge, sensors_task=sensors_task_exists)
+            uninstall(args.purge, sensors_task=load('sensors').sensors_task_exists)
             forget_claude_hooks()
         except OSError as exc:
             print(exc)

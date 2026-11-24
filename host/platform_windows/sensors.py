@@ -10,6 +10,7 @@ import collections
 import logging
 import os
 import re
+import subprocess
 import time
 
 try:
@@ -199,3 +200,13 @@ def extra_gpu_readers() -> list:
     """GPU readers beyond nvidia-smi: AMD's own ADL library."""
     from platform_windows.gpu_adl import AdlReader
     return [AdlReader()]
+
+
+def sensors_task_exists() -> bool:
+    """True when `Tessera.cmd --sensors` left its sign-in task, which runs Libre Hardware Monitor as administrator."""
+    from process_flags import NO_WINDOW
+    try:
+        return subprocess.run(['schtasks', '/Query', '/TN', 'Tessera Sensors'], capture_output=True,
+                              creationflags=NO_WINDOW).returncode == 0
+    except OSError:
+        return False

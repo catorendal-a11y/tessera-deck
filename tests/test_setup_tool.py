@@ -13,6 +13,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import setup_tool
+from platform_marks import windows_only  # noqa: E402
 
 AUTOSTART = 'start with Windows' if os.name == 'nt' else 'start with the desktop'  # what uninstall reports
 SHORTCUT = 'Desktop shortcut' if os.name == 'nt' else 'application menu entry'
@@ -179,6 +180,7 @@ class UninstallTests(unittest.TestCase):
                              self.removed_autostart.append, lambda: False)
         self.assertNotIn('--sensors-off', ' '.join(self.messages))
 
+    @windows_only
     def test_the_uninstall_command_asks_schtasks_about_the_sensors_task(self):
         uninstall = setup_tool.uninstall
 
@@ -190,7 +192,6 @@ class UninstallTests(unittest.TestCase):
                 self.messages.clear()
                 answer = subprocess.CompletedProcess([], code, b'', b'')
                 with patch.object(setup_tool, 'uninstall', here), patch.object(setup_tool, 'forget_claude_hooks') as hooks, \
-                        patch.object(setup_tool, 'IS_WINDOWS', True), \
                         patch('subprocess.run', return_value=answer) as schtasks:
                     self.assertEqual(setup_tool.main(['uninstall']), 0)
                 self.assertEqual(schtasks.call_args.args[0][:2], ['schtasks', '/Query'])
@@ -240,10 +241,10 @@ class SensorsTaskTests(unittest.TestCase):
     """Whether `Tessera.cmd --sensors` left its sign-in task, with schtasks' answers faked at the subprocess call."""
 
     def ask(self, code=0, stderr=b'', error=None):
+        from platform_windows import sensors
         answer = subprocess.CompletedProcess([], code, b'', stderr)
-        with patch.object(setup_tool, 'IS_WINDOWS', True), \
-                patch('subprocess.run', return_value=answer, side_effect=error) as run:
-            return setup_tool.sensors_task_exists(), run
+        with patch('subprocess.run', return_value=answer, side_effect=error) as run:
+            return sensors.sensors_task_exists(), run
 
     def test_the_query_names_the_task_that_enable_sensors_registers(self):
         script = (ROOT / 'tools/enable_sensors.ps1').read_text(encoding='utf-8')
@@ -262,8 +263,9 @@ class SensorsTaskTests(unittest.TestCase):
         self.assertFalse(self.ask(error=FileNotFoundError(2, 'The system cannot find the file specified'))[0])
 
     def test_linux_runs_nothing(self):
-        with patch.object(setup_tool, 'IS_WINDOWS', False), patch('subprocess.run') as run:
-            self.assertFalse(setup_tool.sensors_task_exists())
+        from platform_linux import sensors
+        with patch('subprocess.run') as run:
+            self.assertFalse(sensors.sensors_task_exists())
         run.assert_not_called()
 
 
