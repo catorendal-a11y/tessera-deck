@@ -18,6 +18,11 @@
 - A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
 - A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
 
+- Linux X11: maximize, restore, topmost and close work with the older xdotool of Debian and Ubuntu, through wmctrl.
+- Linux Wayland: keys use the desktop portal when `ydotoold` is not running, and a ydotool error says why. Before, every key failed with `ydotool failed: 2`.
+- Linux Wayland: a hotkey letter is pressed where your keyboard layout has it, so ctrl+z on a German keyboard is ctrl+z. Text or a hotkey the layout cannot type is refused on the portal instead of being dropped without a word.
+- Linux GNOME: a window key without the Tessera extension says to install it, instead of "There is no such window". The README, the launcher and the AUR package's `tessera --gnome-extension` say the extension is marked for GNOME 51 only, and warn on any other GNOME.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
