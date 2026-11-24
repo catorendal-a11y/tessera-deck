@@ -872,8 +872,14 @@ class TrayBackendTests(unittest.TestCase):
     def assert_says_what_is_lost_and_what_to_do(self, message):
         # Signing in again starts the tray only with Start with the desktop on, and a second start of a running tray
         # changes nothing, so the notice says to quit and start it
-        for part in ('tray icon may not show', 'Install ', 'then quit Tessera and start it again', 'keeps running'):
+        for part in ('Tessera keeps running', 'tray icon may not show until you install ', 'Then quit Tessera and start it again.'):
             self.assertIn(part, message)
+
+    def test_every_notice_fits_in_what_notify_send_is_given(self):
+        # notify.py cuts the body at BODY_MAX, and the part that is cut off is the last step: start it again
+        from platform_linux import notify, tray
+        for message in (tray.NO_TRAY, tray.NO_GI, tray.NO_TYPELIB):
+            self.assertLessEqual(len(message), notify.BODY_MAX, message)
 
     def test_a_tray_host_that_comes_a_little_later_is_waited_for(self):
         from unittest import mock
