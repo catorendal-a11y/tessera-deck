@@ -6,6 +6,8 @@ import subprocess
 import sys
 import unittest
 
+from platform_marks import windows_only
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 
@@ -16,7 +18,7 @@ PHYSICAL = ('import ctypes, json; u = ctypes.windll.user32; u.SetProcessDpiAware
             'print(json.dumps([u.GetSystemMetrics(i) for i in (76, 77, 78, 79)]))')
 
 
-@unittest.skipUnless(sys.platform == 'win32', 'needs the Windows GetSystemMetrics')
+@windows_only
 class MoveToTests(unittest.TestCase):
     def test_every_typed_pixel_lands_on_itself(self):
         # Windows turns the absolute value v back into the pixel floor(v * size / 65536) of the virtual screen.
