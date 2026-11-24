@@ -7,6 +7,10 @@
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
 
+- The docs give the build and flash commands for a GUITION board with a v3.x chip, the same way the release builds it.
+- The bug report form asks Linux users for their distro, desktop and session (X11 or Wayland).
+- CI also audits and installs the Linux half of `host/requirements.lock`, and fails when a package the first start needs does not import.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
