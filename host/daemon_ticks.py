@@ -5,6 +5,7 @@ import re
 import os
 from pathlib import Path
 import struct
+import threading
 import time
 
 import psutil
@@ -19,6 +20,7 @@ from config_store import write_atomic
 
 IDLE_SETTLE = 45  # seconds a file-guessed idle must last before an agent counts as finished
 DAILY_RUNS_FILE = 'triggers.local.json'  # the day each daily trigger last ran, kept across host restarts
+FILE_STAT_WAIT = 0.05  # seconds a file trigger waits for its file under the state lock; a local file answers at once
 
 
 class BackgroundMixin:
@@ -46,6 +48,29 @@ class BackgroundMixin:
                          json.dumps(self._daily_runs, indent=1).encode('utf-8'))
         except OSError as exc:
             self.log(f'Could not remember the daily trigger run: {exc}')
+
+    def file_mtime(self, path):
+        """os.stat(path).st_mtime_ns, read on its own thread: on a share that is offline it can hang for many
+        seconds, and trigger_tick runs under the state lock, so every press would wait and go stale. A read that
+        takes longer than FILE_STAT_WAIT counts as not readable this second; its answer is used when it comes."""
+        read = self.file_stats.get(path)
+        if read is None or 'used' in read:
+            read = self.file_stats[path] = {'done': threading.Event()}
+
+            def stat():
+                try:
+                    read['value'] = os.stat(path).st_mtime_ns
+                except Exception as exc:  # raised again on the tick's thread, which knows what to do with it
+                    read['error'] = exc
+                read['done'].set()
+            threading.Thread(target=stat, name='file-trigger-stat', daemon=True).start()
+            read['done'].wait(FILE_STAT_WAIT)
+        if not read['done'].is_set():  # the last read has not returned: do not wait for it again
+            raise TimeoutError(f'{path} does not answer')
+        read['used'] = True
+        if 'error' in read:
+            raise read['error']
+        return read['value']
 
     def trigger_tick(self, now):
         for index, trigger in enumerate(self.config.get('triggers', [])):
@@ -79,7 +104,7 @@ class BackgroundMixin:
                     value, fire = today, True
             elif kind == 'file':
                 try:
-                    value = os.stat(os.path.expanduser(os.path.expandvars(spec['path']))).st_mtime_ns
+                    value = self.file_mtime(os.path.expanduser(os.path.expandvars(spec['path'])))
                 except FileNotFoundError:
                     value = 0 if before is None else before  # 0: missing at start, so the file appearing fires
                 except (OSError, ValueError):
@@ -271,6 +296,7 @@ class BackgroundMixin:
             self.cockpit_sent['AD_AGENTS'] = payload
             if asking:  # after the lanes: a panel that opens the screen first finds no question there and goes back
                 self.panel.send_line('AD_VIEW agents')
+                self.permissions.shown()
 
     def cockpit_tick(self, now):
         """Keep the agents, mixer and status screens of a cockpit panel current: once a second, only what changed."""
