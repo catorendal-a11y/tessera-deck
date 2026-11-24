@@ -134,6 +134,24 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(sleep.call_count, 2)
         self.assertEqual([file.name for file in self.path.parent.iterdir()], ['profiles.json'])
 
+    def test_a_file_saved_with_a_byte_order_mark_or_as_utf16_is_read_everywhere(self):
+        # PowerShell 5.1 Set-Content and Notepad write these, and the editor already accepts them.
+        from tessera_tray import load_config
+        text = json.dumps(config('Edited'))
+        for name, raw in (('utf-8 with BOM', '﻿'.encode('utf-8') + text.encode('utf-8')), ('utf-16', text.encode('utf-16'))):
+            with self.subTest(name):
+                self.path.write_bytes(raw)
+                self.assertEqual(config_store.check(raw)['profiles']['Main']['pages']['First'][0]['label'], 'Edited')
+                self.assertEqual(deck.Daemon.load_profiles(self.path)['profiles']['Main']['pages']['First'][0]['label'], 'Edited')
+                self.assertEqual(load_config(self.path)['profiles']['Main']['pages']['First'][0]['label'], 'Edited')
+                self.assertIsNone(config_store.recover(self.path), 'the edits are not replaced by an older backup')
+                self.assertEqual(self.path.read_bytes(), raw)
+                backup = config_store.backups_dir(self.path)
+                backup.mkdir(exist_ok=True)
+                (backup / 'profiles-20261123-100000.json').write_bytes(raw)
+                self.assertEqual(config_store.list_backups(self.path)[0]['profiles'], 1)
+                self.assertEqual(config_store.read_backup(self.path, 'profiles-20261123-100000.json')['profiles']['Main']['match'], [])
+
     def test_a_second_recovery_keeps_the_first_broken_file(self):
         self.write('good')
         self.backup(force=True)

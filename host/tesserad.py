@@ -245,8 +245,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             seed = seed_path(path.parent)
             if seed.exists():
                 path.write_bytes(seed.read_bytes())
-        with open(path, encoding='utf-8') as stream:
-            return validate_config(migrate(json.load(stream)))
+        return validate_config(migrate(json.loads(path.read_bytes())))  # bytes: a BOM or UTF-16 file reads too
 
     @property
     def active_press(self):
