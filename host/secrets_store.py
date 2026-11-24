@@ -33,10 +33,14 @@ def protect(text: str) -> str:
 
 
 def unprotect(value):
-    """The plain value; '' when it cannot be opened. A DPAPI value from another user or PC, or on Linux, starts the
-    plugin with '', so it asks for the secret again. A keyring value gives '' while the keyring is locked, when the
-    keyring does not have that id, and always on Windows. PluginManager then holds the plugin back as waiting and tries
-    again every minute instead of starting it with ''."""
+    """The plain value, or '' when it cannot be opened.
+
+    A DPAPI value opens only for the Windows user and PC that saved it. Anywhere else, Linux included, it gives '' and
+    the plugin starts without the secret, so it asks for it again.
+
+    A keyring value gives '' when the keyring is locked or has no entry for that id. It also gives '' on a Linux PC
+    without the keyring package or a running Secret Service, and always on Windows. In all these cases PluginManager
+    keeps the plugin waiting and tries again every minute instead of starting it with ''."""
     if not is_sealed(value):
         return value
     return load('secrets').unseal(value)
