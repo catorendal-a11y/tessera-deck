@@ -181,6 +181,64 @@ class RestartOnTheSameLinkTests(unittest.TestCase):
         daemon.reader_loop(old)
         self.assertFalse(daemon.connection_failed.is_set())
 
+    def daemon_with_state(self):
+        import tempfile
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        daemon = host_support.test_daemon(port='COM9', no_focus=True)
+        daemon.log, daemon.publish_runtime = Mock(), Mock()
+        daemon.device_state_path = Path(folder.name) / 'deck-device.local.json'
+        return daemon
+
+    def test_a_reconnect_while_the_old_reader_fails_its_link_does_not_fail_the_new_one(self):
+        daemon = self.daemon_with_state()
+        old, new = Mock(), Mock(info={'bootId': 9})
+        daemon.panel, daemon.device_info = old, {'bootId': 7}
+        answered = []
+
+        def read_lines():
+            if answered:
+                daemon.stop.wait(0.05)
+                return []
+            answered.append(True)
+            return ['{"type": "info", "bootId": 8}']  # the panel restarted: this reader fails its link
+        old.read_lines.side_effect = read_lines
+        setting, resume, real_set = threading.Event(), threading.Event(), daemon.connection_failed.set
+
+        def paused_set():
+            if not setting.is_set():  # the reader's call, after it checked that it owns the panel
+                setting.set()
+                resume.wait(2)
+            real_set()
+        daemon.connection_failed.set = paused_set
+        reader = threading.Thread(target=daemon.reader_loop, args=(old,), daemon=True)
+        reader.start()
+        self.assertTrue(setting.wait(2))
+        link = threading.Thread(target=daemon.take_link, args=(new, 'COM9'), daemon=True)
+        link.start()
+        link.join(0.3)  # the host connects again before the old reader goes on
+        resume.set()
+        link.join(2)
+        reader.join(2)
+        self.assertIs(daemon.panel, new)
+        self.assertFalse(daemon.connection_failed.is_set(), 'the new link was failed by the old reader')
+
+    def test_a_press_while_the_first_link_is_set_up_is_refused_not_dropped(self):
+        from control_api import ApiError, ControlServer
+        daemon = self.daemon_with_state()
+        answers = []
+
+        def restart_noted(previous_boot):  # inside take_link: the panel is set, old presses are not dropped yet
+            try:
+                ControlServer.press(types.SimpleNamespace(daemon=daemon), {'button': 2})
+                answers.append('OK')
+            except ApiError:
+                answers.append('refused')
+        daemon.note_panel_restart = restart_noted
+        daemon.take_link(Mock(info={'bootId': 1}), 'COM9')
+        queued = [daemon.jobs.get_nowait() for _ in range(daemon.jobs.qsize())]
+        self.assertEqual(answers, ['refused'], f'answered OK, then the press was dropped: {queued}')
+
 
 class OtaPanel(FakeSerial):
     """Acts as the firmware's AD_OTA_* receiver and keeps the image it got. `lost` names the windows (1 is the first)

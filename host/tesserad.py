@@ -220,6 +220,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.panel_factory = panel_factory
         self.panel = None
         self.connection_failed = threading.Event()
+        self.link_lock = threading.Lock()  # take_link and fail_link: which panel is connected, and whether it failed
         self.passed_over = {}  # port -> [its USB serial number, why it is not the panel, silent answers so far]
         self.folder_stack = []
         self.button_states = {}
@@ -715,9 +716,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.heartbeat(panel, time.monotonic())
                 self.stop.wait(1)
         except Exception as exc:  # any error: a heartbeat thread that ends quietly leaves the panel on "PC lost"
-            if panel is self.panel and not self.stop.is_set():  # without a heartbeat the panel shows a lost PC
+            if not self.stop.is_set() and self.fail_link(panel):  # without a heartbeat the panel shows a lost PC
                 self.log(f'Heartbeat failed: {exc!r}')
-                self.connection_failed.set()
 
     def submit(self, *jobs):
         """Queue jobs all-or-nothing; raises Busy when the queue cannot take them, so callers can report it."""
@@ -818,21 +818,19 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('mute', message['id'][:80]))
                         elif message.get('type') == 'agent' and message.get('do') in cockpit.AGENT_ACTIONS and cockpit.agent_exe(message.get('id')):
                             self.agent_touch(message['id'], message['do'])
-                        elif (message.get('type') == 'info' and panel is self.panel  # not a line left over from the old link
-                              and message.get('bootId') != self.device_info.get('bootId')):
+                        elif message.get('type') == 'info' and message.get('bootId') != self.device_info.get('bootId'):
                             # It restarted on the same link: connect again, which logs the restart and sets it up anew.
-                            self.connection_failed.set()
+                            # Not when the line is left over from the old link and compared with the new one.
+                            self.fail_link(panel)
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
         except Exception as exc:
-            if panel is self.panel:
-                self.connection_failed.set()  # first: publishing waits for the state lock, the reconnect must not
+            self.fail_link(panel)  # first: publishing waits for the state lock, the reconnect must not
             if not self.stop.is_set():
                 self.log(f'USB disconnected: {exc if isinstance(exc, OSError) else repr(exc)}')
                 self.publish_runtime(False, exc, force=True)
         finally:
-            if panel is self.panel:
-                self.connection_failed.set()
+            self.fail_link(panel)
 
     def handle_job(self, job):
         kind = job[0]
@@ -1040,6 +1038,27 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         except OSError:
             pass  # the next command replaces it
 
+    def take_link(self, panel, port):
+        """Make `panel` the connected one. Under link_lock, so a thread of the old link cannot fail this one."""
+        with self.link_lock:
+            self.connection_failed.set()  # also on the first link: the API refuses presses until the old ones are dropped
+            self.panel, self.port = panel, port
+            previous_boot = self.device_info.get('bootId')
+            self.device_info = getattr(panel, 'info', {}) or {}
+            self.note_panel_restart(previous_boot)
+            self.cockpit_sent = {}
+            remember_port(port, self.device_state_path)
+            self.drop_queued_presses()
+            self.connection_failed.clear()
+
+    def fail_link(self, panel):
+        """Mark the link down if `panel` is still the connected one; the check and the flag cannot be split by a reconnect."""
+        with self.link_lock:
+            if panel is self.panel:
+                self.connection_failed.set()
+                return True
+        return False
+
     def forget_unplugged(self, installed):
         """A device that was unplugged, or another one on its port, is asked again."""
         self.passed_over = {port: entry for port, entry in self.passed_over.items()
@@ -1109,14 +1128,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.panel.close()
                     self.panel = None
                     try:
-                        self.panel, self.port = self.open_panel()
-                        previous_boot = self.device_info.get('bootId')
-                        self.device_info = getattr(self.panel, 'info', {}) or {}
-                        self.note_panel_restart(previous_boot)
-                        self.cockpit_sent = {}
-                        remember_port(self.port, self.device_state_path)
-                        self.drop_queued_presses()  # before the flag: the API takes presses again once it clears
-                        self.connection_failed.clear()
+                        self.take_link(*self.open_panel())
                         if self.question_open():  # after the flag: the worker skips a question while the link is down
                             self.enqueue(('question',))
                         connect_error = None
