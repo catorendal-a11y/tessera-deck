@@ -675,6 +675,11 @@ static void test_touch_across_screen_change(){
     deck_model_request_view(1);for(int i=0;i<3;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before);
     ui_show_view(0);updates();
+    /* A hold key held while the host shows the clock: neither its hold nor its click runs behind the clock. */
+    touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<3;++i)step();
+    deck_model_request_screen(DECK_SCREEN_AMBIENT);for(int i=0;i<20;++i){deck_model_note_host();step();}
+    touching=false;updates();assert(deck_model_screen()==DECK_SCREEN_AMBIENT&&deck_model_last_event_id()==before);
+    tap(width/2,height/2);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return());
     /* A finger held on a hold key through the end of the boot screen: LVGL already waits for the release when it
      * deletes the boot screen the finger pressed. */
     ui_boot_start();touch_at={key_x(1),key_y(1)};touching=true;for(int t=0;t<2400;t+=40){deck_model_note_host();step();}

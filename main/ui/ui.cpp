@@ -915,14 +915,14 @@ void draw_big_clock(const char *text,const char *meridiem) {
 lv_obj_t *boot=nullptr;  /* the boot screen, while it plays */
 void show_ambient(bool on) {
     if(!ambient||on==(deck_model_screen()==DECK_SCREEN_AMBIENT))return;
-    confirm_stop();
+    confirm_stop();wait_release_all();  /* a touch that is down now, on the clock or on a key, presses nothing on the next screen */
     deck_model_set_screen(on?DECK_SCREEN_AMBIENT:DECK_SCREEN_DECK);
     if(on){ambient_time[0]='\0';ambient_seen=0;}
     if(!boot)lv_screen_load(on?ambient:screen);  /* the boot screen loads the one asked for when it ends */
 }
 void ambient_touched(lv_event_t *) {
     if(deck_model_screen()!=DECK_SCREEN_AMBIENT)return;
-    show_ambient(false);deck_model_note_touch_return();deck_model_request_wake();wait_release_all();  /* the waking touch only wakes */
+    show_ambient(false);deck_model_note_touch_return();deck_model_request_wake();  /* the waking touch only wakes */
 }
 void build_ambient() {
     ambient=lv_obj_create(nullptr);flat(ambient,Bg);
