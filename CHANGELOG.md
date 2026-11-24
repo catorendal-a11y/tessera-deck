@@ -7,6 +7,11 @@
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
 
+- Uninstalling one copy of Tessera no longer removes another copy's *Start with Windows* entry or its Claude Code hooks. The editor shows the hooks of a moved copy as off.
+- Uninstall says when the administrator sensors task is still there, how to turn it off, and how to remove Libre Hardware Monitor from `%ProgramFiles%\Tessera`.
+- The *Start with Windows* tick in the tray shows the new state right after a click, and changes when the entry is changed elsewhere.
+- The `deckctl` examples in the guide and on the website run with Tessera's own Python.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
