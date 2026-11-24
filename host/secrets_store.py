@@ -3,6 +3,10 @@
 Windows DPAPI (platform_windows/secrets.py) ties the value to this user's login, so profiles.json and its backups
 hold "$(dpapi:<base64>)" instead of the token. On Linux the value goes to the system keyring and the profile holds "$(keyring:<id>)"
 (platform_linux/secrets.py). The plain value exists only in the plugin's environment.
+
+A keyring that is still locked (auto-login, or a host that starts before the desktop unlocks it) gives no value.
+PluginManager then holds the plugin back as 'waiting' and reads again every minute, so the plugin never starts
+without a secret the user did enter. The read runs in a thread, because a locked keyring waits for its unlock prompt.
 """
 from __future__ import annotations
 
@@ -29,8 +33,9 @@ def protect(text: str) -> str:
 
 
 def unprotect(value):
-    """The plain value; '' when it cannot be opened (another user or PC, or sealed on the other system), so the plugin
-    asks for it again."""
+    """The plain value; '' when it cannot be opened. A DPAPI value from another user or PC, or one sealed on the other
+    system, starts the plugin with '', so it asks for the secret again. A keyring value gives '' also while the keyring
+    is locked, so PluginManager waits and tries again instead of starting the plugin with it."""
     if not is_sealed(value):
         return value
     return load('secrets').unseal(value)
