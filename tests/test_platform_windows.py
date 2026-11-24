@@ -28,7 +28,7 @@ EXPECTED = {
     'platform_windows.autostart': ['startup_script_path', 'startup_line', 'is_enabled', 'enable'],
     'platform_windows.editor_window': ['activate_window', 'brand_taskbar_identity', 'fit_to_work_area', 'open_native_window'],
     'platform_windows.session': ['locked'],
-    'platform_windows.dialogs': ['ask_yes_no'],
+    'platform_windows.dialogs': ['ask_yes_no', 'tell'],
     'platform_windows.processes': ['kill_tree', 'name_process', 'edit_script', 'open_target', 'open_path', 'notification_beep', 'spawn_options',
                                    'STOP_BY_KILLING_TREE'],
     'platform_windows.files': ['make_private'],

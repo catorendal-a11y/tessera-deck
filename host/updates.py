@@ -198,8 +198,27 @@ def install_host(package: Path, root: Path) -> int:
                     shutil.copymode(target, temporary)  # Tessera.sh stays a program the user can start
                 elif mode:
                     os.chmod(temporary, mode)
-            for temporary, target in staged:
-                os.replace(temporary, target)
+            swapped = []  # (target, its old file or None), so a failure part-way puts every file back
+            try:
+                for temporary, target in staged:
+                    backup = target.with_name(target.name + '.old') if target.is_file() else None
+                    swapped.append((target, backup))
+                    if backup:
+                        os.replace(target, backup)
+                    os.replace(temporary, target)
+            except OSError:
+                for target, backup in reversed(swapped):
+                    try:
+                        if backup:
+                            os.replace(backup, target)
+                        else:
+                            target.unlink(missing_ok=True)
+                    except OSError:
+                        pass  # the original error is the one to report
+                raise
+            for _, backup in swapped:
+                if backup:
+                    backup.unlink(missing_ok=True)
         finally:
             for temporary, _ in staged:
                 temporary.unlink(missing_ok=True)

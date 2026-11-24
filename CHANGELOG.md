@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A Tessera update that cannot replace a file in use (an open editor file, a virus scanner) puts the folder back as it was. Before, it could leave half old and half new files.
+- On a PC with a proxy, a second start and the tray's *Open editor* reach the editor that is already running, and `deckctl` reaches the host. Before, they waited 20 s and gave up.
+- A second start that gets no answer from the running editor says so in a message box (a notification on Linux). If the editor answered but its window could not be shown, it says the editor is already open.
+- A 32-bit, arm64 or MSYS2 Python on Windows is refused with the reason and a pointer to the x64 Python from python.org. A Linux venv left behind by a Python upgrade says to delete it. Before, both were blamed on the internet.
+
 - A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.

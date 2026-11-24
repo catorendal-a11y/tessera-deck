@@ -18,7 +18,7 @@ SHARED_FUNCTIONS = {
     'session': ['locked', 'idle_seconds'],
     'secrets': ['seal', 'unseal'],
     'shortcuts': ['desktop_shortcut_path', 'shortcut_files', 'create_shortcut'],
-    'dialogs': ['ask_yes_no'],
+    'dialogs': ['ask_yes_no', 'tell'],
     'tray': ['prepare', 'choose_backend'],
     'remote': ['list_devices', 'read_device', 'write_volume', 'send_action'],
     'filelock': ['lock', 'unlock'],

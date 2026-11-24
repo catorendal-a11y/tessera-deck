@@ -12,11 +12,12 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 import time
 from pathlib import Path
 from typing import Callable
 
-from platform_support import IS_LINUX, load
+from platform_support import IS_LINUX, IS_WINDOWS, load
 
 ROOT = Path(__file__).resolve().parents[1]
 HASH_FILE = ROOT / 'host/.venv/requirements.sha256'
@@ -47,6 +48,18 @@ def imports_work(python: str = sys.executable) -> bool:
     return subprocess.run([python, '-c', MODULE_PROBE], capture_output=True).returncode == 0
 
 
+def venv_made_by_other_python() -> bool:
+    """True when this venv was made by another major.minor Python than the one running now (pyvenv.cfg `version`)."""
+    try:
+        for line in (Path(sys.prefix) / 'pyvenv.cfg').read_text(encoding='utf-8').splitlines():
+            key, _, value = line.partition('=')
+            if key.strip() == 'version':
+                return tuple(int(part) for part in value.strip().split('.')[:2]) != sys.version_info[:2]
+    except (OSError, ValueError):
+        pass
+    return False
+
+
 def install_command(python: str, requirements: Path) -> tuple[list[str], Path]:
     """The pip command and the file it installs: the lock file with its hashes when it sits next to requirements."""
     lock = requirements.with_suffix('.lock')
@@ -70,6 +83,18 @@ def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_
     reason = needs_install(stored, current, probe(python))
     if reason is None:
         return True
+    if venv_made_by_other_python():
+        # the venv keeps the old minor version's folder, so the new Python finds nothing in it and pip is gone too
+        emit('Python changed since host/.venv was made. Delete the folder host/.venv and start Tessera again.')
+        return False
+    platform = sysconfig.get_platform()
+    if IS_WINDOWS and platform != 'win-amd64':
+        # pyca/cryptography and psutil publish no wheels for 32-bit, arm64 or MSYS2 (mingw_*) Python on Windows, and
+        # building them needs a compiler. MSYS2's UCRT64 Python is x64 already, so its message names python.org.
+        need = 'the x64 Python from python.org, not MSYS2' if platform.startswith('mingw') else '64-bit (x64) Python on Windows'
+        emit(f'Tessera needs {need}; this one is {platform}. '
+             'Install x64 Python, delete the folder host\\.venv and start Tessera again.')
+        return False
     emit(f'Installing the host dependencies ({reason}) ...')
     run = install or (lambda command: subprocess.run(command).returncode)
     if run(command) != 0:
