@@ -17,8 +17,8 @@ You need Python 3.12 or newer with `venv`, and these tools:
 | `xclip` | `xclip` | the clipboard action |
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
-| PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional), and the tray icon on Wayland |
-| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1` | the tray icon on Wayland (see [Wayland](#wayland)) |
+| PyGObject (system Python) | `python-gobject` / `python3-gi`; on Fedora `python3-gobject` | the themed tray menu (optional), and the tray icon on Wayland |
+| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1`; on Fedora `libayatana-appindicator-gtk3` | the tray icon on Wayland (see [Wayland](#wayland)) |
 | WebKitGTK (system Python) | `webkit2gtk-4.1` / `gir1.2-webkit2-4.1` | the editor's own window (optional; without it the editor opens in your browser) |
 
 Then, in the Tessera folder:
@@ -71,7 +71,7 @@ ports it finds and keeps the one that answers like a panel.
   entries of the application menu, with their icons (a vector icon needs `rsvg-convert`).
 - **Scripts** (the *script* action) run with `python3`, `bash`, `node` and `pwsh`: `.py`, `.pyw`, `.sh`, `.js`, `.ps1`. `.bat`, `.cmd` and `.ahk` are Windows-only and give an error. *Edit script* and the tray's *Open the host log* open the file with `xdg-open`.
 - **The media action** (shuffle on/off, cycle repeat) works on MPRIS players that offer it, such as Spotify and VLC; a player without it says so instead of pretending. `$(pc:shuffle)`, `$(pc:repeat)` and keys that follow shuffle or repeat show the player's state.
-- **The Claude Code, Codex and ZCode profiles** of the Linux default start their tool in your terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`, whichever is installed).
+- **The Claude Code, Codex and ZCode profiles** of the Linux default start their tool in the first of these terminals that is installed: `x-terminal-emulator`, `gnome-terminal`, `ptyxis`, `kgx` (GNOME Console), `konsole`, `xfce4-terminal`, `mate-terminal`, `qterminal`, `cosmic-term`, `xterm`. The Terminal key tries the same list.
 - **Remote devices** (KDE Connect): see [below](#remote-devices-kde-connect).
 - **Volume** uses `pactl`; per-program volume (`app:firefox`) follows PulseAudio/PipeWire streams. The media session comes
   from MPRIS, so Spotify, browsers, VLC and mpv work.

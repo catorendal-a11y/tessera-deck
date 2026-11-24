@@ -10,8 +10,14 @@ import time
 log = logging.getLogger(__name__)
 
 WATCHER = 'org.kde.StatusNotifierWatcher'
+# notify.py passes on BODY_MAX characters, so these stay short enough that the last step is not cut off
 NO_TRAY = ('This desktop shows no tray icons, so Tessera has no icon. Install and enable the "AppIndicator and '
            'KStatusNotifierItem Support" extension (GNOME), then sign in again. Tessera itself keeps running.')
+NO_GI = ('Tessera keeps running, but the tray icon may not show until you install PyGObject: python-gobject (Arch), '
+         'python3-gi (Debian, Ubuntu) or python3-gobject (Fedora). Then run killall Tessera and start it again.')
+NO_TYPELIB = ('Tessera keeps running, but the tray icon may not show until you install libayatana-appindicator (Arch), '
+              'gir1.2-ayatanaappindicator3-0.1 (Debian, Ubuntu) or libayatana-appindicator-gtk3 (Fedora). '
+              'Then run killall Tessera and start it again.')
 WATCHER_WAIT = 10.0  # seconds: at sign-in the tray may start before the desktop's StatusNotifier host
 TYPELIBS = ('AyatanaAppIndicator3', 'AppIndicator3')
 GI_PROBE = "import gi, sys; print(sys.version_info[0], sys.version_info[1]); print(gi.__file__)"
@@ -74,6 +80,13 @@ def _x11_icon(environ) -> str:
     return 'xorg'
 
 
+def _tell(message: str) -> None:
+    """Logging is never set up and Tessera.sh drops the tray's stderr, so a notice is the only way the user reads this."""
+    log.warning(message)
+    from platform_linux.notify import notify
+    notify(message, 'Tessera')
+
+
 def choose_backend(environ=None) -> str:
     """Pick the tray backend pystray should use, before it is imported. Returns what was chosen, for the log and tests.
 
@@ -102,11 +115,11 @@ def choose_backend(environ=None) -> str:
     except ImportError:
         folder = system_gi_folder()
         if folder is None:
-            log.warning('The tray needs PyGObject for the system Python (python-gobject or python3-gi).')
+            _tell(NO_GI)
             return _x11_icon(environ)
         sys.path.append(folder)
     if not _typelib_available():
-        log.warning('The tray needs libayatana-appindicator (the package libayatana-appindicator, or gir1.2-ayatanaappindicator3-0.1 on Debian and Ubuntu).')
+        _tell(NO_TYPELIB)
         return _x11_icon(environ)
     environ['PYSTRAY_BACKEND'] = 'appindicator'
     return 'appindicator'

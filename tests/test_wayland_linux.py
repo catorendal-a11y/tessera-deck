@@ -854,6 +854,35 @@ class TrayBackendTests(unittest.TestCase):
         self.assertEqual((backend, env['PYSTRAY_BACKEND'], added), ('xorg', 'xorg', False))
         notice.assert_not_called()
 
+    def test_a_missing_typelib_is_told_on_the_desktop_because_nothing_reads_the_log(self):
+        # Tessera.sh sends the tray's stderr to /dev/null and logging is never set up, so only a notice reaches the user
+        env = {'XDG_SESSION_TYPE': 'wayland', 'XDG_CURRENT_DESKTOP': 'GNOME'}
+        backend, notice, _ = self.choose(env, typelib=False)
+        self.assertEqual(backend, 'xorg')
+        self.assertIn('libayatana-appindicator-gtk3 (Fedora)', notice.call_args.args[0])
+        self.assert_says_what_is_lost_and_what_to_do(notice.call_args.args[0])
+
+    def test_missing_pygobject_is_told_on_the_desktop(self):
+        env = {'XDG_SESSION_TYPE': 'wayland', 'XDG_CURRENT_DESKTOP': 'GNOME'}
+        backend, notice, _ = self.choose(env, folder=None)
+        self.assertEqual(backend, 'xorg')
+        self.assertIn('python3-gobject (Fedora)', notice.call_args.args[0])
+        self.assert_says_what_is_lost_and_what_to_do(notice.call_args.args[0])
+
+    def assert_says_what_is_lost_and_what_to_do(self, message):
+        # Signing in again starts the tray only with Start with the desktop on, and a second start of a running tray
+        # changes nothing, so the notice says to stop it and start it. The icon and its menu may be missing, so the stop is
+        # killall, which finds the tray, the host and the editor by the name they give themselves
+        for part in ('Tessera keeps running', 'tray icon may not show until you install ',
+                     'Then run killall Tessera and start it again.'):
+            self.assertIn(part, message)
+
+    def test_every_notice_fits_in_what_notify_send_is_given(self):
+        # notify.py cuts the body at BODY_MAX, and the part that is cut off is the last step: start it again
+        from platform_linux import notify, tray
+        for message in (tray.NO_TRAY, tray.NO_GI, tray.NO_TYPELIB):
+            self.assertLessEqual(len(message), notify.BODY_MAX, message)
+
     def test_a_tray_host_that_comes_a_little_later_is_waited_for(self):
         from unittest import mock
         from platform_linux import tray
