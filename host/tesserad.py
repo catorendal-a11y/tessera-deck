@@ -1079,8 +1079,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         try:
             installed = _installed_ports()
         except (ImportError, OSError):
-            installed = {}
-        self.forget_unplugged(installed)
+            installed = {}  # a list that failed says nothing about what was unplugged: the records stay
+        else:
+            self.forget_unplugged(installed)
         for port in [pinned] if pinned else candidate_ports(self.args.port, self.device_state_path, installed):
             entry = self.passed_over.get(port)
             if entry and entry[2] >= SILENT_TRIES:

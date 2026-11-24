@@ -482,6 +482,15 @@ class ReconnectProbeTests(unittest.TestCase):
         FakeSerial.opened = []
         self.assertIn('COM8', self.attempts(daemon, 1))
 
+    def test_a_port_list_that_fails_once_does_not_count_as_an_unplug(self):
+        daemon = self.daemon()
+        self.attempts(daemon, 4)
+        FakeSerial.opened = []
+        with patch.object(deck, '_installed_ports', side_effect=OSError('the driver could not list the ports')):
+            self.attempts(daemon, 1)  # the Espressif list still works and names both devices
+        self.attempts(daemon, 1)
+        self.assertEqual([fake.port for fake in FakeSerial.opened], [])
+
     def test_the_remembered_panel_is_asked_on_every_attempt_even_when_it_stays_silent(self):
         self.listed = [types.SimpleNamespace(device='COM5', vid=0x1A86, serial_number='PANEL123')]  # hung, still on USB
         self.assertEqual(self.attempts(self.daemon(), 6).count('COM5'), 6)
