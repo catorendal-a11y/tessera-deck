@@ -334,6 +334,12 @@ return {asked, ran: calls.includes('command/run-key')};
             'farMouse': {'type': 'mouse', 'op': 'move', 'x': 20001, 'y': 0},
             'farMouseY': {'type': 'mouse', 'op': 'moveto', 'x': 0, 'y': -20001},
             'okMouse': {'type': 'mouse', 'op': 'moveto', 'x': -20000, 'y': 20000}}
+        emoji = '\U0001F600'  # one character for Python, two for JavaScript's length
+        for name, limit, step in (('Toggle', 64, lambda s: {'type': 'toggle', 'variable': 'mode', 'values': ['a', s]}),
+                                  ('Notify', 120, lambda s: {'type': 'timer', 'name': 't', 'op': 'start', 'notify': s}),
+                                  ('Set', 1000, lambda s: {'type': 'set', 'variable': 'v', 'value': s}),
+                                  ('Window', 260, lambda s: {'type': 'window', 'op': 'minimize', 'process': s})):
+            cases['okEmoji' + name], cases['longEmoji' + name] = step(emoji * limit), step(emoji * (limit + 1))
         expected = {name: host_takes(step) for name, step in cases.items()}
         self.assertEqual(expected, {name: name.startswith('ok') for name in cases}, 'the cases cover both sides of each limit')
         found = self.run_editor('return Object.fromEntries(Object.entries(' + json.dumps(cases)
