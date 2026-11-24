@@ -681,14 +681,18 @@ class Clock:
 
 class JtagBoard(Board):
     """A board on the chip's own USB. A new image also keeps itself after a minute of running (app_confirm in
-    main/main.cpp), so a reset after that minute no longer brings the old one back."""
+    main/main.cpp), so a reset after that minute no longer brings the old one back.
+
+    `usb_gap` is how long it is off USB while it restarts (None: a UART board, whose port stays), and a new image
+    that `hangs` never answers and never keeps itself."""
+    usb_gap, hangs = 1.5, False
 
     def __init__(self, running, new, clock):
         super().__init__(running, new)
         self.clock, self.started, self.back = clock, 0.0, 0.0
 
     def reset(self):
-        if self.clock.now - self.started >= 60:
+        if self.clock.now - self.started >= 60 and not self.hangs:
             self.probation = False
         super().reset()
         self.started = self.clock.now
@@ -729,14 +733,52 @@ class JtagPort(BoardPort):
     def write(self, raw):
         import serial
         self.alive(serial.SerialException('write failed: [Errno 5] Input/output error'))
-        if self.dies is not None:
+        board = self.board
+        if self.dies is not None or (board.hangs and board.probation):
             return len(raw)  # it waits 300 ms for its answer to leave and then restarts: nothing more is read
         count = super().write(raw)
         if b'AD_OTA_END' in raw:
-            board = self.board
-            self.dies = board.started = board.clock.now + 0.3
-            board.back = self.dies + 1.5  # the restarted chip is on USB again
+            board.started = board.clock.now + 0.3
+            if board.usb_gap is not None:
+                self.dies = board.started
+                board.back = self.dies + board.usb_gap  # the restarted chip is on USB again
         return count
+
+
+class UpdateMessageTests(unittest.TestCase):
+    """What the user reads when an update over USB on Linux does not end with the new firmware running."""
+
+    def update(self, **board):
+        import types
+        import panel_serial
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__('shutil').rmtree, folder)
+        package = fw.load_package(fw.build_package(fake_build(folder, slots=True), folder / 'dist', '1.2.3', 2), SUPPORTED)
+        clock = Clock()
+        JtagPort.board = JtagBoard('1.0.0', '1.2.3', clock)
+        kept = board.pop('kept', fw.KEPT_SECONDS)
+        JtagPort.board.__dict__.update(board)
+        info = {'boardId': package.board, 'firmwareVersion': '1.0.0', 'ota': 1, 'protocol': 2}
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=JtagPort)), \
+                patch.object(panel_serial, 'RESETS_ON_OPEN', True), patch.object(fw, 'KEPT_SECONDS', kept), \
+                patch.object(panel_serial, 'time', clock), patch.object(fw, 'time', clock), \
+                self.assertRaises(fw.InstallError) as caught:
+            fw.install(package, '/dev/ttyACM0', lambda port: info)
+        return str(caught.exception)
+
+    def test_each_failure_after_the_upload_says_what_to_do_next(self):
+        went_back = self.update(kept=0)  # opened again too early: the bootloader went back to the old image
+        self.assertIn('started 1.0.0 again', went_back)
+        self.assertIn('Install it once more', went_back)
+        check = 'If it is still the old one, install again.'
+        self.assertIn(check, self.update(usb_gap=float('inf')))  # it never came back on USB
+        self.assertIn(check, self.update(usb_gap=None, hangs=True))  # a UART board whose new firmware never answers
+        for message in (went_back, self.update(usb_gap=float('inf')), self.update(usb_gap=None, hangs=True)):
+            self.assertNotIn('keeps its current firmware', message, 'the image was written; that is not known')
+
+    def test_a_crowpanel_p4_with_a_v3_chip_is_told_to_keep_its_firmware(self):
+        with self.assertRaisesRegex(fw.InstallError, 'nothing was written. Leave the firmware it came with'):
+            fw.detect_chip('COM5', Mock(return_value=(0, 'Chip is ESP32-P4 (revision v3.1)\n')), uart=True)
 
 
 class SerialOtaRetryTests(unittest.TestCase):

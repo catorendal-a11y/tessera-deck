@@ -260,7 +260,8 @@ def detect_chip(port: str, runner: Callable | None = None, uart: bool = False) -
         boards = [board for board in boards if board in P4_UART_BOARDS]
         if not boards:
             raise InstallError(f'{port} has an {name} revision v{major}.{minor} behind a USB-UART bridge, as on the Elecrow '
-                               'CrowPanel Advance 7.0. Tessera has no firmware yet for that board with a v3.x chip.')
+                               'CrowPanel Advance 7.0. Tessera has no firmware yet for that board with a v3.x chip, so '
+                               'nothing was written. Leave the firmware it came with on the board for now.')
     if not boards:
         raise InstallError(f'{port} has an {name}, and there is no Tessera firmware for that chip.')
     return {'chip': chip, 'revision': f'{major}.{minor}', 'boards': boards}
@@ -268,6 +269,8 @@ def detect_chip(port: str, runner: Callable | None = None, uart: bool = False) -
 
 NEW_FIRMWARE_SECONDS = 30  # the new image checks itself and boots in a few seconds
 KEPT_SECONDS = 70  # a new image keeps itself once it has run for a minute (app_confirm in main/main.cpp)
+LOOK_AGAIN = ('Once the host has found the panel again, Panel firmware and updates shows which firmware it runs. '
+              'If it is still the old one, install again.')
 
 
 def await_new_firmware(panel, boot, version: str | None) -> None:
@@ -292,28 +295,35 @@ def await_new_firmware(panel, boot, version: str | None) -> None:
             # again resets the panel, so that waits until the new image has run long enough to keep itself.
             panel.close()
             time.sleep(KEPT_SECONDS)
-            with contextlib.closing(reopen(panel.ser.port)) as again:
-                info = again.info
+            info = reopen(panel.ser.port)
             break
         if panel.info.get('bootId') != boot:  # otherwise the answer of the old firmware before it restarted
             info = panel.info
     if info is None:
-        raise OSError('The panel did not answer after the update')
+        raise InstallError(f'The panel took the new firmware and restarted, but it did not answer. {LOOK_AGAIN}')
     if version and info.get('firmwareVersion') != version:
-        raise OSError(f'The panel started firmware {info.get("firmwareVersion")} again, not {version}')
+        raise InstallError(f'The panel took firmware {version}, but started {info.get("firmwareVersion")} again after '
+                           'the restart, so the new firmware did not stay. Install it once more. If it goes back again, '
+                           'choose "Full install".')
 
 
-def reopen(port: str):
-    """Open the panel on `port` again once it is back on USB after a restart."""
-    from panel_serial import PanelSerial
+def reopen(port: str) -> dict | None:
+    """get_info of the panel on `port` once it is back on USB after a restart; None when it stays silent."""
+    from panel_serial import DeviceRejected, PanelSerial
     deadline = time.monotonic() + NEW_FIRMWARE_SECONDS
     while True:
         try:
-            return PanelSerial(port, lambda *_: None)
-        except OSError:  # not back on USB yet
-            if time.monotonic() >= deadline:
+            with contextlib.closing(PanelSerial(port, lambda *_: None)) as panel:
+                return panel.info
+        except DeviceRejected as exc:
+            if exc.kind != 'silent':
                 raise
-            time.sleep(1)
+            return None
+        except OSError as exc:  # not back on USB yet
+            if time.monotonic() >= deadline:
+                raise InstallError(f'The panel took the new firmware and restarted, but {port} did not come back. '
+                                   f'Check the USB cable. {LOOK_AGAIN}') from exc
+        time.sleep(1)
 
 
 def serial_ota(port: str, data: bytes, progress: Callable[[float], None], version: str | None = None) -> None:
