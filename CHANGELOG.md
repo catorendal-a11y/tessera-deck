@@ -7,7 +7,7 @@ Editor fixes. Each of these used to make the host refuse every save until the st
 - A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
 - A key pasted into a profile that lacks its page or folder stays a draft.
 - Deleting a profile also removes the rail shortcuts and automatic actions that opened its pages.
-- *Apply* on a rail shortcut checks the steps it copies, and works again for a shortcut or automatic action with a page or folder step after the first.
+- *Apply* on a rail shortcut refuses a step that was copied unfinished.
 
 Other fixes:
 
