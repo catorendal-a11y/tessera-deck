@@ -229,6 +229,11 @@ static void test_confirm_key(){
     keep_host(1000);touch_at={rail_w+pad+key_w-4,key_y(1)};touching=true;for(int i=0;i<4;++i)step();
     for(int i=0;i<12;++i){touch_at.x+=2;step();}
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    /* A quick flick down that stays inside the key is a swipe, and a swipe never presses the key it started on. */
+    keep_host(1000);touch_at={key_x(1),key_y(1)-sc(60)};touching=true;for(int i=0;i<2;++i)step();
+    for(int i=0;i<6;++i){touch_at.y+=sc(20);step();}
+    for(int i=0;i<12;++i)step();
+    touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
     /* A screen that comes up under the finger, such as a permission question, cancels the hold: nothing may run on the
      * PC while another screen shows. */
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();assert(arcs_in(tile)==1);

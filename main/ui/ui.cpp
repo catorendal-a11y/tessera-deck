@@ -243,9 +243,10 @@ void confirm_tick() {
  * show. A swipe is never a tap on the key it started on. */
 void swipe(lv_event_t *) {
     auto *indev=lv_indev_active();if(!indev)return;
+    confirm_stop();  /* any swipe, up and down too, cancels a confirm hold, even one that stays on the key */
     const lv_dir_t dir=lv_indev_get_gesture_dir(indev);
     if(dir!=LV_DIR_LEFT&&dir!=LV_DIR_RIGHT)return;
-    confirm_stop();lv_indev_wait_release(indev);
+    lv_indev_wait_release(indev);
     if(dir!=LV_DIR_RIGHT||deck_model_locked()||!deck_model_host_linked(HostTimeoutMs))return;
     for(int i=0;i<rail_count;++i)if(rail_list[i].kind==ViewKeys){
         char line[40];snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",i);deck_model_queue_line(line);return;}
