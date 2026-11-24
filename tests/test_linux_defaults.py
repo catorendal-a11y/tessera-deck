@@ -80,9 +80,14 @@ class LinuxDefaultTests(unittest.TestCase):
         self.assertEqual(done.stderr.strip(), MISSING)
 
     def test_the_keys_have_a_candidate_for_plasma_6_and_for_stock_gnome_and_kde(self):
-        everything = json.dumps(LINUX)
-        for candidate in ('plasma-systemmonitor', 'systemsettings kcm_bluetooth', 'systemsettings kcm_pulseaudio'):
-            self.assertIn(candidate, everything)
+        # stock GNOME and KDE do not install pavucontrol, and Plasma 6 has no ksysguard
+        mixers = ('pavucontrol', 'pavucontrol-qt', 'gnome-control-center sound', 'systemsettings kcm_pulseaudio')
+        wanted = {('tools', 'System monitor'): ('plasma-systemmonitor',), ('audio', 'Bluetooth'): ('systemsettings kcm_bluetooth',),
+                  ('audio', 'Volume mixer'): mixers, ('audio', 'Audio devices'): mixers}
+        for (page, label), candidates in wanted.items():
+            command, = shell_commands('main', page, label)
+            for candidate in candidates:
+                self.assertIn(f'exec setsid -f {candidate})', command, label)
 
     def test_the_terminal_keys_find_the_default_terminal_of_fedora_gnome_mate_lxqt_and_cosmic(self):
         # Fedora 41 and later ship Ptyxis and no gnome-terminal or x-terminal-emulator
