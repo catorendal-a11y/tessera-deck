@@ -7,6 +7,11 @@
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
 
+- A Tessera update that cannot replace a file in use (an open editor file, a virus scanner) puts the folder back as it was. Before, it could leave half old and half new files.
+- On a PC with a proxy, a second start and the tray's *Open editor* reach the editor that is already running, and `deckctl` reaches the host. Before, they waited 20 s and gave up.
+- A second start that gets no answer from the running editor says so in a message box (a notification on Linux). If the editor answered but its window could not be shown, it says the editor is already open.
+- A 32-bit, arm64 or MSYS2 Python on Windows is refused with the reason and a pointer to the x64 Python from python.org. A Linux venv left behind by a Python upgrade says to delete it. Before, both were blamed on the internet.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
