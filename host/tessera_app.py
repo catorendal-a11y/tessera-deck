@@ -1029,8 +1029,8 @@ def main():
                 return
             if time.monotonic() > deadline:
                 if shown is None:
-                    message = ('The Tessera editor is already open, but Tessera could not bring its window to the '
-                               'front. Look for it behind other windows or on another workspace.')
+                    message = ('The Tessera editor is already open, but Tessera could not show its window. If you '
+                               'cannot find it, quit Tessera and start it again.')
                 else:
                     message = ('The editor could not open: the Tessera editor that is already running did not answer '
                                'within 20 seconds. Close it and start Tessera again.')
