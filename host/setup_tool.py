@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 from typing import Callable
 
-from platform_support import IS_LINUX, load
+from platform_support import IS_LINUX, IS_WINDOWS, load
 
 ROOT = Path(__file__).resolve().parents[1]
 HASH_FILE = ROOT / 'host/.venv/requirements.sha256'
@@ -88,7 +88,7 @@ def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_
         emit('Python changed since host/.venv was made. Delete the folder host/.venv and start Tessera again.')
         return False
     platform = sysconfig.get_platform()
-    if platform.startswith('win') and platform != 'win-amd64':
+    if IS_WINDOWS and platform != 'win-amd64':
         # pyca/cryptography and psutil publish no wheels for 32-bit or arm64 Windows, and building them needs a compiler
         emit(f'Tessera needs 64-bit (x64) Python on Windows; this one is {platform}. '
              'Install x64 Python, delete the folder host\\.venv and start Tessera again.')

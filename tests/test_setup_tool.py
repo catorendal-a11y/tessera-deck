@@ -76,9 +76,11 @@ class EnsureTests(unittest.TestCase):
         self.assertEqual(len(self.installs), 1)
 
     def test_windows_python_that_is_not_x64_is_refused_with_the_reason(self):
-        # no cryptography or psutil wheel exists for these, so pip would try to build them and fail
-        for platform in ('win-arm64', 'win32'):
-            with self.subTest(platform), patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
+        # no cryptography or psutil wheel exists for these, so pip would try to build them and fail (MSYS2's Python
+        # names its platform mingw_*, not win-*)
+        for platform in ('win-arm64', 'win32', 'mingw_x86_64_ucrt'):
+            with self.subTest(platform), patch.object(setup_tool, 'IS_WINDOWS', True), \
+                    patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
                 self.messages.clear()
                 self.assertFalse(self.ensure(works=False))
                 self.assertEqual(self.installs, [])
@@ -87,8 +89,9 @@ class EnsureTests(unittest.TestCase):
                 self.assertNotIn('internet', text)
 
     def test_x64_and_linux_pythons_install(self):
-        for platform in ('win-amd64', 'linux-x86_64', 'linux-aarch64', 'macosx-14.0-arm64'):
-            with self.subTest(platform), patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
+        for windows, platform in ((True, 'win-amd64'), (False, 'linux-x86_64'), (False, 'linux-aarch64')):
+            with self.subTest(platform), patch.object(setup_tool, 'IS_WINDOWS', windows), \
+                    patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
                 self.assertTrue(self.ensure(works=False))
 
     def test_the_decision_function(self):
