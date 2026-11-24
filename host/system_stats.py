@@ -12,7 +12,8 @@ from gpu_sources import GpuReaders
 
 LHM_EXE = Path(__file__).resolve().parent / 'sensors' / 'LibreHardwareMonitor' / 'LibreHardwareMonitor.exe'
 HINT_NOT_RUNNING = ('CPU temperature and power need Libre Hardware Monitor, which is installed but not running. '
-                    'Run Tessera.cmd --sensors once: it starts at every sign-in after that.')
+                    'Run Tessera.cmd --sensors to start it. On an administrator account it then starts at every '
+                    'sign-in; on a standard account, run --sensors again after each sign-in.')
 HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If you already run it, switch on '
                       'Options > Remote Web Server > Run (port 8085). If not, run powershell -ExecutionPolicy Bypass '
                       '-File tools\\setup_sensors.ps1 in the Tessera folder, then Tessera.cmd --sensors.')
