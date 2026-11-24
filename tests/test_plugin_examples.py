@@ -141,7 +141,7 @@ class HomeAssistantTests(unittest.TestCase):
                                          'entities': 'light.kitchen'})
         with self.assertRaises(urllib.error.URLError) as caught:
             module.states()
-        self.assertEqual(module.reason(caught.exception), 'use http://, not https://')
+        self.assertEqual(module.reason(caught.exception), 'use http://, not https://', repr(caught.exception.reason))
 
 
 class FakeObs:
