@@ -189,7 +189,7 @@ class DryRunTests(unittest.TestCase):
         off = [{'id': 'obs', 'name': 'OBS Studio', 'enabled': False, 'state': 'disabled'}]
         self.assertEqual(self.text(off), (False, 'OBS Studio is off: turn it on in More → Plugins'))
         failed = [{'id': 'obs', 'name': 'OBS Studio', 'enabled': True, 'state': 'failed'}]
-        self.assertEqual(self.text(failed), (False, 'OBS Studio has stopped: turn it off and on in More → Plugins'))
+        self.assertEqual(self.text(failed), (False, 'Plugin stopped: turn it off and on in More → Plugins (OBS Studio)'))
         running = [{'id': 'obs', 'name': 'OBS Studio', 'enabled': True, 'state': 'running'}]
         self.assertTrue(self.text(running)[0])
         self.assertTrue(self.text(None)[0])  # the host is not running: nothing is known about the plugins

@@ -536,12 +536,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         if not (self.config.get('plugins') or {}).get(plugin_id, {}).get('enabled'):
             raise ValueError(f'{manifest.name} is off: turn it on in More → Plugins')
         state = manager.history.get(plugin_id, {}).get('state')
+        # advice first, as in action_preview: the 100-character banner cuts a long plugin name, not what to do
         if state == 'failed':
-            raise ValueError(f'{manifest.name} has stopped: turn it off and on in More → Plugins')
+            raise ValueError(f'Plugin stopped: turn it off and on in More → Plugins ({manifest.name})')
         if state == 'crashed':
             raise ValueError(f'{manifest.name} has stopped')
         if state == 'waiting':
-            raise ValueError(f'{manifest.name}: unlock the keyring or type its secret')
+            raise ValueError(f'Unlock the keyring or type the secret again in the editor ({manifest.name})')
 
     def run_action(self, action):
         kind = action['type']

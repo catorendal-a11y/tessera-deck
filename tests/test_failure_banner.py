@@ -54,7 +54,7 @@ class PluginKeyTests(unittest.TestCase):
 
     def test_a_crashed_or_failed_plugin_turns_the_press_red(self):
         self.assert_refused(self.daemon(state='crashed'), 'OBS Studio has stopped')
-        self.assert_refused(self.daemon(state='failed'), 'OBS Studio has stopped: turn it off and on in More → Plugins')
+        self.assert_refused(self.daemon(state='failed'), 'Plugin stopped: turn it off and on in More → Plugins (OBS Studio)')
 
     def test_a_plugin_held_back_by_the_keyring_says_to_unlock_it_or_type_the_secret_again(self):
         import action_preview
@@ -73,23 +73,26 @@ class PluginKeyTests(unittest.TestCase):
                 status = next(item for item in daemon.plugins.status(daemon.config['plugins']) if item['id'] == 'obs')
                 self.assertEqual(status['state'], 'waiting')  # what the plugin list in the editor shows
                 self.assertIn('unlock it', status['error'].lower())
-                said = 'OBS Studio: unlock the keyring or type its secret'
+                said = 'Unlock the keyring or type the secret again in the editor (OBS Studio)'
                 self.assertEqual(action_preview.preview([{'type': 'plugin', 'plugin': 'obs', 'command': 'record'}], {},
                                                         plugins=[status])['steps'][0]['text'], said)
                 self.assert_refused(daemon, said)
                 self.assertEqual(banners(daemon), ['AD_NOTIFY error 6 ' + said], 'the panel cut the reason short')
 
-    def test_a_waiting_plugin_with_the_longest_name_a_manifest_allows_still_shows_the_whole_advice(self):
+    def test_a_plugin_with_the_longest_name_a_manifest_allows_still_shows_the_whole_advice(self):
         import dataclasses
         import action_preview
-        daemon = self.daemon(state='waiting')
         name = 'A' * 60  # load_manifest takes names of 1-60 characters
-        daemon.plugins.manifests['obs'] = dataclasses.replace(daemon.plugins.manifests['obs'], name=name)
-        self.assertFalse(daemon.dispatch_press(1))
-        said = daemon.last_action['error']
-        self.assertEqual(banners(daemon), ['AD_NOTIFY error 6 ' + said], 'the panel cut the advice short')
-        self.assertEqual(action_preview.preview([{'type': 'plugin', 'plugin': 'obs', 'command': 'record'}], {}, plugins=[
-            {'id': 'obs', 'name': name, 'enabled': True, 'state': 'waiting'}])['steps'][0]['text'], said)
+        # as the panel shows it (its font has no →), up to the bracket before the name
+        for state, advice in (('waiting', 'type the secret again in the editor ('), ('failed', 'turn it off and on in More > Plugins (')):
+            with self.subTest(state=state):
+                daemon = self.daemon(state=state)
+                daemon.plugins.manifests['obs'] = dataclasses.replace(daemon.plugins.manifests['obs'], name=name)
+                self.assertFalse(daemon.dispatch_press(1))
+                [banner] = banners(daemon)
+                self.assertIn(advice, banner, 'the panel cut the advice short')
+                self.assertEqual(action_preview.preview([{'type': 'plugin', 'plugin': 'obs', 'command': 'record'}], {}, plugins=[
+                    {'id': 'obs', 'name': name, 'enabled': True, 'state': state}])['steps'][0]['text'], daemon.last_action['error'])
 
     def test_a_plugin_that_is_not_installed_turns_the_press_red(self):
         daemon = self.daemon(plugin='ghost')
