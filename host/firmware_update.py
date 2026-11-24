@@ -267,6 +267,7 @@ def detect_chip(port: str, runner: Callable | None = None, uart: bool = False) -
 
 
 NEW_FIRMWARE_SECONDS = 30  # the new image checks itself and boots in a few seconds
+KEPT_SECONDS = 70  # a new image keeps itself once it has run for a minute (app_confirm in main/main.cpp)
 
 
 def await_new_firmware(panel, boot, version: str | None) -> None:
@@ -277,19 +278,42 @@ def await_new_firmware(panel, boot, version: str | None) -> None:
     """
     from panel_serial import DeviceRejected
     deadline = time.monotonic() + NEW_FIRMWARE_SECONDS
-    while time.monotonic() < deadline:
+    info = None
+    while info is None and time.monotonic() < deadline:
         try:
             panel.verify()
         except DeviceRejected as exc:
             if exc.kind != 'silent':
                 raise
             continue  # still booting
-        if panel.info.get('bootId') == boot:
-            continue  # the answer of the old firmware before it restarted
-        if version and panel.info.get('firmwareVersion') != version:
-            raise OSError(f'The panel started firmware {panel.info.get("firmwareVersion")} again, not {version}')
-        return
-    raise OSError('The panel did not answer after the update')
+        except OSError:
+            # The chip's own USB (USB Serial/JTAG, as on the GUITION board) goes away while it restarts, and the open
+            # port with it. Close it at once, or Linux gives the returning device another name. Opening the port
+            # again resets the panel, so that waits until the new image has run long enough to keep itself.
+            panel.close()
+            time.sleep(KEPT_SECONDS)
+            with contextlib.closing(reopen(panel.ser.port)) as again:
+                info = again.info
+            break
+        if panel.info.get('bootId') != boot:  # otherwise the answer of the old firmware before it restarted
+            info = panel.info
+    if info is None:
+        raise OSError('The panel did not answer after the update')
+    if version and info.get('firmwareVersion') != version:
+        raise OSError(f'The panel started firmware {info.get("firmwareVersion")} again, not {version}')
+
+
+def reopen(port: str):
+    """Open the panel on `port` again once it is back on USB after a restart."""
+    from panel_serial import PanelSerial
+    deadline = time.monotonic() + NEW_FIRMWARE_SECONDS
+    while True:
+        try:
+            return PanelSerial(port, lambda *_: None)
+        except OSError:  # not back on USB yet
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(1)
 
 
 def serial_ota(port: str, data: bytes, progress: Callable[[float], None], version: str | None = None) -> None:

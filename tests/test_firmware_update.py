@@ -629,6 +629,90 @@ class LinuxUpdateTests(unittest.TestCase):
             host = panel_serial.PanelSerial('/dev/ttyUSB0', lambda *_: None)  # the host starts again after the update
         self.assertEqual(host.info['firmwareVersion'], '1.2.3')
 
+    def test_an_update_over_the_chips_own_usb_keeps_the_new_firmware_when_the_port_goes_away(self):
+        # The GUITION board (USB Serial/JTAG, /dev/ttyACM0 on Linux) drops off USB while it restarts into the new image.
+        import types
+        import panel_serial
+        clock = Clock()
+        JtagPort.board = JtagBoard('1.0.0', '1.2.3', clock)
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=JtagPort)), \
+                patch.object(panel_serial, 'RESETS_ON_OPEN', True), \
+                patch.object(panel_serial, 'time', clock), patch.object(fw, 'time', clock):
+            fw.serial_ota('/dev/ttyACM0', b'\x00' * 100, lambda percent: None, version='1.2.3')
+            host = panel_serial.PanelSerial('/dev/ttyACM0', lambda *_: None)  # the host starts again after the update
+        self.assertEqual(host.info['firmwareVersion'], '1.2.3')
+
+
+class Clock:
+    """The time of a test: a sleep, or a serial read that waits for data, moves it on at once."""
+    now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class JtagBoard(Board):
+    """A board on the chip's own USB. A new image also keeps itself after a minute of running (app_confirm in
+    main/main.cpp), so a reset after that minute no longer brings the old one back."""
+
+    def __init__(self, running, new, clock):
+        super().__init__(running, new)
+        self.clock, self.started, self.back = clock, 0.0, 0.0
+
+    def reset(self):
+        if self.clock.now - self.started >= 60:
+            self.probation = False
+        super().reset()
+        self.started = self.clock.now
+
+
+class JtagPort(BoardPort):
+    """Its /dev/ttyACM0. Opening it resets the chip. When the chip restarts after AD_OTA_END its USB device goes away,
+    so the open handle fails the way pyserial reports it, and the port can be opened again once the chip is back."""
+    dies = None
+
+    def open(self):
+        import serial
+        if self.board.clock.now < self.board.back:
+            raise serial.SerialException(2, f'could not open port {self.port}: [Errno 2] No such file or directory')
+        self.board.reset()
+
+    def alive(self, error=None):
+        if self.dies is not None and self.board.clock.now >= self.dies:
+            raise error or OSError(5, 'Input/output error')
+
+    def reset_input_buffer(self):
+        self.alive()
+        super().reset_input_buffer()
+
+    @property
+    def in_waiting(self):
+        self.alive()
+        return len(self.pending)
+
+    def read(self, count):
+        import serial
+        if not self.pending:
+            self.board.clock.sleep(0.1)  # the read timeout
+        self.alive(serial.SerialException('device reports readiness to read but returned no data '
+                                          '(device disconnected or multiple access on port?)'))
+        return super().read(count)
+
+    def write(self, raw):
+        import serial
+        self.alive(serial.SerialException('write failed: [Errno 5] Input/output error'))
+        if self.dies is not None:
+            return len(raw)  # it waits 300 ms for its answer to leave and then restarts: nothing more is read
+        count = super().write(raw)
+        if b'AD_OTA_END' in raw:
+            board = self.board
+            self.dies = board.started = board.clock.now + 0.3
+            board.back = self.dies + 1.5  # the restarted chip is on USB again
+        return count
+
 
 class SerialOtaRetryTests(unittest.TestCase):
     def test_a_timed_out_upload_is_aborted_and_tried_once_more(self):
