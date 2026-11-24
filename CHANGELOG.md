@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
@@ -18,18 +18,30 @@
 - A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
 - A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
 
-- A key that waits (a delay, a shell or HTTP step, slow typing) stops when another program or key changes the page during the wait. Before, its next *Press* step ran the key in that slot on the new page. The panel says what happened: "The page changed while this key waited. Open its page and press it again." A key that changes the page itself still goes on, and so do hotkey and typing steps after an app opened and the profile followed it.
-- A hotkey key pressed while another key is still typing slowly fails at once and flashes red, and the keys pressed after it keep working. Before, they queued behind it and were dropped.
-- A file trigger on a network share that hangs no longer holds up the panel's keys.
-- A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
-- On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
-
 - While the panel is away, the host no longer opens every Espressif and CH340 port on each retry. A board that stays silent three times or answers as another board is left alone until it is plugged in again, and with `TESSERA_PORT` set only that port is opened. On Linux each of those opens restarted a UART board.
 - A CrowPanel or Sunton panel that restarts without leaving USB gets its page, rail and lock again. The host asks the panel every 5 s and sets it up again after a restart.
 - `deckctl press` and `POST /v1/press` answer that the panel is not connected and the key was not pressed. Before, they answered OK.
 - A USB device that stopped responding, or was pulled out during the handshake on Windows, is reported with the advice to unplug it and plug it in again. Before, the editor said the port was busy or offered a firmware install.
 - A new panel without Tessera firmware gets the firmware hint even when an Arduino or another board next to it is busy or needs a replug. Before, the message named the other port.
 - On Linux the host locks the panel port, so esptool and a second host report it as busy instead of sharing it. A panel with firmware this host does not speak is opened once and its reason stays, instead of a restart every 10 s.
+
+- A key that waits (a delay, a shell or HTTP step, slow typing) stops when another program or key changes the page during the wait. Before, its next *Press* step ran the key in that slot on the new page. The panel says what happened: "The page changed while this key waited. Open its page and press it again." A key that changes the page itself still goes on, and so do hotkey and typing steps after an app opened and the profile followed it.
+- A hotkey key pressed while another key is still typing slowly fails at once and flashes red, and the keys pressed after it keep working. Before, they queued behind it and were dropped.
+- A file trigger on a network share that hangs no longer holds up the panel's keys.
+- A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
+- On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
+
+Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
+
+- A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
+- A key pasted into a profile that lacks its page or folder stays a draft.
+- Deleting a profile also removes the rail shortcuts and automatic actions that opened its pages.
+- *Apply* on a rail shortcut refuses a step that was copied unfinished.
+
+Other fixes:
+
+- *Run now* on a toggle key asks about every state, not only the one being edited, and *Test* says which state *Run now* presses.
+- The editor no longer follows the panel's page while you type in the inspector. Before, the rest of what you typed could land in another key.
 
 ## 1.2.11
 
