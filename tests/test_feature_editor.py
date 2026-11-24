@@ -1,10 +1,11 @@
 """Editor features that can be reached without a page: config rewrites, drafts and what a function writes into `config`."""
+import json
 from pathlib import Path
 import sys
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from test_editor import run_editor
+from test_editor import host_takes, run_editor
 
 
 class EditorFeatureTests(unittest.TestCase):
@@ -233,6 +234,134 @@ closed();
 return {made, left: config.profiles.Main.pages.First.length};
 """)
         self.assertEqual(found, {'made': 1, 'left': 0})
+
+    def test_the_rail_refuses_a_shortcut_that_copied_an_unfinished_step(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: []}}}}; profile = 'Main'; page = 'First';
+const toasts = [];
+toast = message => toasts.push(message);
+const apply = actions => {
+  railDraft = {order: ['keys'], on: new Set(['keys']), shortcuts: [{type: 'actions', label: 'Go', icon: 'lc:e0ff', actions}]};
+  document.querySelector('#rail-apply').onclick();
+  return config.panel?.shortcuts ?? null;
+};
+const unfinished = apply([{type: 'http', method: 'GET', url: ''}]);
+const told = [...toasts];
+const finished = apply([{type: 'http', method: 'GET', url: 'https://example.com'}]);
+return {unfinished, told, finished};
+""")
+        self.assertIsNone(found['unfinished'])
+        self.assertIn('not finished', found['told'][0])
+        self.assertEqual(found['finished'], [{'type': 'actions', 'label': 'Go', 'icon': 'lc:e0ff', 'actions': [{'type': 'http', 'method': 'GET', 'url': 'https://example.com'}]}])
+
+    def test_rail_and_automatic_actions_apply_with_a_page_step_after_the_first(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [], Other: []}}}}; profile = 'Main'; page = 'First';
+toast = () => {};
+const steps = [{type: 'hotkey', keys: 'ctrl+c'}, {type: 'page', page: 'Other'}, {type: 'folder', page: 'Other'}];
+railDraft = {order: ['keys'], on: new Set(['keys']), shortcuts: [{type: 'actions', label: 'Go', icon: 'lc:e0ff', actions: steps}]};
+document.querySelector('#rail-apply').onclick();
+autoDraft = [{when: {type: 'startup'}, actions: steps}];
+document.querySelector('#auto-apply').onclick();
+return {rail: config.panel?.shortcuts?.length ?? null, auto: config.triggers?.length ?? null};
+""")
+        self.assertEqual(found, {'rail': 1, 'auto': 1})
+
+    def test_a_key_pasted_into_a_profile_without_its_page_stays_a_draft(self):
+        found = self.run_editor(r"""
+const folder = {id: 1, label: 'Status', icon: 'folder', actions: [{type: 'folder', page: 'status'}]};
+config = {default_profile: 'main', profiles: {
+  main: {match: [], pages: {first: [folder], status: []}},
+  coding: {match: [], pages: {first: []}}}};
+profile = 'main'; page = 'first'; selected = 1; history = []; future = [];
+copyButton();
+profile = 'coding'; page = 'first'; selected = 2;
+pasteButton();
+const sent = savable(config);
+return {drafts: draftProblems(), sent: sent.profiles.coding.pages.first.map(k => k.actions), kept: savable(config).profiles.main.pages.first[0].actions};
+""")
+        self.assertEqual([(d['profile'], d['id']) for d in found['drafts']], [('coding', 2)])
+        self.assertEqual(found['sent'], [[]])
+        self.assertEqual(found['kept'], [{'type': 'folder', 'page': 'status'}])
+
+    def test_deleting_a_profile_removes_rail_and_trigger_steps_to_pages_only_it_had(self):
+        found = self.run_editor(r"""
+const go = type => ({type, page: 'Lobby'}), shared = {type: 'page', page: 'Home'};
+config = {default_profile: 'Main', profiles: {
+  Main: {match: [], pages: {Home: []}}, Games: {match: [], pages: {Lobby: [], Home: []}}},
+  panel: {shortcuts: [{type: 'actions', label: 'Go', icon: 'ok', actions: [go('page')]}, {type: 'actions', label: 'Home', icon: 'ok', actions: [shared]}]},
+  triggers: [{when: {type: 'startup'}, actions: [go('folder'), {type: 'hotkey', keys: 'a'}]}]};
+profile = 'Games'; page = 'Lobby'; selected = 1; history = []; future = [];
+deleteProfile();
+return {shortcuts: config.panel.shortcuts, triggers: config.triggers};
+""")
+        self.assertEqual(found['shortcuts'], [{'type': 'actions', 'label': 'Home', 'icon': 'ok', 'actions': [{'type': 'page', 'page': 'Home'}]}])
+        self.assertEqual(found['triggers'], [{'when': {'type': 'startup'}, 'actions': [{'type': 'hotkey', 'keys': 'a'}]}])
+
+    def test_run_now_on_a_toggle_key_asks_about_every_state_it_might_press(self):
+        found = self.run_editor(r"""
+const key = {id: 1, label: 'Mode', icon: 'ok', states: [
+  {label: 'A', icon: 'ok', actions: [{type: 'hotkey', keys: 'ctrl+c'}]},
+  {label: 'B', icon: 'ok', actions: [{type: 'shell', command: 'echo hi'}]}]};
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [key]}}}};
+profile = 'Main'; page = 'First'; selected = 1; editState = 0; history = []; future = [];
+dashboard = {device: {connected: true}};
+const asked = [], calls = [];
+askDialog = async (title, message) => { asked.push(message); return false; };
+api = async (path, data) => { calls.push(path); return path === 'command/dryrun' ? {actions: {steps: [], wait_seconds: 0}} : {message: 'ok', revision: 'r'}; };
+await testButton();
+await document.querySelector('#test-run').onclick();
+await settle();
+return {asked, ran: calls.includes('command/run-key')};
+""")
+        self.assertEqual(len(found['asked']), 1)
+        self.assertIn('runs a command', found['asked'][0])
+        self.assertFalse(found['ran'])
+
+    def test_a_step_the_host_refuses_for_its_size_or_values_stays_a_draft(self):
+        cases = {
+            'sameToggle': {'type': 'toggle', 'variable': 'mode', 'values': ['1', '1']},
+            'longToggle': {'type': 'toggle', 'variable': 'mode', 'values': ['a', 'x' * 65]},
+            'okToggle': {'type': 'toggle', 'variable': 'mode', 'values': ['a', 'x' * 64]},
+            'okDefaultToggle': {'type': 'toggle', 'variable': 'mode'},
+            'longNotify': {'type': 'timer', 'name': 't', 'op': 'start', 'seconds': 5, 'notify': 'x' * 121},
+            'okNotify': {'type': 'timer', 'name': 't', 'op': 'start', 'seconds': 5, 'notify': 'x' * 120},
+            'longSet': {'type': 'set', 'variable': 'v', 'value': 'x' * 1001},
+            'okSet': {'type': 'set', 'variable': 'v', 'value': 'x' * 1000},
+            'longWindow': {'type': 'window', 'op': 'minimize', 'process': 'x' * 261},
+            'okWindow': {'type': 'window', 'op': 'minimize', 'process': 'x' * 260},
+            'longOpen': {'type': 'open', 'target': 'notepad.exe', 'process': 'x' * 261},
+            'farMouse': {'type': 'mouse', 'op': 'move', 'x': 20001, 'y': 0},
+            'farMouseY': {'type': 'mouse', 'op': 'moveto', 'x': 0, 'y': -20001},
+            'okMouse': {'type': 'mouse', 'op': 'moveto', 'x': -20000, 'y': 20000}}
+        emoji = '\U0001F600'  # one character for Python, two for JavaScript's length
+        for name, limit, step in (('Toggle', 64, lambda s: {'type': 'toggle', 'variable': 'mode', 'values': ['a', s]}),
+                                  ('Notify', 120, lambda s: {'type': 'timer', 'name': 't', 'op': 'start', 'notify': s}),
+                                  ('Set', 1000, lambda s: {'type': 'set', 'variable': 'v', 'value': s}),
+                                  ('Window', 260, lambda s: {'type': 'window', 'op': 'minimize', 'process': s})):
+            cases['okEmoji' + name], cases['longEmoji' + name] = step(emoji * limit), step(emoji * (limit + 1))
+        expected = {name: host_takes(step) for name, step in cases.items()}
+        self.assertEqual(expected, {name: name.startswith('ok') for name in cases}, 'the cases cover both sides of each limit')
+        found = self.run_editor('return Object.fromEntries(Object.entries(' + json.dumps(cases)
+                                + ').map(([name, step]) => [name, !stepProblem(step)]));')
+        self.assertEqual(found, expected)
+
+    def test_the_editor_does_not_follow_the_panel_while_a_field_in_the_inspector_has_focus(self):
+        found = self.run_editor(r"""
+config = {default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [{id: 1, label: 'A', icon: 'ok', actions: []}], Second: [{id: 1, label: 'B', icon: 'ok', actions: []}]}}}};
+profile = 'Main'; page = 'First'; selected = 1; history = []; future = [];
+dashboard = {running: true, device: {connected: true, profile: 'Main', page: 'Second'}};
+const find = document.querySelector, field = {dataset: {}};  // stands in for a text field in the inspector; renderGrid reads its dataset
+document.querySelector = selector => selector === 'dialog[open]' ? null : find(selector);
+find('#inspector').contains = node => node === field;
+document.activeElement = field;
+followDevice();
+const typing = page;
+document.activeElement = null;
+followDevice();
+return {typing, after: page};
+""")
+        self.assertEqual(found, {'typing': 'First', 'after': 'Second'})
 
 
 if __name__ == '__main__':

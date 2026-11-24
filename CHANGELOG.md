@@ -24,6 +24,18 @@
 - A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
 - On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
 
+Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
+
+- A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
+- A key pasted into a profile that lacks its page or folder stays a draft.
+- Deleting a profile also removes the rail shortcuts and automatic actions that opened its pages.
+- *Apply* on a rail shortcut refuses a step that was copied unfinished.
+
+Other fixes:
+
+- *Run now* on a toggle key asks about every state, not only the one being edited, and *Test* says which state *Run now* presses.
+- The editor no longer follows the panel's page while you type in the inspector. Before, the rest of what you typed could land in another key.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
