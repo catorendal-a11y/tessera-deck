@@ -16,7 +16,6 @@ import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import deckctl
-import diagnostics
 import tessera_app
 from control_api import proof
 from host_runtime import InstanceLock
@@ -90,21 +89,36 @@ class SecondStartTests(unittest.TestCase):
             running = InstanceLock(Path(folder) / 'host/editor.local.lock')  # the first editor holds the lock
             self.assertTrue(running.acquire())
             stderr = io.StringIO()
+            dialogs = Mock()
             try:
                 with patch.object(sys, 'argv', ['tessera_app.py', '--editor']), patch.object(tessera_app, 'ROOT', Path(folder)), \
-                        patch.object(tessera_app, 'load'), patch.object(tessera_app, 'Controller'), \
+                        patch.object(tessera_app, 'load', side_effect=lambda name: dialogs if name == 'dialogs' else Mock()), \
+                        patch.object(tessera_app, 'Controller'), \
                         patch.object(tessera_app, 'editor_build_id', return_value='b1'), \
                         patch.object(tessera_app, 'show_running_editor', return_value=False) as show, \
                         patch.object(tessera_app.time, 'monotonic', side_effect=itertools.count(0, 5)), \
                         patch.object(tessera_app.time, 'sleep'), contextlib.redirect_stderr(stderr):
                     tessera_app.main()
-                # pythonw and the tray throw stderr away: the host log (tray: Open log, Show problems) must have it too
-                problems = diagnostics.recent_problems(Path(folder) / 'host/deck.local.log')
             finally:
                 running.release()
-        show.assert_called()
-        self.assertIn('did not answer', stderr.getvalue())
-        self.assertTrue(any('did not answer' in line for line in problems), problems)
+            show.assert_called()
+            self.assertIn('did not answer', stderr.getvalue())
+            # pythonw and the tray throw stderr away: the user sees it in a message box (a notification on Linux)
+            dialogs.tell.assert_called_once()
+            self.assertEqual(dialogs.tell.call_args.args[0], stderr.getvalue().strip())
+            # on Windows the running host writes over lines others add to its log: the editor leaves it alone
+            self.assertFalse((Path(folder) / 'host/deck.local.log').exists())
+
+    def test_the_notice_is_a_message_box_on_windows_and_a_notification_on_linux(self):
+        from platform_linux import dialogs as linux
+        from platform_windows import dialogs as windows
+        box = Mock(return_value=1)  # IDOK
+        with patch('ctypes.windll', Mock(user32=Mock(MessageBoxW=box)), create=True):
+            windows.tell('The editor could not open.')
+        self.assertEqual(box.call_args.args[1:3], ('The editor could not open.', 'Tessera'))
+        with patch('platform_linux.notify.notify', return_value=True) as notify:
+            linux.tell('The editor could not open.')
+        notify.assert_called_once_with('The editor could not open.', 'Tessera')
 
 
 class LocalServer(BaseHTTPRequestHandler):

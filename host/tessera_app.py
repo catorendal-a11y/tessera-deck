@@ -1029,9 +1029,9 @@ def main():
                 message = ('The editor could not open: the Tessera editor that is already running did not answer '
                            'within 20 seconds. Close it and start Tessera again.')
                 print(message, file=sys.stderr, flush=True)
-                # pythonw and the tray throw stderr away, so the host log (Open log in the tray) gets it too
-                with contextlib.suppress(OSError), (ROOT / 'host/deck.local.log').open('a', encoding='utf-8') as stream:
-                    stream.write(f'[{time.strftime("%H:%M:%S")}] {message}\n')
+                # pythonw and the tray throw stderr away, so a message box (a notification on Linux) says it too.
+                # Not the host log: on Windows the running host writes over lines other programs add to it.
+                load('dialogs').tell(message)
                 return
             time.sleep(.3)
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed
