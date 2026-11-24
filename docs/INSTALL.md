@@ -20,7 +20,7 @@
 | Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C. Other sellers also list the board under this model number. Newer boards have chip revision v3.x and take their own package, `tessera-firmware-tessera-p4-v3-<version>.zip` (see [Flash the panel](#flash-the-panel)). |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Cable | USB cable from the PC to the board's USB Serial/JTAG port. No Wi-Fi is needed. |
-| PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
+| PC | Windows 10 or 11 and 64-bit (x64) Python 3.11 or newer; arm64 and 32-bit Python do not work. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
 
 ## Download and verify
 
@@ -56,7 +56,7 @@ The editor does not run keys; they run only when you press them on the panel. Th
 
 The first start of `Tessera.cmd` shows numbered progress lines (1/3 to 3/3). It
 
-- finds Python 3.11 or newer, or installs Python 3.12 with winget;
+- finds 64-bit (x64) Python 3.11 or newer, or installs x64 Python 3.12 with winget;
 - creates `host\.venv` and installs the packages from `host/requirements.lock`, each pinned to its SHA-256 hash;
 - puts a shortcut on the Desktop;
 - starts the tray icon and the editor.
@@ -196,7 +196,9 @@ More symptoms:
 |---|---|
 | `Another Tessera host is already running` | Only one host may own the port. Stop it from the tray, then start again. |
 | The rail on the panel shows *NO PC* above the clock | The host is not running or does not own the port. Start it from the tray. |
-| Python is missing or older than 3.11 | Install Python 3.11 or newer from python.org and start `Tessera.cmd` again. If `host\.venv` was left half-made, delete that folder first. |
+| Python is missing, older than 3.11 or not 64-bit | Install 64-bit (x64) Python 3.11 or newer from python.org and start `Tessera.cmd` again. If `host\.venv` was left half-made, delete that folder first. |
+| `Tessera needs 64-bit (x64) Python on Windows` | 32-bit and arm64 Python cannot install Tessera's packages. Install x64 Python 3.11 or newer from python.org (Windows 11 on Arm runs it too), delete the folder `host\.venv` and start `Tessera.cmd` again. |
+| `Tessera needs the x64 Python from python.org, not MSYS2` | `host\.venv` was made with MSYS2's Python. Tessera's packages do not install into MSYS2's Python, not even the 64-bit UCRT64 one. Install x64 Python 3.11 or newer from python.org, delete the folder `host\.venv` and start `Tessera.cmd` again. |
 | The editor looks out of date | Close the editor window and open it again from the tray. |
 | Flashing fails with *port busy* | Stop the host first. |
 | A panel that does not answer after an update | Open the firmware dialog. It chooses *Full install* when the panel does not answer; press *Install*. |

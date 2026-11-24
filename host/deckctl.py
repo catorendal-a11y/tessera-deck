@@ -63,6 +63,10 @@ def host_listens(pid: int, port: int) -> bool:
         return False
 
 
+# The host is on this PC: a proxy from HTTP_PROXY or the Windows settings must not get the call.
+LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def call(info: dict, method: str, path: str, data: dict | None = None, timeout: float = TIMEOUT):
     url = f'http://127.0.0.1:{info["port"]}{path}'
     body = None if data is None else json.dumps(data).encode('utf-8')
@@ -71,7 +75,7 @@ def call(info: dict, method: str, path: str, data: dict | None = None, timeout: 
                                      headers={'X-Deck-Token': info['token'], 'X-Deck-Nonce': nonce,
                                               'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as reply:
+        with LOCAL.open(request, timeout=timeout) as reply:
             answer = reply.headers.get('X-Deck-Proof')
             # Only the host knows the token: a reply without its proof is not the host's (and never the panel's answer).
             if not isinstance(answer, str) or not hmac.compare_digest(answer, proof(info['token'], nonce)):

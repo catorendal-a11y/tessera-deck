@@ -53,6 +53,16 @@ def run_editor(test, script):
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
+def host_takes(step):
+    """Whether the host's validator accepts a configuration with this one step on a key."""
+    try:
+        tessera_app.validate_config({'default_profile': 'p', 'profiles': {'p': {'match': [], 'pages': {
+            'page': [{'id': 1, 'label': 'Key', 'actions': [step]}]}}}})
+        return True
+    except ValueError:
+        return False
+
+
 class EditorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -591,15 +601,6 @@ return {{first, kept: config.plugins[plugin.id].settings.url}};
                  {'plugin': 'obs', 'command': 'x', 'args': {'t': 'æ' * 200}}, {'plugin': 'obs', 'command': 'x', 'args': {'t': '\U0001F600' * 85}},
                  {'plugin': 'obs', 'command': 'x', 'args': {'t': '\x7f' * 170}}]
         steps = [{'type': 'plugin', **step} for step in steps]
-
-        def host_takes(step):
-            try:
-                tessera_app.validate_config({'default_profile': 'p', 'profiles': {'p': {'match': [], 'pages': {
-                    'page': [{'id': 1, 'label': 'Key', 'actions': [step]}]}}}})
-                return True
-            except ValueError:
-                return False
-
         expected = [host_takes(step) for step in steps]
         self.assertEqual(expected, [True] * 5 + [False] * 13, 'the cases cover both sides of each rule')
         self.assertEqual(run_editor(self, f'return {json.dumps(steps)}.map(step => !stepProblem(step));'), expected)
