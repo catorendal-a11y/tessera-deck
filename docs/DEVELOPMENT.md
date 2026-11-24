@@ -119,7 +119,7 @@ node smoke.mjs
 host\.venv\Scripts\python.exe tests\hardware_smoke.py --port COM4
 ```
 
-It talks to a connected panel: identity, layout push, 21 synthetic presses, boot id stability, brightness. It sends no hotkeys and runs no actions on the PC. Stop the host first, because only one program can hold the USB port. The default port is `COM4`. `--soak-seconds` sets the length of the soak (default 20).
+It talks to a connected panel: identity, layout push, 21 synthetic presses, boot id stability, brightness. It sends no hotkeys and runs no actions on the PC. Stop the host first. On Windows only one program can have the port open, so the test cannot open it while the host runs. On Linux it can, but then the test and the host each get only some of the panel's answers: the test fails and the host reconnects. The default port is `COM4`. `--soak-seconds` sets the length of the soak (default 20).
 
 ## Firmware
 
