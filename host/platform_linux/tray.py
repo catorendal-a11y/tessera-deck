@@ -12,9 +12,10 @@ log = logging.getLogger(__name__)
 WATCHER = 'org.kde.StatusNotifierWatcher'
 NO_TRAY = ('This desktop shows no tray icons, so Tessera has no icon. Install and enable the "AppIndicator and '
            'KStatusNotifierItem Support" extension (GNOME), then sign in again. Tessera itself keeps running.')
-NO_GI = 'The tray needs PyGObject for the system Python (python-gobject or python3-gi).'
-NO_TYPELIB = ('The tray needs libayatana-appindicator (the package libayatana-appindicator, or gir1.2-ayatanaappindicator3-0.1 '
-              'on Debian and Ubuntu).')
+NO_GI = ('The tray icon may not show, because the system Python has no PyGObject. Install python-gobject (python3-gi on '
+         'Debian and Ubuntu), then sign in again. Tessera itself keeps running.')
+NO_TYPELIB = ('The tray icon may not show, because libayatana-appindicator is missing. Install libayatana-appindicator '
+              '(gir1.2-ayatanaappindicator3-0.1 on Debian and Ubuntu), then sign in again. Tessera itself keeps running.')
 WATCHER_WAIT = 10.0  # seconds: at sign-in the tray may start before the desktop's StatusNotifier host
 TYPELIBS = ('AyatanaAppIndicator3', 'AppIndicator3')
 GI_PROBE = "import gi, sys; print(sys.version_info[0], sys.version_info[1]); print(gi.__file__)"

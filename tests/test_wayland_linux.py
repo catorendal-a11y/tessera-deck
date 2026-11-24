@@ -860,12 +860,18 @@ class TrayBackendTests(unittest.TestCase):
         backend, notice, _ = self.choose(env, typelib=False)
         self.assertEqual(backend, 'xorg')
         self.assertIn('libayatana-appindicator', notice.call_args.args[0])
+        self.assert_says_what_is_lost_and_what_to_do(notice.call_args.args[0])
 
     def test_missing_pygobject_is_told_on_the_desktop(self):
         env = {'XDG_SESSION_TYPE': 'wayland', 'XDG_CURRENT_DESKTOP': 'GNOME'}
         backend, notice, _ = self.choose(env, folder=None)
         self.assertEqual(backend, 'xorg')
         self.assertIn('PyGObject', notice.call_args.args[0])
+        self.assert_says_what_is_lost_and_what_to_do(notice.call_args.args[0])
+
+    def assert_says_what_is_lost_and_what_to_do(self, message):
+        for part in ('tray icon may not show', 'Install ', 'then sign in again', 'Tessera itself keeps running'):
+            self.assertIn(part, message)
 
     def test_a_tray_host_that_comes_a_little_later_is_waited_for(self):
         from unittest import mock
