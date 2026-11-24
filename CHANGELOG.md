@@ -18,6 +18,11 @@
 - A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
 - A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
 
+- Linux: *Start with the desktop* on the Arch package starts `tessera --tray`, so the copy in your home folder is updated with the package. An entry written by 1.2.11 is moved over.
+- Linux: the Terminal, Claude Code and Codex keys open Ptyxis on Fedora, and also try GNOME Console, mate-terminal, qterminal and cosmic-term.
+- Linux: a default key whose program is not installed names the programs it looked for and says to install one. Before, it said only "exited with code 1".
+- Linux: a missing PyGObject or appindicator library is shown as a desktop notice with the package to install for Arch, Debian and Fedora. Before, it went to a log nobody saw.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
