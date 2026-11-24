@@ -9,6 +9,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import MagicMock, Mock, patch
+import urllib.request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import deckctl
@@ -111,6 +112,10 @@ class ProxyTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         for name in ('NO_PROXY', 'no_proxy'):
             os.environ.pop(name, None)
+        # urlopen keeps the first opener it builds, with the proxies of that moment; an earlier test may have built it
+        opener = patch.object(urllib.request, '_opener', None)
+        opener.start()
+        self.addCleanup(opener.stop)
 
     def test_the_second_start_reaches_the_running_editor_through_a_proxy(self):
         process = Mock()
