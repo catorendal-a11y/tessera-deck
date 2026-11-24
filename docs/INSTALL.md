@@ -184,7 +184,7 @@ More symptoms:
 | The rail on the panel shows *NO PC* above the clock | The host is not running or does not own the port. Start it from the tray. |
 | Python is missing, older than 3.11 or not 64-bit | Install 64-bit (x64) Python 3.11 or newer from python.org and start `Tessera.cmd` again. If `host\.venv` was left half-made, delete that folder first. |
 | `Tessera needs 64-bit (x64) Python on Windows` | 32-bit and arm64 Python cannot install Tessera's packages. Install x64 Python 3.11 or newer from python.org (Windows 11 on Arm runs it too), delete the folder `host\.venv` and start `Tessera.cmd` again. |
-| `Tessera needs the x64 Python from python.org, not MSYS2` | `host\.venv` was made with MSYS2's Python, and Tessera's packages do not install there, not even into the 64-bit UCRT64 one. Install x64 Python 3.11 or newer from python.org, delete the folder `host\.venv` and start `Tessera.cmd` again. |
+| `Tessera needs the x64 Python from python.org, not MSYS2` | `host\.venv` was made with MSYS2's Python. Tessera's packages do not install into MSYS2's Python, not even the 64-bit UCRT64 one. Install x64 Python 3.11 or newer from python.org, delete the folder `host\.venv` and start `Tessera.cmd` again. |
 | The editor looks out of date | Close the editor window and open it again from the tray. |
 | Flashing fails with *port busy* | Stop the host first. |
 | A panel that does not answer after an update | Open the firmware dialog. It chooses *Full install* when the panel does not answer; press *Install*. |
