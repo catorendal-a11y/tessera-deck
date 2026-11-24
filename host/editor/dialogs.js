@@ -80,12 +80,20 @@ async function openFirmware() {
     if (blank && info.job.state !== 'running') await detectPanel();
   } catch (error) { showError(error); }
 }
-async function detectPanel() {
+async function detectPanel(restart = false) {
   $('#firmware-device').textContent = 'Looking for the panel on USB …';
   $('#firmware-detect').hidden = $('#firmware-install').disabled = true;
   let failed = '';
-  try { firmwareFound = await api('command/firmware-detect', {}); }
+  try { firmwareFound = await api('command/firmware-detect', {restart}); }
   catch (error) { firmwareFound = null; failed = error.message; }
+  // A silent USB serial adapter can be an Arduino or a 3D printer: reading its chip restarts it, so ask first.
+  if (firmwareFound?.ask) {
+    const {port, ask} = firmwareFound;
+    firmwareFound = null;
+    if (await confirmDialog(`Restart the device on ${port}?`, `${ask} does not answer as a Tessera panel. To read which chip it has, Tessera restarts it. If it is a 3D printer or another device that is busy, choose Cancel and unplug it first.`, {ok: 'Restart and look'}))
+      return detectPanel(true);
+    failed = `${port} was not restarted. Connect only the panel and look again.`;
+  }
   if (firmwareFound) $('#firmware-mode').value = firmwareFound.board ? 'app' : 'full';
   try { await refreshFirmware(); }
   catch (error) { $('#firmware-detect').hidden = false; throw error; }  // the list failed: leave a way to look again
@@ -153,8 +161,9 @@ async function pollFirmware() {
     if (!label.dataset.refreshed) { label.dataset.refreshed = '1'; firmwareFound = null; setTimeout(() => refreshFirmware().catch(() => {}), 5000); }
   } else if (job.state === 'failed') {
     label.textContent = job.error || 'The installation failed.';
-    // a panel that does not answer needs everything written: the next Install asks for exactly that
-    if ((job.error || '').includes('did not answer')) { firmwareBlank = true; $('#firmware-mode').value = 'full'; }
+    // a panel that does not answer at all needs everything written: the next Install asks for exactly that. Not after
+    // an update that stopped or restarted: those messages say to install the same way again.
+    if ((job.error || '').includes('did not answer as a Tessera panel')) { firmwareBlank = true; $('#firmware-mode').value = 'full'; }
   }
   $('#firmware-install').disabled = job.state === 'running' || !$('#firmware-package').value;
   $('#host-update').disabled = job.state === 'running';  // the restart after a program update would cut the install off
@@ -199,15 +208,18 @@ async function testButton(id = selected) {
   section('When pressed', result.actions || {steps: [], wait_seconds: 0});
   if (result.hold_actions) section('When held', result.hold_actions);
   if (result.double_actions) section('When double-pressed', result.double_actions);
-  $('#test-run').onclick = () => runKey(id, payload.actions).catch(showError);
+  if (base.states) box.append(text('p', 'Run now presses the state the panel is showing, which may not be the one listed here.', 'hint'));
+  $('#test-run').onclick = () => runKey(id, base).catch(showError);
   const panelHere = !!dashboard?.device?.connected;  // the host refuses run-key without the panel
   $('#test-run').disabled = !panelHere;
   $('#test-run').title = panelHere ? '' : 'Connect the panel first: Run now presses the key on it.';
   $('#test-dialog').showModal();
 }
 /* Run now: the host presses the key as the panel would, after a confirm for steps that act on this PC. */
-async function runKey(id, actions) {
+async function runKey(id, base) {
   const risky = {shell: 'runs a command', script: 'runs a script', http: 'sends a web request', plugin: 'sends a plugin command', text: 'types text'};
+  // The host presses whichever state the key is in, so every state counts, not only the one on screen.
+  const actions = [base, ...(base.states || [])].flatMap(holder => holder.actions || []);
   const effects = [...new Set(actions.map(a => risky[a.type]).filter(Boolean))];
   if (effects.length && !await confirmDialog('Run this key now?', `This key ${effects.join(', ')} on this PC.`, {ok: 'Run now'})) return;
   await save();  // the host runs what is saved
@@ -945,6 +957,9 @@ $('#rail-close').onclick = $('#rail-cancel').onclick = () => $('#rail-dialog').c
 $('#rail-apply').onclick = () => {
   const d = railDraft;
   if (d.shortcuts.some(s => s.type === 'actions' && !s.actions?.length)) { toast('A shortcut that runs steps needs steps: copy them from a key.'); return; }
+  // The host refuses a configuration with an unfinished step, and nothing on a key points at this copy.
+  const unfinished = d.shortcuts.flatMap((s, index) => (s.actions || []).map(a => stepProblem(a)).filter(Boolean).map(problem => `Shortcut ${index + 1} has a step that is not finished (${problem}): finish it on the key and copy the steps again.`))[0];
+  if (unfinished) { toast(unfinished); return; }
   savePanel({screens: d.order.filter(id => d.on.has(id)), shortcuts: d.shortcuts.map(s => s.type === 'actions'
     ? {type: 'actions', actions: s.actions, label: (s.label || '').slice(0, 40), icon: s.icon}
     : {profile: s.profile, page: s.page, icon: s.icon})});
@@ -1022,7 +1037,7 @@ $('#auto-apply').onclick = () => {
   const problem = autoDraft.map((rule, index) => {
     const when = rule.when, at = `Automatic action ${index + 1}`;
     if (!rule.actions?.length) return `${at} needs steps: copy them from a key.`;
-    const step = rule.actions.map(stepProblem).find(Boolean);
+    const step = rule.actions.map(a => stepProblem(a)).find(Boolean);
     if (step) return `${at} has a step that is not finished (${step}): finish it on the key and copy the steps again.`;
     if (when.type === 'file' && !when.path) return `${at} needs the file to watch.`;
     if (when.type === 'variable' && !VARIABLE_NAME.test(when.name || '')) return `${at} needs a variable name of letters, digits, dots, dashes or underscores.`;

@@ -119,7 +119,7 @@ node smoke.mjs
 host\.venv\Scripts\python.exe tests\hardware_smoke.py --port COM4
 ```
 
-It talks to a connected panel: identity, layout push, 21 synthetic presses, boot id stability, brightness. It sends no hotkeys and runs no actions on the PC. Stop the host first, because only one program can hold the USB port. The default port is `COM4`. `--soak-seconds` sets the length of the soak (default 20).
+It talks to a connected panel: identity, layout push, 21 synthetic presses, boot id stability, brightness. It sends no hotkeys and runs no actions on the PC. Stop the host first. On Windows only one program can have the port open, so the test cannot open it while the host runs. On Linux it can, but then the test and the host each get only some of the panel's answers: the test fails and the host reconnects. The default port is `COM4`. `--soak-seconds` sets the length of the soak (default 20).
 
 ## Firmware
 
@@ -128,6 +128,14 @@ The firmware builds with ESP-IDF 6.1. The commands here build it for the GUITION
 ```powershell
 idf.py -B build/idf6 build
 python tools/package_firmware.py build/idf6 dist    # writes dist/tessera-firmware-<version>.zip
+```
+
+For a GUITION board with a v3.x chip ([INSTALL.md](INSTALL.md#flash-the-panel)), build the v3 image instead. It starts from the tested v1.x `sdkconfig`, minus the chip revision options, which `boards/tessera-p4-v3.defaults` sets:
+
+```powershell
+python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
+idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
+python tools/package_firmware.py build/tessera-p4-v3 dist --board tessera-p4-v3
 ```
 
 The first build downloads LVGL and the other components into `managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). The screen is drawn by one thread (`CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1` in `sdkconfig.defaults`); two threads garbled text and icons, see [VERIFICATION.md](../VERIFICATION.md#screen-speed). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
@@ -194,10 +202,12 @@ GitHub Actions runs these on every pull request and every push to main:
 |---|---|
 | `ci.yml`, host | Lint, tests with the 73 % coverage floor, terminal check and dependency audit, on Windows with Python 3.11, 3.12 and 3.14 |
 | `ci.yml`, host-linux | The tests that are not Windows-only, on Linux under Xvfb (Python 3.11 and 3.14) |
-| `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock` (Python 3.11 and 3.14) |
+| `ci.yml`, host-lock | The tests in a clean venv installed from `host/requirements.lock`, on Windows with Python 3.11 and 3.14 |
+| `ci.yml`, host-lock-linux | A clean venv installed from `host/requirements.lock` on Linux (Python 3.12), then an import of every package the first start checks for, under Xvfb |
 | `ci.yml`, firmware-analysis | `cppcheck` on the firmware sources |
 | `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests at 1024 x 600 and 800 x 480, and the image cache benchmark with `--check`, with and without `--old-firmware` |
 | `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the three S3 boards, each with its board file |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
+| `audit.yml` | `pip-audit` on the versions in `host/requirements.lock`, once on Windows and once on Linux, because each skips the packages marked for the other system. It runs when `host/requirements*` changes and every Monday |
 
 [VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).

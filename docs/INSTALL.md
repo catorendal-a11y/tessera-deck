@@ -20,7 +20,7 @@
 | Board | GUITION 7-inch ESP32-P4 display dev board, model JC1060P470C. Other sellers also list the board under this model number. Newer boards have chip revision v3.x and take their own package, `tessera-firmware-tessera-p4-v3-<version>.zip` (see [Flash the panel](#flash-the-panel)). |
 | Display | 1024 × 600 MIPI-DSI panel (JD9165) with GT911 capacitive touch |
 | Cable | USB cable from the PC to the board's USB Serial/JTAG port. No Wi-Fi is needed. |
-| PC | Windows 10 or 11 and Python 3.11 or newer. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
+| PC | Windows 10 or 11 and 64-bit (x64) Python 3.11 or newer; arm64 and 32-bit Python do not work. If no fitting Python is found, the first start installs Python 3.12 for your user with winget. On Linux: an X11 session and Python 3.12 or newer, see [Tessera on Linux](LINUX.md). |
 
 ## Download and verify
 
@@ -56,7 +56,7 @@ The editor does not run keys; they run only when you press them on the panel. Th
 
 The first start of `Tessera.cmd` shows numbered progress lines (1/3 to 3/3). It
 
-- finds Python 3.11 or newer, or installs Python 3.12 with winget;
+- finds 64-bit (x64) Python 3.11 or newer, or installs x64 Python 3.12 with winget;
 - creates `host\.venv` and installs the packages from `host/requirements.lock`, each pinned to its SHA-256 hash;
 - puts a shortcut on the Desktop;
 - starts the tray icon and the editor.
@@ -99,9 +99,11 @@ protocol before it writes anything, stops the host while it writes and starts it
 
 Under the package list the dialog says when the panel already has that version, when the package is older than the firmware on the panel (installing it goes back), and when the folder has no package for this Tessera version. *Check for updates* then downloads it.
 
-- A new board without Tessera firmware does not answer. The dialog then asks the chip itself what it is (esptool reads it from the ROM bootloader and restarts the board), shows it, for example `New panel on COM7: ESP32-P4 revision v3.2`, and lists only the packages for boards with that chip. *Show the packages for other boards too* brings the rest back, and *Look for the panel again* repeats the look after you plug the board in. *Install* then asks once before it writes everything.
+- A new board without Tessera firmware does not answer. The dialog then asks the chip itself what it is: esptool reads it from the ROM bootloader, and that restarts the board. On the chip's own USB (the GUITION board, the Waveshare S3 board) the dialog does this at once. Behind a USB serial adapter (the CH340 on the CrowPanel and Sunton boards) the device could also be an Arduino or a 3D printer, so the dialog names it and asks before it restarts it. On Windows the device is then left alone after *Cancel*, and *Install* refuses it as well until you have said yes in a new look. On Linux it may restart anyway, see the next point.
+- On Linux, opening the port of a USB serial adapter raises DTR and RTS (see [Tessera on Linux](LINUX.md#the-panel-link)), and a board that has those lines wired to its reset restarts: an Arduino, most 3D printer boards, and the UART panels (the CrowPanel and Sunton boards). The dialog has to open the port to see whether a panel answers. So on Linux such a device restarts before the question comes up, again at every new look, and when you choose *Install* after *Cancel*; *Cancel* only keeps esptool away from it. Unplug a 3D printer or another device on a CH340 before you open the dialog on Linux.
+- The dialog shows what it found, for example `New panel on COM7: ESP32-P4 revision v3.2`, and lists only the packages for boards with that chip. An ESP32-P4 behind a USB serial adapter can only be the CrowPanel, so the dialog picks its package; there is no package yet for a CrowPanel with a v3.x chip, and the dialog says so. *Show the packages for other boards too* brings the rest back, and *Look for the panel again* repeats the look after you plug the board in. *Install* then asks once before it writes everything.
 - Newer GUITION boards have an ESP32-P4 of revision v3.x, and firmware for the older v1.x chip does not start on them (the screen stays black). The dialog reads the revision and chooses the package for it. A v3.x board takes `tessera-firmware-tessera-p4-v3-<version>.zip`, an older one `tessera-firmware-<version>.zip`. If you pick the wrong one, esptool refuses it before it writes anything, and the editor says which package to use.
-- The release zip includes a firmware package. The `firmware` folder of the release zip already has the packages for every board. *Check for updates* asks GitHub for the latest release and can download the package for the connected panel, or for the board the dialog found on the USB port (when it could be more than one board, the one for GUITION boards with a v1.x chip); it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put the package for your board from the Releases page in the `firmware` folder and choose it in the dialog. Pick the one named for your board: the installer cannot tell two boards with the same chip apart before a firmware runs on the panel.
+- The release zip includes a firmware package. The `firmware` folder of the release zip already has the packages for every board. *Check for updates* asks GitHub for the latest release and can download the package for the connected panel, or for the board the dialog found on the USB port (when it could be more than one board, the one for GUITION boards with a v1.x chip); it is kept only if its SHA-256 matches `SHA256SUMS`. You can also put the package for your board from the Releases page in the `firmware` folder and choose it in the dialog. Pick the one named for your board: apart from the CrowPanel P4, which the dialog knows by its USB serial adapter, the installer cannot tell two boards with the same chip apart before a firmware runs on the panel.
 - The flash has two 6 MB app slots for rollback. If a new firmware crashes or hangs before its first handshake with the host (or before it has run for 60 s), the bootloader goes back to the previous one on the next reset. The details are in [RELEASING.md](RELEASING.md).
 - On a panel with old single-slot firmware, the first update to A/B firmware must be a *Full install*. The installer says so.
 - A panel with firmware this host cannot talk to, such as the Wi-Fi beta, also needs a *Full install*. The installer says so.
@@ -122,10 +124,24 @@ idf.py -B build/idf6 build
 idf.py -B build/idf6 -p COMx flash          # first time: bootloader, partition table and app
 ```
 
+For a GUITION board with a v3.x chip (see above), build the v3 image instead. It starts from the tested v1.x `sdkconfig`, minus the chip revision options, which `boards/tessera-p4-v3.defaults` sets:
+
+```powershell
+python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
+idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
+idf.py -B build/tessera-p4-v3 -p COMx flash
+```
+
 To update only the app and keep the bootloader, partition table and stored settings:
 
 ```powershell
 python -m esptool --chip esp32p4 -p COMx -b 460800 write-flash 0xd000 build\idf6\ota_data_initial.bin 0x10000 build\idf6\tessera.bin
+```
+
+On a board with a v3.x chip, write the files from the v3 build instead. The partition layout is the same:
+
+```powershell
+python -m esptool --chip esp32p4 -p COMx -b 460800 write-flash 0xd000 build\tessera-p4-v3\ota_data_initial.bin 0x10000 build\tessera-p4-v3\tessera.bin
 ```
 
 The OTA data image makes the bootloader start `ota_0` again, even if an update over USB left the other slot active.
@@ -154,6 +170,10 @@ Tessera.cmd --uninstall
 
 This removes the autostart entry and the Desktop shortcut. Your profiles, icons and backups stay. Add `--purge` to
 delete them too (Tessera asks you to type `YES` first). To remove the program itself, delete its folder afterwards.
+If you ever ran `Tessera.cmd --sensors`, run `Tessera.cmd --sensors-off` before you delete the folder. It removes the
+sign-in task that starts Libre Hardware Monitor with administrator rights, and its firewall rule. Libre Hardware
+Monitor's own copy in `%ProgramFiles%\Tessera` stays: quit Libre Hardware Monitor from its icon in the notification
+area, then delete that folder in File Explorer (Windows asks for administrator permission).
 
 ## Troubleshooting
 
@@ -171,6 +191,7 @@ When something blocks you, a bar at the bottom of the editor names the cause and
 | The USB host has stopped, so the panel does not react to presses. | Press *Start host*, or use the tray. *Show the host log* says why it stopped. Edits are still saved. The tray restarts a host that dies by itself after 5 s, 15 s, 60 s, then every 5 minutes. |
 | The host could not start: … | Press *Show the host log*. |
 | Another program is using the panel's USB port. | Close Arduino IDE, PuTTY, Thonny or any other serial program. The panel connects by itself. Flashing from source also needs the host stopped. |
+| A USB device stopped responding. | Unplug the device on the port the second line names and plug it in again. That is usually the panel, but it can be another ESP32 or CH340 board. This happens when it is pulled out while the host talks to it, after sleep, or with a loose cable. |
 | The USB device found is not a Tessera panel. | Plug in the panel with its USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port). On a CrowPanel, use the USB-C port marked UART. |
 | The panel firmware is too old for this Tessera. | Press *Panel firmware …* and update. |
 | No panel found. Check the USB cable … | Use a data cable on the board's USB Serial/JTAG port (on the GUITION board, the full-speed USB-C port, not the high-speed one), or on a CrowPanel the USB-C port marked UART. A new panel needs firmware: press *Panel firmware …*. The second line shows the host's own error. |
@@ -182,7 +203,9 @@ More symptoms:
 |---|---|
 | `Another Tessera host is already running` | Only one host may own the port. Stop it from the tray, then start again. |
 | The rail on the panel shows *NO PC* above the clock | The host is not running or does not own the port. Start it from the tray. |
-| Python is missing or older than 3.11 | Install Python 3.11 or newer from python.org and start `Tessera.cmd` again. If `host\.venv` was left half-made, delete that folder first. |
+| Python is missing, older than 3.11 or not 64-bit | Install 64-bit (x64) Python 3.11 or newer from python.org and start `Tessera.cmd` again. If `host\.venv` was left half-made, delete that folder first. |
+| `Tessera needs 64-bit (x64) Python on Windows` | 32-bit and arm64 Python cannot install Tessera's packages. Install x64 Python 3.11 or newer from python.org (Windows 11 on Arm runs it too), delete the folder `host\.venv` and start `Tessera.cmd` again. |
+| `Tessera needs the x64 Python from python.org, not MSYS2` | `host\.venv` was made with MSYS2's Python. Tessera's packages do not install into MSYS2's Python, not even the 64-bit UCRT64 one. Install x64 Python 3.11 or newer from python.org, delete the folder `host\.venv` and start `Tessera.cmd` again. |
 | The editor looks out of date | Close the editor window and open it again from the tray. |
 | Flashing fails with *port busy* | Stop the host first. |
 | A panel that does not answer after an update | Open the firmware dialog. It chooses *Full install* when the panel does not answer; press *Install*. |

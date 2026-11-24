@@ -27,9 +27,14 @@ def settings_path(home: Path | None = None) -> Path:
     return Path(home or Path.home()) / '.claude' / 'settings.json'
 
 
-def _ours(entry) -> bool:
-    return isinstance(entry, dict) and any(MARKER in str(hook.get('command', ''))
-                                           for hook in entry.get('hooks', []) if isinstance(hook, dict))
+def _runs(hook, deckctl: Path | None = None) -> bool:
+    """A Tessera hook; with `deckctl`, only one that runs that copy's deckctl.py (the path is quoted in the command)."""
+    command = str(hook.get('command', '')) if isinstance(hook, dict) else ''
+    return MARKER in command and (deckctl is None or f'"{deckctl}"' in command)
+
+
+def _ours(entry, deckctl: Path | None = None) -> bool:
+    return isinstance(entry, dict) and any(_runs(hook, deckctl) for hook in entry.get('hooks', []))
 
 
 def _read(path: Path) -> dict:
@@ -44,15 +49,20 @@ def _read(path: Path) -> dict:
     return document
 
 
-def state(home: Path | None = None) -> dict:
-    """{'events': bool, 'permission': bool}: which parts are installed right now."""
+def state(home: Path | None = None, deckctl: Path | None = None) -> dict:
+    """{'events': bool, 'permission': bool}: which parts are installed right now. With `deckctl`, hooks that run
+    another folder's copy do not count: they are what a moved Tessera leaves behind and need switching on again."""
     hooks = _read(settings_path(home)).get('hooks', {})
-    on = lambda event: any(_ours(entry) for entry in hooks.get(event, []))  # noqa: E731
+    on = lambda event: any(_ours(entry, deckctl) for entry in hooks.get(event, []))  # noqa: E731
     return {'events': all(on(event) for event in EVENTS), 'permission': on('PermissionRequest')}
 
 
-def update(events: bool, allow: bool, python: Path, deckctl: Path, home: Path | None = None) -> dict:
-    """Make the file match the wish; returns the new state. A backup of the old file is kept next to it."""
+def update(events: bool, allow: bool, python: Path, deckctl: Path, home: Path | None = None,
+           only_this: bool = False) -> dict:
+    """Make the file match the wish; returns the new state. A backup of the old file is kept next to it.
+
+    Hooks of Tessera in another folder are replaced when switching on, but with `only_this` (an uninstall) they stay:
+    that copy is still in use."""
     if type(events) is not bool or type(allow) is not bool:
         raise ValueError('Choose on or off for each part.')
     path = settings_path(home)
@@ -65,9 +75,8 @@ def update(events: bool, allow: bool, python: Path, deckctl: Path, home: Path | 
     for event, present in wanted.items():
         kept = []
         for entry in hooks.get(event, []):
-            if _ours(entry):  # a group may hold the user's own hook next to Tessera's: only Tessera's goes
-                entry = dict(entry, hooks=[hook for hook in entry['hooks']
-                                           if not (isinstance(hook, dict) and MARKER in str(hook.get('command', '')))])
+            if _ours(entry, deckctl if only_this else None):  # a group may hold the user's own hook next to Tessera's: only Tessera's goes
+                entry = dict(entry, hooks=[hook for hook in entry['hooks'] if not _runs(hook, deckctl if only_this else None)])
                 if not entry['hooks']:
                     continue
             kept.append(entry)

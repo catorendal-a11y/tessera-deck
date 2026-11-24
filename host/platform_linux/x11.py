@@ -18,6 +18,12 @@ MOUSE_BUTTONS = {'left': '1', 'middle': '2', 'right': '3'}
 MAXIMIZED = ('MAXIMIZED_VERT', 'MAXIMIZED_HORZ')
 
 
+def old_xdotool(error) -> bool:
+    """xdotool before 3.20210804 (Debian 12, Ubuntu 22.04 and 24.04) has no windowstate and no windowquit; wmctrl does the
+    same through the window manager."""
+    return 'Unknown command' in str(error)
+
+
 class X11Backend(DesktopBackend):
     name = 'x11'
 
@@ -113,7 +119,14 @@ class X11Backend(DesktopBackend):
                 return False
             self.run(['xdotool', 'windowactivate', '--sync', window])
         elif op == 'close':
-            self.run(['xdotool', 'windowquit', *target] if window else ['xdotool', 'getactivewindow', 'windowquit'])
+            try:
+                self.run(['xdotool', 'windowquit', *target] if window else ['xdotool', 'getactivewindow', 'windowquit'])
+            except BackendUnavailable:
+                raise
+            except OSError as exc:
+                if not old_xdotool(exc):
+                    raise
+                self.run(['wmctrl', *(['-i', '-c', window] if window else ['-c', ':ACTIVE:'])])
         elif op == 'maximize':
             self.set_states(window, '--add', MAXIMIZED)
         elif op == 'restore':
@@ -129,11 +142,20 @@ class X11Backend(DesktopBackend):
         return True
 
     def set_states(self, window, flag, names):
-        for name in names:
-            if window:
-                self.run(['xdotool', 'windowstate', flag, name, window])
-            else:
-                self.run(['xdotool', 'getactivewindow', 'windowstate', flag, name])
+        try:
+            for name in names:
+                if window:
+                    self.run(['xdotool', 'windowstate', flag, name, window])
+                else:
+                    self.run(['xdotool', 'getactivewindow', 'windowstate', flag, name])
+        except BackendUnavailable:
+            raise
+        except OSError as exc:
+            if not old_xdotool(exc):
+                raise
+            action = 'add' if flag == '--add' else 'remove'
+            self.run(['wmctrl', *(['-i', '-r', window] if window else ['-r', ':ACTIVE:']),
+                      '-b', f'{action},' + ','.join(name.lower() for name in names)])
 
     def states(self, window):
         """The _NET_WM_STATE names of the window (without the prefix); empty without xprop."""

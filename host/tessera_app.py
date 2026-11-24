@@ -38,7 +38,7 @@ import firmware_update
 import iconify
 import plugins
 import updates
-from host_runtime import InstanceLock
+from host_runtime import ESPRESSIF_VID, InstanceLock
 from action_preview import preview
 from import_review import adapt_to_this_system, export_left_out, redact_secrets, review, strip_executable
 
@@ -188,6 +188,7 @@ class Editor:
         self.firmware_job = {'state': 'idle'}
         self.last_release = None  # what the last update check found; downloads never trust client-sent URLs
         self.found_boards = []  # what the last look at a panel that does not answer found (detect_panel)
+        self.restart_agreed = None  # the port the user agreed to restart in the last look (detect_panel)
         self.firmware_lock = threading.Lock()
         self.served = {}  # revision -> the configuration read then, so a save can follow a tray brightness change
 
@@ -426,9 +427,21 @@ class Editor:
         raise firmware_update.InstallError(f'No Tessera panel answered on {", ".join(ports)}. Unplug the other '
                                            'USB serial devices, or connect only the panel, and try again.')
 
-    def detect_panel(self):
+    @staticmethod
+    def usb_device(port):
+        # The pyserial listing entry of `port` (vid, description), or None when it cannot be listed.
+        try:
+            from serial.tools import list_ports
+            return next((item for item in list_ports.comports() if item.device == port), None)
+        except Exception:  # the same as host_runtime.port_baud: a driver that cannot be listed
+            return None
+
+    def detect_panel(self, restart=False):
         """What is on the USB port when the host has no panel: the board and firmware if it answers, otherwise the
-        chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install."""
+        chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install.
+
+        Asking the chip restarts the device. A silent USB serial adapter (CH340) may be an Arduino or a 3D printer,
+        so for one the answer is {'port', 'ask': its description} until the user agrees (restart=True)."""
         if not self.firmware_lock.acquire(blocking=False):
             raise ValueError('A firmware install or a Tessera update is already running. Try again when it is done.')
         was_running = False
@@ -439,12 +452,17 @@ class Editor:
             if was_running:
                 self.controller.stop()
             port = self.firmware_port()
+            self.restart_agreed = port if restart else None
             info = self.identify_panel(port)
             if info is not None:
                 board = info.get('boardId', firmware_update.BOARD_ID)
                 found = {'port': port, 'board': board, 'firmware': info.get('firmwareVersion'), 'boards': [board]}
             else:
-                found = dict(firmware_update.detect_chip(port), port=port)
+                device = self.usb_device(port)
+                uart = device is not None and device.vid != ESPRESSIF_VID
+                if uart and not restart:
+                    return {'port': port, 'ask': device.description or port}
+                found = dict(firmware_update.detect_chip(port, uart=uart), port=port)
             self.found_boards = found['boards']
             return found
         finally:
@@ -454,6 +472,19 @@ class Editor:
                     self.controller.start()
             finally:
                 self.firmware_lock.release()
+
+    def identify_for_install(self, port):
+        # identify_panel for an install, which restarts the device: a silent USB serial adapter only after the user
+        # agreed to that in the look (detect_panel), as it may be an Arduino or a 3D printer.
+        info = self.identify_panel(port)
+        device = self.usb_device(port) if info is None and port != self.restart_agreed else None
+        if device is not None and device.vid != ESPRESSIF_VID:
+            name = device.description or port
+            raise firmware_update.InstallError(
+                f'{name if port in name else f"{name} on {port}"} does not answer as a Tessera panel, and installing '
+                'restarts it. If it is the panel, choose "Look for the panel again" and agree to the restart. If it is '
+                'a 3D printer or another device, unplug it and connect only the panel.')
+        return info
 
     def run_firmware_install(self, package, mode, force):
         was_running = bool(self.controller.processes())
@@ -470,7 +501,7 @@ class Editor:
             def progress(stage, percent):
                 self.firmware_job = dict(self.firmware_job, stage=stage, percent=round(percent))
 
-            result = firmware_update.install(package, self.firmware_port(), self.identify_panel, mode, force, progress)
+            result = firmware_update.install(package, self.firmware_port(), self.identify_for_install, mode, force, progress)
             outcome = {'state': 'done', 'stage': 'done', 'percent': 100, 'result': result}
         except Exception as exc:  # whatever went wrong, the job must not stay "running" forever
             outcome = {'state': 'failed', 'error': str(exc) or type(exc).__name__}
@@ -582,7 +613,7 @@ class Editor:
         """Read (no `events`/`permission` in data) or change the Claude Code hooks that feed the agents screen."""
         import claude_setup
         if 'events' not in data and 'permission' not in data:
-            return claude_setup.state()
+            return claude_setup.state(deckctl=ROOT / 'host/deckctl.py')
         python = venv_python(ROOT)
         return claude_setup.update(data.get('events'), data.get('permission'), python if python.is_file() else Path(sys.executable),
                                    ROOT / 'host/deckctl.py')
@@ -680,7 +711,7 @@ class Editor:
         if command == 'firmware-list':
             return self.firmware_list()
         if command == 'firmware-detect':
-            return self.detect_panel()
+            return self.detect_panel(data.get('restart') is True)
         if command == 'firmware-install':
             return self.install_firmware(data)
         if command == 'firmware-progress':
@@ -960,11 +991,16 @@ def make_server(editor, port=0, token=None):
     return server
 
 
+# This PC's own editor is never behind a proxy, whatever HTTP_PROXY or the Windows settings say.
+LOCAL = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
 def show_running_editor(record, build, open_if_hidden=False):
     """Bring the running editor to the front. False when there is none yet; an editor of another build is stopped.
 
     The editor's server answers a moment before its window is on screen. Opening a window of our own then (the
-    old behaviour) is how a double click made two; the caller waits and asks again instead.
+    old behaviour) is how a double click made two; the caller waits and asks again instead. None says that case:
+    the editor answered, but its window could not be raised (yet, or ever on a Wayland desktop without focus).
     """
     import psutil
     try:
@@ -978,14 +1014,14 @@ def show_running_editor(record, build, open_if_hidden=False):
             return False
         request = urllib.request.Request(previous['url'] + 'api/session', data=b'{}',
                                          headers={'Content-Type': 'application/json', 'X-Deck-Token': previous['token']})
-        with urllib.request.urlopen(request, timeout=2) as response:
+        with LOCAL.open(request, timeout=2) as response:
             if response.status != 200:
                 return False
         if previous.get('build') == build:
             def launch_url():  # a one-time code: the record's token never goes into an address
                 request = urllib.request.Request(previous['url'] + 'api/session', data=b'{"launch": true}',
                                                  headers={'Content-Type': 'application/json', 'X-Deck-Token': previous['token']})
-                with urllib.request.urlopen(request, timeout=2) as response:
+                with LOCAL.open(request, timeout=2) as response:
                     return previous['url'] + '#' + json.loads(response.read())['launch']
             if previous.get('browser'):  # the editor runs in a browser tab, which has no window of its own to raise
                 webbrowser.open(launch_url())
@@ -995,7 +1031,7 @@ def show_running_editor(record, build, open_if_hidden=False):
             if open_if_hidden:
                 open_window(launch_url)
                 return True
-            return False
+            return None
         # A launcher reopening an updated editor must not reuse a stale API server. The independent USB host stays up.
         process.terminate()
         process.wait(timeout=3)
@@ -1027,7 +1063,20 @@ def main():
     if not args.profiles and not args.no_browser:
         deadline = time.monotonic() + 20
         while not lock.acquire():
-            if show_running_editor(record, build) or time.monotonic() > deadline:
+            shown = show_running_editor(record, build)
+            if shown:
+                return
+            if time.monotonic() > deadline:
+                if shown is None:
+                    message = ('The Tessera editor is already open, but Tessera could not show its window. If you '
+                               'cannot find it, quit Tessera and start it again.')
+                else:
+                    message = ('The editor could not open: the Tessera editor that is already running did not answer '
+                               'within 20 seconds. Close it and start Tessera again.')
+                print(message, file=sys.stderr, flush=True)
+                # pythonw and the tray throw stderr away, so a message box (a notification on Linux) says it too.
+                # Not the host log: on Windows the running host writes over lines other programs add to it.
+                load('dialogs').tell(message)
                 return
             time.sleep(.3)
         if show_running_editor(record, build, open_if_hidden=True):  # an editor from before the lock existed

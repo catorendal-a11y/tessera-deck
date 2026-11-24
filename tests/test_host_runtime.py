@@ -895,6 +895,35 @@ class HostRuntimeTests(HostCase):
             self.assertTrue(any('RuntimeError: Install host/requirements.txt first' in str(entry) for entry in daemon.log.call_args_list))
             self.assertTrue(any('could not be published' in str(entry) for entry in daemon.log.call_args_list))
 
+    def test_a_press_taken_just_after_the_panel_connects_is_not_dropped_as_old(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profiles.json'
+            path.write_text((ROOT / 'host/profiles.default.json').read_text(encoding='utf-8'), encoding='utf-8')
+            daemon = test_daemon(path)
+            daemon.log, daemon.pc.start, daemon.pc.stop = Mock(), Mock(), Mock()
+            daemon.agent_scan_at = daemon.stats_scan_at = float('inf')
+            daemon.device_state_path, daemon.runtime_path = Path(directory) / 'device.json', Path(directory) / 'runtime.json'
+            daemon.open_panel = Mock(return_value=(Mock(info={'bootId': 1, 'protocol': 3}), 'COM4'))
+            daemon.worker_loop = daemon.reader_loop = daemon.heartbeat_loop = Mock()  # the jobs stay in the queue
+            daemon.submit(('api-press', 1))  # queued while the panel was away
+            clear = daemon.connection_failed.clear
+
+            def connected():
+                clear()
+                daemon.submit(('api-press', 2))  # the API takes a press as soon as the panel counts as connected
+            daemon.connection_failed.clear = connected
+            daemon.fire_trigger = lambda when: daemon.stop.set()
+            timer = threading.Timer(5, daemon.stop.set)
+            timer.start()
+            self.addCleanup(timer.cancel)
+            with patch.object(deck, '__file__', str(Path(directory) / 'tesserad.py')), \
+                    patch.object(deck, 'ControlServer'), \
+                    patch.object(deck, 'PluginManager', return_value=Mock(**{'status.return_value': []})):
+                daemon.run()
+            queued = [daemon.jobs.get_nowait() for _ in range(daemon.jobs.qsize())]
+            self.assertIn(('api-press', 2), queued, 'the API answered OK for it')
+            self.assertNotIn(('api-press', 1), queued)
+
     def test_a_command_file_held_open_by_a_scanner_waits_for_the_next_second(self):
         with tempfile.TemporaryDirectory() as directory:
             daemon = self.daemon()

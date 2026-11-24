@@ -84,6 +84,23 @@ jobs:
       - name: Unit, editor, protocol and reliability tests
         run: '& "$env:RUNNER_TEMP/venv/Scripts/python.exe" -m unittest discover -s tests'
 
+  host-lock-linux:
+    name: "Linux host from the lock file (Python 3.12, clean venv)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'  # the version the lock is made with, and the oldest Tessera.sh accepts
+      - name: Install host/requirements.lock with its hashes, as the first start does
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --require-hashes -r host/requirements.lock
+      - name: Install a virtual display (pystray connects to X11 when it is imported)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+      - name: Import the packages the first start checks for (MODULE_PROBE in host/setup_tool.py)
+        run: xvfb-run -a "$RUNNER_TEMP/venv/bin/python" -c "import sys; sys.path.insert(0, 'host'); from setup_tool import MODULE_PROBE; exec(MODULE_PROBE)"
+
   firmware-analysis:
     name: Firmware static analysis (cppcheck)
     runs-on: ubuntu-latest  # not the ESP-IDF container: apt inside it could not reach the Ubuntu archive

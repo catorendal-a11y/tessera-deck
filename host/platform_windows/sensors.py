@@ -10,6 +10,7 @@ import collections
 import logging
 import os
 import re
+import subprocess
 import time
 
 try:
@@ -104,16 +105,13 @@ class WindowsCounters:
         self._query = win32pdh.OpenQuery()
         self._handles = {}
         for pattern in (ENGINE_PATH, MEMORY_PATH):
+            # One wildcard counter per pattern, added by its English name. ExpandCounterPath takes the names in the
+            # display language of Windows, so on a German or French Windows it would find nothing for these English
+            # paths. AddEnglishCounter should find them there too, but that was only checked on English Windows.
             try:
-                paths = win32pdh.ExpandCounterPath(pattern)
+                self._handles[pattern] = win32pdh.AddEnglishCounter(self._query, pattern)
             except Exception:
                 log.debug('counter pattern %s unavailable', pattern, exc_info=True)
-                paths = []
-            for path in paths:
-                try:
-                    self._handles[path] = win32pdh.AddEnglishCounter(self._query, path)
-                except Exception:
-                    continue
         try:
             self._performance = win32pdh.AddEnglishCounter(self._query, PERFORMANCE_PATH)
         except Exception:
@@ -133,11 +131,13 @@ class WindowsCounters:
                 return dict(self._last)
             win32pdh.CollectQueryData(self._query)
             values = {}
-            for path, handle in self._handles.items():
+            for pattern, handle in self._handles.items():
                 try:
-                    values[path] = win32pdh.GetFormattedCounterValue(handle, win32pdh.PDH_FMT_DOUBLE)[1]
+                    instances = win32pdh.GetFormattedCounterArray(handle, win32pdh.PDH_FMT_DOUBLE)
                 except Exception:
                     continue
+                for instance, value in instances.items():
+                    values[pattern.replace('*', instance)] = value
             self._last = self._summarize(values)
             return dict(self._last)
         except Exception:
@@ -199,3 +199,13 @@ def extra_gpu_readers() -> list:
     """GPU readers beyond nvidia-smi: AMD's own ADL library."""
     from platform_windows.gpu_adl import AdlReader
     return [AdlReader()]
+
+
+def sensors_task_exists() -> bool:
+    """True when `Tessera.cmd --sensors` left its sign-in task, which runs Libre Hardware Monitor as administrator."""
+    from process_flags import NO_WINDOW
+    try:
+        return subprocess.run(['schtasks', '/Query', '/TN', 'Tessera Sensors'], capture_output=True,
+                              creationflags=NO_WINDOW).returncode == 0
+    except OSError:
+        return False

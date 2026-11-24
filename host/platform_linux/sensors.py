@@ -155,3 +155,8 @@ def disk_root() -> str:
 
 def extra_gpu_readers() -> list:
     return []
+
+
+def sensors_task_exists() -> bool:
+    """`Tessera.sh` has no sensors sign-in task, so uninstall has nothing to warn about."""
+    return False

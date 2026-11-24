@@ -147,13 +147,18 @@ def port_baud(port):
 def candidate_ports(requested, state_path, installed=None, espressif=None):
     """Ports to try, best first: the remembered/requested port, then other Espressif and CH340 USB devices.
 
-    Every candidate is verified with a handshake before it is configured, so a second ESP32 is never touched.
+    Every candidate is verified with a handshake before it is configured, so a second ESP32 is never configured. It is
+    still opened to ask, which restarts a UART board on Linux; the host's open_panel asks such a device only a few times.
     """
     first = resolve_port(requested, state_path, installed)
     try:
         others = espressif if espressif is not None else _espressif_ports()
     except (ImportError, OSError):
-        others = []
+        return [first] if first else []
+    # Without TESSERA_PORT the port name (COM4 on Windows) is a guess: it is tried only when a panel's USB id is on it,
+    # so a modem or Bluetooth port there is never opened and its errors never hide what the real panel said.
+    if first not in others and not os.environ.get('TESSERA_PORT'):
+        first = None
     return ([first] if first else []) + [device for device in sorted(others) if device != first]
 
 
@@ -173,7 +178,7 @@ def resolve_port(requested, state_path, installed=None):
     """Follow the panel when Windows renumbers its COM port.
 
     Only a port whose USB serial number matches the remembered panel is chosen.
-    Other boards (for example a second ESP32 on another port) are never touched.
+    Other boards (for example a second ESP32 on another port) are never chosen here.
     """
     serial = remembered_serial(state_path)
     named = _remembered(state_path, 'port')  # a CH340 bridge often has no serial number: its port name is remembered
@@ -188,6 +193,12 @@ def resolve_port(requested, state_path, installed=None):
     if ports.get(requested) == serial:
         return requested
     return next((device for device, number in sorted(ports.items()) if number == serial), requested)
+
+
+def is_remembered_panel(port, state_path, installed):
+    """True when `port` holds the panel this host connected to before (by serial number, or by name without one)."""
+    serial = remembered_serial(state_path)
+    return installed.get(port) == serial if serial else port == _remembered(state_path, 'port')
 
 
 def remember_port(port, state_path, installed=None):

@@ -117,7 +117,7 @@ Turn it on in the editor, or in `profiles.json`:
 ```
 
 - **Consent.** When you turn a plugin on, the editor lists what it may do and the program it runs, and asks first. It asks again only when the `version`, permissions or program changed since you said yes, and remembers your answer in the browser. A plugin that is already on gets what its manifest lists at its next start without asking, so read what an update changes before you install it. A profile file you import turns plugins on or changes their settings only when you tick *Keep these actions*; the review lists each plugin the file turns on.
-- **Secrets.** A setting whose key contains `token`, `secret`, `password` or `api_key` (any case) is stored encrypted for your Windows account with DPAPI. `profiles.json` and its backups hold `"$(dpapi:…)"` instead of the value. On Linux the value goes to the system keyring, and the file holds `"$(keyring:<id>)"`. Your program receives the real value in `TESSERA_SETTINGS`. Exports leave these settings out.
+- **Secrets.** A setting whose key contains `token`, `secret`, `password` or `api_key` (any case) is stored encrypted for your Windows account with DPAPI. `profiles.json` and its backups hold `"$(dpapi:…)"` instead of the value. On Linux the value goes to the system keyring, and the file holds `"$(keyring:<id>)"`. If the keyring is still locked when Tessera starts, the plugin is not started without its secret: the editor lists it as *waiting*, and it starts within a minute after you unlock the keyring. If it keeps waiting with the keyring open, this PC does not have the secret, so type it again. Your program receives the real value in `TESSERA_SETTINGS`. Exports leave these settings out.
 - **Settings changes.** Changing a plugin's settings restarts it.
 
 ## What your program receives
@@ -149,7 +149,7 @@ Every request needs `X-Deck-Token`. The host answers only to the `Host` header `
 | Permission | Allows |
 |---|---|
 | `vars` | `POST /v1/var` and `POST /v1/vars`, **only for names starting with `<id>.`** |
-| `press` | `POST /v1/press` with `{"button": 1-18}` presses a key. |
+| `press` | `POST /v1/press` with `{"button": 1-18}` presses a key. With no panel connected it answers `400`, and `error` says the panel is not connected and the key was not pressed. |
 | `feedback` | `POST /v1/feedback` with `{"button": 1-18, "ok": true}` flashes a key green, or red with `false`. |
 | `state` | `POST /v1/state` with `{"button": 1-18, "state": "next" or 0-7}` sets a toggle key's state. |
 | `notify` | `POST /v1/notify` with `{"text": "Build passed", "level": "ok", "seconds": 6}` shows a short message on the panel. `text` is 1 to 100 characters on one line, `level` is `info` (default), `ok`, `warn` or `error`, and `seconds` is 1 to 30 (default 6). A `warn` or `error` message wakes a dimmed panel, except while Windows is locked. Without a panel that can show the banner (none connected, or older firmware), the message becomes a tray notification that follows the Show Windows notifications setting, and is otherwise dropped. |
@@ -196,7 +196,7 @@ A key triggers a plugin with this action:
 
 `command` is 1 to 64 letters, digits, dots, dashes or underscores. `args` is an object of at most 1,024 characters as JSON.
 
-In the editor this is the *Plugin command* step under Advanced. It lists the installed plugins and does not save a step that breaks these rules. A key with a `plugin` step fails and flashes red when that plugin is not installed, is turned off or has stopped. The reason shows in the editor, and on the panel when its firmware has the banner.
+In the editor this is the *Plugin command* step under Advanced. It lists the installed plugins and does not save a step that breaks these rules. A key with a `plugin` step fails and flashes red when that plugin is not installed, is turned off, has stopped or is waiting for the system keyring. The reason shows in the editor, and on the panel when its firmware has the banner.
 
 ## Compatibility
 

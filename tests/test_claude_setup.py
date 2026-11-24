@@ -80,5 +80,39 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(set(hooks), set(adapters.CLAUDE_EVENTS))
 
 
+    def test_hooks_that_run_another_folders_deckctl_do_not_count_as_on(self):
+        # after Tessera moves to a new folder the old hooks still run the old copy, which is not what the user switched on
+        old, new = Path('D:/old/host/deckctl.py'), Path('D:/new/host/deckctl.py')
+        claude_setup.update(True, True, Path('D:/old/python.exe'), old, self.home)
+        self.assertEqual(claude_setup.state(self.home, new), {'events': False, 'permission': False})
+        self.assertEqual(claude_setup.state(self.home, old), {'events': True, 'permission': True})
+
+    def test_switching_on_from_the_new_folder_replaces_the_old_folders_hooks(self):
+        old, new = Path('D:/old/host/deckctl.py'), Path('D:/new/host/deckctl.py')
+        claude_setup.update(True, True, Path('D:/old/python.exe'), old, self.home)
+        claude_setup.update(True, True, Path('D:/new/python.exe'), new, self.home)
+        commands = [hook['command'] for group in json.loads(self.file.read_text(encoding='utf-8'))['hooks'].values()
+                    for entry in group for hook in entry['hooks']]
+        self.assertTrue(commands)
+        self.assertFalse([command for command in commands if str(old) in command])
+        self.assertEqual(claude_setup.state(self.home, new), {'events': True, 'permission': True})
+
+    def test_removing_for_one_folder_leaves_another_folders_hooks(self):
+        old, new = Path('D:/old/host/deckctl.py'), Path('D:/new/host/deckctl.py')
+        claude_setup.update(True, True, Path('D:/new/python.exe'), new, self.home)
+        claude_setup.update(False, False, Path('D:/old/python.exe'), old, self.home, only_this=True)
+        self.assertEqual(claude_setup.state(self.home, new), {'events': True, 'permission': True})
+        claude_setup.update(False, False, Path('D:/new/python.exe'), new, self.home, only_this=True)
+        self.assertEqual(claude_setup.state(self.home), {'events': False, 'permission': False})
+
+
+    def test_the_editor_shows_hooks_of_a_moved_copy_as_off(self):
+        import tessera_app
+        claude_setup.update(True, True, Path('D:/old/python.exe'), Path('D:/old/host/deckctl.py'), self.home)
+        editor = tessera_app.Editor.__new__(tessera_app.Editor)
+        with patch.object(Path, 'home', return_value=self.home):
+            self.assertEqual(tessera_app.Editor.claude_hooks(editor, {}), {'events': False, 'permission': False})
+
+
 if __name__ == '__main__':
     unittest.main()

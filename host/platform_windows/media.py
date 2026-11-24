@@ -1,6 +1,8 @@
 """The media session on Windows (WinRT System Media Transport Controls): reading it, and changing shuffle and repeat."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from pc_state import check_media
 
 
@@ -39,7 +41,15 @@ class MediaReader:
         position, duration = 0.0, 0.0
         try:  # not every player reports a timeline; the bar is then left out
             timeline = session.get_timeline_properties()
-            position, duration = timeline.position.total_seconds(), timeline.end_time.total_seconds() - timeline.start_time.total_seconds()
+            start = timeline.start_time.total_seconds()
+            position, duration = timeline.position.total_seconds() - start, timeline.end_time.total_seconds() - start
+            if int(status) == 4:  # the position is only true at last_updated_time; a playing track has moved on since
+                updated = timeline.last_updated_time
+                if updated.tzinfo is None:
+                    updated = updated.replace(tzinfo=timezone.utc)
+                position += max(0.0, (datetime.now(timezone.utc) - updated).total_seconds())
+                if duration > 0:
+                    position = min(position, duration)
         except (AttributeError, OSError, ValueError):
             pass
         shuffle, repeat = None, ''

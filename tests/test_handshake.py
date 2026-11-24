@@ -96,6 +96,22 @@ class HandshakeTests(unittest.TestCase):
                 panel('COM4', info(protocol=protocol))
             self.assertIn('not supported', str(raised.exception))
 
+    def test_the_port_is_locked_for_this_host_while_it_is_open(self):
+        # pyserial takes flock on POSIX only when `exclusive` is set before open(); esptool and idf.py take the same
+        # lock, so with it they report a busy port instead of flashing through the host's pings.
+        class Locking(FakeSerial):
+            exclusive = None
+
+            def open(self):
+                self.locked = self.exclusive
+
+        FakeSerial.script = info(protocol=2)
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Locking)):
+            deck.PanelSerial('COM4', Mock())
+        self.assertIs(FakeSerial.opened[0].locked, True)
+        refused = OSError(errno.EAGAIN, 'Could not exclusively lock port /dev/ttyUSB0: [Errno 11] Resource temporarily unavailable')
+        self.assertIn('in use by another program', deck.port_trouble('/dev/ttyUSB0', refused))
+
     def test_silence_and_garbage_are_rejected_not_configured(self):
         for script in (b'', b'not json\n{"type":"info"\n', b'{"type":"wake"}\n'):
             with self.assertRaises(deck.DeviceRejected):
@@ -124,6 +140,104 @@ class RestartTests(unittest.TestCase):
         daemon.device_info = {'bootId': 9, 'reset': 'poweron'}
         daemon.note_panel_restart(8)
         self.assertEqual(len(daemon.notices), 1, 'a normal power-on is only logged')
+
+
+class RestartOnTheSameLinkTests(unittest.TestCase):
+    """A board with a USB-UART bridge that restarts (RST, a crash, a power dip) stays on USB, so the port never fails:
+    the host must notice the new boot from what the panel says, or the panel keeps an old page with no rail or lock."""
+
+    def connected(self, boot_after):
+        FakeSerial.opened = []
+        link = panel('COM9', info(bootId=7, protocol=4))
+        daemon = host_support.test_daemon(port='COM9', no_focus=True)
+        daemon.log, daemon.publish_runtime = Mock(), Mock()
+        daemon.panel, daemon.device_info = link, link.info
+        FakeSerial.script = info(bootId=boot_after, protocol=4)  # what the panel answers from now on
+        reader = threading.Thread(target=daemon.reader_loop, args=(link,), daemon=True)
+        reader.start()
+        self.addCleanup(reader.join, 2)
+        self.addCleanup(daemon.stop.set)
+        import time
+        for second in range(1, 31):  # half a minute of heartbeats
+            daemon.heartbeat(link, time.monotonic() + second)
+        return daemon
+
+    def test_a_panel_that_restarted_without_leaving_usb_is_connected_again(self):
+        self.assertTrue(self.connected(boot_after=8).connection_failed.wait(2))
+
+    def test_the_same_boot_keeps_the_connection(self):
+        self.assertFalse(self.connected(boot_after=7).connection_failed.wait(0.5))
+
+    def test_an_answer_read_from_the_old_link_does_not_fail_the_new_one(self):
+        daemon = host_support.test_daemon(port='COM9', no_focus=True)
+        daemon.log, daemon.publish_runtime = Mock(), Mock()
+        old, new = Mock(), Mock()
+        daemon.panel, daemon.device_info = old, {'bootId': 7}
+
+        def read_lines():  # the host connected again while this read was waiting
+            daemon.panel, daemon.device_info = new, {'bootId': 8}
+            return ['{"type": "info", "bootId": 7}']
+        old.read_lines.side_effect = read_lines
+        daemon.reader_loop(old)
+        self.assertFalse(daemon.connection_failed.is_set())
+
+    def daemon_with_state(self):
+        import tempfile
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        daemon = host_support.test_daemon(port='COM9', no_focus=True)
+        daemon.log, daemon.publish_runtime = Mock(), Mock()
+        daemon.device_state_path = Path(folder.name) / 'deck-device.local.json'
+        return daemon
+
+    def test_a_reconnect_while_the_old_reader_fails_its_link_does_not_fail_the_new_one(self):
+        daemon = self.daemon_with_state()
+        old, new = Mock(), Mock(info={'bootId': 9})
+        daemon.panel, daemon.device_info = old, {'bootId': 7}
+        answered = []
+
+        def read_lines():
+            if answered:
+                daemon.stop.wait(0.05)
+                return []
+            answered.append(True)
+            return ['{"type": "info", "bootId": 8}']  # the panel restarted: this reader fails its link
+        old.read_lines.side_effect = read_lines
+        setting, resume, real_set = threading.Event(), threading.Event(), daemon.connection_failed.set
+
+        def paused_set():
+            if not setting.is_set():  # the reader's call, after it checked that it owns the panel
+                setting.set()
+                resume.wait(2)
+            real_set()
+        daemon.connection_failed.set = paused_set
+        reader = threading.Thread(target=daemon.reader_loop, args=(old,), daemon=True)
+        reader.start()
+        self.assertTrue(setting.wait(2))
+        link = threading.Thread(target=daemon.take_link, args=(new, 'COM9'), daemon=True)
+        link.start()
+        link.join(0.3)  # the host connects again before the old reader goes on
+        resume.set()
+        link.join(2)
+        reader.join(2)
+        self.assertIs(daemon.panel, new)
+        self.assertFalse(daemon.connection_failed.is_set(), 'the new link was failed by the old reader')
+
+    def test_a_press_while_the_first_link_is_set_up_is_refused_not_dropped(self):
+        from control_api import ApiError, ControlServer
+        daemon = self.daemon_with_state()
+        answers = []
+
+        def restart_noted(previous_boot):  # inside take_link: the panel is set, old presses are not dropped yet
+            try:
+                ControlServer.press(types.SimpleNamespace(daemon=daemon), {'button': 2})
+                answers.append('OK')
+            except ApiError:
+                answers.append('refused')
+        daemon.note_panel_restart = restart_noted
+        daemon.take_link(Mock(info={'bootId': 1}), 'COM9')
+        queued = [daemon.jobs.get_nowait() for _ in range(daemon.jobs.qsize())]
+        self.assertEqual(answers, ['refused'], f'answered OK, then the press was dropped: {queued}')
 
 
 class OtaPanel(FakeSerial):
@@ -269,6 +383,264 @@ class PortSelectionTests(unittest.TestCase):
         self.assertIn('/dev/ttyACM0 may not be opened by your user', text)
         self.assertIn('/dev/ttyACM1 is in use by another program', text)
         self.assertNotIn('PermissionError', text)
+
+    def test_windows_errors_that_need_a_replug_say_so(self):
+        import serial
+
+        def refused(error):  # as serialwin32 raises it, with repr(ctypes.WinError(code)) as printed by Python 3.11
+            return serial.SerialException(f"could not open port 'COM4': {error}")
+        replug = ("PermissionError(13, 'A device attached to the system is not functioning.', None, 31)",  # after sleep
+                  "PermissionError(13, 'The device does not recognize the command.', None, 22)",
+                  "OSError(22, 'The semaphore timeout period has expired.', None, 121)",  # an absent Bluetooth COM port
+                  "OSError(22, 'A device which does not exist was specified.', None, 433)")
+        for error in replug:
+            with self.subTest(error=error):
+                said = deck.port_trouble('COM4', refused(error))
+                self.assertIn('Unplug', said)
+                self.assertNotIn('in use', said)
+                self.assertNotIn('firmware', said)
+        for error in ("PermissionError(13, 'Access is denied.', None, 5)",
+                      "PermissionError(13, 'The process cannot access the file because it is being used by another process.', None, 32)"):
+            self.assertIn('in use', deck.port_trouble('COM4', refused(error)))
+        self.assertIn('no firmware yet', deck.port_trouble('COM4', serial.SerialTimeoutException('Write timeout')))
+
+    def test_a_device_that_goes_away_during_the_handshake_says_to_replug_it(self):
+        import serial
+        # pyserial 3.5 serialwin32 wraps repr(ctypes.WinError()) in brackets once the port is open, so the code is not last
+        errors = ("WriteFile failed (OSError(22, 'The device is not connected.', None, 1167))",
+                  "ReadFile failed (PermissionError(13, 'A device attached to the system is not functioning.', None, 31))",
+                  "ClearCommError failed (PermissionError(13, 'The device does not recognize the command.', None, 22))",
+                  "GetOverlappedResult failed (OSError(22, 'The semaphore timeout period has expired.', None, 121))",
+                  "Cannot configure port, something went wrong. Original message: "
+                  "OSError(22, 'A device which does not exist was specified.', None, 433)",
+                  # The port is already ours, and Windows opens COM ports exclusively, so access denied here is not another
+                  # program: usbser.sys, the driver of the P4's USB Serial/JTAG, answers 5 once the device is pulled.
+                  "WriteFile failed (PermissionError(13, 'Access is denied.', None, 5))",
+                  "ClearCommError failed (PermissionError(13, 'Access is denied.', None, 5))")
+        for error in errors:
+            with self.subTest(error=error):
+                self.assertEqual(deck.port_trouble('COM4', serial.SerialException(error)),
+                                 'The USB device on COM4 stopped responding. Unplug it and plug it in again.')
+
+
+class ReconnectProbeTests(unittest.TestCase):
+    """What the reconnect loop opens while no panel answers. Every open of a UART board restarts it on Linux, and on
+    Windows it holds the port for the handshake, so another program's upload or monitor gets "Access is denied"."""
+    DEVKIT = types.SimpleNamespace(device='COM8', vid=0x303A, serial_number='DEVKIT1')  # someone's ESP32-S3 devkit
+    CLONE = types.SimpleNamespace(device='COM9', vid=0x1A86, serial_number=None)  # an Arduino clone with a CH340
+
+    def setUp(self):
+        import os
+        import tempfile
+        FakeSerial.opened, FakeSerial.script = [], b''  # nothing on any port answers get_info
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.state = Path(folder.name) / 'deck-device.local.json'
+        self.state.write_text(json.dumps({'serial': 'PANEL123'}), encoding='utf-8')  # a panel was used before
+        self.listed = [self.DEVKIT, self.CLONE]
+        for patcher in (patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.05),
+                        patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=FakeSerial)),
+                        patch('serial.tools.list_ports.comports', lambda: list(self.listed)),
+                        patch.dict(os.environ)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        os.environ.pop('TESSERA_PORT', None)
+
+    def daemon(self, port='COM4'):
+        daemon = host_support.test_daemon(port=port, no_focus=True)
+        daemon.log, daemon.device_state_path = Mock(), self.state
+        return daemon
+
+    def attempts(self, daemon, count):
+        for _ in range(count):
+            with self.assertRaises(OSError):
+                daemon.open_panel()
+        return [fake.port for fake in FakeSerial.opened]
+
+    def test_other_devices_are_left_alone_after_a_few_silent_answers(self):
+        opened = self.attempts(self.daemon(), 8)  # the panel is unplugged: about a minute of retries
+        self.assertLessEqual(opened.count('COM8'), 3)
+        self.assertLessEqual(opened.count('COM9'), 3)
+
+    def test_a_device_that_was_unplugged_and_plugged_in_again_is_asked_again(self):
+        daemon = self.daemon()
+        self.attempts(daemon, 4)
+        self.listed = [self.CLONE]
+        self.attempts(daemon, 1)
+        self.listed = [self.DEVKIT, self.CLONE]
+        FakeSerial.opened = []
+        self.assertIn('COM8', self.attempts(daemon, 1))
+
+    def test_a_device_replugged_between_two_attempts_is_asked_again(self):
+        # The wait between attempts grows to 10 s; the host's one-second tick sees a replug inside it.
+        daemon = self.daemon()
+        self.attempts(daemon, 4)
+        self.listed = [self.CLONE]
+        daemon.port_tick()
+        self.listed = [self.DEVKIT, self.CLONE]
+        daemon.port_tick()
+        FakeSerial.opened = []
+        self.assertIn('COM8', self.attempts(daemon, 1))
+
+    def test_a_port_list_that_fails_once_does_not_count_as_an_unplug(self):
+        daemon = self.daemon()
+        self.attempts(daemon, 4)
+        FakeSerial.opened = []
+        with patch.object(deck, '_installed_ports', side_effect=OSError('the driver could not list the ports')):
+            self.attempts(daemon, 1)  # the Espressif list still works and names both devices
+        self.attempts(daemon, 1)
+        self.assertEqual([fake.port for fake in FakeSerial.opened], [])
+
+    def test_the_remembered_panel_is_asked_on_every_attempt_even_when_it_stays_silent(self):
+        self.listed = [types.SimpleNamespace(device='COM5', vid=0x1A86, serial_number='PANEL123')]  # hung, still on USB
+        self.assertEqual(self.attempts(self.daemon(), 6).count('COM5'), 6)
+
+    def test_a_panel_with_firmware_this_host_does_not_speak_is_opened_once_and_the_reason_stays(self):
+        self.state.write_text(json.dumps({'port': 'COM6'}), encoding='utf-8')  # the CH340 panel, used before
+        self.listed = [types.SimpleNamespace(device='COM6', vid=0x1A86, serial_number=None)]
+        FakeSerial.script = info(boardId='tessera-s3-crowpanel7', protocol=99)  # a newer firmware zip, an older host
+        daemon = self.daemon(port='')
+        for _ in range(4):
+            with self.assertRaises(OSError) as raised:
+                daemon.open_panel()
+            self.assertIn('update the firmware or the host', str(raised.exception))
+        self.assertEqual([fake.port for fake in FakeSerial.opened], ['COM6'])
+
+    def test_a_new_user_hears_about_the_blank_panel_not_about_a_busy_com4(self):
+        import serial
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port == 'COM4':  # a modem or Bluetooth port another program holds
+                    raise serial.SerialException("could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)")
+
+            def write(self, raw):  # nothing reads on a panel without firmware
+                raise serial.SerialTimeoutException('Write timeout')
+
+        self.state.unlink()  # no panel was connected before
+        self.listed = [types.SimpleNamespace(device='COM4', vid=None, serial_number=None),
+                       types.SimpleNamespace(device='COM7', vid=0x303A, serial_number='P4BLANK')]
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                self.assertRaises(OSError) as raised:
+            self.daemon(port='COM4').open_panel()  # COM4 is the Windows default the host is started with
+        self.assertIn('COM7 does not take data', str(raised.exception))
+        self.assertNotIn('in use', str(raised.exception))
+
+    def test_an_arduino_held_by_another_program_does_not_hide_the_blank_panel_in_the_editor(self):
+        import serial
+        from test_editor import run_editor
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port == 'COM4':  # an Arduino clone with a CH340, its serial monitor open in Arduino IDE
+                    raise serial.SerialException("could not open port 'COM4': PermissionError(13, 'Access is denied.', None, 5)")
+
+            def write(self, raw):
+                if self.port == 'COM7' and usb_jtag:  # nothing reads the USB Serial/JTAG port of a P4 without firmware
+                    raise serial.SerialTimeoutException('Write timeout')
+                return super().write(raw)
+
+        self.state.unlink()  # a new user: no panel was connected before
+        FakeSerial.script = b'ESP-ROM:esp32s3-20210327\r\nwaiting for download\r\n'  # the ROM of a blank UART board
+        for usb_jtag in (True, False):
+            with self.subTest(usb_jtag=usb_jtag):
+                self.listed = [types.SimpleNamespace(device='COM4', vid=0x1A86, serial_number=None),
+                               types.SimpleNamespace(device='COM7', vid=0x303A if usb_jtag else 0x1A86, serial_number=None)]
+                with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                        self.assertRaises(OSError) as raised:
+                    self.daemon(port='COM4').open_panel()
+                error = str(raised.exception)
+                self.assertIn('COM4 is in use', error)  # a CH340 can be a panel, so the host still asks it
+                said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+                self.assertTrue(said[0].startswith('No panel found'), said[0])
+                self.assertEqual(said[1][0], 'Panel firmware …')
+                self.assertEqual(said[2], error)  # the second line still names the busy COM4
+
+    def test_two_busy_ports_do_not_cut_the_blank_panel_out_of_the_editor_error(self):
+        import serial
+        import tempfile
+        from test_editor import run_editor
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port in ('COM3', 'COM4'):  # two CH340 Arduinos, each in a serial monitor
+                    raise serial.SerialException(f"could not open port '{self.port}': PermissionError(13, 'Access is denied.', None, 5)")
+
+            def write(self, raw):
+                if self.port == 'COM7':  # nothing reads the USB Serial/JTAG port of a P4 without firmware
+                    raise serial.SerialTimeoutException('Write timeout')
+                return super().write(raw)
+
+        self.state.unlink()
+        self.listed = [types.SimpleNamespace(device='COM3', vid=0x1A86, serial_number=None),
+                       types.SimpleNamespace(device='COM4', vid=0x1A86, serial_number=None),
+                       types.SimpleNamespace(device='COM7', vid=0x303A, serial_number=None)]
+        daemon = self.daemon(port='COM4')
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                self.assertRaises(OSError) as raised:
+            daemon.open_panel()
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        daemon.runtime_path = Path(folder.name) / 'runtime.json'
+        daemon.publish_runtime(False, raised.exception, force=True)
+        error = json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['error']  # what the editor reads
+        self.assertEqual(error, str(raised.exception))
+        self.assertIn('COM7 does not take data', error)
+        said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+        self.assertTrue(said[0].startswith('No panel found'), said[0])
+
+    def test_a_board_that_needs_a_replug_does_not_hide_the_blank_panel_in_the_editor(self):
+        import serial
+        from test_editor import run_editor
+
+        class Ports(FakeSerial):
+            def open(self):
+                if self.port == 'COM4':  # an Arduino clone with a CH340, after sleep
+                    raise serial.SerialException("could not open port 'COM4': PermissionError(13, 'A device attached to the system is not functioning.', None, 31)")
+
+            def write(self, raw):
+                if self.port == 'COM7':  # nothing reads the USB Serial/JTAG port of a P4 without firmware
+                    raise serial.SerialTimeoutException('Write timeout')
+                return super().write(raw)
+
+        self.state.unlink()
+        self.listed = [types.SimpleNamespace(device='COM4', vid=0x1A86, serial_number=None),
+                       types.SimpleNamespace(device='COM7', vid=0x303A, serial_number=None)]
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Ports)), \
+                self.assertRaises(OSError) as raised:
+            self.daemon(port='COM4').open_panel()
+        error = str(raised.exception)
+        self.assertIn('stopped responding', error)
+        said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+        self.assertTrue(said[0].startswith('No panel found'), said[0])
+        self.assertEqual(said[1][0], 'Panel firmware …')
+        self.assertEqual(said[2], error)  # the second line still names COM4
+
+    def test_a_panel_pulled_out_during_the_handshake_is_told_to_be_replugged_in_the_editor(self):
+        import serial
+        from test_editor import run_editor
+
+        class Pulled(FakeSerial):
+            def write(self, raw):  # usbser.sys answers access denied once the P4 is gone from an open port
+                raise serial.SerialException("WriteFile failed (PermissionError(13, 'Access is denied.', None, 5))")
+
+        self.listed = [types.SimpleNamespace(device='COM5', vid=0x303A, serial_number='PANEL123')]  # the remembered P4
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Pulled)), \
+                self.assertRaises(OSError) as raised:
+            self.daemon(port='COM5').open_panel()
+        error = str(raised.exception)
+        self.assertIn('stopped responding', error)
+        said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+        self.assertIn('Unplug', said[0])
+        self.assertNotIn('firmware', said[0])
+        self.assertNotIn('The panel', said[0])  # the host's text says only "the USB device on COM5": it may be another board
+        self.assertNotIn('Panel firmware …', [action[0] for action in said[1:] if isinstance(action, list)])
+        self.assertIn(error, said)
+
+    def test_with_tessera_port_set_only_that_port_is_opened(self):
+        import os
+        os.environ['TESSERA_PORT'] = 'COM8'
+        self.assertEqual(set(self.attempts(self.daemon(port='COM8'), 3)), {'COM8'})
 
 
 if __name__ == '__main__':

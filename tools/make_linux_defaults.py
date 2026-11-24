@@ -17,15 +17,27 @@ def shell(command):
     return {'type': 'shell', 'command': command, 'timeout': 10}
 
 
+def none_installed(names):
+    """What the chain says when nothing in it is installed; the key's error shows this instead of a bare exit code 1.
+    It names each program once, without its arguments ('gnome-control-center sound' is gnome-control-center)."""
+    programs = ', '.join(dict.fromkeys(name.split()[0] for name in names))
+    return f"{{ echo 'None of these programs is installed: {programs}. Install one with your package manager.' >&2; exit 1; }}"
+
+
 def launch(*programs):
     """Start the first installed program of the list, detached, so the key returns at once."""
     chain = ' || '.join(f'(command -v {name.split()[0]} >/dev/null 2>&1 && exec setsid -f {name})' for name in programs)
-    return shell(chain)
+    return shell(f'{chain} || {none_installed(programs)}')
 
 
-TERMINAL = launch('x-terminal-emulator', 'gnome-terminal', 'konsole', 'xfce4-terminal', 'xterm')
+# Each terminal with the option after which it takes the command to run. Ptyxis is the default on Fedora 41 and later,
+# kgx (GNOME Console) on GNOME without gnome-terminal, mate-terminal on MATE, qterminal on LXQt and cosmic-term on COSMIC.
+TERMINALS = (('x-terminal-emulator', '-e'), ('gnome-terminal', '--'), ('ptyxis', '--'), ('kgx', '--'), ('konsole', '-e'),
+             ('xfce4-terminal', '-x'), ('mate-terminal', '-x'), ('qterminal', '-e'), ('cosmic-term', '-e'), ('xterm', '-e'))
+# --new-window: Ptyxis opens a new window when one is already open, as the other terminals do
+TERMINAL = launch(*(f'{name} --new-window' if name == 'ptyxis' else name for name, _ in TERMINALS))
 SETTINGS = launch('cinnamon-settings', 'gnome-control-center', 'systemsettings', 'xfce4-settings-manager')
-MIXER = launch('pavucontrol')
+MIXER = launch('pavucontrol', 'pavucontrol-qt', 'gnome-control-center sound', 'systemsettings kcm_pulseaudio')
 CHANGES = {
     ('main', 'Explorer'): ('Files', [{'type': 'open', 'target': '~'}]),
     ('main', 'Terminal'): (None, [TERMINAL]),
@@ -48,7 +60,7 @@ CHANGES = {
     ('audio', 'Sound settings'): (None, [launch('cinnamon-settings sound', 'gnome-control-center sound', 'systemsettings kcm_pulseaudio', 'pavucontrol')]),
     ('audio', 'Volume mixer'): (None, [MIXER]),
     ('audio', 'Audio devices'): (None, [MIXER]),
-    ('audio', 'Bluetooth'): (None, [launch('blueman-manager', 'cinnamon-settings bluetooth', 'gnome-control-center bluetooth')]),
+    ('audio', 'Bluetooth'): (None, [launch('blueman-manager', 'cinnamon-settings bluetooth', 'gnome-control-center bluetooth', 'systemsettings kcm_bluetooth')]),
     ('audio', 'Quick settings'): None,
     ('tools', 'Screenshot'): (None, [{'type': 'hotkey', 'keys': 'printscreen'}]),
     ('tools', 'Clipboard'): None,
@@ -58,7 +70,7 @@ CHANGES = {
     ('tools', 'Always on top'): (None, [{'type': 'window', 'op': 'topmost'}]),
     ('tools', 'Calculator'): (None, [launch('gnome-calculator', 'kcalc', 'galculator', 'xcalc')]),
     ('tools', 'Notepad'): ('Editor', [launch('gnome-text-editor', 'gedit', 'kate', 'xed', 'mousepad')]),
-    ('tools', 'Task Manager'): ('System monitor', [launch('gnome-system-monitor', 'ksysguard', 'xfce4-taskmanager')]),
+    ('tools', 'Task Manager'): ('System monitor', [launch('gnome-system-monitor', 'plasma-systemmonitor', 'ksysguard', 'xfce4-taskmanager')]),
     ('tools', 'Settings'): (None, [SETTINGS]),
     ('tools', 'PowerToys Run'): None,
     ('tools', 'Plain paste'): (None, [{'type': 'hotkey', 'keys': 'ctrl+shift+v'}]),
@@ -74,10 +86,8 @@ ZCODE_EXE = re.compile(r'^start "" "%LOCALAPPDATA%\\Programs\\ZCode\\ZCode\.exe"
 
 def in_terminal(command):
     """Open the first available terminal emulator in the home folder and run `command` in it, detached."""
-    runs = (('x-terminal-emulator', '-e'), ('gnome-terminal', '--'), ('konsole', '-e'), ('xfce4-terminal', '-x'),
-            ('xterm', '-e'))
-    chain = ' || '.join(f'(command -v {name} >/dev/null 2>&1 && exec setsid -f {name} {flag} {command})' for name, flag in runs)
-    return {'type': 'shell', 'command': f'cd "$HOME" && ({chain})', 'timeout': 10}
+    chain = ' || '.join(f'(command -v {name} >/dev/null 2>&1 && exec setsid -f {name} {flag} {command})' for name, flag in TERMINALS)
+    return {'type': 'shell', 'command': f'cd "$HOME" && ({chain} || {none_installed([name for name, _ in TERMINALS])})', 'timeout': 10}
 
 
 def linux_action(action):

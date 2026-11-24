@@ -15,10 +15,11 @@ You need Python 3.12 or newer with `venv`, and these tools:
 |---|---|---|
 | `xdotool` | `xdotool` | keys, typing, mouse, windows |
 | `xclip` | `xclip` | the clipboard action |
+| `wmctrl` | `wmctrl` | maximize, restore, topmost and close, only when `xdotool` is older than 3.20210804 (Debian 12, Ubuntu 22.04 and 24.04) |
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
-| PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional), and the tray icon on Wayland |
-| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1` | the tray icon on Wayland (see [Wayland](#wayland)) |
+| PyGObject (system Python) | `python-gobject` / `python3-gi`; on Fedora `python3-gobject` | the themed tray menu (optional), and the tray icon on Wayland |
+| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1`; on Fedora `libayatana-appindicator-gtk3` | the tray icon on Wayland (see [Wayland](#wayland)) |
 | WebKitGTK (system Python) | `webkit2gtk-4.1` / `gir1.2-webkit2-4.1` | the editor's own window (optional; without it the editor opens in your browser) |
 
 Then, in the Tessera folder:
@@ -49,10 +50,21 @@ Boards with a USB-UART bridge (the CrowPanel, and the Sunton S3 board) restart w
 DTR and RTS before the host can lower them, and those lines drive the board's reset. The host allows for it. It waits up to
 10 s for the answer, then 1.5 s more while the board shows its boot screen, and it resends a damaged layout on the same
 open port instead of reopening it. Expect the panel to restart once when the host starts, and again whenever the host
-(re)opens the port. Do not run a serial monitor (`idf.py monitor`) at the same time: only one program can hold the port.
+(re)opens the port. The host locks the port while it has it open, so esptool and `idf.py flash` report a busy port
+instead of flashing past it. Stop the host before you flash. A serial monitor that does not take that lock can still
+open the port, but then it takes some of the panel's answers and the host reconnects, which restarts the panel: do not
+run one at the same time.
 
-If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`. Without it the host tries the Espressif and CH340
-ports it finds and keeps the one that answers like a panel.
+An *Update* over USB keeps the port open until the new firmware has answered: opening it again would restart a board
+with a USB-UART bridge, and a restart before that answer brings back the old firmware. If the board leaves USB while it
+restarts into the new firmware (a board on the chip's own USB, like the GUITION board, may do that), the open port
+breaks. The installer then closes it, waits a little over a minute until the new firmware has kept itself, and opens
+the port again to check the version. The dialog stays at 100 % meanwhile.
+
+If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`, and the host opens no other port. Without it the
+host tries the Espressif and CH340 ports it finds and keeps the one that answers like a panel. Opening a port restarts a
+board with a USB-UART bridge, so a device that is not a panel is asked at most three times, and again only after it has
+been unplugged and plugged in.
 
 ## What is different from Windows
 
@@ -65,12 +77,14 @@ ports it finds and keeps the one that answers like a panel.
   entries of the application menu, with their icons (a vector icon needs `rsvg-convert`).
 - **Scripts** (the *script* action) run with `python3`, `bash`, `node` and `pwsh`: `.py`, `.pyw`, `.sh`, `.js`, `.ps1`. `.bat`, `.cmd` and `.ahk` are Windows-only and give an error. *Edit script* and the tray's *Open the host log* open the file with `xdg-open`.
 - **The media action** (shuffle on/off, cycle repeat) works on MPRIS players that offer it, such as Spotify and VLC; a player without it says so instead of pretending. `$(pc:shuffle)`, `$(pc:repeat)` and keys that follow shuffle or repeat show the player's state.
-- **The Claude Code, Codex and ZCode profiles** of the Linux default start their tool in your terminal (`x-terminal-emulator`, `gnome-terminal`, `konsole`, `xfce4-terminal` or `xterm`, whichever is installed).
+- **The Claude Code, Codex and ZCode profiles** of the Linux default start their tool in the first of these terminals that is installed: `x-terminal-emulator`, `gnome-terminal`, `ptyxis`, `kgx` (GNOME Console), `konsole`, `xfce4-terminal`, `mate-terminal`, `qterminal`, `cosmic-term`, `xterm`. The Terminal key tries the same list.
 - **Remote devices** (KDE Connect): see [below](#remote-devices-kde-connect).
 - **Volume** uses `pactl`; per-program volume (`app:firefox`) follows PulseAudio/PipeWire streams. The media session comes
   from MPRIS, so Spotify, browsers, VLC and mpv work.
 - **Secrets** (settings named like a password or token) go to the system keyring, and the profile keeps only
-  `$(keyring:<id>)`. Without a keyring the save fails with a message; nothing is written in plain text.
+  `$(keyring:<id>)`. Without a keyring the save fails with a message; nothing is written in plain text. A plugin
+  whose secret is in a keyring that is still locked when Tessera starts (auto-login does this) waits instead of
+  starting without it. Unlock the keyring and the plugin starts within a minute.
 - **Sensors** come from the kernel: CPU temperature (`k10temp`, `coretemp`), AMD GPUs (`amdgpu`), NVIDIA through `nvidia-smi`,
   and Intel RAPL power where it is readable.
 - **Window actions** (`maximize`, `topmost`, `next_monitor` ...) need a window manager that follows the EWMH standard
@@ -102,7 +116,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   builds from September 2025 on (`active_layout_index` in `hyprctl devices -j`). GNOME, older Hyprland and other
   desktops do not: there typing is refused with a message while the session has more than one layout, because the
   wrong layout would type other characters. With one layout nothing needs asking. The RemoteDesktop portal (below)
-  needs no layout, but it is only used where `ydotool` is not installed.
+  does not move keys by position, but it is only used where `ydotool` is not installed or not running.
 - **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
   `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
   none of these names a layout, typing is refused with a message instead of typing with a guessed one.
@@ -110,7 +124,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   `ctrl+slash` is Ctrl+Shift+7 on a Norwegian keyboard, where `/` is Shift+7.
 - **The mouse**: `moveto` lands a little off when pointer acceleration is on, because uinput has no absolute pointer.
   Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
-- **Without `ydotool`** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
+- **Without `ydotool`, or with its daemon not running,** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
   RemoteDesktop portal (`host/platform_linux/portal.py`) instead. **The desktop asks once** whether Tessera may control
   keyboard and mouse, when the first key is pressed. That key does not wait for the answer: the press fails (the host
   log says why), so answer the dialog and press the key again. The permission is kept
@@ -118,8 +132,16 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   restart. To take the permission back, revoke it in the desktop's settings (Privacy or Applications). Deleting that
   file does not revoke it: Tessera can then no longer restore the permission and asks again at its next start, but a
   session that is running goes on. Stop the host to end the running session. The portal takes
-  characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
-  possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
+  characters, not key positions, so a US key position does not matter there. GNOME, though, drops a character that no
+  key of the layout in use types, and says nothing. So Tessera first checks text and the letters and digits of a hotkey
+  against the layout in use and refuses what it has no key for with a message: `€` on a US layout, or `ctrl+c` in a
+  session whose only layout is Russian. A "clipboard" step and `ctrl+v` types such text. The check needs to know the
+  layout in use, so it is made only where that can be read (see *Where the layout comes from* above). On GNOME with
+  more than one layout it cannot, because GNOME does not tell which one is in use, and the same goes for a layout
+  that cannot be read at all: then everything is sent unchecked, and a character the layout in use has no key for is
+  still dropped without a message. With English and Russian set up and Russian in use, `ctrl+c` does nothing; switch
+  to English first, or keep one layout. `moveto` is not
+  possible, because the portal only allows relative moves. `ydotool` is used when it is installed and its daemon is running (its socket exists); Tessera decides this when the first key is pressed, so start `ydotoold` before Tessera. Otherwise the portal is used, which also covers the old `ydotool` 0.1.x of Debian 12 and Ubuntu, which has no daemon and takes other commands.
 - **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
 - **The tray icon** on Plasma is the X11 one, through XWayland: Plasma shows it with `xembedsniproxy`, with the
@@ -141,7 +163,7 @@ Audio, media, secrets, sensors and the launcher do not depend on the display ser
 ### Windows on GNOME
 
 GNOME shows a program no other windows, so Tessera comes with a small extension for GNOME Shell
-(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51). It is marked for GNOME 51 only, so an older GNOME will not enable it:
+(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51). It is marked for GNOME 51 only, so any other GNOME (50 in Ubuntu 26.04 and Fedora 44, or 52 and later) will not enable it, and `./Tessera.sh --gnome-extension` says so. To try it on another version anyway (it is not tested there), turn off GNOME's version check for extensions first with `gsettings set org.gnome.shell disable-extension-version-validation true`; `gsettings reset org.gnome.shell disable-extension-version-validation` turns it back on. Then:
 
 ```
 ./Tessera.sh --gnome-extension          # copies it to ~/.local/share/gnome-shell/extensions

@@ -53,6 +53,16 @@ def run_editor(test, script):
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
+def host_takes(step):
+    """Whether the host's validator accepts a configuration with this one step on a key."""
+    try:
+        tessera_app.validate_config({'default_profile': 'p', 'profiles': {'p': {'match': [], 'pages': {
+            'page': [{'id': 1, 'label': 'Key', 'actions': [step]}]}}}})
+        return True
+    except ValueError:
+        return False
+
+
 class EditorTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -445,6 +455,39 @@ return result;
 ''')
         self.assertEqual(found, {'new': True, 'empty': True, 'hold': False})
 
+    def test_only_a_panel_that_never_answered_turns_the_next_install_into_a_full_install(self):
+        import types
+        import firmware_update as fw
+        from panel_serial import DeviceRejected
+        clock = types.SimpleNamespace(now=0.0)
+        clock.monotonic = lambda: clock.now
+
+        class Restarted:  # the panel took the new image and restarted, and nothing answers on the open port
+            def verify(self):
+                clock.now += 1
+                raise DeviceRejected('no answer', 'silent')
+
+        errors = {}
+        with self.assertRaises(fw.InstallError) as caught:
+            fw.install(types.SimpleNamespace(), 'COM9', lambda port: None)
+        errors['blank'] = str(caught.exception)
+        with patch.object(fw, 'time', clock), self.assertRaises(fw.InstallError) as caught:
+            fw.await_new_firmware(Restarted(), 1, '1.2.3')
+        errors['restarted'] = str(caught.exception)
+        found = run_editor(self, f'const errors = {json.dumps(errors)};\n' + r'''
+const result = {};
+for (const [name, error] of Object.entries(errors)) {
+  firmwareBlank = false; $('#firmware-mode').value = 'app';
+  api = async () => ({job: {state: 'failed', error}});
+  await pollFirmware();
+  result[name] = {blank: firmwareBlank, mode: $('#firmware-mode').value};
+}
+return result;
+''')
+        # A blank panel needs everything written. After the restart the old firmware comes back on the next reset,
+        # so the message asks for the same Update again, and the dialog must not swap in a forced Full install.
+        self.assertEqual(found, {'blank': {'blank': True, 'mode': 'full'}, 'restarted': {'blank': False, 'mode': 'app'}})
+
     def test_editor_edits_never_leave_a_value_the_host_refuses(self):
         found = run_editor(self, r'''
 const fresh = () => ({default_profile: 'Main', profiles: {Main: {match: [], pages: {First: [], Second: []}}}});
@@ -591,15 +634,6 @@ return {{first, kept: config.plugins[plugin.id].settings.url}};
                  {'plugin': 'obs', 'command': 'x', 'args': {'t': 'æ' * 200}}, {'plugin': 'obs', 'command': 'x', 'args': {'t': '\U0001F600' * 85}},
                  {'plugin': 'obs', 'command': 'x', 'args': {'t': '\x7f' * 170}}]
         steps = [{'type': 'plugin', **step} for step in steps]
-
-        def host_takes(step):
-            try:
-                tessera_app.validate_config({'default_profile': 'p', 'profiles': {'p': {'match': [], 'pages': {
-                    'page': [{'id': 1, 'label': 'Key', 'actions': [step]}]}}}})
-                return True
-            except ValueError:
-                return False
-
         expected = [host_takes(step) for step in steps]
         self.assertEqual(expected, [True] * 5 + [False] * 13, 'the cases cover both sides of each rule')
         self.assertEqual(run_editor(self, f'return {json.dumps(steps)}.map(step => !stepProblem(step));'), expected)

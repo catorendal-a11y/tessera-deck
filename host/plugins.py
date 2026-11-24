@@ -207,6 +207,8 @@ class PluginManager:
         self.problems: list[str] = []
         self.running: dict[str, dict] = {}
         self.history: dict[str, dict] = {}
+        self._reading: dict[str, dict] = {}  # keyring secrets being read in the background, by plugin id
+        self._keyring_turn = threading.Lock()
 
     # --- discovery and lifecycle ----------------------------------------------------
     def refresh(self) -> None:
@@ -241,8 +243,9 @@ class PluginManager:
                 else:
                     self._crashed(plugin_id, current)
             state = self.history.setdefault(plugin_id, _blank())
-            if state['state'] == 'failed' and state.get('settings') != entry.get('settings', {}):
-                # bad settings (a port that is not a number) are the usual reason to give up: fixed ones get a fresh start
+            if state['state'] in ('failed', 'waiting') and state.get('settings') != entry.get('settings', {}):
+                # bad settings (a port that is not a number) are the usual reason to give up, and a secret typed again
+                # is what a waiting plugin needs: new settings get a fresh start now, not after the back-off
                 state = self.history[plugin_id] = _blank()
             if state['state'] == 'failed' or self._clock() < state['next'] or plugin_id in self.running:
                 continue
@@ -251,12 +254,25 @@ class PluginManager:
     def _start(self, manifest: Manifest, settings: dict) -> None:
         self.log_dir.mkdir(parents=True, exist_ok=True)
         # remembered through crashes, so sync() can tell when the user changed the settings of a plugin that gave up
-        self.history.setdefault(manifest.id, _blank())['settings'] = settings
+        state = self.history.setdefault(manifest.id, _blank())
+        state['settings'] = settings
+        opened = self._open(manifest.id, settings)
+        if opened is None:  # the keyring has not answered yet, maybe because its unlock prompt is open: look again next sync
+            state.update(state='waiting', error='Reading the system keyring. If it asks, unlock it.', next=self._clock())
+            return
+        if any(opened.get(key, '') == '' and str(value).startswith(secrets_store.KEYRING_PREFIX)
+               for key, value in settings.items()):
+            # a locked keyring (Linux, at autostart) gives '': starting now would show "add the token" for one the user
+            # did enter, and the plugin would never see it once the keyring opens. Try again every minute, not counted as a crash.
+            state.update(state='waiting', error='The system keyring is locked or does not have this secret. Unlock it, '
+                                                 'or type the secret again.', next=self._clock() + BACKOFF_SECONDS[-1])
+            self._log(f'Plugin {manifest.id} waits: {state["error"]}')
+            return
         token = self._grant(manifest.id, manifest.routes(), f'{manifest.id}.', 'events' in manifest.permissions,
                             'read' in manifest.permissions)
         environment = {key: os.environ[key] for key in ENV_KEEP if key in os.environ}
         environment.update({'PYTHONUTF8': '1', 'PYTHONUNBUFFERED': '1', 'TESSERA_API': self._api_url(), 'TESSERA_TOKEN': token,
-                            'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(secrets_store.open_settings(settings))})
+                            'TESSERA_PLUGIN': manifest.id, 'TESSERA_SETTINGS': json.dumps(opened)})
         log_path = self.log_dir / f'{manifest.id}.log'
         self._rotate_log(manifest.id)
         try:  # a locked or full log folder must not leak the token granted above or retry without back-off
@@ -279,6 +295,34 @@ class PluginManager:
                                      'settings': settings}
         self.history.setdefault(manifest.id, _blank())['state'] = 'running'
         self._log(f'Plugin {manifest.id} started')
+
+    def _open(self, plugin_id: str, settings: dict) -> dict | None:
+        """`settings` with the secrets opened, or None while the keyring is still being read.
+
+        A locked keyring shows an unlock prompt and the read waits for the user's answer with no time limit, so it
+        runs in a thread. sync() waits up to 1 s for each new read, which is enough for an open keyring. The reads take
+        turns, so only one prompt is open at a time, and once the user unlocks it the reads behind it go through without
+        one. If the user closes it instead, the next plugin's read opens a new prompt at once, and every waiting plugin
+        reads again a minute later: a keyring that stays locked asks once per plugin each minute. One shared wait would
+        stop that, but '' does not tell a closed prompt from an id this keyring does not have, and a missing id must not
+        hold back the plugins whose secrets are there."""
+        if not any(str(value).startswith(secrets_store.KEYRING_PREFIX) for value in settings.values()):
+            return secrets_store.open_settings(settings)  # plain and DPAPI values open at once
+        reading = self._reading.get(plugin_id)
+        if reading is None or (reading['settings'] != settings and not reading['thread'].is_alive()):
+            reading = self._reading[plugin_id] = {'settings': settings, 'opened': {}}
+
+            def read():
+                with self._keyring_turn:
+                    reading['opened'] = secrets_store.open_settings(settings)
+
+            reading['thread'] = threading.Thread(target=read, name=f'keyring read for {plugin_id}', daemon=True)
+            reading['thread'].start()
+            reading['thread'].join(1)  # an open keyring answers at once, so the plugin starts on this sync
+        if reading['thread'].is_alive() or reading['settings'] != settings:
+            return None
+        del self._reading[plugin_id]
+        return reading['opened']  # still {} when the read failed: every keyring secret counts as missing
 
     def _log_full(self, plugin_id: str) -> bool:
         try:

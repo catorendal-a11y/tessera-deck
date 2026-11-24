@@ -448,6 +448,11 @@ function deleteProfile() {
   mutate(()=>{delete config.profiles[old];profile=Object.keys(config.profiles)[0];page=Object.keys(config.profiles[profile].pages)[0];if(config.default_profile===old)config.default_profile=profile;
     for(const item of [...Object.values(config.profiles).map(profileButtons),railSteps()])rewriteActions(item,a=>a.type==='profile'&&a.profile===old?null:a);
     for(const t of config.triggers||[])t.actions=(t.actions||[]).filter(a=>!(a.type==='profile'&&a.profile===old));
+    // Rail steps and triggers are checked against every profile's pages: drop the ones that led only to pages of this profile.
+    const kept=new Set(Object.values(config.profiles).flatMap(p=>Object.keys(p.pages)));
+    const lostPage=a=>['page','folder'].includes(a.type)&&!kept.has(a.page)?null:a;
+    rewriteActions(railSteps(),lostPage);
+    for(const t of config.triggers||[])t.actions=(t.actions||[]).flatMap(a=>{const changed=lostPage(a);return changed?[changed]:[];});
     if(config.panel?.shortcuts)config.panel.shortcuts=config.panel.shortcuts.filter(s=>s.profile!==old);dropEmptyShortcuts();});renderAll();toast(`Profile “${old}” was deleted${withKeys(keys)}.${lostSteps(lost,'switched to it')}`,true);
 }
 const nightLevelChoices=[5,10,20,40];
@@ -614,7 +619,14 @@ async function dismissFirmwareHint() {
 function panelProblem(error) {
   const firmware=['Panel firmware …',()=>openFirmware().catch(showError)],log=['Show the host log',()=>openLog().catch(showError)];
   if(/protocol/i.test(error))return ['The panel firmware is too old for this Tessera. Update it.',firmware,error,log];
-  if(/access is denied|permission|busy|in use/i.test(error))return ["Another program is using the panel's USB port. Close it (for example Arduino IDE, PuTTY or Thonny) and the panel connects by itself.",log,error];
+  // The host lists every port it tried, and it opens only Espressif and CH340 ports (or the one TESSERA_PORT names).
+  // Next to a board that opened but did not answer, as a panel without firmware does, a busy or lost one is as likely
+  // an ESP32 devkit or an Arduino clone, so the firmware hint wins; the second line still names both. The error does
+  // not say which port is the remembered panel, so a busy panel next to a silent board gets the firmware hint too.
+  const silent=/did not identify itself|does not take data/i.test(error);
+  // The driver lost the device, while opening or after: pulled out mid-handshake, after sleep, a flaky cable. New firmware will not help.
+  if(/stopped responding/i.test(error)&&!silent)return ['A USB device stopped responding. Unplug it and plug it in again; the second line names its port.',log,error];
+  if(/access is denied|permission|busy|in use/i.test(error)&&!silent)return ["Another program is using the panel's USB port. Close it (for example Arduino IDE, PuTTY or Thonny) and the panel connects by itself.",log,error];
   if(/different device/i.test(error))return ['The USB device found is not a Tessera panel. Plug in the panel with its USB Serial/JTAG port.',log,error];
   return ["No panel found. Check the USB cable and use the board's USB Serial/JTAG port; a new panel needs its firmware first.",firmware,error,log];
 }

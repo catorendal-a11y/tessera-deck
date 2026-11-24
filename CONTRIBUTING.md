@@ -51,7 +51,7 @@ cd host
 ..\build\piptools\Scripts\pip-compile --generate-hashes --strip-extras --no-emit-index-url -o requirements.lock requirements.txt
 ```
 
-Commit both files. CI installs from the lock file on Python 3.11 and 3.14, so a lock that does not install fails there.
+Commit both files. CI installs from the lock file on Windows with Python 3.11 and 3.14, and on Linux with Python 3.12, where it also imports every package the first start checks for. A lock that does not install, or that leaves out one of those packages, fails there. `audit.yml` runs `pip-audit` on the locked versions on Windows and on Linux, because each system skips the packages marked for the other.
 
 **Linux entries in the lock.** `pip-compile` on Windows does not list the Linux-only packages (`keyring`, `jeepney`, `secretstorage`, `python-xlib` and what they need). They are appended at the end of `requirements.lock` with `; sys_platform == "linux"`, and the Windows-only packages carry `; sys_platform == "win32"`, so that `pip install --require-hashes` works on both. To refresh them, run `pip-compile --generate-hashes --strip-extras -c <the Windows lock without hashes> requirements.txt` on Linux and copy the new Linux-only blocks over.
 

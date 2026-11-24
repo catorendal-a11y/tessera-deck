@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import subprocess  # noqa: F401  (the tests patch deck.subprocess)
 import sys
@@ -36,7 +37,8 @@ from substitution import ENV_REFERENCE, check_web_url, expand_environment, subst
 from pc_state import PcState
 import remote_devices
 from system_audio import MediaReader, control_audio, control_media, read_audio
-from host_runtime import DEFAULT_PORT, InstanceLock, SuspendableRLock, candidate_ports, remember_port, session_locked
+from host_runtime import (DEFAULT_PORT, InstanceLock, SuspendableRLock, _installed_ports, candidate_ports,
+                          is_remembered_panel, remember_port, session_locked)
 from system_stats import SystemStats, gauge_state
 
 # The engine's building blocks live in their own modules; the names stay importable from here for the apps,
@@ -51,7 +53,7 @@ from daemon_display import DisplayMixin
 from daemon_presses import DOUBLE_PRESS_SECONDS, PressMixin  # noqa: F401
 from daemon_ticks import BackgroundMixin
 from panel_serial import (OFFLINE_LAYOUT_BYTES, SUPPORTED_PROTOCOLS, DeviceRejected,  # noqa: F401
-                          PanelSerial, layout_bytes, restart_report)
+                          PanelSerial, layout_bytes, restart_report, serial)
 
 JOB_QUEUE_SIZE = 128
 SLOW_LANE_LIMIT = 4
@@ -107,6 +109,12 @@ def rotate_log():
 PANEL_JOBS = ('press', 'api-press', 'feedback', 'push', 'force-push', 'brightness', 'dim', 'wake', 'panel-woke',
               'screen-deck')
 CLOCK_INTERVAL = 600  # seconds between PC clock updates for panels without Wi-Fi
+# Silent handshakes before the reconnect loop leaves a device alone until it is plugged in again. A panel that is still
+# booting can miss one or two; every open restarts a UART board on Linux, and holds the port from other programs.
+SILENT_TRIES = 3
+# A UART board that restarts stays on USB and sends nothing on its own, so the host asks who it is this often and
+# compares the bootId. Without it the panel kept an old page for up to CLOCK_INTERVAL, with no rail, lock or clock.
+BOOT_CHECK_INTERVAL = 5
 
 
 class ReconnectBackoff:
@@ -141,13 +149,24 @@ def panel_label(text):
 def port_trouble(port, exc):
     """Why a serial port did not open, in plain words where pyserial says it: its own text names Python exceptions."""
     text, code = str(exc), getattr(exc, 'errno', None)
+    # On Windows pyserial ends its text with repr(ctypes.WinError()), whose last number is the Windows error code; once
+    # the port is open it puts that in brackets ("WriteFile failed (...)"). Python files several codes under
+    # PermissionError, so the class name alone does not mean "in use".
+    found = re.search(r', (\d+)\)+$', text)
+    windows = int(found.group(1)) if found else None
     if code == errno.ENOENT or 'FileNotFoundError' in text:
         return f'{port} is not there. Check the USB cable.'
-    if code == errno.EBUSY or 'PermissionError' in text:  # Windows refuses a port that is open elsewhere with "Access is denied"
+    # EAGAIN: another program holds the port's lock (flock); access denied, sharing violation: it is open elsewhere.
+    # Only while opening: Windows opens a COM port exclusively, so once it is ours these mean the device went away.
+    if code in (errno.EBUSY, errno.EAGAIN, errno.EWOULDBLOCK) or (windows in (5, 32) and text.startswith('could not open port')):
         return f'{port} is in use by another program. Close the serial monitor, flasher or second Tessera that has it open.'
+    # the driver lost the device: after sleep, a flaky cable, an absent Bluetooth port, unplugged mid-handshake (1167,
+    # or 5 and 32 on a port that is already ours: usbser.sys, the driver of the P4's USB Serial/JTAG, answers 5)
+    if windows in (5, 22, 31, 32, 121, 433, 1167):
+        return f'The USB device on {port} stopped responding. Unplug it and plug it in again.'
     if code == errno.EACCES:
         return f'{port} may not be opened by your user. Join the group uucp (Arch) or dialout (Debian, Ubuntu) and sign in again.'
-    if 'timeout' in text.lower():  # it opened but takes no data: the bootloader of a board without firmware only prints
+    if isinstance(exc, getattr(serial, 'SerialTimeoutException', ())):  # it opened but takes no data: the bootloader of a board without firmware only prints
         return (f'{port} does not take data. If the panel has no firmware yet, install it in the editor: '
                 'Panel, then Panel firmware and updates.')
     return f'{port}: {exc}'
@@ -176,11 +195,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.last_action = None
         self.custom_vars = {}
         self.trigger_state = {}
+        self.file_stats = {}  # path -> the last os.stat of a file trigger, see file_mtime
         self.stop = threading.Event()
         self.jobs = queue.Queue(maxsize=JOB_QUEUE_SIZE)
         self.enqueue_lock = threading.Lock()
         self.state_lock = SuspendableRLock()
         self.input_lock = threading.Lock()  # keyboard and mouse sequences never interleave
+        self.worker_ident = None  # set by worker_loop
         self.slow_slots = threading.BoundedSemaphore(SLOW_LANE_LIMIT)
         self.reconnect = ReconnectBackoff()
         self.sent_brightness = None  # the brightness last sent to the panel, to notice when quiet hours begin or end
@@ -199,6 +220,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.panel_factory = panel_factory
         self.panel = None
         self.connection_failed = threading.Event()
+        self.link_lock = threading.Lock()  # take_link and fail_link: which panel is connected, and whether it failed
+        self.passed_over = {}  # port -> [its USB serial number, why it is not the panel, silent answers so far]
         self.folder_stack = []
         self.button_states = {}
         self.profile_stamp = Path(args.profiles).stat().st_mtime_ns
@@ -236,6 +259,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.last_activity = time.monotonic()
         self.clock_sent_at = float('-inf')
         self.clock_hours_sent = None
+        self.boot_asked_at = float('-inf')
         self.device_state_path = Path(args.profiles).with_name('deck-device.local.json')
 
     @staticmethod
@@ -281,7 +305,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         state = {'pid': os.getpid(), 'updated': now, 'connected': bool(connected),
                  'port': self.port, 'profile': profile, 'page': page, 'gauges': gauges, 'widgets': widgets,
                  'dimmed': self.dimmed,
-                 'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error)[:180] if error else None,
+                 # whole: one line per port, and the editor's advice looks at every one of them
+                 'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error) if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'), 'reset': self.device_info.get('reset'),
                  'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer,
@@ -535,10 +560,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         if not (self.config.get('plugins') or {}).get(plugin_id, {}).get('enabled'):
             raise ValueError(f'{manifest.name} is off: turn it on in More → Plugins')
         state = manager.history.get(plugin_id, {}).get('state')
+        # advice first, as in action_preview: the 100-character banner cuts a long plugin name, not what to do
         if state == 'failed':
-            raise ValueError(f'{manifest.name} has stopped: turn it off and on in More → Plugins')
+            raise ValueError(f'Plugin stopped: turn it off and on in More → Plugins ({manifest.name})')
         if state == 'crashed':
             raise ValueError(f'{manifest.name} has stopped')
+        if state == 'waiting':
+            raise ValueError(f'Unlock the keyring or type the secret again in the editor ({manifest.name})')
 
     def run_action(self, action):
         kind = action['type']
@@ -548,7 +576,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'text':
             text, pause = self.substitute(action['text']), action.get('delay_ms', 0) / 1000
             if pause:  # typing slowly can take minutes: let other keys, the API and the main loop run meanwhile
-                with self.state_lock.suspended(), self.input_lock:
+                with self.waiting(), self.input_lock:
                     send_text(text, pause, self.stop.wait)  # a stopping host ends the typing
             else:
                 with self.input_turn():
@@ -559,13 +587,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 open_target(target)
         elif kind == 'shell':
             command, timeout = self.substitute(action['command'], 'shell'), action.get('timeout', 30)
-            with self.state_lock.suspended():  # the panel and API stay responsive while it runs
+            with self.waiting():  # the panel and API stay responsive while it runs
                 try:
                     run_command(command, timeout, self.stop)
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
         elif kind == 'script':
-            with self.state_lock.suspended():
+            with self.waiting():
                 try:
                     run_script(action['path'], action.get('timeout', 30), self.stop)
                 except CommandFailed as exc:
@@ -584,7 +612,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
                 method=action.get('method', 'GET'), headers=headers,
                 data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
-            with self.state_lock.suspended():
+            with self.waiting():
                 try:
                     with WEB_OPENER.open(request, timeout=action.get('timeout', 5)) as response:
                         response.read(65536)
@@ -593,7 +621,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 except http.client.InvalidURL:  # its message quotes the path, which can hold a webhook token
                     raise CommandFailed('The web address is not valid') from None
         elif kind == 'delay':
-            with self.state_lock.suspended():
+            with self.waiting():
                 self.stop.wait(action.get('ms', 100)/1000)
         elif kind == 'page':
             self.switch_page(action['page'])
@@ -679,6 +707,9 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         if now - self.clock_sent_at >= CLOCK_INTERVAL or hours != self.clock_hours_sent:  # a new format shows at once
             panel.send_line(f'AD_TIME {time.strftime("%Y-%m-%dT%H:%M:%S")} {hours}')
             self.clock_sent_at, self.clock_hours_sent = now, hours
+        if now - self.boot_asked_at >= BOOT_CHECK_INTERVAL:  # the reader loop compares the answer's bootId
+            panel.send_line('{"cmd":"get_info"}')
+            self.boot_asked_at = now
 
     def heartbeat_loop(self, panel):
         # A thread of its own: slow sensor or focus ticks must not make the
@@ -688,9 +719,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 self.heartbeat(panel, time.monotonic())
                 self.stop.wait(1)
         except Exception as exc:  # any error: a heartbeat thread that ends quietly leaves the panel on "PC lost"
-            if panel is self.panel and not self.stop.is_set():  # without a heartbeat the panel shows a lost PC
+            if not self.stop.is_set() and self.fail_link(panel):  # without a heartbeat the panel shows a lost PC
                 self.log(f'Heartbeat failed: {exc!r}')
-                self.connection_failed.set()
 
     def submit(self, *jobs):
         """Queue jobs all-or-nothing; raises Busy when the queue cannot take them, so callers can report it."""
@@ -791,17 +821,19 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.enqueue(('mute', message['id'][:80]))
                         elif message.get('type') == 'agent' and message.get('do') in cockpit.AGENT_ACTIONS and cockpit.agent_exe(message.get('id')):
                             self.agent_touch(message['id'], message['do'])
+                        elif message.get('type') == 'info' and message.get('bootId') != self.device_info.get('bootId'):
+                            # It restarted on the same link: connect again, which logs the restart and sets it up anew.
+                            # Not when the line is left over from the old link and compared with the new one.
+                            self.fail_link(panel)
                     elif self.args.verbose and line:
                         self.log('Panel: ' + line[:200])
         except Exception as exc:
-            if panel is self.panel:
-                self.connection_failed.set()  # first: publishing waits for the state lock, the reconnect must not
+            self.fail_link(panel)  # first: publishing waits for the state lock, the reconnect must not
             if not self.stop.is_set():
                 self.log(f'USB disconnected: {exc if isinstance(exc, OSError) else repr(exc)}')
                 self.publish_runtime(False, exc, force=True)
         finally:
-            if panel is self.panel:
-                self.connection_failed.set()
+            self.fail_link(panel)
 
     def handle_job(self, job):
         kind = job[0]
@@ -922,6 +954,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.dimmed = False
 
     def worker_loop(self):
+        self.worker_ident = threading.get_ident()  # input_turn refuses to wait for the keyboard on this thread
         while not self.stop.is_set():
             try:
                 job = self.jobs.get(timeout=.2)
@@ -953,8 +986,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.manual_focus_exe = ''
         profiles = self.config['profiles'].items()
         # The window's own program wins over a child process: Chrome runs claude.exe for its extension, and is still Chrome.
+        # Without .exe on both sides: Linux names the program 'chrome' where the rule says chrome.exe
+        exe = context['exe'].lower().removesuffix('.exe')
         own = next((name for name, p in profiles if any(
-            pattern.strip().lower().removeprefix('process:').strip() == context['exe'] for pattern in p.get('match', []))), None)
+            pattern.strip().lower().removeprefix('process:').strip().removesuffix('.exe') == exe
+            for pattern in p.get('match', []))), None)
         match = own or next((name for name, p in profiles
                              if any(matches_foreground(pattern, context) for pattern in p.get('match', []))), None)
         if match:
@@ -1005,14 +1041,66 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         except OSError:
             pass  # the next command replaces it
 
+    def take_link(self, panel, port):
+        """Make `panel` the connected one. Under link_lock, so a thread of the old link cannot fail this one."""
+        with self.link_lock:
+            self.connection_failed.set()  # also on the first link: the API refuses presses until the old ones are dropped
+            self.panel, self.port = panel, port
+            previous_boot = self.device_info.get('bootId')
+            self.device_info = getattr(panel, 'info', {}) or {}
+            self.note_panel_restart(previous_boot)
+            self.cockpit_sent = {}
+            remember_port(port, self.device_state_path)
+            self.drop_queued_presses()
+            self.connection_failed.clear()
+
+    def fail_link(self, panel):
+        """Mark the link down if `panel` is still the connected one; the check and the flag cannot be split by a reconnect."""
+        with self.link_lock:
+            if panel is self.panel:
+                self.connection_failed.set()
+                return True
+        return False
+
+    def forget_unplugged(self, installed):
+        """A device that was unplugged, or another one on its port, is asked again."""
+        self.passed_over = {port: entry for port, entry in self.passed_over.items()
+                            if port in installed and installed[port] == entry[0]}
+
+    def port_tick(self):
+        """Each second while no panel is connected: the wait between attempts grows to 10 s, and a replug inside it
+        must still count. Listing the ports opens none of them. A replug quicker than a second can be missed: pyserial
+        gives no id per connection, and a reset (also a flasher's) keeps the port in the list."""
+        if self.passed_over and (self.panel is None or self.connection_failed.is_set()):
+            with contextlib.suppress(ImportError, OSError):
+                self.forget_unplugged(_installed_ports())
+
     def open_panel(self):
         """Open the first candidate port that completes the identity and protocol handshake."""
         failures = []
-        for port in candidate_ports(self.args.port, self.device_state_path):
+        pinned = os.environ.get('TESSERA_PORT')  # the user named the panel's port: no other device is opened
+        try:
+            installed = _installed_ports()
+        except (ImportError, OSError):
+            installed = {}  # a list that failed says nothing about what was unplugged: the records stay
+        else:
+            self.forget_unplugged(installed)
+        for port in [pinned] if pinned else candidate_ports(self.args.port, self.device_state_path, installed):
+            entry = self.passed_over.get(port)
+            if entry and entry[2] >= SILENT_TRIES:
+                failures.append(entry[1])
+                continue
             try:
                 return self.panel_factory(port, self.log), port
             except DeviceRejected as exc:
                 failures.append(str(exc))
+                # A silent remembered or named panel is always asked again: it may hang and come back without leaving USB.
+                # Firmware this host does not speak stays so until it is flashed. The editor's install restarts the host,
+                # which forgets this; after another flasher the panel is asked again once it is unplugged or the host restarts.
+                if port in installed and (exc.kind in ('board', 'protocol') or exc.kind == 'silent' and port != pinned
+                                          and not is_remembered_panel(port, self.device_state_path, installed)):
+                    silent = (entry[2] if entry else 0) + 1
+                    self.passed_over[port] = [installed[port], str(exc), silent if exc.kind == 'silent' else SILENT_TRIES]
             except OSError as exc:
                 failures.append(port_trouble(port, exc))
         raise OSError('; '.join(failures) or 'No USB port found')
@@ -1044,20 +1132,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                             self.panel.close()
                     self.panel = None
                     try:
-                        self.panel, self.port = self.open_panel()
-                        previous_boot = self.device_info.get('bootId')
-                        self.device_info = getattr(self.panel, 'info', {}) or {}
-                        self.note_panel_restart(previous_boot)
-                        self.cockpit_sent = {}
-                        remember_port(self.port, self.device_state_path)
-                        self.connection_failed.clear()
+                        self.take_link(*self.open_panel())
                         if self.question_open():  # after the flag: the worker skips a question while the link is down
                             self.enqueue(('question',))
                         connect_error = None
                         threading.Thread(target=self.reader_loop, args=(self.panel,), daemon=True).start()
                         self.clock_sent_at = float('-inf')
                         threading.Thread(target=self.heartbeat_loop, args=(self.panel,), daemon=True).start()
-                        self.drop_queued_presses()
                         self.ambient_active, self.ambient_requested, self.ambient_sent = False, False, ''
                         with self.state_lock:
                             self.last_activity = time.monotonic()
@@ -1088,7 +1169,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 now = time.monotonic()
                 for tick, arguments in ((self.agent_tick, (now,)), (self.stats_tick, (now,)), (self.ambient_tick, (now,)),
                                         (self.plugin_tick, (now,)), (self.cockpit_tick, (now,)), (self.agent_notice_tick, (now,)), (self.live_tick, ()), (self.brightness_tick, ()), (self.focus_tick, ()),
-                                        (self.reload_profiles, ())):
+                                        (self.port_tick, ()), (self.reload_profiles, ())):
                     try:
                         tick(*arguments)
                     except Exception as exc:

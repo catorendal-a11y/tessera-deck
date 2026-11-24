@@ -98,6 +98,59 @@ class HomeAssistantTests(unittest.TestCase):
         self.assertEqual(module.reason(error(404)), 'HA error 404')
         self.assertEqual(module.reason(urllib.error.URLError('refused')), 'not reachable')
 
+    def test_an_address_without_http_and_an_untrusted_certificate_are_named_as_such(self):
+        import ssl
+        import urllib.error
+        entities = 'light.kitchen'
+        # A real call with no scheme: urllib itself refuses it, nothing is sent.
+        module = load('home-assistant', {'url': 'homeassistant.local:8123', 'token': 'secret', 'entities': entities})
+        with self.assertRaises(urllib.error.URLError) as caught:
+            module.states()
+        self.assertEqual(module.reason(caught.exception), 'address must start with http:// or https://')
+        # urllib wraps a failed certificate check like this; the network is the boundary faked here.
+        failed = ssl.SSLCertVerificationError(1, 'certificate verify failed: Hostname mismatch')
+        with patch('urllib.request.urlopen', side_effect=urllib.error.URLError(failed)):
+            module = load('home-assistant', {'url': 'https://192.168.1.5:8123', 'token': 'secret', 'entities': entities})
+            with self.assertRaises(urllib.error.URLError) as caught:
+                module.states()
+        self.assertEqual(module.reason(caught.exception), 'certificate not trusted')
+
+    def test_https_to_a_plain_http_home_assistant_says_to_use_http(self):
+        import urllib.error
+
+        # A plain http server answers the TLS hello with a 400. This one reads the whole hello before it closes: on Linux
+        # a close with unread bytes sends a reset, which throws away the 400 before the client reads it.
+        server = socket.create_server(('127.0.0.1', 0))
+        self.addCleanup(server.close)
+
+        def answer():
+            connection, _ = server.accept()
+            with connection:
+                connection.settimeout(5)
+                connection.recv(65536)
+                connection.sendall(b'HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+                connection.shutdown(socket.SHUT_WR)
+                try:
+                    while connection.recv(65536):  # the rest of the hello, until the client closes
+                        pass
+                except OSError:
+                    pass
+
+        threading.Thread(target=answer, daemon=True).start()
+        module = load('home-assistant', {'url': f'https://127.0.0.1:{server.getsockname()[1]}', 'token': 'secret',
+                                         'entities': 'light.kitchen'})
+        with self.assertRaises(urllib.error.URLError) as caught:
+            module.states()
+        self.assertEqual(module.reason(caught.exception), 'use http://, not https://', repr(caught.exception.reason))
+        # The OpenSSL 3.5 of Ubuntu 26.04 names the same answer a record layer failure (seen on the CI runner). Python 3.11
+        # has no code for it, so there only the text says it.
+        import ssl
+        for text, code in (('[SSL: RECORD_LAYER_FAILURE] record layer failure (_ssl.c:1085)', 'RECORD_LAYER_FAILURE'),
+                           ('[SSL] record layer failure (_ssl.c:1018)', None)):
+            failed = ssl.SSLError(1, text)
+            failed.reason = code
+            self.assertEqual(module.reason(urllib.error.URLError(failed)), 'use http://, not https://', text)
+
 
 class FakeObs:
     """A WebSocket server that speaks just enough OBS WebSocket 5, with a password."""

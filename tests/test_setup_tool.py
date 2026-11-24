@@ -2,6 +2,8 @@
 import os
 import json
 from pathlib import Path
+import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -11,6 +13,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
 import setup_tool
+from platform_marks import windows_only  # noqa: E402
 
 AUTOSTART = 'start with Windows' if os.name == 'nt' else 'start with the desktop'  # what uninstall reports
 SHORTCUT = 'Desktop shortcut' if os.name == 'nt' else 'application menu entry'
@@ -57,6 +60,44 @@ class EnsureTests(unittest.TestCase):
         self.assertFalse(self.ensure(works=False, code=1))
         self.assertFalse(self.hash_file.exists())
         self.assertTrue(any('internet connection' in message for message in self.messages))
+
+    def test_a_venv_made_by_another_python_is_not_blamed_on_the_internet(self):
+        # the distro moved python3 to a new minor version: the venv's lib/python3.N is now empty for the new one
+        (self.folder / 'pyvenv.cfg').write_text('home = /usr/bin\nversion = 3.9.1\n')
+        with patch.object(setup_tool.sys, 'prefix', str(self.folder)):
+            self.assertFalse(self.ensure(works=False))
+        self.assertEqual(self.installs, [])
+        text = ' '.join(self.messages)
+        self.assertIn('host/.venv', text)
+        self.assertNotIn('internet', text)
+
+    def test_a_venv_of_the_same_python_still_installs(self):
+        major_minor = '%d.%d.1' % sys.version_info[:2]
+        (self.folder / 'pyvenv.cfg').write_text(f'version = {major_minor}\n')
+        with patch.object(setup_tool.sys, 'prefix', str(self.folder)):
+            self.assertTrue(self.ensure(works=False))
+        self.assertEqual(len(self.installs), 1)
+
+    def test_windows_python_that_is_not_x64_is_refused_with_the_reason(self):
+        # no cryptography or psutil wheel exists for these, so pip would try to build them and fail (MSYS2's Python
+        # names its platform mingw_*, not win-*)
+        # MSYS2's UCRT64 Python is x64 already, so its message names python.org instead of the bitness
+        for platform, reason in (('win-arm64', '64-bit (x64)'), ('win32', '64-bit (x64)'),
+                                 ('mingw_x86_64_ucrt', 'x64 Python from python.org, not MSYS2')):
+            with self.subTest(platform), patch.object(setup_tool, 'IS_WINDOWS', True), \
+                    patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
+                self.messages.clear()
+                self.assertFalse(self.ensure(works=False))
+                self.assertEqual(self.installs, [])
+                text = ' '.join(self.messages)
+                self.assertIn(reason, text)
+                self.assertNotIn('internet', text)
+
+    def test_x64_and_linux_pythons_install(self):
+        for windows, platform in ((True, 'win-amd64'), (False, 'linux-x86_64'), (False, 'linux-aarch64')):
+            with self.subTest(platform), patch.object(setup_tool, 'IS_WINDOWS', windows), \
+                    patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
+                self.assertTrue(self.ensure(works=False))
 
     def test_the_decision_function(self):
         self.assertIsNone(setup_tool.needs_install('a', 'a', True))
@@ -144,8 +185,56 @@ class UninstallTests(unittest.TestCase):
         gone = self.root / 'no-such-entry'
         with patch.object(deck_control, 'startup_script_path', return_value=gone),                 patch.object(deck_control, 'set_autostart') as turn_off:
             removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link)
-        turn_off.assert_called_once_with(False)
+        turn_off.assert_not_called()  # nothing of this folder starts at sign-in
         self.assertEqual(removed, [SHORTCUT])
+
+    def test_uninstall_leaves_the_autostart_entry_of_another_copy(self):
+        import deck_control
+        from venv_paths import venv_python
+        copy = self.root / 'other copy'
+        for python in (venv_python(copy), venv_python(copy, windowless=True)):
+            python.parent.mkdir(parents=True, exist_ok=True)
+            python.write_text('')
+        entry = deck_control.startup_script_path(self.root / 'appdata')  # a startup folder of its own, not the real one
+        setup_tool.load('autostart').enable(entry, copy)  # what that copy writes
+        written = entry.read_bytes()
+        with patch.object(deck_control, 'startup_script_path', return_value=entry):
+            removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link)
+        self.assertTrue(entry.exists(), "the other copy's autostart entry was deleted")
+        self.assertEqual(entry.read_bytes(), written)
+        self.assertEqual(removed, [SHORTCUT])
+
+    def test_uninstall_says_when_the_elevated_sensors_task_is_still_there(self):
+        # --sensors makes a sign-in task that runs Libre Hardware Monitor as administrator; deleting the folder
+        # does not remove it, so the user is told to run --sensors-off first
+        setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link,
+                             self.removed_autostart.append, lambda: True)
+        text = ' '.join(self.messages)
+        self.assertIn('--sensors-off', text)
+        self.assertIn('administrator', text)
+
+    def test_uninstall_stays_quiet_about_sensors_when_there_is_no_task(self):
+        setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link,
+                             self.removed_autostart.append, lambda: False)
+        self.assertNotIn('--sensors-off', ' '.join(self.messages))
+
+    @windows_only
+    def test_the_uninstall_command_asks_schtasks_about_the_sensors_task(self):
+        uninstall = setup_tool.uninstall
+
+        def here(purge, sensors_task):  # main's own task check; the rest stays in the temporary folder
+            return uninstall(purge, lambda prompt: '', self.messages.append, self.root, self.link,
+                             self.removed_autostart.append, sensors_task)
+        for code, warned in ((0, True), (1, False)):
+            with self.subTest(schtasks=code):
+                self.messages.clear()
+                answer = subprocess.CompletedProcess([], code, b'', b'')
+                with patch.object(setup_tool, 'uninstall', here), patch.object(setup_tool, 'forget_claude_hooks') as hooks, \
+                        patch('subprocess.run', return_value=answer) as schtasks:
+                    self.assertEqual(setup_tool.main(['uninstall']), 0)
+                self.assertEqual(schtasks.call_args.args[0][:2], ['schtasks', '/Query'])
+                hooks.assert_called_once()
+                self.assertEqual('--sensors-off' in ' '.join(self.messages), warned)
 
     def test_a_purge_also_deletes_every_copy_of_the_profiles(self):
         copies = ('host/profiles-unreadable.local.json', 'host/profiles-unreadable-1.local.json',
@@ -165,7 +254,7 @@ class UninstallTests(unittest.TestCase):
                 raise PermissionError(13, 'Access is denied', str(path))
             return unlink(path, *args, **kwargs)
         with patch('pathlib.Path.unlink', autospec=True, side_effect=locked), \
-                patch.object(setup_tool, 'uninstall', lambda purge: uninstall(
+                patch.object(setup_tool, 'uninstall', lambda purge, **_: uninstall(
                     purge, lambda prompt: 'YES', self.messages.append, self.root, self.link,
                     self.removed_autostart.append)), \
                 patch('builtins.print') as printed:
@@ -184,6 +273,38 @@ class UninstallTests(unittest.TestCase):
         removed = setup_tool.uninstall(False, lambda prompt: '', self.messages.append, self.root, self.link, broken)
         self.assertEqual(removed, [SHORTCUT])
         self.assertTrue(any('autostart' in message for message in self.messages))
+
+
+class SensorsTaskTests(unittest.TestCase):
+    """Whether `Tessera.cmd --sensors` left its sign-in task, with schtasks' answers faked at the subprocess call."""
+
+    def ask(self, code=0, stderr=b'', error=None):
+        from platform_windows import sensors
+        answer = subprocess.CompletedProcess([], code, b'', stderr)
+        with patch('subprocess.run', return_value=answer, side_effect=error) as run:
+            return sensors.sensors_task_exists(), run
+
+    def test_the_query_names_the_task_that_enable_sensors_registers(self):
+        script = (ROOT / 'tools/enable_sensors.ps1').read_text(encoding='utf-8')
+        name = re.search(r"^\$TaskName = '([^']+)'", script, re.M).group(1)
+        found, run = self.ask(0)
+        self.assertTrue(found)
+        self.assertEqual(run.call_args.args[0], ['schtasks', '/Query', '/TN', name])
+        self.assertTrue(run.call_args.kwargs['capture_output'], "schtasks' table stays out of the uninstall report")
+
+    def test_a_missing_task_or_a_refused_query_counts_as_no_task(self):
+        for stderr in (b'ERROR: The system cannot find the file specified.\r\n', b'ERROR: Access is denied.\r\n'):
+            with self.subTest(stderr=stderr):
+                self.assertFalse(self.ask(1, stderr)[0])
+
+    def test_no_schtasks_program_counts_as_no_task(self):
+        self.assertFalse(self.ask(error=FileNotFoundError(2, 'The system cannot find the file specified'))[0])
+
+    def test_linux_runs_nothing(self):
+        from platform_linux import sensors
+        with patch('subprocess.run') as run:
+            self.assertFalse(sensors.sensors_task_exists())
+        run.assert_not_called()
 
 
 class DiagnosticsTests(unittest.TestCase):
