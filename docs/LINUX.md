@@ -119,7 +119,15 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   restart. To take the permission back, revoke it in the desktop's settings (Privacy or Applications). Deleting that
   file does not revoke it: Tessera can then no longer restore the permission and asks again at its next start, but a
   session that is running goes on. Stop the host to end the running session. The portal takes
-  characters, not key positions, so a US key position does not matter there, but GNOME drops a character that no key of the layout in use types: such text, and a hotkey letter the layout lacks (`ctrl+c` on a Russian layout), is refused with a message, and a "clipboard" step and `ctrl+v` types it. `moveto` is not
+  characters, not key positions, so a US key position does not matter there. GNOME, though, drops a character that no
+  key of the layout in use types, and says nothing. So Tessera first checks text and the letters and digits of a hotkey
+  against the layout in use and refuses what it has no key for with a message: `€` on a US layout, or `ctrl+c` in a
+  session whose only layout is Russian. A "clipboard" step and `ctrl+v` types such text. The check needs to know the
+  layout in use, so it is made only where that can be read (see *Where the layout comes from* above). On GNOME with
+  more than one layout it cannot, because GNOME does not tell which one is in use, and the same goes for a layout
+  that cannot be read at all: then everything is sent unchecked, and a character the layout in use has no key for is
+  still dropped without a message. With English and Russian set up and Russian in use, `ctrl+c` does nothing; switch
+  to English first, or keep one layout. `moveto` is not
   possible, because the portal only allows relative moves. `ydotool` is used when it is installed and its daemon is running (its socket exists); Tessera decides this when the first key is pressed, so start `ydotoold` before Tessera. Otherwise the portal is used, which also covers the old `ydotool` 0.1.x of Debian 12 and Ubuntu, which has no daemon and takes other commands.
 - **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
