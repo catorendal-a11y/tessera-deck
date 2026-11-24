@@ -391,7 +391,7 @@ class Editor:
             raise ValueError('Choose a firmware package and an install mode')
         package = firmware_update.load_package(Path(path), SUPPORTED_PROTOCOLS)
         if not self.firmware_lock.acquire(blocking=False):
-            raise ValueError('A firmware installation is already running')
+            raise ValueError('A firmware install or a Tessera update is already running. Try again when it is done.')
         self.firmware_job = {'state': 'running', 'stage': 'checking', 'percent': 0, 'version': package.version}
         threading.Thread(target=self.run_firmware_install, args=(package, mode, force),
                          name='firmware-install', daemon=True).start()
@@ -430,7 +430,7 @@ class Editor:
         """What is on the USB port when the host has no panel: the board and firmware if it answers, otherwise the
         chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install."""
         if not self.firmware_lock.acquire(blocking=False):
-            raise ValueError('A firmware installation is already running')
+            raise ValueError('A firmware install or a Tessera update is already running. Try again when it is done.')
         was_running = False
         try:
             was_running = bool(self.controller.processes())
@@ -528,26 +528,34 @@ class Editor:
         if os.environ.get('TESSERA_PACKAGED'):
             raise ValueError('This Tessera comes from a package. Update it with your package manager, '
                              'for example yay -Syu tessera-deck for the AUR package.')
-        import tempfile
+        if not self.firmware_lock.acquire(blocking=False):
+            # the restart ends this editor, and with it the install: esptool would be cut off mid-write
+            raise ValueError('The panel firmware is being installed. Update Tessera when it is done.')
         try:
-            with tempfile.TemporaryDirectory() as folder:
-                written = updates.install_host(updates.download_host(self.last_release, Path(folder)), ROOT)
-        except PermissionError as exc:
-            raise ValueError(f'A file is in use and could not be replaced: {Path(exc.filename or "").name}. '
-                             'Quit Tessera from the tray icon, start it again and update once more.') from exc
-        except OSError as exc:
-            raise ValueError('The update could not be downloaded or written. Check your internet connection and try again.') from exc
-        except zipfile.BadZipFile as exc:
-            raise ValueError('The update file cannot be read as a zip; nothing was changed.') from exc
-        latest = self.last_release['latest']
-        # the restart has no console, so a failed package step would go unseen: run it here, where the dialog can say so
-        step = subprocess.run([str(venv_python(ROOT)), str(ROOT / 'host/setup_tool.py'), 'ensure'], capture_output=True, text=True,
-                              errors='replace', creationflags=NO_WINDOW, stdin=subprocess.DEVNULL)
-        if step.returncode != 0:
-            detail = ' '.join((step.stdout + step.stderr).split())[-300:]
-            raise ValueError(f'Tessera {latest} is in place, but its packages could not be installed: {detail} '
-                             'The update will finish when Tessera is started with a network connection.')
-        self.restart_soon()
+            import tempfile
+            try:
+                with tempfile.TemporaryDirectory() as folder:
+                    written = updates.install_host(updates.download_host(self.last_release, Path(folder)), ROOT)
+            except PermissionError as exc:
+                raise ValueError(f'A file is in use and could not be replaced: {Path(exc.filename or "").name}. '
+                                 'Quit Tessera from the tray icon, start it again and update once more.') from exc
+            except OSError as exc:
+                raise ValueError('The update could not be downloaded or written. Check your internet connection and try again.') from exc
+            except zipfile.BadZipFile as exc:
+                raise ValueError('The update file cannot be read as a zip; nothing was changed.') from exc
+            latest = self.last_release['latest']
+            # the restart has no console, so a failed package step would go unseen: run it here, where the dialog can say so
+            step = subprocess.run([str(venv_python(ROOT)), str(ROOT / 'host/setup_tool.py'), 'ensure'], capture_output=True, text=True,
+                                  errors='replace', creationflags=NO_WINDOW, stdin=subprocess.DEVNULL)
+            if step.returncode != 0:
+                detail = ' '.join((step.stdout + step.stderr).split())[-300:]
+                raise ValueError(f'Tessera {latest} is in place, but its packages could not be installed: {detail} '
+                                 'The update will finish when Tessera is started with a network connection.')
+            self.restart_soon()
+        except BaseException:
+            self.firmware_lock.release()
+            raise
+        # the lock stays held on success: the restart ends this editor in a moment and would cut off an install started now
         return {'version': latest, 'files': written,
                 'message': f'Tessera {latest} is in place. This window closes and opens again in a few seconds. '
                            'Then update the panel here if this dialog offers newer firmware.'}
@@ -1050,6 +1058,8 @@ def main():
             server_thread = threading.Thread(target=server.serve_forever, daemon=True)
             server_thread.start()
             if open_window(server.launch_url):
+                while server.editor.firmware_lock.locked():  # the install runs in this process: leaving now would cut esptool off mid-write
+                    time.sleep(.5)
                 server.shutdown()
                 server_thread.join(timeout=3)
                 return
