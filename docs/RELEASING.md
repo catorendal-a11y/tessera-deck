@@ -51,7 +51,7 @@ To try the workflow without a release, start it by hand: **Actions â†’ Release â
 Anyone can check that a download came from this workflow:
 
 ```powershell
-gh attestation verify tessera-host-v1.2.11.zip --repo catorendal-a11y/tessera-deck
+gh attestation verify tessera-host-v1.2.12.zip --repo catorendal-a11y/tessera-deck
 ```
 
 [INSTALL.md](INSTALL.md) also explains how to compare a download with `SHA256SUMS`.
