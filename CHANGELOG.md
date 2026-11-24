@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
@@ -32,6 +32,18 @@ Windows fixes:
 - The media progress bar advances while the music plays, not only when the track changes.
 - `--sensors` on a standard account starts Libre Hardware Monitor at once and says to run it again after each sign-in. It no longer sets up a sign-in task for the administrator who approved the prompt.
 - A Libre Hardware Monitor that shows no CPU temperature says why, and the setup says to click OK on its PawnIO box.
+
+Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
+
+- A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
+- A key pasted into a profile that lacks its page or folder stays a draft.
+- Deleting a profile also removes the rail shortcuts and automatic actions that opened its pages.
+- *Apply* on a rail shortcut refuses a step that was copied unfinished.
+
+Other fixes:
+
+- *Run now* on a toggle key asks about every state, not only the one being edited, and *Test* says which state *Run now* presses.
+- The editor no longer follows the panel's page while you type in the inspector. Before, the rest of what you typed could land in another key.
 
 ## 1.2.11
 

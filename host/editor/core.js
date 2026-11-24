@@ -293,10 +293,10 @@ function nameProblem(b) {
   if((b.states||[]).some(state=>state.label!==undefined&&!String(state.label).trim()))return 'give every state of the toggle key a name';
   return '';
 }
-function stepProblem(a) {
+function stepProblem(a,pages) {
   const kind=kinds[a.type];if(!kind)return '';  // a type the editor does not know (a plugin's, say) goes as it is: the host checks it
   if(kind.field&&a.type!=='text'&&(a[kind.field]===undefined||String(a[kind.field]).trim()===''))return 'fill in '+kind.label.toLowerCase();
-  return valueProblem(a);
+  return valueProblem(a,pages);
 }
 /* The host refuses the whole configuration over one bad value, so a step it would refuse stays a draft like an empty one (rules from config_check.py). */
 const NAME_RULE=/^[A-Za-z0-9_.-]{1,64}$/;
@@ -307,10 +307,11 @@ const hostJson=v=>Array.isArray(v)?'['+v.map(hostJson).join(', ')+']':v&&typeof 
   :JSON.stringify(v).replace(/[\u007f-\uffff]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));
 function pluginArgsProblem(args) {
   if(!args||typeof args!=='object'||Array.isArray(args))return 'write the arguments as a JSON object, for example {"name": "Gaming"}';
-  return hostJson(args).length>1024?'keep the arguments under 1024 characters':'';
+  return hostJson(args).length>1024?'shorten the arguments to at most 1024 characters':'';
 }
-function valueProblem(a) {
+function valueProblem(a,pages) {
   const whole=(v,low,high)=>Number.isInteger(v)&&v>=low&&v<=high;
+  const chars=v=>[...String(v)].length;  // counted like Python's len: an emoji is one character, not two
   if((a.type==='press'&&!whole(a.id,1,18))||(a.type==='state'&&!whole(a.button,1,18)))return 'use a key number from 1 to 18';
   if(a.type==='delay'&&!whole(a.ms,0,60000))return 'use a wait of 0 to 60000 milliseconds';
   const host=(typeof hostRules==='object'&&hostRules)||{};
@@ -329,6 +330,13 @@ function valueProblem(a) {
   if(a.type==='http'&&a.headers!==undefined&&(!a.headers||typeof a.headers!=='object'||Array.isArray(a.headers)))return 'write each header as Name: value';
   if(a.type==='http'&&!String(a.url).startsWith('$(')&&!/^https?:\/\/[^/\s]/i.test(a.url))return 'start the address with http:// or https://';
   if(['counter','timer','set','toggle'].includes(a.type)&&!NAME_RULE.test(a[kinds[a.type].field]))return 'use only letters, digits, dots, dashes or underscores in the '+kinds[a.type].label.toLowerCase();
+  if(['page','folder'].includes(a.type)&&pages&&!pages.includes(a.page))return 'choose a page of this profile';  // a pasted key can name a page only another profile has
+  // Size limits of config_check.py and live_state.py
+  if(a.type==='toggle'&&a.values!==undefined&&!(Array.isArray(a.values)&&a.values.length===2&&a.values.every(v=>typeof v==='string'&&chars(v)<=64)&&a.values[0]!==a.values[1]))return 'give the toggle two different values of at most 64 characters';
+  if(a.type==='timer'&&chars(a.notify||'')>120)return 'shorten the message to at most 120 characters';
+  if(a.type==='set'&&chars(a.value??'')>1000)return 'shorten the value to at most 1000 characters';
+  if(['window','open'].includes(a.type)&&chars(a.process||'')>260)return 'shorten the process name to at most 260 characters';
+  if(a.type==='mouse'&&['x','y'].some(k=>a[k]!==undefined&&!whole(a[k],-20000,20000)))return 'keep the pointer position within 20000 pixels of the screen origin';
   if(a.type==='counter'&&a.min!==undefined&&a.max!==undefined&&a.min>a.max)return 'set the lowest value at or below the highest';
   if(a.type==='timer'&&a.seconds!==undefined&&!whole(a.seconds,1,604800))return 'use a timer length from 1 second to 7 days';
   if(a.type==='plugin'){
@@ -350,26 +358,28 @@ function setHeaders(a,value) {const headers=parseHeaders(value);if(headers)a.hea
 function setTimeoutValue(a,value) {if(String(value).trim()==='')delete a.timeout;else a.timeout=Math.max(1,Math.min(300,Math.round(Number(value))||1));}
 /* Switch profile: the page belongs to the profile, so a new profile drops a page it does not have. */
 function switchProfileStep(a,name) {a.profile=name;if(a.page!==undefined&&!config.profiles[name]?.pages?.[a.page])delete a.page;}
-function keyProblem(b) {
+function keyProblem(b,owner=profile) {
+  const pages=Object.keys(config.profiles[owner]?.pages||{});
   const name=nameProblem(b);if(name)return name;
-  for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {const step=stepProblem(a);if(step)return step;}
+  for(const holder of [b,...(b.states||[])]) for(const a of [...(holder.actions||[]),...(holder===b?[...(b.hold_actions||[]),...(b.double_actions||[])]:[])]) {const step=stepProblem(a,pages);if(step)return step;}
   return '';
 }
 function draftProblems() {
   const found=[];
   for(const [name,item] of Object.entries(config.profiles)){
-    for(const [pageName,list] of Object.entries(item.pages))for(const b of list){const problem=keyProblem(b);if(problem)found.push({profile:name,page:pageName,id:b.id,problem});}
-    for(const b of item.pinned||[]){const problem=keyProblem(b);if(problem)found.push({profile:name,page:null,id:b.id,problem});}
+    for(const [pageName,list] of Object.entries(item.pages))for(const b of list){const problem=keyProblem(b,name);if(problem)found.push({profile:name,page:pageName,id:b.id,problem});}
+    for(const b of item.pinned||[]){const problem=keyProblem(b,name);if(problem)found.push({profile:name,page:null,id:b.id,problem});}
   }
   return found;
 }
 /* What the PC gets: keys without a name stay out, and so do steps with an empty field. */
 function savable(source) {
   const sent=clone(source);
-  for(const item of Object.values(sent.profiles)){
+  for(const [owner,item] of Object.entries(sent.profiles)){
     for(const name of Object.keys(item.pages))item.pages[name]=item.pages[name].filter(b=>!nameProblem(b));
     if(item.pinned)item.pinned=item.pinned.filter(b=>!nameProblem(b));
-    rewriteActions(profileButtons(item).filter(keyProblem),a=>stepProblem(a)?null:a);  // finished keys go as they are, so a merge sees no change
+    const pages=Object.keys(item.pages);
+    rewriteActions(profileButtons(item).filter(b=>keyProblem(b,owner)),a=>stepProblem(a,pages)?null:a);  // finished keys go as they are, so a merge sees no change
   }
   return sent;
 }
@@ -635,6 +645,7 @@ let lastDevicePath='';
 function followDevice() {
   renderShowHere();  // runs on every status poll, like this check
   const d=dashboard.device;if(!$('#sync').checked||!d?.connected||!d.profile||document.querySelector('dialog[open]'))return;
+  if($('#inspector').contains(document.activeElement))return;  // typing: the redraw would hand the rest of the keystrokes to another key. The next poll after the field loses focus follows.
   const path=d.profile+'|'+d.page;if(path===lastDevicePath)return;lastDevicePath=path;
   if(config.profiles[d.profile]?.pages?.[d.page]&&(d.profile!==profile||d.page!==page)){showPage(d.profile,d.page);renderAll();}
 }
