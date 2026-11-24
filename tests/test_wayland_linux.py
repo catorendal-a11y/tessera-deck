@@ -871,8 +871,10 @@ class TrayBackendTests(unittest.TestCase):
 
     def assert_says_what_is_lost_and_what_to_do(self, message):
         # Signing in again starts the tray only with Start with the desktop on, and a second start of a running tray
-        # changes nothing, so the notice says to quit and start it
-        for part in ('Tessera keeps running', 'tray icon may not show until you install ', 'Then quit Tessera and start it again.'):
+        # changes nothing, so the notice says to stop it and start it. The icon and its menu may be missing, so the stop is
+        # killall, which finds the tray, the host and the editor by the name they give themselves
+        for part in ('Tessera keeps running', 'tray icon may not show until you install ',
+                     'Then run killall Tessera and start it again.'):
             self.assertIn(part, message)
 
     def test_every_notice_fits_in_what_notify_send_is_given(self):

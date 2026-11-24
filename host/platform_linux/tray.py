@@ -14,10 +14,10 @@ WATCHER = 'org.kde.StatusNotifierWatcher'
 NO_TRAY = ('This desktop shows no tray icons, so Tessera has no icon. Install and enable the "AppIndicator and '
            'KStatusNotifierItem Support" extension (GNOME), then sign in again. Tessera itself keeps running.')
 NO_GI = ('Tessera keeps running, but the tray icon may not show until you install PyGObject: python-gobject (Arch), '
-         'python3-gi (Debian, Ubuntu) or python3-gobject (Fedora). Then quit Tessera and start it again.')
+         'python3-gi (Debian, Ubuntu) or python3-gobject (Fedora). Then run killall Tessera and start it again.')
 NO_TYPELIB = ('Tessera keeps running, but the tray icon may not show until you install libayatana-appindicator (Arch), '
               'gir1.2-ayatanaappindicator3-0.1 (Debian, Ubuntu) or libayatana-appindicator-gtk3 (Fedora). '
-              'Then quit Tessera and start it again.')
+              'Then run killall Tessera and start it again.')
 WATCHER_WAIT = 10.0  # seconds: at sign-in the tray may start before the desktop's StatusNotifier host
 TYPELIBS = ('AyatanaAppIndicator3', 'AppIndicator3')
 GI_PROBE = "import gi, sys; print(sys.version_info[0], sys.version_info[1]); print(gi.__file__)"
