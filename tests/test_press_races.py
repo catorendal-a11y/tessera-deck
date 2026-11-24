@@ -140,6 +140,35 @@ class PageChangeDuringWaitTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual(daemon.custom_vars.get('ran'), 'status key 2')
 
+    def test_a_press_step_after_waiting_for_slow_typing_does_not_run_a_key_of_the_new_page(self):
+        """Key 1 runs on the slow lane. Its hotkey waits for another key's slow typing, and the page changes
+        meanwhile: key 2 of the new page must not run."""
+        daemon = make_daemon()
+        button(daemon, 1)['actions'] = [{'type': 'set', 'variable': 'started', 'value': 'yes'},
+                                        {'type': 'hotkey', 'keys': 'ctrl+c'}, {'type': 'press', 'id': 2},
+                                        {'type': 'delay', 'ms': 10}]
+        status_key = next(b for b in daemon.config['profiles']['main']['pages']['status'] if b['id'] == 2)
+        status_key['actions'] = [{'type': 'set', 'variable': 'ran', 'value': 'status key 2'}]
+
+        def until(condition):
+            for _ in range(200):
+                if condition():
+                    return
+                time.sleep(0.01)
+            self.fail('the slow key did not get there')
+
+        daemon.input_lock.acquire()  # slow typing on another thread holds the keyboard
+        with patch.object(deck, 'send_hotkey') as send:
+            self.assertTrue(daemon.start_press(1))
+            until(lambda: daemon.custom_vars.get('started'))
+            with daemon.state_lock:  # free once the hotkey waits for the keyboard
+                daemon.switch_page('status')
+            daemon.input_lock.release()
+            until(lambda: not daemon.slow_running)
+        send.assert_called_once_with('ctrl+c')
+        self.assertIsNone(daemon.custom_vars.get('ran'))
+        self.assertIn('page changed', daemon.last_action['error'])
+
     def test_a_step_that_does_not_use_the_page_still_runs_after_the_page_changed(self):
         """Key 1 is [delay, set]: the opened program takes focus and the profile follows. The set step must run."""
         daemon = make_daemon()
