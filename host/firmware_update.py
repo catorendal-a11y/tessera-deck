@@ -30,11 +30,12 @@ from typing import Callable
 FORMAT = 1
 BOARD_ID = 'tessera-p4'  # the default board of build_package
 CHIP = 'esp32p4'
-BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-v3': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3', 'tessera-s3-crowpanel7': 'esp32s3'}
+BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-v3': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-ws7b': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3', 'tessera-s3-crowpanel7': 'esp32s3'}
 V3_BOARDS = frozenset({'tessera-p4-v3'})  # ESP32-P4 builds for chip revision v3.x; the other P4 builds are for v1.x
 BOARD_NAMES = {'tessera-p4': 'GUITION JC1060P470C', 'tessera-p4-v3': 'GUITION JC1060P470C (v3.x chip)',
                'tessera-p4-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-P4)',
-               'tessera-s3-ws7': 'Waveshare ESP32-S3-Touch-LCD-7', 'tessera-s3-8048s070': 'Sunton ESP32-8048S070',
+               'tessera-s3-ws7': 'Waveshare ESP32-S3-Touch-LCD-7', 'tessera-s3-ws7b': 'Waveshare ESP32-S3-Touch-LCD-7B',
+               'tessera-s3-8048s070': 'Sunton ESP32-8048S070',
                'tessera-s3-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-S3)'}
 # "Chip is" before esptool 5; "Unknown ESP32-P4" for a package version esptool has no name for
 CHIP_LINE = re.compile(r'Chip (?:type:|is)\s+(?:Unknown )?(ESP32-[A-Z]\d+).*?\(revision v(\d+)\.(\d+)\)')

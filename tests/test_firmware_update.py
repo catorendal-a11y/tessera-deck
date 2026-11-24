@@ -400,7 +400,7 @@ class DetectTests(unittest.TestCase):
         self.assertEqual(unnamed['boards'], ['tessera-p4-v3'])
         s3 = fw.detect_chip('COM5', Mock(return_value=(0, 'Chip is ESP32-S3 (QFN56) (revision v0.2)\n')))
         self.assertEqual((s3['chip'], s3['revision']), ('esp32s3', '0.2'))
-        self.assertEqual(s3['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
+        self.assertEqual(s3['boards'], ['tessera-s3-ws7', 'tessera-s3-ws7b', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
 
     def test_a_port_without_an_esp32_or_with_another_chip_is_reported(self):
         with self.assertRaisesRegex(fw.InstallError, 'COM7 has no ESP32.*No serial data received'):

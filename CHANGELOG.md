@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- New board: Waveshare ESP32-S3-Touch-LCD-7B (`tessera-s3-ws7b`, 1024 x 600). The -7B is not the -7: its IO extension chip at I2C 0x24 takes register writes instead of the CH422G commands, so the `tessera-s3-ws7` firmware restart-looped on it with *CH422G outputs*. Display, colours, touch and the USB link work on a real board; the backlight is on/off.
+
 - A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.

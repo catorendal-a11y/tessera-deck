@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           version="$(tr -d '\r\n' < VERSION)"
-          for board in "" -tessera-s3-ws7 -tessera-s3-8048s070 -tessera-s3-crowpanel7 -tessera-p4-crowpanel7 -tessera-p4-v3; do
+          for board in "" -tessera-s3-ws7 -tessera-s3-ws7b -tessera-s3-8048s070 -tessera-s3-crowpanel7 -tessera-p4-crowpanel7 -tessera-p4-v3; do
             test -s "dist/tessera-firmware${board}-${version}.zip" || { echo "dist/tessera-firmware${board}-${version}.zip is missing"; ls -l dist; exit 1; }
           done
           test "$(ls dist/tessera-firmware-*.zip | wc -l)" = 6 || { echo "expected 6 firmware packages"; ls -l dist; exit 1; }

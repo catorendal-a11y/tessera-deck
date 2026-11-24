@@ -22,6 +22,8 @@ menu "Tessera board"
 
         config TESSERA_BOARD_S3_WS7
             bool "Waveshare ESP32-S3-Touch-LCD-7 (800 x 480, native USB)"
+        config TESSERA_BOARD_S3_WS7B
+            bool "Waveshare ESP32-S3-Touch-LCD-7B (1024 x 600, native USB)"
         config TESSERA_BOARD_S3_8048S070
             bool "Sunton/Guition ESP32-8048S070 (800 x 480, CH340 on UART0)"
         config TESSERA_BOARD_S3_CROWPANEL7
@@ -36,6 +38,7 @@ menu "Tessera board"
         default "tessera-p4" if TESSERA_BOARD_P4_GUITION
         default "tessera-p4-crowpanel7" if TESSERA_BOARD_P4_CROWPANEL7
         default "tessera-s3-ws7" if TESSERA_BOARD_S3_WS7
+        default "tessera-s3-ws7b" if TESSERA_BOARD_S3_WS7B
         default "tessera-s3-8048s070" if TESSERA_BOARD_S3_8048S070
         default "tessera-s3-crowpanel7" if TESSERA_BOARD_S3_CROWPANEL7
 
