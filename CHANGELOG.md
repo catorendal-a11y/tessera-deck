@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The docs give the build and flash commands for a GUITION board with a v3.x chip, the same way the release builds it.
+- The bug report form asks Linux users for their distro, desktop and session (X11 or Wayland).
+- CI also audits and installs the Linux half of `host/requirements.lock`, and fails when a package the first start needs does not import.
+
 - A Tessera update that cannot replace a file in use (an open editor file, a virus scanner) puts the folder back as it was. Before, it could leave half old and half new files.
 - On a PC with a proxy, a second start and the tray's *Open editor* reach the editor that is already running, and `deckctl` reaches the host. Before, they waited 20 s and gave up.
 - A second start that gets no answer from the running editor says so in a message box (a notification on Linux). If the editor answered but its window could not be shown, it says the editor is already open.

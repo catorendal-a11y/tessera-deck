@@ -124,10 +124,24 @@ idf.py -B build/idf6 build
 idf.py -B build/idf6 -p COMx flash          # first time: bootloader, partition table and app
 ```
 
+For a GUITION board with a v3.x chip (see above), build the v3 image instead. It starts from the tested v1.x `sdkconfig`, minus the chip revision options, which `boards/tessera-p4-v3.defaults` sets:
+
+```powershell
+python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
+idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
+idf.py -B build/tessera-p4-v3 -p COMx flash
+```
+
 To update only the app and keep the bootloader, partition table and stored settings:
 
 ```powershell
 python -m esptool --chip esp32p4 -p COMx -b 460800 write-flash 0xd000 build\idf6\ota_data_initial.bin 0x10000 build\idf6\tessera.bin
+```
+
+On a board with a v3.x chip, write the files from the v3 build instead. The partition layout is the same:
+
+```powershell
+python -m esptool --chip esp32p4 -p COMx -b 460800 write-flash 0xd000 build\tessera-p4-v3\ota_data_initial.bin 0x10000 build\tessera-p4-v3\tessera.bin
 ```
 
 The OTA data image makes the bootloader start `ota_0` again, even if an update over USB left the other slot active.

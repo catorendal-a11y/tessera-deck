@@ -4,6 +4,7 @@ import re
 import shutil
 import os
 import subprocess
+import sys
 import unittest
 
 from platform_marks import windows_only
@@ -152,6 +153,35 @@ class WorkflowTests(unittest.TestCase):
         self.assertRegex(audit, r"schedule:\s+- cron: '[^']+'")
         self.assertIn('python -m pip_audit --require-hashes -r host/requirements.lock', audit)
         self.assertRegex(audit, r'(?m)^permissions:\n  contents: read$')
+
+    def test_the_linux_half_of_the_lock_is_audited_and_installed(self):
+        """Tessera.sh installs the lock with hashes; the Windows-only jobs skip the keyring and secretstorage blocks."""
+        audit = read('.github/workflows/audit.yml')
+        self.assertRegex(audit, r'runs-on: \$\{\{ matrix\.os \}\}')
+        self.assertRegex(audit, r'os: \[[^\]]*windows-latest[^\]]*\]')
+        self.assertRegex(audit, r'os: \[[^\]]*ubuntu-latest[^\]]*\]')
+        job = re.search(r'(?m)^  host-lock-linux:\n((?:    .*\n|\n)+)', read('.github/workflows/ci.yml'))
+        self.assertIsNotNone(job, 'ci.yml has no job that installs the lock on Linux')
+        self.assertIn('runs-on: ubuntu-latest', job.group(1))
+        self.assertIn('pip install --require-hashes -r host/requirements.lock', job.group(1))
+
+    def test_the_linux_lock_job_imports_what_the_first_start_checks_for(self):
+        # pip installs a lock that lacks keyring without a word; the first start then finds it missing.
+        job = re.search(r'(?m)^  host-lock-linux:\n((?:    .*\n|\n)+)', read('.github/workflows/ci.yml')).group(1)
+        probe = re.search(r'xvfb-run -a "\$RUNNER_TEMP/venv/bin/python" -c "([^"]+)"', job)
+        self.assertIsNotNone(probe, 'host-lock-linux does not import the packages the first start checks for')
+        self.assertLess(job.index('pip install --require-hashes -r host/requirements.lock'), probe.start())
+        self.assertIn('MODULE_PROBE', probe.group(1))
+        # Without site-packages the step must stop on a missing import, as the first start would. setup_tool itself
+        # has to load with the standard library only, or the step fails before the probe runs and proves nothing.
+        def run(code):
+            return subprocess.run([sys.executable, '-S', '-c', code], cwd=ROOT, capture_output=True, text=True,
+                                  timeout=60)
+        loaded = run(probe.group(1).replace('exec(MODULE_PROBE)', 'print(MODULE_PROBE)'))
+        self.assertEqual(loaded.returncode, 0, f'setup_tool needs more than the standard library:\n{loaded.stderr}')
+        result = run(probe.group(1))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('No module named', result.stderr)
 
     def test_the_smoke_test_installs_the_hashed_lock(self):
         smoke = read('.github/workflows/editor-smoke.yml')

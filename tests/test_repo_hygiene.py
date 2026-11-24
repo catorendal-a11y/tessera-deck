@@ -21,6 +21,31 @@ class RepoHygieneTests(unittest.TestCase):
             missing = {name for name in called if not re.search(r'\b' + name + r'\s*\(\s*\)\s*\{', read(stub))}
             self.assertFalse(missing, f'{stub} lacks stubs for {sorted(missing)}')
 
+    def test_the_docs_build_the_v3_chip_image_as_ci_does(self):
+        # A default build caps the chip revision at v1.99, so esptool refuses it on a v3.x GUITION board. The docs
+        # copy the v3 commands from ci.yml (the release ships what ci.yml built), so a change there must reach them too.
+        ci = read('.github/workflows/ci.yml')
+        row = re.search(r'\{board: (tessera-p4-v3), target: \S+, defaults: (\S+)\}', ci)
+        self.assertIsNotNone(row, 'ci.yml builds no tessera-p4-v3 image')
+        built = ci.replace('${{ matrix.board }}', row.group(1)).replace('${{ matrix.defaults }}', row.group(2))
+        recipe = ('python3 tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig',
+                  'idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig',
+                  f'-DSDKCONFIG_DEFAULTS="sdkconfig.defaults;{row.group(2)}"')
+        for part in recipe:
+            self.assertIn(part, built, f'ci.yml no longer builds the v3 image with: {part}')
+            for doc in ('docs/INSTALL.md', 'docs/DEVELOPMENT.md'):
+                self.assertIn(part.replace('python3 ', 'python ', 1), read(doc), f'{doc} lacks the v3 build command from ci.yml')
+
+    def test_the_bug_report_form_asks_linux_users_for_what_triage_needs(self):
+        form = read('.github/ISSUE_TEMPLATE/bug_report.yml')
+        field = re.search(r'- type: input\s+id: (?:os|windows)\s+attributes:\s+label: (.+)\s+description: (.+)', form)
+        self.assertIsNotNone(field)
+        self.assertEqual(field.group(1), 'Operating system')
+        for word in ('winver', 'distro', 'X11', 'Wayland'):
+            self.assertIn(word, field.group(2))
+        # The status line shows the firmware version only while a panel is connected.
+        self.assertIn('when the panel is connected', form)
+
     def test_cppcheck_covers_every_firmware_source(self):
         ci = read('.github/workflows/ci.yml')
         sources = {p.relative_to(ROOT).as_posix() for p in (ROOT / 'main').rglob('*')
