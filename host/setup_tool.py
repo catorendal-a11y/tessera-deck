@@ -89,8 +89,10 @@ def ensure(python: str = sys.executable, probe: Callable[[str], bool] = imports_
         return False
     platform = sysconfig.get_platform()
     if IS_WINDOWS and platform != 'win-amd64':
-        # pyca/cryptography and psutil publish no wheels for 32-bit or arm64 Windows, and building them needs a compiler
-        emit(f'Tessera needs 64-bit (x64) Python on Windows; this one is {platform}. '
+        # pyca/cryptography and psutil publish no wheels for 32-bit, arm64 or MSYS2 (mingw_*) Python on Windows, and
+        # building them needs a compiler. MSYS2's UCRT64 Python is x64 already, so its message names python.org.
+        need = 'the x64 Python from python.org, not MSYS2' if platform.startswith('mingw') else '64-bit (x64) Python on Windows'
+        emit(f'Tessera needs {need}; this one is {platform}. '
              'Install x64 Python, delete the folder host\\.venv and start Tessera again.')
         return False
     emit(f'Installing the host dependencies ({reason}) ...')

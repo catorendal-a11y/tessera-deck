@@ -78,14 +78,16 @@ class EnsureTests(unittest.TestCase):
     def test_windows_python_that_is_not_x64_is_refused_with_the_reason(self):
         # no cryptography or psutil wheel exists for these, so pip would try to build them and fail (MSYS2's Python
         # names its platform mingw_*, not win-*)
-        for platform in ('win-arm64', 'win32', 'mingw_x86_64_ucrt'):
+        # MSYS2's UCRT64 Python is x64 already, so its message names python.org instead of the bitness
+        for platform, reason in (('win-arm64', '64-bit (x64)'), ('win32', '64-bit (x64)'),
+                                 ('mingw_x86_64_ucrt', 'x64 Python from python.org, not MSYS2')):
             with self.subTest(platform), patch.object(setup_tool, 'IS_WINDOWS', True), \
                     patch.object(setup_tool.sysconfig, 'get_platform', return_value=platform):
                 self.messages.clear()
                 self.assertFalse(self.ensure(works=False))
                 self.assertEqual(self.installs, [])
                 text = ' '.join(self.messages)
-                self.assertIn('x64', text)
+                self.assertIn(reason, text)
                 self.assertNotIn('internet', text)
 
     def test_x64_and_linux_pythons_install(self):
