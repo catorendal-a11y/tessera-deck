@@ -142,7 +142,7 @@ Audio, media, secrets, sensors and the launcher do not depend on the display ser
 ### Windows on GNOME
 
 GNOME shows a program no other windows, so Tessera comes with a small extension for GNOME Shell
-(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51). It is marked for GNOME 51 only, so any other GNOME (50 in Ubuntu 26.04 and Fedora 44, or 52 and later) will not enable it, and `./Tessera.sh --gnome-extension` says so:
+(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51). It is marked for GNOME 51 only, so any other GNOME (50 in Ubuntu 26.04 and Fedora 44, or 52 and later) will not enable it, and `./Tessera.sh --gnome-extension` says so. To try it on another version anyway (it is not tested there), turn off GNOME's version check for extensions first with `gsettings set org.gnome.shell disable-extension-version-validation true`; `gsettings reset org.gnome.shell disable-extension-version-validation` turns it back on. Then:
 
 ```
 ./Tessera.sh --gnome-extension          # copies it to ~/.local/share/gnome-shell/extensions

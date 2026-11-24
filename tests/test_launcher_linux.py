@@ -101,7 +101,8 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(self.notes(tools, XDG_SESSION_TYPE='wayland', XDG_CURRENT_DESKTOP='ubuntu:GNOME'), '')
 
     def test_installing_the_gnome_extension_warns_on_a_gnome_other_than_the_one_it_is_marked_for(self):
-        # the extension's metadata.json lists GNOME 51 only; another Shell version refuses to enable it
+        # the extension's metadata.json lists GNOME 51 only; another Shell version refuses to enable it unless its
+        # version check is off, and the warning says how to turn it off before the steps that enable the extension
         shutil.copytree(ROOT / 'host/linux/gnome-extension', self.folder / 'host/linux/gnome-extension')
         shell = self.folder / 'bin/gnome-shell'
         for version, warned in (('50.1', True), ('51.0', False), ('52.0', True)):
@@ -112,6 +113,8 @@ class LauncherTests(unittest.TestCase):
                                                        PATH=f'{self.folder / "bin"}:{os.environ["PATH"]}'))
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual('GNOME 51' in done.stderr, warned, done.stderr)
+            self.assertEqual('gsettings set org.gnome.shell disable-extension-version-validation true' in done.stderr, warned,
+                             done.stderr)
 
     def test_without_ydotool_the_portal_is_named(self):
         self.assertIn('RemoteDesktop portal', self.notes({'kdotool': 0, 'wl-copy': 0}, XDG_SESSION_TYPE='wayland',
