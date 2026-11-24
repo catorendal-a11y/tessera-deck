@@ -73,11 +73,23 @@ class PluginKeyTests(unittest.TestCase):
                 status = next(item for item in daemon.plugins.status(daemon.config['plugins']) if item['id'] == 'obs')
                 self.assertEqual(status['state'], 'waiting')  # what the plugin list in the editor shows
                 self.assertIn('unlock it', status['error'].lower())
-                said = 'OBS Studio is waiting for its secret: unlock the keyring, or type it again in the editor'
+                said = 'OBS Studio: unlock the keyring or type its secret'
                 self.assertEqual(action_preview.preview([{'type': 'plugin', 'plugin': 'obs', 'command': 'record'}], {},
                                                         plugins=[status])['steps'][0]['text'], said)
                 self.assert_refused(daemon, said)
                 self.assertEqual(banners(daemon), ['AD_NOTIFY error 6 ' + said], 'the panel cut the reason short')
+
+    def test_a_waiting_plugin_with_the_longest_name_a_manifest_allows_still_shows_the_whole_advice(self):
+        import dataclasses
+        import action_preview
+        daemon = self.daemon(state='waiting')
+        name = 'A' * 60  # load_manifest takes names of 1-60 characters
+        daemon.plugins.manifests['obs'] = dataclasses.replace(daemon.plugins.manifests['obs'], name=name)
+        self.assertFalse(daemon.dispatch_press(1))
+        said = daemon.last_action['error']
+        self.assertEqual(banners(daemon), ['AD_NOTIFY error 6 ' + said], 'the panel cut the advice short')
+        self.assertEqual(action_preview.preview([{'type': 'plugin', 'plugin': 'obs', 'command': 'record'}], {}, plugins=[
+            {'id': 'obs', 'name': name, 'enabled': True, 'state': 'waiting'}])['steps'][0]['text'], said)
 
     def test_a_plugin_that_is_not_installed_turns_the_press_red(self):
         daemon = self.daemon(plugin='ghost')

@@ -171,7 +171,7 @@ def _plugin_problem(plugin_id, plugins) -> str:
     if known.get('state') == 'failed':
         return f'{name} has stopped: turn it off and on in More → Plugins'
     if known.get('state') == 'waiting':
-        return f'{name} is waiting for its secret: unlock the keyring, or type it again in the editor'
+        return f'{name}: unlock the keyring or type its secret'
     return f'{name} has stopped' if known.get('state') == 'crashed' else ''
 
 
