@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
