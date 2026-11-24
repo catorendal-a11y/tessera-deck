@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
+- A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
+- The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
+
 - Closing the editor window on Windows saves an edit that was still waiting to be saved. If the save fails, the editor asks before it closes and drops the change. Before, a change made just before closing was lost without a word.
 - Closing or reloading the editor in a browser warns while a key is still a draft.
 - Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.
