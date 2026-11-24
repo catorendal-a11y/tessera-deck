@@ -74,7 +74,8 @@ class LinuxDefaultTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which('bash'), 'needs bash')
     def test_with_no_program_installed_the_command_fails_with_a_message(self):
         with tempfile.TemporaryDirectory() as empty:
-            done = subprocess.run(['bash', '-c', make_linux_defaults.launch('alpha', 'beta gamma')['command']],
+            # the full path: with env= the child PATH (an empty folder) is where bash would be looked up
+            done = subprocess.run([shutil.which('bash'), '-c', make_linux_defaults.launch('alpha', 'beta gamma')['command']],
                                   capture_output=True, text=True, env={'PATH': empty, 'HOME': empty})
         self.assertEqual(done.returncode, 1)
         self.assertEqual(done.stderr.strip(), MISSING)
