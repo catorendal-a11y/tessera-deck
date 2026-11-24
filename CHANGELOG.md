@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
+- A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
+- The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
+
+- Closing the editor window on Windows saves an edit that was still waiting to be saved. If the save fails, the editor asks before it closes and drops the change. Before, a change made just before closing was lost without a word.
+- Closing or reloading the editor in a browser warns while a key is still a draft.
+- Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.
+- A firmware install and a Tessera update can no longer run at the same time. The *Update Tessera* button is greyed out while the panel firmware installs, and a firmware install started during an update is refused with the update named as the reason.
+
+- A *Hold to confirm* key is cancelled when the finger slides off it in any direction, or flicks up or down on it. Before, only a fast swipe to the side cancelled it, and sliding down still sent the press after 600 ms.
+- A touch that wakes the clock presses nothing. The same goes for a finger that is down when the screen changes, for example to a permission question or when the PC shows the clock.
+- Long status values such as `123.4M /s` and `12d 23h` fit their card. The value gets a smaller font when it needs one, also on 800 × 480 panels.
+- A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
+- A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.

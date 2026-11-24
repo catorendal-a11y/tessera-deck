@@ -166,6 +166,7 @@ async function pollFirmware() {
     if ((job.error || '').includes('did not answer as a Tessera panel')) { firmwareBlank = true; $('#firmware-mode').value = 'full'; }
   }
   $('#firmware-install').disabled = job.state === 'running' || !$('#firmware-package').value;
+  $('#host-update').disabled = job.state === 'running';  // the restart after a program update would cut the install off
 }
 $('#firmware-open').onclick = openFirmware;
 $('#firmware-close').onclick = () => $('#firmware-dialog').close();
