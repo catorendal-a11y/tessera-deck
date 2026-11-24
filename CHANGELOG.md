@@ -2,7 +2,17 @@
 
 ## Unreleased
 
-- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- A Tessera update that cannot replace a file in use (an open editor file, a virus scanner) puts the folder back as it was. Before, it could leave half old and half new files.
+- On a PC with a proxy, a second start and the tray's *Open editor* reach the editor that is already running, and `deckctl` reaches the host. Before, they waited 20 s and gave up.
+- A second start that gets no answer from the running editor says so in a message box (a notification on Linux). If the editor answered but its window could not be shown, it says the editor is already open.
+- A 32-bit, arm64 or MSYS2 Python on Windows is refused with the reason and a pointer to the x64 Python from python.org. A Linux venv left behind by a Python upgrade says to delete it. Before, both were blamed on the internet.
+
+- Linux X11: maximize, restore, topmost and close work with the older xdotool of Debian and Ubuntu, through wmctrl.
+- Linux Wayland: keys use the desktop portal when `ydotoold` is not running, and a ydotool error says why. Before, every key failed with `ydotool failed: 2`.
+- Linux Wayland: a hotkey letter is pressed where your keyboard layout has it, so ctrl+z on a German keyboard is ctrl+z. Text or a hotkey the layout cannot type is refused on the portal instead of being dropped without a word.
+- Linux GNOME: a window key without the Tessera extension says to install it, instead of "There is no such window". The README, the launcher and the AUR package's `tessera --gnome-extension` say the extension is marked for GNOME 51 only, and warn on any other GNOME.
+
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
@@ -24,10 +34,17 @@
 - A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
 - On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
 
-- Linux X11: maximize, restore, topmost and close work with the older xdotool of Debian and Ubuntu, through wmctrl.
-- Linux Wayland: keys use the desktop portal when `ydotoold` is not running, and a ydotool error says why. Before, every key failed with `ydotool failed: 2`.
-- Linux Wayland: a hotkey letter is pressed where your keyboard layout has it, so ctrl+z on a German keyboard is ctrl+z. Text or a hotkey the layout cannot type is refused on the portal instead of being dropped without a word.
-- Linux GNOME: a window key without the Tessera extension says to install it, instead of "There is no such window". The README, the launcher and the AUR package's `tessera --gnome-extension` say the extension is marked for GNOME 51 only, and warn on any other GNOME.
+Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
+
+- A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
+- A key pasted into a profile that lacks its page or folder stays a draft.
+- Deleting a profile also removes the rail shortcuts and automatic actions that opened its pages.
+- *Apply* on a rail shortcut refuses a step that was copied unfinished.
+
+Other fixes:
+
+- *Run now* on a toggle key asks about every state, not only the one being edited, and *Test* says which state *Run now* presses.
+- The editor no longer follows the panel's page while you type in the inspector. Before, the rest of what you typed could land in another key.
 
 ## 1.2.11
 

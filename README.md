@@ -78,7 +78,7 @@ If you have one of the S3 boards, [tell me how it goes in the S3 test reports](h
 The release zip has the host and the panel firmware, so you need no build tools.
 
 1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up and puts a shortcut on the Desktop. The editor opens.
-   Windows SmartScreen may warn about the download because Tessera is not code-signed. You can compare the zip's SHA-256 with `SHA256SUMS` first, as [Install](docs/INSTALL.md#download-and-verify) explains. If no Python 3.11 or newer is found, the first start installs Python 3.12 for your user with winget and accepts its license terms.
+   Windows SmartScreen may warn about the download because Tessera is not code-signed. You can compare the zip's SHA-256 with `SHA256SUMS` first, as [Install](docs/INSTALL.md#download-and-verify) explains. Tessera needs 64-bit (x64) Python 3.11 or newer; 32-bit and arm64 Python do not work. If none is found, the first start installs x64 Python 3.12 for your user with winget and accepts its license terms.
    On Linux, see [Quick start on Linux](#quick-start-on-linux) below.
    Or from a terminal, with the tools Windows 10 and 11 have built in (cmd or PowerShell):
 

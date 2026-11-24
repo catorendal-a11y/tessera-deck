@@ -318,7 +318,8 @@ class AgentTerminalTests(unittest.TestCase):
                 found.append(match[1])
         self.assertGreaterEqual(len(found), 5)
         for folder in found:
-            shown = subprocess.run(f'echo {folder}', shell=True, cwd=ROOT, capture_output=True, text=True).stdout.strip()
+            # /u: cmd writes UTF-16 to the pipe, so a user folder with letters like ø reads back the same
+            shown = subprocess.run(['cmd', '/u', '/c', f'echo {folder}'], cwd=ROOT, capture_output=True).stdout.decode('utf-16-le').strip()
             self.assertEqual(shown, os.environ['USERPROFILE'], folder)
 
 
