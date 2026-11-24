@@ -492,8 +492,16 @@ class EditorDetectTests(unittest.TestCase):
             self.editor.command('update-check', {})
         self.assertEqual(check.call_args.kwargs['board'], 'tessera-p4-v3')
 
+    wait_for_job = EditorFirmwareTests.wait_for_job
+
     def look_at_a_lone_silent_port(self, vid, data, chip='Chip is ESP32-S3 (QFN56) (revision v0.2)\n'):
         """firmware-detect with only COM7 plugged in, whose device never answers; returns (result, esptool runs)."""
+        answers, runs = self.on_a_lone_silent_port(vid, [('firmware-detect', data)], chip)
+        return answers[0], runs
+
+    def on_a_lone_silent_port(self, vid, commands, chip='Chip is ESP32-S3 (QFN56) (revision v0.2)\n'):
+        """Editor commands with only COM7 plugged in, whose device never answers; returns (answers, esptool runs).
+        The answer to firmware-install is the finished job."""
         import io
         import types
         import panel_serial
@@ -530,7 +538,24 @@ class EditorDetectTests(unittest.TestCase):
                 patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.1), \
                 patch.object(fw.subprocess, 'Popen', esptool), \
                 patch.dict('os.environ', {'TESSERA_PORT': 'COM7'}):
-            return self.editor.command('firmware-detect', data), runs
+            answers = []
+            for command, data in commands:
+                answer = self.editor.command(command, data)
+                answers.append(self.wait_for_job() if command == 'firmware-install' else answer)
+            return answers, runs
+
+    def test_an_install_restarts_a_lone_silent_usb_serial_adapter_only_after_the_user_said_yes(self):
+        # Cancel in the look leaves the dialog open, and a full install would run esptool's reset on that device.
+        folder = Path(self.temp.name)
+        install = ('firmware-install', {'package': str(fw.build_package(fake_build(folder), folder / 'dist', '1.2.3', 2)),
+                                        'mode': 'full', 'force': True})
+        (_, job), runs = self.on_a_lone_silent_port(0x1A86, [('firmware-detect', {}), install])
+        self.assertEqual(runs, [], 'esptool must not reset a device the user did not agree to restart')
+        self.assertEqual(job['state'], 'failed')
+        self.assertIn('USB-SERIAL CH340 (COM7)', job['error'])
+        (_, job), runs = self.on_a_lone_silent_port(0x1A86, [('firmware-detect', {'restart': True}), install])
+        self.assertEqual(job['state'], 'done')
+        self.assertEqual(len(runs), 2, 'the look and the install')
 
     def test_a_lone_silent_usb_serial_adapter_is_restarted_only_after_the_user_says_yes(self):
         # A CH340 is also the bridge of many Arduinos and 3D printers; esptool's reset would restart a running print.

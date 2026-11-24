@@ -188,6 +188,7 @@ class Editor:
         self.firmware_job = {'state': 'idle'}
         self.last_release = None  # what the last update check found; downloads never trust client-sent URLs
         self.found_boards = []  # what the last look at a panel that does not answer found (detect_panel)
+        self.restart_agreed = None  # the port the user agreed to restart in the last look (detect_panel)
         self.firmware_lock = threading.Lock()
         self.served = {}  # revision -> the configuration read then, so a save can follow a tray brightness change
 
@@ -451,6 +452,7 @@ class Editor:
             if was_running:
                 self.controller.stop()
             port = self.firmware_port()
+            self.restart_agreed = port if restart else None
             info = self.identify_panel(port)
             if info is not None:
                 board = info.get('boardId', firmware_update.BOARD_ID)
@@ -471,6 +473,19 @@ class Editor:
             finally:
                 self.firmware_lock.release()
 
+    def identify_for_install(self, port):
+        # identify_panel for an install, which restarts the device: a silent USB serial adapter only after the user
+        # agreed to that in the look (detect_panel), as it may be an Arduino or a 3D printer.
+        info = self.identify_panel(port)
+        device = self.usb_device(port) if info is None and port != self.restart_agreed else None
+        if device is not None and device.vid != ESPRESSIF_VID:
+            name = device.description or port
+            raise firmware_update.InstallError(
+                f'{name if port in name else f"{name} on {port}"} does not answer as a Tessera panel, and installing '
+                'restarts it. If it is the panel, choose "Look for the panel again" and agree to the restart. If it is '
+                'a 3D printer or another device, unplug it and connect only the panel.')
+        return info
+
     def run_firmware_install(self, package, mode, force):
         was_running = bool(self.controller.processes())
         outcome = {'state': 'failed', 'error': 'The install was interrupted'}
@@ -486,7 +501,7 @@ class Editor:
             def progress(stage, percent):
                 self.firmware_job = dict(self.firmware_job, stage=stage, percent=round(percent))
 
-            result = firmware_update.install(package, self.firmware_port(), self.identify_panel, mode, force, progress)
+            result = firmware_update.install(package, self.firmware_port(), self.identify_for_install, mode, force, progress)
             outcome = {'state': 'done', 'stage': 'done', 'percent': 100, 'result': result}
         except Exception as exc:  # whatever went wrong, the job must not stay "running" forever
             outcome = {'state': 'failed', 'error': str(exc) or type(exc).__name__}
