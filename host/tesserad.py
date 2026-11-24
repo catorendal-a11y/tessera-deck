@@ -156,11 +156,13 @@ def port_trouble(port, exc):
     windows = int(found.group(1)) if found else None
     if code == errno.ENOENT or 'FileNotFoundError' in text:
         return f'{port} is not there. Check the USB cable.'
-    # EAGAIN: another program holds the port's lock (flock); access denied, sharing violation: it is open elsewhere
-    if code in (errno.EBUSY, errno.EAGAIN, errno.EWOULDBLOCK) or windows in (5, 32):
+    # EAGAIN: another program holds the port's lock (flock); access denied, sharing violation: it is open elsewhere.
+    # Only while opening: Windows opens a COM port exclusively, so once it is ours these mean the device went away.
+    if code in (errno.EBUSY, errno.EAGAIN, errno.EWOULDBLOCK) or windows in (5, 32) and text.startswith('could not open port'):
         return f'{port} is in use by another program. Close the serial monitor, flasher or second Tessera that has it open.'
-    # the driver lost the device: after sleep, a flaky cable, an absent Bluetooth port, unplugged mid-handshake (1167)
-    if windows in (22, 31, 121, 433, 1167):
+    # the driver lost the device: after sleep, a flaky cable, an absent Bluetooth port, unplugged mid-handshake (1167,
+    # or 5 from usbser.sys, the driver of the P4's USB Serial/JTAG)
+    if windows in (5, 22, 31, 32, 121, 433, 1167):
         return f'The USB device on {port} stopped responding. Unplug it and plug it in again.'
     if code == errno.EACCES:
         return f'{port} may not be opened by your user. Join the group uucp (Arch) or dialout (Debian, Ubuntu) and sign in again.'

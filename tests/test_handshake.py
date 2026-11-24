@@ -341,7 +341,11 @@ class PortSelectionTests(unittest.TestCase):
                   "ClearCommError failed (PermissionError(13, 'The device does not recognize the command.', None, 22))",
                   "GetOverlappedResult failed (OSError(22, 'The semaphore timeout period has expired.', None, 121))",
                   "Cannot configure port, something went wrong. Original message: "
-                  "OSError(22, 'A device which does not exist was specified.', None, 433)")
+                  "OSError(22, 'A device which does not exist was specified.', None, 433)",
+                  # The port is already ours, and Windows opens COM ports exclusively, so access denied here is not another
+                  # program: usbser.sys, the driver of the P4's USB Serial/JTAG, answers 5 once the device is pulled.
+                  "WriteFile failed (PermissionError(13, 'Access is denied.', None, 5))",
+                  "ClearCommError failed (PermissionError(13, 'Access is denied.', None, 5))")
         for error in errors:
             with self.subTest(error=error):
                 self.assertEqual(deck.port_trouble('COM4', serial.SerialException(error)),
