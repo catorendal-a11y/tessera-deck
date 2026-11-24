@@ -9,6 +9,7 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
 from unittest.mock import patch
 
@@ -164,6 +165,21 @@ class PanelQuestionTests(HostCase):
         thread.join(5)
         self.assertEqual(result, [None])
         focus.assert_called_once_with('claude.exe')
+
+    def test_a_touch_right_after_the_panel_shows_a_late_question_is_no_answer(self):
+        """A busy worker shows the question 2 s after it was asked: a tap 0.1 s later was aimed at what stood there."""
+        daemon = self.cockpit_daemon()
+        clock = [100.0]
+        with patch.object(permission, 'SETTLE_SECONDS', 0.8), \
+                patch.object(permission, 'time', types.SimpleNamespace(monotonic=lambda: clock[0])):
+            thread, result = self.ask_in_thread(daemon, 'Bash: rm -rf build', timeout=0.5)
+            clock[0] = 102.0
+            daemon.handle_job(daemon.jobs.get_nowait())  # the worker gets to the question
+            self.assertIn('AD_VIEW agents', [call.args[0] for call in daemon.panel.send_line.call_args_list])
+            clock[0] = 102.1
+            self.touch(daemon, 'allow')
+            thread.join(5)
+        self.assertEqual(result, [None])
 
     def test_an_older_panel_is_never_asked(self):
         daemon = self.daemon()

@@ -176,11 +176,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         self.last_action = None
         self.custom_vars = {}
         self.trigger_state = {}
+        self.file_stats = {}  # path -> the last os.stat of a file trigger, see file_mtime
         self.stop = threading.Event()
         self.jobs = queue.Queue(maxsize=JOB_QUEUE_SIZE)
         self.enqueue_lock = threading.Lock()
         self.state_lock = SuspendableRLock()
         self.input_lock = threading.Lock()  # keyboard and mouse sequences never interleave
+        self.worker_ident = None  # set by worker_loop
         self.slow_slots = threading.BoundedSemaphore(SLOW_LANE_LIMIT)
         self.reconnect = ReconnectBackoff()
         self.sent_brightness = None  # the brightness last sent to the panel, to notice when quiet hours begin or end
@@ -551,7 +553,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         elif kind == 'text':
             text, pause = self.substitute(action['text']), action.get('delay_ms', 0) / 1000
             if pause:  # typing slowly can take minutes: let other keys, the API and the main loop run meanwhile
-                with self.state_lock.suspended(), self.input_lock:
+                with self.waiting(), self.input_lock:
                     send_text(text, pause, self.stop.wait)  # a stopping host ends the typing
             else:
                 with self.input_turn():
@@ -562,13 +564,13 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 open_target(target)
         elif kind == 'shell':
             command, timeout = self.substitute(action['command'], 'shell'), action.get('timeout', 30)
-            with self.state_lock.suspended():  # the panel and API stay responsive while it runs
+            with self.waiting():  # the panel and API stay responsive while it runs
                 try:
                     run_command(command, timeout, self.stop)
                 except CommandFailed as exc:
                     raise RuntimeError(str(exc)) from exc
         elif kind == 'script':
-            with self.state_lock.suspended():
+            with self.waiting():
                 try:
                     run_script(action['path'], action.get('timeout', 30), self.stop)
                 except CommandFailed as exc:
@@ -587,7 +589,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             request = urllib.request.Request(check_web_url(self.expand_environment(self.substitute(action['url'], 'url'))),
                 method=action.get('method', 'GET'), headers=headers,
                 data=self.substitute(self.expand_environment(action.get('body', ''))).encode() or None)
-            with self.state_lock.suspended():
+            with self.waiting():
                 try:
                     with WEB_OPENER.open(request, timeout=action.get('timeout', 5)) as response:
                         response.read(65536)
@@ -596,7 +598,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 except http.client.InvalidURL:  # its message quotes the path, which can hold a webhook token
                     raise CommandFailed('The web address is not valid') from None
         elif kind == 'delay':
-            with self.state_lock.suspended():
+            with self.waiting():
                 self.stop.wait(action.get('ms', 100)/1000)
         elif kind == 'page':
             self.switch_page(action['page'])
@@ -925,6 +927,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.dimmed = False
 
     def worker_loop(self):
+        self.worker_ident = threading.get_ident()  # input_turn refuses to wait for the keyboard on this thread
         while not self.stop.is_set():
             try:
                 job = self.jobs.get(timeout=.2)
@@ -956,8 +959,11 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
             self.manual_focus_exe = ''
         profiles = self.config['profiles'].items()
         # The window's own program wins over a child process: Chrome runs claude.exe for its extension, and is still Chrome.
+        # Without .exe on both sides: Linux names the program 'chrome' where the rule says chrome.exe
+        exe = context['exe'].lower().removesuffix('.exe')
         own = next((name for name, p in profiles if any(
-            pattern.strip().lower().removeprefix('process:').strip() == context['exe'] for pattern in p.get('match', []))), None)
+            pattern.strip().lower().removeprefix('process:').strip().removesuffix('.exe') == exe
+            for pattern in p.get('match', []))), None)
         match = own or next((name for name, p in profiles
                              if any(matches_foreground(pattern, context) for pattern in p.get('match', []))), None)
         if match:
