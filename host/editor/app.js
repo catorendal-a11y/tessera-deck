@@ -610,8 +610,10 @@ async function dismissFirmwareHint() {
 function panelProblem(error) {
   const firmware=['Panel firmware …',()=>openFirmware().catch(showError)],log=['Show the host log',()=>openLog().catch(showError)];
   if(/protocol/i.test(error))return ['The panel firmware is too old for this Tessera. Update it.',firmware,error,log];
-  // The host lists every port it tried. Next to a board that opened but did not answer, as a panel without firmware
-  // does, a busy port is as likely an Arduino or a modem, so the firmware hint wins; the second line still names both.
+  // The host lists every port it tried, and it opens only Espressif and CH340 ports (or the one TESSERA_PORT names).
+  // Next to a board that opened but did not answer, as a panel without firmware does, the busy one is as likely an
+  // ESP32 devkit or an Arduino clone, so the firmware hint wins; the second line still names both. The error does not
+  // say which port is the remembered panel, so a busy panel next to a silent board gets the firmware hint too.
   if(/access is denied|permission|busy|in use/i.test(error)&&!/did not identify itself|does not take data/i.test(error))return ["Another program is using the panel's USB port. Close it (for example Arduino IDE, PuTTY or Thonny) and the panel connects by itself.",log,error];
   if(/different device/i.test(error))return ['The USB device found is not a Tessera panel. Plug in the panel with its USB Serial/JTAG port.',log,error];
   return ["No panel found. Check the USB cable and use the board's USB Serial/JTAG port; a new panel needs its firmware first.",firmware,error,log];
