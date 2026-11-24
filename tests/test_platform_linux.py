@@ -159,16 +159,24 @@ class WindowTests(unittest.TestCase):
             calls.append(args)
             if args[0] == 'xdotool' and ('windowstate' in args or 'windowquit' in args):
                 raise OSError(f'xdotool failed: xdotool: Unknown command: {args[1] if args[1] != "getactivewindow" else args[2]}')
+            if args == ['xdotool', 'getactivewindow']:
+                return '7\n'
+            if args[0] == 'xprop':  # window 9 is not kept on top; the window in front (7) is
+                return '_NET_WM_STATE(ATOM) = _NET_WM_STATE_ABOVE' if args[2] == '7' else '_NET_WM_STATE(ATOM) = '
             return ''
         backend = x11.X11Backend(old_xdotool)
-        for op in ('close', 'maximize', 'restore'):
-            self.assertTrue(backend.window_op('9', op), op)
-        self.assertTrue(backend.window_op(None, 'close'))
+        for window in ('9', None):  # None is the window in front
+            for op in ('close', 'maximize', 'restore', 'topmost'):
+                self.assertTrue(backend.window_op(window, op), (window, op))
         self.assertEqual([c for c in calls if c[0] == 'wmctrl'], [
             ['wmctrl', '-i', '-c', '9'],
             ['wmctrl', '-i', '-r', '9', '-b', 'add,maximized_vert,maximized_horz'],
             ['wmctrl', '-i', '-r', '9', '-b', 'remove,maximized_vert,maximized_horz'],
-            ['wmctrl', '-c', ':ACTIVE:']])
+            ['wmctrl', '-i', '-r', '9', '-b', 'add,above'],
+            ['wmctrl', '-c', ':ACTIVE:'],
+            ['wmctrl', '-r', ':ACTIVE:', '-b', 'add,maximized_vert,maximized_horz'],
+            ['wmctrl', '-r', ':ACTIVE:', '-b', 'remove,maximized_vert,maximized_horz'],
+            ['wmctrl', '-r', ':ACTIVE:', '-b', 'remove,above']])
 
     def test_a_real_xdotool_failure_is_not_hidden_by_the_fallback(self):
         def broken(args, **kwargs):
