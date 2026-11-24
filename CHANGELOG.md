@@ -12,6 +12,11 @@
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
 
+- Uninstalling one copy of Tessera no longer removes another copy's *Start with Windows* entry or its Claude Code hooks. The editor shows the hooks of a moved copy as off.
+- Uninstall says when the administrator sensors task is still there, how to turn it off, and how to remove Libre Hardware Monitor from `%ProgramFiles%\Tessera`.
+- The *Start with Windows* tick in the tray shows the new state right after a click, and changes when the entry is changed elsewhere.
+- The `deckctl` examples in the guide and on the website run with Tessera's own Python.
+
 - Closing the editor window on Windows saves an edit that was still waiting to be saved. If the save fails, the editor asks before it closes and drops the change. Before, a change made just before closing was lost without a word.
 - Closing or reloading the editor in a browser warns while a key is still a draft.
 - Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.

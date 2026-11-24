@@ -341,6 +341,31 @@ class AutoUpdateCheckTests(unittest.TestCase):
         self.assertEqual(self.look(self.newer, 1000, 2000), 0)
         self.app.icon.notify.assert_not_called()
 
+    def test_the_start_with_windows_tick_shows_the_new_state_after_a_click(self):
+        # pystray rebuilds the menu right after the click, while the work still runs on its own thread: the tick was
+        # then read before the entry changed, so the menu showed the old state until something else rebuilt it
+        entry = {'on': False}
+        seen = []
+        self.app.icon.update_menu.side_effect = lambda: seen.append(entry['on'])
+        with patch.object(self.tray, 'autostart_enabled', lambda: entry['on']),                 patch.object(self.tray, 'set_autostart', lambda on: entry.update(on=on)):
+            self.app.toggle_autostart()
+        self.assertEqual(seen, [True])
+
+    def test_a_change_of_the_start_with_windows_entry_made_elsewhere_rebuilds_the_menu(self):
+        entry = {'on': False}
+        controller = Mock()
+        controller.status.return_value = {'running': False}
+        app = host_support.tray_app(controller)
+        app.icon = Mock()
+        with patch.object(self.tray, 'autostart_enabled', lambda: entry['on']):
+            app.refresh()
+            app.icon.update_menu.reset_mock()
+            app.refresh()
+            app.icon.update_menu.assert_not_called()
+            entry['on'] = True  # the editor's setting, or another copy, changed it
+            app.refresh()
+        app.icon.update_menu.assert_called_once()
+
     def test_a_damaged_state_file_counts_as_never_asked(self):
         self.state.write_text('not json', encoding='utf-8')
         self.assertEqual(self.look(self.newer, 1000, 200), 0)

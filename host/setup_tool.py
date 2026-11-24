@@ -121,9 +121,10 @@ def forget_claude_hooks(home: Path | None = None, emit: Callable[[str], None] = 
     import claude_setup
     from venv_paths import venv_python
     try:
-        if not any(claude_setup.state(home).values()):
+        deckctl = ROOT / 'host/deckctl.py'
+        if not any(claude_setup.state(home, deckctl).values()):  # hooks of another copy are that copy's
             return False
-        claude_setup.update(False, False, venv_python(ROOT), ROOT / 'host/deckctl.py', home)
+        claude_setup.update(False, False, venv_python(ROOT), deckctl, home, only_this=True)
     except (OSError, ValueError) as exc:
         emit(f"Could not remove Tessera's hooks from Claude Code: {exc}")
         return False
@@ -133,7 +134,8 @@ def forget_claude_hooks(home: Path | None = None, emit: Callable[[str], None] = 
 
 def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: Callable[[str], None] = print,
               root: Path = ROOT, link: Path | None = None,
-              autostart: Callable[[bool], object] | None = None) -> list[str]:
+              autostart: Callable[[bool], object] | None = None,
+              sensors_task: Callable[[], bool] | None = None) -> list[str]:
     """Remove what Tessera put outside its folder (autostart entry, Desktop shortcut). User data stays unless `purge`.
 
     Raises OSError after the report when a purge could not delete everything.
@@ -144,12 +146,12 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
         sys.path.insert(0, str(root / 'host'))
         from deck_control import set_autostart as autostart
     try:
-        had_entry = True  # a stand-in has no entry to look at
+        mine = True  # a stand-in has no entry to look at
         if own_autostart:
-            from deck_control import startup_script_path
-            had_entry = startup_script_path().exists()
-        autostart(False)
-        if had_entry:
+            from deck_control import autostart_enabled
+            mine = autostart_enabled()  # an entry that starts another copy stays: that copy still needs it
+        if mine:
+            autostart(False)
             removed.append('start with ' + load('labels').AUTOSTART_NAME)
     except OSError as exc:
         emit(f'Could not remove the autostart entry: {exc}')
@@ -158,6 +160,11 @@ def uninstall(purge: bool = False, confirm: Callable[[str], str] = input, emit: 
         path.unlink()
     if shortcuts:
         removed.append(load('labels').SHORTCUT_NAME)
+    if sensors_task and sensors_task():
+        emit('The sensors task still starts Libre Hardware Monitor with administrator rights at every sign-in. Run '
+             + load('labels').LAUNCHER + ' --sensors-off before you delete this folder. That leaves Libre Hardware Monitor'
+             " itself in %ProgramFiles%\\Tessera: quit it from its icon in the notification area, then delete that"
+             ' folder too (Windows asks for administrator permission).')
     if purge:
         answer = confirm('This permanently deletes your profiles, icons, backups, counters and downloads. '
                          'Type YES to continue: ').strip()
@@ -263,7 +270,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == 'uninstall':
         try:
-            uninstall(args.purge)
+            uninstall(args.purge, sensors_task=load('sensors').sensors_task_exists)
             forget_claude_hooks()
         except OSError as exc:
             print(exc)

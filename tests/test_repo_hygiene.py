@@ -53,6 +53,13 @@ class RepoHygieneTests(unittest.TestCase):
                     broken.append(f'{page.relative_to(ROOT).as_posix()}: {target}')
         self.assertEqual(broken, [])
 
+    def test_the_deckctl_examples_use_the_virtual_environments_python(self):
+        # deckctl imports psutil, which only the venv has: a plain `python` fails with ModuleNotFoundError
+        pages = [*sorted((ROOT / 'docs').glob('*.md')), ROOT / 'docs' / 'index.html']
+        bare = [f'{page.name}: {line.strip()}' for page in pages for line in page.read_text(encoding='utf-8').splitlines()
+                if re.search(r'(?<![\w\\/.])python\s+host\\deckctl\.py', line)]
+        self.assertEqual(bare, [])
+
 
 if __name__ == '__main__':
     unittest.main()

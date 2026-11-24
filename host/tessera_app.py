@@ -582,7 +582,7 @@ class Editor:
         """Read (no `events`/`permission` in data) or change the Claude Code hooks that feed the agents screen."""
         import claude_setup
         if 'events' not in data and 'permission' not in data:
-            return claude_setup.state()
+            return claude_setup.state(deckctl=ROOT / 'host/deckctl.py')
         python = venv_python(ROOT)
         return claude_setup.update(data.get('events'), data.get('permission'), python if python.is_file() else Path(sys.executable),
                                    ROOT / 'host/deckctl.py')
