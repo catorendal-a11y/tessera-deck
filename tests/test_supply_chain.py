@@ -81,7 +81,7 @@ class WorkflowTests(unittest.TestCase):
     def test_release_checkouts_do_not_leave_the_token_in_git_config(self):
         release = read('.github/workflows/release.yml')
         checkouts = re.findall(r'- uses: actions/checkout@\S+[^\n]*\n((?: {8,}\S[^\n]*\n)*)', release)
-        self.assertEqual(len(checkouts), 3)
+        self.assertEqual(len(checkouts), 4)
         for block in checkouts:
             self.assertIn('persist-credentials: false', block)
 
@@ -106,6 +106,12 @@ class WorkflowTests(unittest.TestCase):
         release = read('.github/workflows/release.yml')
         self.assertRegex(release, r'(?m)^  ci:\n    name: [^\n]+\n    uses: \./\.github/workflows/ci\.yml$')
         self.assertRegex(release, r'needs: \[[^\]]*\bci\b[^\]]*\]')
+
+    def test_a_dry_run_of_the_release_publishes_nothing(self):
+        release = read('.github/workflows/release.yml')
+        self.assertIn('workflow_dispatch:', release)
+        self.assertRegex(release, r"(?m)^  publish:\n    name: [^\n]+\n    if: github\.ref_type == 'tag'")
+        self.assertNotIn('idf.py', release, 'the firmware comes from the CI jobs; building it again took 25 minutes')
 
     def test_the_lock_file_follows_requirements_txt(self):
         """Dependabot edits only requirements.txt; a stale lock would ship the old version in the release zip."""
