@@ -38,7 +38,9 @@ class RepoHygieneTests(unittest.TestCase):
         def steps(path):
             text = read(path)
             start = text.index('shell_major=')
-            return [line.strip() for line in text[start:text.index('gnome-extensions disable', start)].splitlines()]
+            end = text.index('\n', text.index('gnome-extensions disable', start))
+            # The AUR copy ends that last line with the ;; of its case branch.
+            return [line.strip().removesuffix(' ;;') for line in text[start:end].splitlines()]
         self.assertEqual(steps('packaging/aur/tessera-deck.sh'), steps('Tessera.sh'))
 
     @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'needs a git checkout')
