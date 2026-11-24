@@ -182,7 +182,7 @@ More symptoms:
 |---|---|
 | `Another Tessera host is already running` | Only one host may own the port. Stop it from the tray, then start again. |
 | The rail on the panel shows *NO PC* above the clock | The host is not running or does not own the port. Start it from the tray. |
-| Python is missing or older than 3.11 | Install Python 3.11 or newer from python.org and start `Tessera.cmd` again. If `host\.venv` was left half-made, delete that folder first. |
+| Python is missing, older than 3.11 or not 64-bit | Install 64-bit (x64) Python 3.11 or newer from python.org and start `Tessera.cmd` again. If `host\.venv` was left half-made, delete that folder first. |
 | `Tessera needs 64-bit (x64) Python on Windows` | 32-bit and arm64 Python cannot install Tessera's packages. Install x64 Python 3.11 or newer from python.org (Windows 11 on Arm runs it too), delete the folder `host\.venv` and start `Tessera.cmd` again. |
 | The editor looks out of date | Close the editor window and open it again from the tray. |
 | Flashing fails with *port busy* | Stop the host first. |
