@@ -12,6 +12,13 @@
 - Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.
 - A firmware install and a Tessera update can no longer run at the same time. The *Update Tessera* button is greyed out while the panel firmware installs, and a firmware install started during an update is refused with the update named as the reason.
 
+- While the panel is away, the host no longer opens every Espressif and CH340 port on each retry. A board that stays silent three times or answers as another board is left alone until it is plugged in again, and with `TESSERA_PORT` set only that port is opened. On Linux each of those opens restarted a UART board.
+- A CrowPanel or Sunton panel that restarts without leaving USB gets its page, rail and lock again. The host asks the panel every 5 s and sets it up again after a restart.
+- `deckctl press` and `POST /v1/press` answer that the panel is not connected and the key was not pressed. Before, they answered OK.
+- A USB device that stopped responding, or was pulled out during the handshake on Windows, is reported with the advice to unplug it and plug it in again. Before, the editor said the port was busy or offered a firmware install.
+- A new panel without Tessera firmware gets the firmware hint even when an Arduino or another board next to it is busy or needs a replug. Before, the message named the other port.
+- On Linux the host locks the panel port, so esptool and a second host report it as busy instead of sharing it. A panel with firmware this host does not speak is opened once and its reason stays, instead of a restart every 10 s.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
