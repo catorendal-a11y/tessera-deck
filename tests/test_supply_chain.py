@@ -110,9 +110,14 @@ class WorkflowTests(unittest.TestCase):
         self.assertIsNotNone(probe, 'host-lock-linux does not import the packages the first start checks for')
         self.assertLess(job.index('pip install --require-hashes -r host/requirements.lock'), probe.start())
         self.assertIn('MODULE_PROBE', probe.group(1))
-        # Without site-packages the step must stop on a missing import, as the first start would.
-        result = subprocess.run([sys.executable, '-S', '-c', probe.group(1)], cwd=ROOT, capture_output=True,
-                                text=True, timeout=60)
+        # Without site-packages the step must stop on a missing import, as the first start would. setup_tool itself
+        # has to load with the standard library only, or the step fails before the probe runs and proves nothing.
+        def run(code):
+            return subprocess.run([sys.executable, '-S', '-c', code], cwd=ROOT, capture_output=True, text=True,
+                                  timeout=60)
+        loaded = run(probe.group(1).replace('exec(MODULE_PROBE)', 'print(MODULE_PROBE)'))
+        self.assertEqual(loaded.returncode, 0, f'setup_tool needs more than the standard library:\n{loaded.stderr}')
+        result = run(probe.group(1))
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('No module named', result.stderr)
 
