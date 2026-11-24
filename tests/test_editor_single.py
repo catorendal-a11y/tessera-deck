@@ -43,7 +43,8 @@ class RunningEditorTests(unittest.TestCase):
                 patch.object(tessera_app, 'open_window') as open_window, \
                 patch.object(tessera_app, 'activate_window', return_value=False):
             record = self.record(folder)
-            self.assertFalse(tessera_app.show_running_editor(record, 'b1'), 'the caller asks again; it does not open a second window')
+            # None, not False: it answered, so the caller asks again and does not say it got no answer
+            self.assertIsNone(tessera_app.show_running_editor(record, 'b1'), 'the caller asks again; it does not open a second window')
             open_window.assert_not_called()
             self.assertTrue(tessera_app.show_running_editor(record, 'b1', open_if_hidden=True))
             # the address carries a one-time code from the editor, never the record's long-lived token
@@ -108,6 +109,30 @@ class SecondStartTests(unittest.TestCase):
             self.assertEqual(dialogs.tell.call_args.args[0], stderr.getvalue().strip())
             # on Windows the running host writes over lines others add to its log: the editor leaves it alone
             self.assertFalse((Path(folder) / 'host/deck.local.log').exists())
+
+    def test_a_second_start_whose_editor_answers_but_cannot_be_raised_does_not_say_it_got_no_answer(self):
+        # GNOME Wayland without the extension, KDE Wayland without kdotool: the editor answers, its window never comes up
+        with tempfile.TemporaryDirectory() as folder:
+            (Path(folder) / 'host').mkdir()
+            running = InstanceLock(Path(folder) / 'host/editor.local.lock')
+            self.assertTrue(running.acquire())
+            dialogs = Mock()
+            try:
+                with patch.object(sys, 'argv', ['tessera_app.py', '--editor']), patch.object(tessera_app, 'ROOT', Path(folder)), \
+                        patch.object(tessera_app, 'load', side_effect=lambda name: dialogs if name == 'dialogs' else Mock()), \
+                        patch.object(tessera_app, 'Controller'), \
+                        patch.object(tessera_app, 'editor_build_id', return_value='b1'), \
+                        patch.object(tessera_app, 'show_running_editor', return_value=None), \
+                        patch.object(tessera_app.time, 'monotonic', side_effect=itertools.count(0, 5)), \
+                        patch.object(tessera_app.time, 'sleep'), contextlib.redirect_stderr(io.StringIO()):
+                    tessera_app.main()
+            finally:
+                running.release()
+            dialogs.tell.assert_called_once()
+            notice = dialogs.tell.call_args.args[0]
+            self.assertNotIn('did not answer', notice)
+            self.assertNotIn('Close it', notice)
+            self.assertIn('already open', notice)
 
     def test_the_notice_is_a_message_box_on_windows_and_a_notification_on_linux(self):
         from platform_linux import dialogs as linux

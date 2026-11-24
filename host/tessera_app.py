@@ -960,7 +960,8 @@ def show_running_editor(record, build, open_if_hidden=False):
     """Bring the running editor to the front. False when there is none yet; an editor of another build is stopped.
 
     The editor's server answers a moment before its window is on screen. Opening a window of our own then (the
-    old behaviour) is how a double click made two; the caller waits and asks again instead.
+    old behaviour) is how a double click made two; the caller waits and asks again instead. None says that case:
+    the editor answered, but its window could not be raised (yet, or ever on a Wayland desktop without focus).
     """
     import psutil
     try:
@@ -991,7 +992,7 @@ def show_running_editor(record, build, open_if_hidden=False):
             if open_if_hidden:
                 open_window(launch_url)
                 return True
-            return False
+            return None
         # A launcher reopening an updated editor must not reuse a stale API server. The independent USB host stays up.
         process.terminate()
         process.wait(timeout=3)
@@ -1023,11 +1024,16 @@ def main():
     if not args.profiles and not args.no_browser:
         deadline = time.monotonic() + 20
         while not lock.acquire():
-            if show_running_editor(record, build):
+            shown = show_running_editor(record, build)
+            if shown:
                 return
             if time.monotonic() > deadline:
-                message = ('The editor could not open: the Tessera editor that is already running did not answer '
-                           'within 20 seconds. Close it and start Tessera again.')
+                if shown is None:
+                    message = ('The Tessera editor is already open, but Tessera could not bring its window to the '
+                               'front. Look for it behind other windows or on another workspace.')
+                else:
+                    message = ('The editor could not open: the Tessera editor that is already running did not answer '
+                               'within 20 seconds. Close it and start Tessera again.')
                 print(message, file=sys.stderr, flush=True)
                 # pythonw and the tray throw stderr away, so a message box (a notification on Linux) says it too.
                 # Not the host log: on Windows the running host writes over lines other programs add to it.
