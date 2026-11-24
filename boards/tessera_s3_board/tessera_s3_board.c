@@ -1,5 +1,6 @@
-/* Display, touch and backlight for the 800 x 480 ESP32-S3 boards: a 16-bit RGB565 panel, a GT911 on I2C, and a
- * backlight that is a CH422G expander pin (Waveshare), an LEDC pin (Sunton) or a command to a helper MCU (CrowPanel). */
+/* Display, touch and backlight for the ESP32-S3 boards (800 x 480, 1024 x 600 on the Waveshare -7B): a 16-bit RGB565
+ * panel, a GT911 on I2C, and a backlight that is an expander pin (the CH422G on the Waveshare -7, the IO extension at
+ * 0x24 on the -7B), an LEDC pin (Sunton) or a command to a helper MCU (CrowPanel). */
 #include "bsp/esp-bsp.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
