@@ -161,8 +161,9 @@ async function pollFirmware() {
     if (!label.dataset.refreshed) { label.dataset.refreshed = '1'; firmwareFound = null; setTimeout(() => refreshFirmware().catch(() => {}), 5000); }
   } else if (job.state === 'failed') {
     label.textContent = job.error || 'The installation failed.';
-    // a panel that does not answer needs everything written: the next Install asks for exactly that
-    if ((job.error || '').includes('did not answer')) { firmwareBlank = true; $('#firmware-mode').value = 'full'; }
+    // a panel that does not answer at all needs everything written: the next Install asks for exactly that. Not after
+    // an update that stopped or restarted: those messages say to install the same way again.
+    if ((job.error || '').includes('did not answer as a Tessera panel')) { firmwareBlank = true; $('#firmware-mode').value = 'full'; }
   }
   $('#firmware-install').disabled = job.state === 'running' || !$('#firmware-package').value;
 }
