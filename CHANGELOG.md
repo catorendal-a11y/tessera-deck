@@ -18,6 +18,13 @@
 - A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
 - A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
 
+- A firmware update over USB on Linux keeps the new firmware. Before, the host opened the port again too early, the panel restarted into the old firmware, and on the GUITION board the update was reported as failed when its USB port went away during the restart.
+- An update over USB that ends without the new firmware running says what to try next. Before, it said the panel kept its current firmware, which is not known once the image is written. After such an update, the next install is no longer forced to a full install.
+- The firmware dialog asks before it restarts a USB serial device that is not a panel, such as an Arduino or a 3D printer behind a CH340, and a full install after Cancel stops instead of restarting it.
+- A CrowPanel P4 without firmware is no longer offered the GUITION package. A v3.x chip on a CrowPanel is told there is no firmware for it yet.
+- A blank CH340 board that prints its start message at 115200 is found and installed. Before, the editor said the port could not be opened.
+- The host can start again at once after the editor was closed or crashed during a firmware install. Before, *Start host* stayed grey for 10 minutes.
+
 ## 1.2.11
 
 Two things that 1.2.10 called working were not, and both turned up the first time they were run on a real panel: installing on a blank board, and updating the firmware over USB. This release fixes them, and both fixes were run on a GUITION JC1060P470C. Not run on real hardware: the Radeon RX 7000 and RX 9000 power reading, FPS with a game in full screen, and anything on Linux.
