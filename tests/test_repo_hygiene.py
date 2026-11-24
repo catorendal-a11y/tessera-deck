@@ -33,6 +33,14 @@ class RepoHygieneTests(unittest.TestCase):
         self.assertIn(command, read('CONTRIBUTING.md'))
         self.assertIn(command, read('docs/DEVELOPMENT.md'))
 
+    def test_the_aur_wrapper_gives_the_same_gnome_extension_steps_as_tessera_sh(self):
+        # packaging/aur/tessera-deck.sh copies the GNOME version warning and the steps after it from Tessera.sh
+        def steps(path):
+            text = read(path)
+            start = text.index('shell_major=')
+            return [line.strip() for line in text[start:text.index('gnome-extensions disable', start)].splitlines()]
+        self.assertEqual(steps('packaging/aur/tessera-deck.sh'), steps('Tessera.sh'))
+
     @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'needs a git checkout')
     def test_gitignore_covers_the_temp_files_of_atomic_writes(self):
         for name in ('host/profiles.json.k3j2.tmp', 'host/deck-runtime.local.tmp'):
