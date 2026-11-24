@@ -344,6 +344,35 @@ class EditorFirmwareTests(unittest.TestCase):
         import tesserad
         self.assertIn('no firmware yet', tesserad.port_trouble('COM4', serial.SerialTimeoutException('Write timeout')))
 
+    def test_a_board_that_prints_at_another_speed_counts_as_silent(self):
+        # An erased S3 behind a CH340 loops its ROM message at 115200; read at 921600 that is bytes without a newline.
+        import panel_serial
+        import types
+
+        class Garbled:
+            port, in_waiting = 'COM9', 4096
+
+            def __init__(self):
+                self.dtr = self.rts = False
+
+            def open(self):
+                pass
+
+            def close(self):
+                pass
+
+            def reset_input_buffer(self):
+                pass
+
+            def write(self, raw):
+                return len(raw)
+
+            def read(self, size):
+                return b'\x00\x80' * (size // 2)
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Garbled)), \
+                patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.3):
+            self.assertIsNone(Editor.identify_panel('COM9'), 'no answer: the chip is asked next')
+
     def test_installing_stops_the_host_flashes_and_always_restarts_it(self):
         calls = []
         with patch.object(self.editor, 'firmware_port', return_value='COM4'), \
@@ -463,8 +492,293 @@ class EditorDetectTests(unittest.TestCase):
             self.editor.command('update-check', {})
         self.assertEqual(check.call_args.kwargs['board'], 'tessera-p4-v3')
 
+    wait_for_job = EditorFirmwareTests.wait_for_job
+
+    def look_at_a_lone_silent_port(self, vid, data, chip='Chip is ESP32-S3 (QFN56) (revision v0.2)\n'):
+        """firmware-detect with only COM7 plugged in, whose device never answers; returns (result, esptool runs)."""
+        answers, runs = self.on_a_lone_silent_port(vid, [('firmware-detect', data)], chip)
+        return answers[0], runs
+
+    def on_a_lone_silent_port(self, vid, commands, chip='Chip is ESP32-S3 (QFN56) (revision v0.2)\n'):
+        """Editor commands with only COM7 plugged in, whose device never answers; returns (answers, esptool runs).
+        The answer to firmware-install is the finished job."""
+        import io
+        import types
+        import panel_serial
+
+        class Silent:
+            port, in_waiting = 'COM7', 0
+
+            def __init__(self):
+                self.dtr = self.rts = False
+
+            def open(self):
+                pass
+
+            def close(self):
+                pass
+
+            def reset_input_buffer(self):
+                pass
+
+            def write(self, raw):
+                return len(raw)
+
+            def read(self, size):
+                return b''
+        runs = []
+
+        def esptool(arguments, **kwargs):
+            runs.append(arguments)
+            return types.SimpleNamespace(stdout=io.StringIO(chip), wait=lambda: 0,
+                                         kill=lambda: None)
+        device = types.SimpleNamespace(device='COM7', vid=vid, serial_number=None, description='USB-SERIAL CH340 (COM7)')
+        with patch('serial.tools.list_ports.comports', return_value=[device]), \
+                patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=Silent)), \
+                patch.object(panel_serial, 'HANDSHAKE_SECONDS', 0.1), \
+                patch.object(fw.subprocess, 'Popen', esptool), \
+                patch.dict('os.environ', {'TESSERA_PORT': 'COM7'}):
+            answers = []
+            for command, data in commands:
+                answer = self.editor.command(command, data)
+                answers.append(self.wait_for_job() if command == 'firmware-install' else answer)
+            return answers, runs
+
+    def test_an_install_restarts_a_lone_silent_usb_serial_adapter_only_after_the_user_said_yes(self):
+        # Cancel in the look leaves the dialog open, and a full install would run esptool's reset on that device.
+        folder = Path(self.temp.name)
+        install = ('firmware-install', {'package': str(fw.build_package(fake_build(folder), folder / 'dist', '1.2.3', 2)),
+                                        'mode': 'full', 'force': True})
+        (_, job), runs = self.on_a_lone_silent_port(0x1A86, [('firmware-detect', {}), install])
+        self.assertEqual(runs, [], 'esptool must not reset a device the user did not agree to restart')
+        self.assertEqual(job['state'], 'failed')
+        self.assertIn('USB-SERIAL CH340 (COM7)', job['error'])
+        (_, job), runs = self.on_a_lone_silent_port(0x1A86, [('firmware-detect', {'restart': True}), install])
+        self.assertEqual(job['state'], 'done')
+        self.assertEqual(len(runs), 2, 'the look and the install')
+
+    def test_a_lone_silent_usb_serial_adapter_is_restarted_only_after_the_user_says_yes(self):
+        # A CH340 is also the bridge of many Arduinos and 3D printers; esptool's reset would restart a running print.
+        found, runs = self.look_at_a_lone_silent_port(0x1A86, {})
+        self.assertEqual(runs, [], 'esptool must not reset the device before the user agrees')
+        self.assertEqual((found['port'], found['ask']), ('COM7', 'USB-SERIAL CH340 (COM7)'))
+        found, runs = self.look_at_a_lone_silent_port(0x1A86, {'restart': True})
+        self.assertEqual(found['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
+        self.assertEqual(len(runs), 1)
+
+    def test_a_lone_silent_espressif_port_is_asked_for_its_chip_at_once(self):
+        found, runs = self.look_at_a_lone_silent_port(0x303A, {})
+        self.assertEqual(found['chip'], 'esp32s3')
+        self.assertIn('read-mac', runs[0])
+
+    def test_a_p4_behind_a_usb_uart_bridge_is_a_crowpanel_not_a_guition_board(self):
+        # The GUITION P4 talks over the chip's own USB (VID 0x303A); the CrowPanel P4 through its CH340 UART bridge.
+        v3, v1 = 'Chip is ESP32-P4 (revision v3.1)\n', 'Chip is ESP32-P4 (revision v1.3)\n'
+        with self.assertRaisesRegex(fw.InstallError, 'CrowPanel.*v3'):
+            self.look_at_a_lone_silent_port(0x1A86, {'restart': True}, v3)
+        self.assertEqual(self.look_at_a_lone_silent_port(0x1A86, {'restart': True}, v1)[0]['boards'], ['tessera-p4-crowpanel7'])
+        self.assertEqual(self.look_at_a_lone_silent_port(0x303A, {}, v3)[0]['boards'], ['tessera-p4-v3'])
+
     def test_the_package_list_carries_the_board_names(self):
         self.assertEqual(self.editor.command('firmware-list', {})['names']['tessera-p4-v3'], fw.BOARD_NAMES['tessera-p4-v3'])
+
+
+class Board:
+    """An A/B panel as ESP-IDF's bootloader runs it: an image written over USB boots on probation, the firmware
+    confirms it when it answers get_info (main.cpp app_confirm), and a reset before that boots the old image again."""
+
+    def __init__(self, running, new):
+        self.running, self.new, self.previous, self.boot, self.probation = running, new, None, 7, False
+
+    def reset(self):
+        if self.probation:
+            self.running, self.probation = self.previous, False
+        self.boot += 1
+
+
+class BoardPort:
+    """The panel's serial port. On Linux opening it raises DTR and RTS, which resets a UART board (RESETS_ON_OPEN)."""
+    board = None
+
+    def __init__(self):
+        self.port, self.dtr, self.rts, self.pending, self.size, self.held = None, False, False, bytearray(), 0, 0
+
+    def open(self):
+        if str(self.port).startswith('/dev/'):
+            self.board.reset()
+
+    def close(self):
+        pass
+
+    def reset_input_buffer(self):
+        self.pending.clear()
+
+    @property
+    def in_waiting(self):
+        return len(self.pending)
+
+    def read(self, count):
+        data, self.pending = bytes(self.pending[:count]), self.pending[count:]
+        return data
+
+    def write(self, raw):
+        board = self.board
+        for line in raw.decode().splitlines():
+            if line == '{"cmd":"get_info"}':
+                board.probation = False
+                self.pending.extend((json.dumps({'type': 'info', 'boardId': 'tessera-p4', 'protocol': 2, 'ota': 1,
+                                                 'firmwareVersion': board.running, 'bootId': board.boot}) + '\n').encode())
+            elif line.startswith('AD_OTA_BEGIN '):
+                self.size, self.held = int(line.split()[1]), 0
+                self.pending.extend(b'AD_OTA_BEGIN OK\n')
+            elif line.startswith('AD_OTA_DATA '):
+                self.held += len(bytes.fromhex(line.split(' ', 2)[2]))
+                if self.held == self.size:
+                    self.pending.extend(f'AD_OTA_DATA OK {self.held}\n'.encode())
+            elif line == 'AD_OTA_END':
+                self.pending.extend(b'AD_OTA_END OK\n')
+                board.previous, board.running, board.probation = board.running, board.new, True
+                board.boot += 1  # esp_restart into the new slot
+        return len(raw)
+
+
+class LinuxUpdateTests(unittest.TestCase):
+    def test_an_update_on_a_board_that_resets_when_the_port_opens_keeps_the_new_firmware(self):
+        import types
+        import panel_serial
+        BoardPort.board = Board('1.0.0', '1.2.3')
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=BoardPort)), \
+                patch.object(panel_serial, 'RESETS_ON_OPEN', True), \
+                patch.object(panel_serial, 'SETTLE_AFTER_RESET_SECONDS', 0):
+            fw.serial_ota('/dev/ttyUSB0', b'\x00' * 100, lambda percent: None, version='1.2.3')
+            host = panel_serial.PanelSerial('/dev/ttyUSB0', lambda *_: None)  # the host starts again after the update
+        self.assertEqual(host.info['firmwareVersion'], '1.2.3')
+
+    def test_an_update_over_the_chips_own_usb_keeps_the_new_firmware_when_the_port_goes_away(self):
+        # The GUITION board (USB Serial/JTAG, /dev/ttyACM0 on Linux) drops off USB while it restarts into the new image.
+        import types
+        import panel_serial
+        clock = Clock()
+        JtagPort.board = JtagBoard('1.0.0', '1.2.3', clock)
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=JtagPort)), \
+                patch.object(panel_serial, 'RESETS_ON_OPEN', True), \
+                patch.object(panel_serial, 'time', clock), patch.object(fw, 'time', clock):
+            fw.serial_ota('/dev/ttyACM0', b'\x00' * 100, lambda percent: None, version='1.2.3')
+            host = panel_serial.PanelSerial('/dev/ttyACM0', lambda *_: None)  # the host starts again after the update
+        self.assertEqual(host.info['firmwareVersion'], '1.2.3')
+
+
+class Clock:
+    """The time of a test: a sleep, or a serial read that waits for data, moves it on at once."""
+    now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+class JtagBoard(Board):
+    """A board on the chip's own USB. A new image also keeps itself after a minute of running (app_confirm in
+    main/main.cpp), so a reset after that minute no longer brings the old one back.
+
+    `usb_gap` is how long it is off USB while it restarts (None: a UART board, whose port stays), and a new image
+    that `hangs` never answers and never keeps itself."""
+    usb_gap, hangs = 1.5, False
+
+    def __init__(self, running, new, clock):
+        super().__init__(running, new)
+        self.clock, self.started, self.back = clock, 0.0, 0.0
+
+    def reset(self):
+        if self.clock.now - self.started >= 60 and not self.hangs:
+            self.probation = False
+        super().reset()
+        self.started = self.clock.now
+
+
+class JtagPort(BoardPort):
+    """Its /dev/ttyACM0. Opening it resets the chip. When the chip restarts after AD_OTA_END its USB device goes away,
+    so the open handle fails the way pyserial reports it, and the port can be opened again once the chip is back."""
+    dies = None
+
+    def open(self):
+        import serial
+        if self.board.clock.now < self.board.back:
+            raise serial.SerialException(2, f'could not open port {self.port}: [Errno 2] No such file or directory')
+        self.board.reset()
+
+    def alive(self, error=None):
+        if self.dies is not None and self.board.clock.now >= self.dies:
+            raise error or OSError(5, 'Input/output error')
+
+    def reset_input_buffer(self):
+        self.alive()
+        super().reset_input_buffer()
+
+    @property
+    def in_waiting(self):
+        self.alive()
+        return len(self.pending)
+
+    def read(self, count):
+        import serial
+        if not self.pending:
+            self.board.clock.sleep(0.1)  # the read timeout
+        self.alive(serial.SerialException('device reports readiness to read but returned no data '
+                                          '(device disconnected or multiple access on port?)'))
+        return super().read(count)
+
+    def write(self, raw):
+        import serial
+        self.alive(serial.SerialException('write failed: [Errno 5] Input/output error'))
+        board = self.board
+        if self.dies is not None or (board.hangs and board.probation):
+            return len(raw)  # it waits 300 ms for its answer to leave and then restarts: nothing more is read
+        count = super().write(raw)
+        if b'AD_OTA_END' in raw:
+            board.started = board.clock.now + 0.3
+            if board.usb_gap is not None:
+                self.dies = board.started
+                board.back = self.dies + board.usb_gap  # the restarted chip is on USB again
+        return count
+
+
+class UpdateMessageTests(unittest.TestCase):
+    """What the user reads when an update over USB on Linux does not end with the new firmware running."""
+
+    def update(self, **board):
+        import types
+        import panel_serial
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__('shutil').rmtree, folder)
+        package = fw.load_package(fw.build_package(fake_build(folder, slots=True), folder / 'dist', '1.2.3', 2), SUPPORTED)
+        clock = Clock()
+        JtagPort.board = JtagBoard('1.0.0', '1.2.3', clock)
+        kept = board.pop('kept', fw.KEPT_SECONDS)
+        JtagPort.board.__dict__.update(board)
+        info = {'boardId': package.board, 'firmwareVersion': '1.0.0', 'ota': 1, 'protocol': 2}
+        with patch.object(panel_serial, 'serial', types.SimpleNamespace(Serial=JtagPort)), \
+                patch.object(panel_serial, 'RESETS_ON_OPEN', True), patch.object(fw, 'KEPT_SECONDS', kept), \
+                patch.object(panel_serial, 'time', clock), patch.object(fw, 'time', clock), \
+                self.assertRaises(fw.InstallError) as caught:
+            fw.install(package, '/dev/ttyACM0', lambda port: info)
+        return str(caught.exception)
+
+    def test_each_failure_after_the_upload_says_what_to_do_next(self):
+        went_back = self.update(kept=0)  # opened again too early: the bootloader went back to the old image
+        self.assertIn('started 1.0.0 again', went_back)
+        self.assertIn('Install it once more', went_back)
+        check = 'If it is still the old one, install again.'
+        self.assertIn(check, self.update(usb_gap=float('inf')))  # it never came back on USB
+        self.assertIn(check, self.update(usb_gap=None, hangs=True))  # a UART board whose new firmware never answers
+        for message in (went_back, self.update(usb_gap=float('inf')), self.update(usb_gap=None, hangs=True)):
+            self.assertNotIn('keeps its current firmware', message, 'the image was written; that is not known')
+
+    def test_a_crowpanel_p4_with_a_v3_chip_is_told_to_keep_its_firmware(self):
+        with self.assertRaisesRegex(fw.InstallError, 'nothing was written. Leave the firmware it came with'):
+            fw.detect_chip('COM5', Mock(return_value=(0, 'Chip is ESP32-P4 (revision v3.1)\n')), uart=True)
 
 
 class SerialOtaRetryTests(unittest.TestCase):
@@ -483,6 +797,9 @@ class SerialOtaRetryTests(unittest.TestCase):
             def ota_upload(self, data, progress):
                 if len(panels) == 1:
                     raise TimeoutError('The panel did not answer AD_OTA_DATA')
+
+            def resets_on_open(self):
+                return False
 
             def send_line(self, line):
                 self.sent.append(line)
@@ -510,6 +827,9 @@ class SerialOtaRetryTests(unittest.TestCase):
                 self.uploads += 1
                 if len(panels) == 1:
                     raise TimeoutError('The panel did not answer AD_OTA_END')
+
+            def resets_on_open(self):
+                return False
 
             def send_line(self, line):
                 pass
@@ -543,6 +863,9 @@ class SerialOtaRetryTests(unittest.TestCase):
 
             def ota_upload(self, data, progress):
                 raise TimeoutError('The panel did not answer AD_OTA_DATA')
+
+            def resets_on_open(self):
+                return False
 
             def send_line(self, line):
                 pass

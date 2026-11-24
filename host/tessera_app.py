@@ -38,7 +38,7 @@ import firmware_update
 import iconify
 import plugins
 import updates
-from host_runtime import InstanceLock
+from host_runtime import ESPRESSIF_VID, InstanceLock
 from action_preview import preview
 from import_review import adapt_to_this_system, export_left_out, redact_secrets, review, strip_executable
 
@@ -188,6 +188,7 @@ class Editor:
         self.firmware_job = {'state': 'idle'}
         self.last_release = None  # what the last update check found; downloads never trust client-sent URLs
         self.found_boards = []  # what the last look at a panel that does not answer found (detect_panel)
+        self.restart_agreed = None  # the port the user agreed to restart in the last look (detect_panel)
         self.firmware_lock = threading.Lock()
         self.served = {}  # revision -> the configuration read then, so a save can follow a tray brightness change
 
@@ -426,9 +427,21 @@ class Editor:
         raise firmware_update.InstallError(f'No Tessera panel answered on {", ".join(ports)}. Unplug the other '
                                            'USB serial devices, or connect only the panel, and try again.')
 
-    def detect_panel(self):
+    @staticmethod
+    def usb_device(port):
+        # The pyserial listing entry of `port` (vid, description), or None when it cannot be listed.
+        try:
+            from serial.tools import list_ports
+            return next((item for item in list_ports.comports() if item.device == port), None)
+        except Exception:  # the same as host_runtime.port_baud: a driver that cannot be listed
+            return None
+
+    def detect_panel(self, restart=False):
         """What is on the USB port when the host has no panel: the board and firmware if it answers, otherwise the
-        chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install."""
+        chip from the ROM bootloader and the boards it can be. The host is stopped meanwhile, as for an install.
+
+        Asking the chip restarts the device. A silent USB serial adapter (CH340) may be an Arduino or a 3D printer,
+        so for one the answer is {'port', 'ask': its description} until the user agrees (restart=True)."""
         if not self.firmware_lock.acquire(blocking=False):
             raise ValueError('A firmware install or a Tessera update is already running. Try again when it is done.')
         was_running = False
@@ -439,12 +452,17 @@ class Editor:
             if was_running:
                 self.controller.stop()
             port = self.firmware_port()
+            self.restart_agreed = port if restart else None
             info = self.identify_panel(port)
             if info is not None:
                 board = info.get('boardId', firmware_update.BOARD_ID)
                 found = {'port': port, 'board': board, 'firmware': info.get('firmwareVersion'), 'boards': [board]}
             else:
-                found = dict(firmware_update.detect_chip(port), port=port)
+                device = self.usb_device(port)
+                uart = device is not None and device.vid != ESPRESSIF_VID
+                if uart and not restart:
+                    return {'port': port, 'ask': device.description or port}
+                found = dict(firmware_update.detect_chip(port, uart=uart), port=port)
             self.found_boards = found['boards']
             return found
         finally:
@@ -454,6 +472,19 @@ class Editor:
                     self.controller.start()
             finally:
                 self.firmware_lock.release()
+
+    def identify_for_install(self, port):
+        # identify_panel for an install, which restarts the device: a silent USB serial adapter only after the user
+        # agreed to that in the look (detect_panel), as it may be an Arduino or a 3D printer.
+        info = self.identify_panel(port)
+        device = self.usb_device(port) if info is None and port != self.restart_agreed else None
+        if device is not None and device.vid != ESPRESSIF_VID:
+            name = device.description or port
+            raise firmware_update.InstallError(
+                f'{name if port in name else f"{name} on {port}"} does not answer as a Tessera panel, and installing '
+                'restarts it. If it is the panel, choose "Look for the panel again" and agree to the restart. If it is '
+                'a 3D printer or another device, unplug it and connect only the panel.')
+        return info
 
     def run_firmware_install(self, package, mode, force):
         was_running = bool(self.controller.processes())
@@ -470,7 +501,7 @@ class Editor:
             def progress(stage, percent):
                 self.firmware_job = dict(self.firmware_job, stage=stage, percent=round(percent))
 
-            result = firmware_update.install(package, self.firmware_port(), self.identify_panel, mode, force, progress)
+            result = firmware_update.install(package, self.firmware_port(), self.identify_for_install, mode, force, progress)
             outcome = {'state': 'done', 'stage': 'done', 'percent': 100, 'result': result}
         except Exception as exc:  # whatever went wrong, the job must not stay "running" forever
             outcome = {'state': 'failed', 'error': str(exc) or type(exc).__name__}
@@ -680,7 +711,7 @@ class Editor:
         if command == 'firmware-list':
             return self.firmware_list()
         if command == 'firmware-detect':
-            return self.detect_panel()
+            return self.detect_panel(data.get('restart') is True)
         if command == 'firmware-install':
             return self.install_firmware(data)
         if command == 'firmware-progress':

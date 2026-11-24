@@ -156,6 +156,24 @@ class NoticeTests(HostCase):
             with unittest.mock.patch.object(deck_control, 'firmware_installing', return_value=True),                     self.assertRaises(RuntimeError):
                 deck_control.Controller().start()
 
+    def test_a_firmware_flag_from_an_editor_that_has_ended_blocks_nothing(self):
+        import json
+        import os
+        import subprocess
+        import tempfile
+        import deck_control
+        ended = subprocess.Popen([sys.executable, '-c', 'pass'])
+        ended.wait()
+        with tempfile.TemporaryDirectory() as folder:
+            flag = Path(folder) / 'firmware-install.local.json'
+            flag.write_text(json.dumps({'pid': os.getpid()}), encoding='utf-8')
+            self.assertTrue(deck_control.firmware_installing(flag), 'the editor that wrote it still runs')
+            flag.write_text(json.dumps({'pid': ended.pid}), encoding='utf-8')
+            self.assertFalse(deck_control.firmware_installing(flag), 'the editor that wrote it has ended')
+            self.assertFalse(flag.exists())
+            flag.write_text('not json', encoding='utf-8')
+            self.assertTrue(deck_control.firmware_installing(flag), 'an unreadable flag still counts until it expires')
+
     @unittest.skipIf(importlib.util.find_spec('pystray') is None, 'pystray is not installed')
     def test_the_log_menu_item_opens_the_log_with_the_system_launcher_and_a_test_never_reaches_it(self):
         import tempfile

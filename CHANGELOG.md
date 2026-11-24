@@ -22,6 +22,13 @@
 - Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.
 - A firmware install and a Tessera update can no longer run at the same time. The *Update Tessera* button is greyed out while the panel firmware installs, and a firmware install started during an update is refused with the update named as the reason.
 
+- A firmware update over USB on Linux keeps the new firmware. Before, the host opened the port again too early, the panel restarted into the old firmware, and on the GUITION board the update was reported as failed when its USB port went away during the restart.
+- An update over USB that ends without the new firmware running says what to try next. Before, it said the panel kept its current firmware, which is not known once the image is written. After such an update, the next install is no longer forced to a full install.
+- The firmware dialog asks before it restarts a USB serial device that is not a panel, such as an Arduino or a 3D printer behind a CH340, and a full install after Cancel stops instead of restarting it.
+- A CrowPanel P4 without firmware is no longer offered the GUITION package. A v3.x chip on a CrowPanel is told there is no firmware for it yet.
+- A blank CH340 board that prints its start message at 115200 is found and installed. Before, the editor said the port could not be opened.
+- The host can start again at once after the editor was closed or crashed during a firmware install. Before, *Start host* stayed grey for 10 minutes.
+
 - A *Hold to confirm* key is cancelled when the finger slides off it in any direction, or flicks up or down on it. Before, only a fast swipe to the side cancelled it, and sliding down still sent the press after 600 ms.
 - A touch that wakes the clock presses nothing. The same goes for a finger that is down when the screen changes, for example to a permission question or when the PC shows the clock.
 - Long status values such as `123.4M /s` and `12d 23h` fit their card. The value gets a smaller font when it needs one, also on 800 × 480 panels.

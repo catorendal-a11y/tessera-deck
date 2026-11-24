@@ -32,6 +32,7 @@ BOARD_ID = 'tessera-p4'  # the default board of build_package
 CHIP = 'esp32p4'
 BOARD_CHIPS = {'tessera-p4': 'esp32p4', 'tessera-p4-v3': 'esp32p4', 'tessera-p4-crowpanel7': 'esp32p4', 'tessera-s3-ws7': 'esp32s3', 'tessera-s3-8048s070': 'esp32s3', 'tessera-s3-crowpanel7': 'esp32s3'}
 V3_BOARDS = frozenset({'tessera-p4-v3'})  # ESP32-P4 builds for chip revision v3.x; the other P4 builds are for v1.x
+P4_UART_BOARDS = frozenset({'tessera-p4-crowpanel7'})  # P4 boards whose host link is a USB-UART bridge (CH340)
 BOARD_NAMES = {'tessera-p4': 'GUITION JC1060P470C', 'tessera-p4-v3': 'GUITION JC1060P470C (v3.x chip)',
                'tessera-p4-crowpanel7': 'Elecrow CrowPanel Advance 7.0 (ESP32-P4)',
                'tessera-s3-ws7': 'Waveshare ESP32-S3-Touch-LCD-7', 'tessera-s3-8048s070': 'Sunton ESP32-8048S070',
@@ -237,11 +238,12 @@ def boards_for(chip: str, major: int) -> list[str]:
             if its == chip and (chip != 'esp32p4' or (board in V3_BOARDS) == (major >= 3))]
 
 
-def detect_chip(port: str, runner: Callable | None = None) -> dict:
+def detect_chip(port: str, runner: Callable | None = None, uart: bool = False) -> dict:
     """Ask the ROM bootloader on `port` which chip it is: the way to tell boards apart when no firmware answers.
 
     Reads only (esptool read-mac) and restarts the chip afterwards. Returns the chip, its revision and the boards
     it can be; raises InstallError when nothing answers or the chip is not one Tessera has firmware for.
+    `uart` is True when `port` is a USB-UART bridge (CH340) rather than the chip's own USB.
     """
     code, output = (runner or run_esptool)([sys.executable, '-m', 'esptool', '-p', port, '--before', 'default-reset',
                                             '--after', 'hard-reset', 'read-mac'], lambda percent: None, 4000)
@@ -252,9 +254,76 @@ def detect_chip(port: str, runner: Callable | None = None) -> dict:
     name, major, minor = found.group(1), int(found.group(2)), found.group(3)
     chip = name.lower().replace('-', '')
     boards = boards_for(chip, major)
+    if chip == 'esp32p4' and uart:
+        # The GUITION P4 has only the chip's own USB; a P4 behind a UART bridge is the CrowPanel, which has no
+        # build for the v3.x chip yet. Offering the GUITION v3 package there would write the wrong pins.
+        boards = [board for board in boards if board in P4_UART_BOARDS]
+        if not boards:
+            raise InstallError(f'{port} has an {name} revision v{major}.{minor} behind a USB-UART bridge, as on the Elecrow '
+                               'CrowPanel Advance 7.0. Tessera has no firmware yet for that board with a v3.x chip, so '
+                               'nothing was written. Leave the firmware it came with on the board for now.')
     if not boards:
         raise InstallError(f'{port} has an {name}, and there is no Tessera firmware for that chip.')
     return {'chip': chip, 'revision': f'{major}.{minor}', 'boards': boards}
+
+
+NEW_FIRMWARE_SECONDS = 30  # the new image checks itself and boots in a few seconds
+KEPT_SECONDS = 70  # a new image keeps itself once it has run for a minute (app_confirm in main/main.cpp)
+LOOK_AGAIN = ('Once the host has found the panel again, Panel firmware and updates shows which firmware it runs. '
+              'If it is still the old one, install again.')
+
+
+def await_new_firmware(panel, boot, version: str | None) -> None:
+    """Wait on the open port until the restarted panel answers get_info, which makes it keep the new image.
+
+    On Linux opening the port resets the panel. The new image is on probation until it has answered once, and a
+    reset before that boots the old one again, so the host must not open the port before this returns.
+    """
+    from panel_serial import DeviceRejected
+    deadline = time.monotonic() + NEW_FIRMWARE_SECONDS
+    info = None
+    while info is None and time.monotonic() < deadline:
+        try:
+            panel.verify()
+        except DeviceRejected as exc:
+            if exc.kind != 'silent':
+                raise
+            continue  # still booting
+        except OSError:
+            # The chip's own USB (USB Serial/JTAG, as on the GUITION board) goes away while it restarts, and the open
+            # port with it. Close it at once, or Linux gives the returning device another name. Opening the port
+            # again resets the panel, so that waits until the new image has run long enough to keep itself.
+            panel.close()
+            time.sleep(KEPT_SECONDS)
+            info = reopen(panel.ser.port)
+            break
+        if panel.info.get('bootId') != boot:  # otherwise the answer of the old firmware before it restarted
+            info = panel.info
+    if info is None:
+        raise InstallError(f'The panel took the new firmware and restarted, but it did not answer. {LOOK_AGAIN}')
+    if version and info.get('firmwareVersion') != version:
+        raise InstallError(f'The panel took firmware {version}, but started {info.get("firmwareVersion")} again after '
+                           'the restart, so the new firmware did not stay. Install it once more. If it goes back again, '
+                           'choose "Full install".')
+
+
+def reopen(port: str) -> dict | None:
+    """get_info of the panel on `port` once it is back on USB after a restart; None when it stays silent."""
+    from panel_serial import DeviceRejected, PanelSerial
+    deadline = time.monotonic() + NEW_FIRMWARE_SECONDS
+    while True:
+        try:
+            with contextlib.closing(PanelSerial(port, lambda *_: None)) as panel:
+                return panel.info
+        except DeviceRejected as exc:
+            if exc.kind != 'silent':
+                raise
+            return None
+        except OSError as exc:  # not back on USB yet
+            if time.monotonic() >= deadline:
+                raise InstallError(f'The panel took the new firmware and restarted, but {port} did not come back. '
+                                   f'Check the USB cable. {LOOK_AGAIN}') from exc
+        time.sleep(1)
 
 
 def serial_ota(port: str, data: bytes, progress: Callable[[float], None], version: str | None = None) -> None:
@@ -271,6 +340,8 @@ def serial_ota(port: str, data: bytes, progress: Callable[[float], None], versio
                 return
             boot = panel.info.get('bootId')
             panel.ota_upload(data, progress)
+            if panel.resets_on_open():
+                await_new_firmware(panel, boot, version)
             return
         except TimeoutError as exc:
             # The panel keeps its running firmware until it has checked a whole image, so one fresh start is safe.

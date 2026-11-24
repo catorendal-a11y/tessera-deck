@@ -68,6 +68,10 @@ class DeviceRejected(ValueError):
         self.info = info  # the panel's get_info answer when it was a Tessera panel with another protocol
 
 
+class MessageTooLong(OSError):
+    """More than 32 KiB without a newline: a connected panel is broken, a silent board talks at another speed."""
+
+
 class PanelSerial:
     """Serialized writes and byte-based framing retain split UTF-8 and newlines."""
     def __init__(self, port, log, baud=None):
@@ -111,7 +115,13 @@ class PanelSerial:
             if self.resets_on_open() and time.monotonic() - asked >= ASK_AGAIN_SECONDS:
                 asked = time.monotonic()
                 self.send_line('{"cmd":"get_info"}')
-            for line in self.read_lines():
+            try:
+                lines = self.read_lines()
+            except MessageTooLong:
+                # A board whose ROM prints at 115200 reads as endless bytes at 921600: no answer, so it counts as
+                # silent and the installer asks the chip with esptool instead of calling the port unusable.
+                lines = []
+            for line in lines:
                 try:
                     message = json.loads(line) if line.startswith('{') else None
                 except ValueError:
@@ -165,7 +175,7 @@ class PanelSerial:
         self.rx.extend(self.ser.read(max(1, min(self.ser.in_waiting, 4096))))
         if len(self.rx) > 32768:
             self.rx.clear()
-            raise OSError('USB message too long')
+            raise MessageTooLong('USB message too long')
         result = []
         while (end := self.rx.find(b'\n')) >= 0:
             result.append(bytes(self.rx[:end]).decode('utf-8', 'replace').strip())
