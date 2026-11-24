@@ -263,6 +263,17 @@ class ManagerTests(unittest.TestCase):
             self.manager.sync(self.enabled(token=sealed))
         self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
 
+    def test_a_secret_typed_again_starts_a_waiting_plugin_at_once_not_a_minute_later(self):
+        import platform_linux.secrets as keyring_secrets
+        with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
+                patch.object(keyring_secrets, 'fetch', lambda identifier: {'new': 'abc123'}.get(identifier)):
+            self.manager.sync(self.enabled(token='$(keyring:gone)'))  # an id this keyring does not have
+            self.assertEqual(self.spawned, [])
+            self.now[0] += 3  # the next sync, after the user typed the secret again and the editor saved it
+            self.manager.sync(self.enabled(token='$(keyring:new)'))
+        self.assertEqual(len(self.spawned), 1, 'the new secret waited out the minute of the old one')
+        self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
+
     def test_a_keyring_unlock_prompt_does_not_hold_up_the_host_while_it_waits_for_the_user(self):
         import platform_linux.secrets as keyring_secrets
         unlocked = threading.Event()  # secretstorage waits for the answer to the unlock prompt with no time limit

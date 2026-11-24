@@ -243,8 +243,9 @@ class PluginManager:
                 else:
                     self._crashed(plugin_id, current)
             state = self.history.setdefault(plugin_id, _blank())
-            if state['state'] == 'failed' and state.get('settings') != entry.get('settings', {}):
-                # bad settings (a port that is not a number) are the usual reason to give up: fixed ones get a fresh start
+            if state['state'] in ('failed', 'waiting') and state.get('settings') != entry.get('settings', {}):
+                # bad settings (a port that is not a number) are the usual reason to give up, and a secret typed again
+                # is what a waiting plugin needs: new settings get a fresh start now, not after the back-off
                 state = self.history[plugin_id] = _blank()
             if state['state'] == 'failed' or self._clock() < state['next'] or plugin_id in self.running:
                 continue
