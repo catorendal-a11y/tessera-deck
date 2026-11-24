@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. Before, one such step refused the whole file.
+- A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.
 - The Claude Code and Codex keys in the Windows default profile open the terminal in your user folder instead of the Tessera folder, so Continue and Resume find your conversations.
@@ -23,6 +23,18 @@
 - A file trigger on a network share that hangs no longer holds up the panel's keys.
 - A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
 - On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
+
+Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
+
+- A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
+- A key pasted into a profile that lacks its page or folder stays a draft.
+- Deleting a profile also removes the rail shortcuts and automatic actions that opened its pages.
+- *Apply* on a rail shortcut refuses a step that was copied unfinished.
+
+Other fixes:
+
+- *Run now* on a toggle key asks about every state, not only the one being edited, and *Test* says which state *Run now* presses.
+- The editor no longer follows the panel's page while you type in the inspector. Before, the rest of what you typed could land in another key.
 
 - Linux: *Start with the desktop* on the Arch package starts `tessera --tray`, so the copy in your home folder is updated with the package. An entry written by 1.2.11 is moved over.
 - Linux: the Terminal, Claude Code and Codex keys open Ptyxis on Fedora, and also try GNOME Console, mate-terminal, qterminal and cosmic-term.
