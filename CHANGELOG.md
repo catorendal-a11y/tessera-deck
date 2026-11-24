@@ -11,6 +11,11 @@
 - A second start that gets no answer from the running editor says so in a message box (a notification on Linux). If the editor answered but its window could not be shown, it says the editor is already open.
 - A 32-bit, arm64 or MSYS2 Python on Windows is refused with the reason and a pointer to the x64 Python from python.org. A Linux venv left behind by a Python upgrade says to delete it. Before, both were blamed on the internet.
 
+- Linux X11: maximize, restore, topmost and close work with the older xdotool of Debian and Ubuntu, through wmctrl.
+- Linux Wayland: keys use the desktop portal when `ydotoold` is not running, and a ydotool error says why. Before, every key failed with `ydotool failed: 2`.
+- Linux Wayland: a hotkey letter is pressed where your keyboard layout has it, so ctrl+z on a German keyboard is ctrl+z. Text or a hotkey the layout cannot type is refused on the portal instead of being dropped without a word.
+- Linux GNOME: a window key without the Tessera extension says to install it, instead of "There is no such window". The README, the launcher and the AUR package's `tessera --gnome-extension` say the extension is marked for GNOME 51 only, and warn on any other GNOME.
+
 - A profile file made on the other system imports. The review drops script steps this PC cannot run, adds `.exe` to program names where Windows needs it, and lists what it changed. A rail shortcut with no step left is left out. Before, one such step refused the whole file.
 - The plugin consent dialog names the program the plugin runs, and asks again when that program changes. Before, it showed an empty program.
 - A `profiles.json` saved with a BOM or as UTF-16, as some editors do, is read. Before, the host stopped at start, the tray and the config check refused the file, and an older backup could take its place. The panel's brightness slider also saves into such a file.

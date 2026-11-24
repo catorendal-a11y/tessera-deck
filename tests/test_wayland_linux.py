@@ -7,6 +7,7 @@ Where ydotool is not installed, input goes through the RemoteDesktop portal: tho
 the portal protocol runs against a scripted D-Bus connection. No desktop, no portal and no tool is needed."""
 import contextlib
 import json
+import subprocess
 import sys
 from pathlib import Path
 import os
@@ -19,7 +20,7 @@ import unittest.mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'host'))
-from platform_linux import BackendUnavailable, gnome_windows, keysyms, portal, wayland, xkb
+from platform_linux import BackendUnavailable, gnome_windows, keysyms, portal, tools, wayland, xkb
 import input_common
 
 
@@ -170,6 +171,24 @@ class InputTests(unittest.TestCase):
         self.assertEqual(us.key_strokes(['minus']), [(12, False, False)])
         self.assertEqual(no.key_strokes(['equals']), [(11, True, False)])  # "=" is Shift+0 there
         self.assertEqual(no.key_strokes(['grave']), [(41, False, False)])  # behind a dead key: the US position
+
+    def test_a_letter_in_a_hotkey_is_the_key_that_types_it_in_the_layout(self):
+        # German: z sits where a US keyboard has y (code 21) and y where it has z (44); French: a is the q position (16)
+        class Layout:  # stands in for libxkbcommon: the keys of a QWERTZ keyboard that differ from US
+            keys = {'z': (21, False, False), 'y': (44, False, False), 'a': (30, False, False), 'Z': (21, True, False)}
+
+            def strokes(self, char, caps_lock=False):
+                return [self.keys[char]] if char in self.keys else None
+        fake = FakeRun()
+        backend = wayland.WaylandBackend(fake, keymap=Layout(), plasma=True)
+        self.assertEqual(backend.key_strokes(['ctrl', 'z']), [(29, False, False), (21, False, False)])
+        self.assertEqual(backend.key_strokes(['y']), [(44, False, False)])
+        self.assertEqual(backend.key_strokes(['q']), [(16, False, False)])  # the layout has no q key here: the US position
+        self.assertEqual(backend.key_strokes(['5']), [(6, False, False)])   # digits stay on their position
+
+    def test_a_letter_in_a_hotkey_follows_the_real_german_and_french_layouts(self):
+        self.assertEqual(self.backend('de')[0].key_strokes(['z']), [(21, False, False)])
+        self.assertEqual(self.backend('fr')[0].key_strokes(['a']), [(16, False, False)])
 
     def test_a_hotkey_holds_the_shift_or_altgr_its_punctuation_needs_in_the_layout(self):
         no, fake = self.backend('no')
@@ -352,9 +371,22 @@ class FakeRemote:
         self.events.append(('move', dx, dy))
 
 
+class Layout:
+    """Stands in for libxkbcommon: a layout with a plain key for every character except `missing`; `dead` characters
+    need a dead key and a second key."""
+    def __init__(self, missing='', dead=''):
+        self.missing, self.dead = missing, dead
+
+    def strokes(self, char, caps_lock=False):
+        if char in self.missing:
+            return None
+        return [(1, False, False), (2, False, False)] if char in self.dead else [(1, False, False)]
+
+
 def portal_backend(**kwargs):
     """A backend whose input goes through the RemoteDesktop portal, as where ydotool is not installed."""
     remote = FakeRemote()
+    kwargs.setdefault('keymap', Layout())
     return wayland.WaylandBackend(remote=remote, sleep=lambda seconds: None, **kwargs), remote
 
 
@@ -405,12 +437,37 @@ class PortalInputTests(unittest.TestCase):
             wl.send_keys(['ctrl', 'hyper'])
         self.assertEqual(remote.events, [])
 
-    def test_text_types_every_character_including_ones_that_are_not_on_the_keyboard(self):
+    def test_text_types_the_characters_of_the_layout_as_keysyms(self):
         wl, remote = portal_backend()
         wl.send_text('aø€\r\nb')
         pressed = [number for kind, number, down in remote.events if down]
         self.assertEqual(pressed, [0x61, 0xf8, 0x01000000 + 0x20ac, RETURN, 0x62])
         self.assertEqual(len(remote.events), 10)  # each character goes down and up
+
+    def test_a_character_the_layout_has_no_key_for_is_refused_and_nothing_is_typed(self):
+        # GNOME drops a keysym that no key of the active layout types (mutter: "No keycode found for keyval") and says nothing
+        wl, remote = portal_backend(keymap=Layout(missing='€✓', dead='é'))
+        for text, shown in (('a€b', '€'), ('ok ✓ €', '✓ €'), ('café', 'é')):
+            with self.assertRaisesRegex(ValueError, f'no key for {shown}'):
+                wl.send_text(text)
+        wl.send_text('a\nb\t')  # Return and Tab are keys of every layout
+        self.assertEqual(len([e for e in remote.events if e[2]]), 4)
+
+    def test_a_hotkey_letter_the_layout_has_no_key_for_is_refused_and_nothing_is_pressed(self):
+        wl, remote = portal_backend(keymap=Layout(missing='c'))  # a Russian layout is active
+        with self.assertRaisesRegex(ValueError, 'no key for c'):
+            wl.send_keys(['ctrl', 'c'])
+        self.assertEqual(remote.events, [])
+        wl.send_keys(['ctrl', 'v'])
+        self.assertEqual(len(remote.events), 4)
+
+    def test_text_and_keys_are_sent_as_before_when_the_layout_cannot_be_read(self):
+        wl, remote = portal_backend(keymap=None)
+        with unittest.mock.patch.object(xkb, 'active_group', return_value=0), \
+                unittest.mock.patch.object(xkb, 'session_keymap', side_effect=BackendUnavailable('no layout')):
+            wl.send_text('a€')
+            wl.send_keys(['ctrl', 'c'])
+        self.assertEqual(len(remote.events), 8)
 
     def test_a_stop_request_ends_the_typing(self):
         wl, remote = portal_backend()
@@ -436,11 +493,27 @@ class PortalInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             wl.send_mouse('fly')
 
-    def test_ydotool_is_used_where_it_is_installed_and_the_portal_where_it_is_not(self):
-        with unittest.mock.patch.object(wayland.shutil, 'which', return_value='/usr/bin/ydotool'):
-            self.assertIsNone(wayland.session_backend().remote)
-        with unittest.mock.patch.object(wayland.shutil, 'which', return_value=None):
-            self.assertIsInstance(wayland.session_backend().remote, portal.RemoteDesktop)
+    def test_ydotool_is_used_where_it_is_installed_and_its_daemon_is_up_and_the_portal_where_it_is_not(self):
+        # the client looks for the daemon at $YDOTOOL_SOCKET, else $XDG_RUNTIME_DIR/.ydotool_socket (ydotool 1.0, Client/ydotool.c)
+        with tempfile.TemporaryDirectory() as runtime:
+            socket = Path(runtime, '.ydotool_socket')
+            with unittest.mock.patch.object(wayland.shutil, 'which', return_value='/usr/bin/ydotool'):
+                self.assertIsInstance(wayland.session_backend({'XDG_RUNTIME_DIR': runtime}).remote, portal.RemoteDesktop)
+                socket.touch()  # the daemon is up
+                self.assertIsNone(wayland.session_backend({'XDG_RUNTIME_DIR': runtime}).remote)
+                self.assertIsNone(wayland.session_backend({'YDOTOOL_SOCKET': str(socket)}).remote)
+                self.assertIsInstance(wayland.session_backend({'YDOTOOL_SOCKET': runtime + '/other'}).remote, portal.RemoteDesktop)
+            with unittest.mock.patch.object(wayland.shutil, 'which', return_value=None):
+                self.assertIsInstance(wayland.session_backend({'XDG_RUNTIME_DIR': runtime}).remote, portal.RemoteDesktop)
+
+    def test_a_tool_that_explains_itself_on_stdout_is_shown_to_the_user(self):
+        # ydotool 1.0 prints "Please check if ydotoold is running." on stdout and exits 2
+        text = "failed to connect socket `/run/x': No such file or directory\nPlease check if ydotoold is running.\n"
+        done = subprocess.CompletedProcess(['ydotool'], 2, stdout=text, stderr='')
+        with unittest.mock.patch.object(tools.shutil, 'which', return_value='/usr/bin/ydotool'), \
+                unittest.mock.patch.object(tools.subprocess, 'run', return_value=done):
+            with self.assertRaisesRegex(OSError, 'ydotoold is running'):
+                tools.run(['ydotool', 'key', '1:1'])
 
 
 class Message:
@@ -740,6 +813,26 @@ class GnomeWindowsTests(unittest.TestCase):
         with self.assertRaisesRegex(BackendUnavailable, r'--gnome-extension.*gnome-extensions enable'):
             windows.window_op(None, 'close')
 
+    def test_a_window_key_without_the_extension_says_what_to_install_instead_of_no_such_window(self):
+        from platform_linux import input as linux_input
+        absent = BackendUnavailable(gnome_windows.MISSING)
+        windows, _ = self.windows({'Active': absent, 'Find': absent, 'Operate': absent})
+        backend = wayland.WaylandBackend(FakeRun(), plasma=False, windows=windows)
+        firefox = types.SimpleNamespace(info={'pid': 5, 'name': 'firefox', 'exe': '/usr/bin/firefox'})
+        with unittest.mock.patch.object(linux_input, 'backend', lambda: backend),                 unittest.mock.patch.object(linux_input.psutil, 'process_iter', return_value=[firefox]):
+            for process in ('', 'firefox'):  # the window in front, and the window of a program
+                with self.assertRaisesRegex(BackendUnavailable, r'gnome-extensions enable', msg=process):
+                    linux_input.window_action('minimize', process)
+
+    def test_a_window_key_with_the_extension_and_no_window_still_finds_none(self):
+        from platform_linux import input as linux_input
+        windows, _ = self.windows({'Active': '', 'Find': ''})
+        backend = wayland.WaylandBackend(FakeRun(), plasma=False, windows=windows)
+        firefox = types.SimpleNamespace(info={'pid': 5, 'name': 'firefox', 'exe': '/usr/bin/firefox'})
+        with unittest.mock.patch.object(linux_input, 'backend', lambda: backend),                 unittest.mock.patch.object(linux_input.psutil, 'process_iter', return_value=[firefox]):
+            self.assertFalse(linux_input.window_action('minimize'))
+            self.assertFalse(linux_input.window_action('minimize', 'firefox'))
+
     def test_a_service_that_is_not_on_the_bus_is_the_missing_extension(self):
         class Connection:
             def send_and_get_reply(self, message, timeout=None):
@@ -807,6 +900,7 @@ class ExtensionFilesTests(unittest.TestCase):
         meta = json.loads((self.folder / 'metadata.json').read_text(encoding='utf-8'))
         self.assertEqual(meta['uuid'], self.folder.name)
         self.assertEqual(meta['shell-version'], ['51'])
+        self.assertIn('GNOME 51 only', gnome_windows.MISSING)  # a user told to enable it learns it needs this version
 
     def test_the_extension_and_the_host_agree_on_the_bus_name_the_path_and_the_methods(self):
         code = (self.folder / 'extension.js').read_text(encoding='utf-8')

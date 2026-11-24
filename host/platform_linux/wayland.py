@@ -8,9 +8,12 @@ the tool that works there:
   (`systemctl --user enable --now ydotool`). The device sends key positions, so text is turned into keys with the
   session's own layout (xkb.py): "@" is AltGr+2 on a Norwegian keyboard and Shift+2 on a US one. Caps Lock is read
   from the keyboard's LED, so text comes out in the case it was written in; with no LED to read it is taken as off.
-  Where `ydotool` is not installed, input goes through the desktop's RemoteDesktop portal instead (portal.py): the
-  desktop asks once, and keys are sent as keysyms, so the layout does not matter and any character can be typed. The
-  portal has no absolute pointer position.
+  Where `ydotool` is not installed or `ydotoold` is not running (no socket, see ydotool_ready), input goes through the
+  desktop's RemoteDesktop portal instead (portal.py): the desktop asks once, and keys are sent as keysyms, so no key
+  position has to be worked out. GNOME drops a keysym that no key of the layout in use types, so text and the letters
+  and digits of a hotkey are checked against the layout first and refused with the clipboard hint. Where the layout in
+  use cannot be read they are sent unchecked; on GNOME that is any session with more than one layout. The portal has
+  no absolute pointer position.
 - **Windows** (the window in front for smart profiles, focus, minimize, ...) go through `kdotool`, which asks KWin.
   A compositor without such a tool gets a separate part (`windows`), filled by the compositor's own extension: GNOME
   Shell has one (gnome_windows.py, the extension is in host/linux/gnome-extension). Other compositors have neither yet:
@@ -26,7 +29,7 @@ import time
 
 from platform_linux import BackendUnavailable
 from platform_linux.base import DesktopBackend
-from platform_linux.keysyms import char_keysym, keysym_number
+from platform_linux.keysyms import CONTROL, char_keysym, keysym_number
 from platform_linux.portal import BUTTONS, RemoteDesktop
 from platform_linux.x11 import run
 
@@ -56,13 +59,19 @@ KEYCODES.update(zip((f'numpad{i}' for i in (7, 8, 9, 4, 5, 6, 1, 2, 3, 0)), (71,
 KEYCODES.update({f'f{i}': 58 + i for i in range(1, 11)})
 KEYCODES.update({'f11': 87, 'f12': 88})
 KEYCODES.update({f'f{i}': 170 + i for i in range(13, 25)})
-# Punctuation in a hotkey means the character: on a Norwegian keyboard ctrl+minus is the key that types "-", not the
+# Punctuation and letters in a hotkey mean the character: on a Norwegian keyboard ctrl+minus is the key that types "-", not the
 # key in the US minus position, and ctrl+slash is Ctrl+Shift+7, which is how "/" is typed there. The US position is
 # the fallback for a character the layout has no single key for (a dead key, or none).
 PUNCTUATION = {'comma': ',', 'period': '.', 'slash': '/', 'grave': '`', 'lbracket': '[', 'rbracket': ']',
                'minus': '-', 'equals': '=', 'semicolon': ';', 'quote': "'", 'backslash': '\\'}
 SHIFT_CODE, ALTGR_CODE, ENTER_CODE, TAB_CODE = 42, 100, 28, 15
 MOUSE_BUTTONS = {'left': '0xC0', 'right': '0xC1', 'middle': '0xC2'}  # 0xC0: press and release
+
+
+def no_key_message(missing) -> str:
+    shown = ' '.join(dict.fromkeys(missing))
+    return (f'Your keyboard layout has no key for {shown}: on Wayland Tessera can only type '
+            f'characters your layout has (use a "clipboard" step and ctrl+v for the rest)')
 
 
 def caps_lock_on(leds: str = CAPS_LOCK_LEDS) -> bool | None:
@@ -95,10 +104,26 @@ def desktop_windows(environ=None):
     return None
 
 
-def session_backend() -> WaylandBackend:
-    """The backend of this session: ydotool for input where it is installed, else the RemoteDesktop portal; the
-    window part of the desktop."""
-    return WaylandBackend(remote=None if shutil.which('ydotool') else RemoteDesktop(), windows=desktop_windows())
+def ydotool_ready(environ=None) -> bool:
+    """ydotool is installed and its daemon is up. The client talks to the daemon over a socket it looks for in
+    $YDOTOOL_SOCKET, else $XDG_RUNTIME_DIR/.ydotool_socket, else /tmp/.ydotool_socket (ydotool 1.0). ydotool 0.1.x has no
+    daemon and no socket, and its commands are different, so it is not used either."""
+    environ = os.environ if environ is None else environ
+    if shutil.which('ydotool') is None:
+        return False
+    if environ.get('YDOTOOL_SOCKET'):
+        socket = environ['YDOTOOL_SOCKET']
+    elif environ.get('XDG_RUNTIME_DIR'):
+        socket = environ['XDG_RUNTIME_DIR'] + '/.ydotool_socket'
+    else:
+        socket = '/tmp/.ydotool_socket'
+    return os.path.exists(socket)
+
+
+def session_backend(environ=None) -> WaylandBackend:
+    """The backend of this session: ydotool for input where it is installed and its daemon runs, else the RemoteDesktop
+    portal; the window part of the desktop."""
+    return WaylandBackend(remote=None if ydotool_ready(environ) else RemoteDesktop(), windows=desktop_windows(environ))
 
 
 class WaylandBackend(DesktopBackend):
@@ -138,12 +163,17 @@ class WaylandBackend(DesktopBackend):
             if name not in KEYCODES:
                 raise ValueError(f'Unknown key: {name!r}')
             found = None
-            if name in PUNCTUATION:
+            letter = len(name) == 1 and name.isalpha()
+            if name in PUNCTUATION or letter:
                 try:
                     keymap = keymap or self.keymap()
-                    found = keymap.strokes(PUNCTUATION[name])
+                    found = keymap.strokes(PUNCTUATION.get(name, name))
                 except BackendUnavailable:
                     pass  # the layout is unknown: the US positions
+            # A letter is the key that types it (ctrl+z is the key that types "z" on a German keyboard), but only when that
+            # is a plain key: with Shift or AltGr the US position keeps the shortcut working on a non-Latin layout.
+            if letter and found and (len(found) != 1 or found[0][1] or found[0][2]):
+                found = None
             strokes.append(found[0] if found and len(found) == 1 else (KEYCODES[name], False, False))
         return strokes
 
@@ -178,9 +208,7 @@ class WaylandBackend(DesktopBackend):
                     missing.append(char)
                 strokes.append(found or [])
         if missing:
-            shown = ' '.join(dict.fromkeys(missing))
-            raise ValueError(f'Your keyboard layout has no key for {shown}: on Wayland Tessera can only type '
-                             f'characters your layout has (use a "clipboard" step and ctrl+v for the rest)')
+            raise ValueError(no_key_message(missing))
         return strokes
 
     @staticmethod
@@ -226,9 +254,22 @@ class WaylandBackend(DesktopBackend):
         else:
             raise ValueError(f'Unknown mouse operation: {op}')
 
-    # input through the RemoteDesktop portal, where ydotool is not installed
+    # input through the RemoteDesktop portal, where ydotool is not installed or its daemon is not running
+    def refuse_missing(self, chars) -> None:
+        """The portal sends keysyms, and GNOME drops one that no key of the layout in use types, without an error. A
+        character behind a dead key has no keysym key either. A layout that cannot be read is not checked, and neither
+        is a GNOME session with more than one layout: GNOME does not tell which one is in use."""
+        try:
+            keymap = self.keymap()
+        except BackendUnavailable:
+            return
+        missing = [char for char in chars if char not in CONTROL and len(keymap.strokes(char) or ()) != 1]
+        if missing:
+            raise ValueError(no_key_message(missing))
+
     def portal_keys(self, names) -> None:
         numbers = [keysym_number(name) for name in names]  # an unknown key is refused before anything is pressed
+        self.refuse_missing([name for name in names if len(name) == 1])  # letters and digits are keysyms of the layout
         pressed = []
         try:
             for number in numbers:
@@ -239,6 +280,7 @@ class WaylandBackend(DesktopBackend):
                 self.remote.keysym(number, False)
 
     def portal_text(self, chars: str, pause: float, wait) -> None:
+        self.refuse_missing(chars)  # all of it first: nothing is typed when one character cannot be
         for n, char in enumerate(chars):
             number = char_keysym(char)
             self.remote.keysym(number, True)
@@ -317,6 +359,10 @@ class WaylandBackend(DesktopBackend):
             if found:
                 return found[0]
         return None
+
+    def check_windows(self):
+        if not self.plasma and self.windows and hasattr(self.windows, 'check'):
+            self.windows.check()
 
     def window_op(self, window, op):
         if not self.plasma:

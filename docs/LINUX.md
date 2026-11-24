@@ -15,6 +15,7 @@ You need Python 3.12 or newer with `venv`, and these tools:
 |---|---|---|
 | `xdotool` | `xdotool` | keys, typing, mouse, windows |
 | `xclip` | `xclip` | the clipboard action |
+| `wmctrl` | `wmctrl` | maximize, restore, topmost and close, only when `xdotool` is older than 3.20210804 (Debian 12, Ubuntu 22.04 and 24.04) |
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
 | PyGObject (system Python) | `python-gobject` / `python3-gi`; on Fedora `python3-gobject` | the themed tray menu (optional), and the tray icon on Wayland |
@@ -110,7 +111,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   builds from September 2025 on (`active_layout_index` in `hyprctl devices -j`). GNOME, older Hyprland and other
   desktops do not: there typing is refused with a message while the session has more than one layout, because the
   wrong layout would type other characters. With one layout nothing needs asking. The RemoteDesktop portal (below)
-  needs no layout, but it is only used where `ydotool` is not installed.
+  does not move keys by position, but it is only used where `ydotool` is not installed or not running.
 - **Where the layout comes from:** XWayland (`xkbcomp`), which has the compositor's own keymap. Without it the host uses
   `XKB_DEFAULT_LAYOUT` and its companions, and on Plasma the keyboard settings or the system's layout (`localectl`). When
   none of these names a layout, typing is refused with a message instead of typing with a guessed one.
@@ -118,7 +119,7 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   `ctrl+slash` is Ctrl+Shift+7 on a Norwegian keyboard, where `/` is Shift+7.
 - **The mouse**: `moveto` lands a little off when pointer acceleration is on, because uinput has no absolute pointer.
   Choose the *Flat* acceleration profile for the ydotool device in the mouse settings to make it exact.
-- **Without `ydotool`** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
+- **Without `ydotool`, or with its daemon not running,** keys, typing, mouse buttons, the wheel and relative moves go through the desktop's
   RemoteDesktop portal (`host/platform_linux/portal.py`) instead. **The desktop asks once** whether Tessera may control
   keyboard and mouse, when the first key is pressed. That key does not wait for the answer: the press fails (the host
   log says why), so answer the dialog and press the key again. The permission is kept
@@ -126,8 +127,16 @@ Your user needs write access to `/dev/uinput` for `ydotoold` (the `input` group,
   restart. To take the permission back, revoke it in the desktop's settings (Privacy or Applications). Deleting that
   file does not revoke it: Tessera can then no longer restore the permission and asks again at its next start, but a
   session that is running goes on. Stop the host to end the running session. The portal takes
-  characters, not key positions: the layout does not matter there and any character can be typed, but `moveto` is not
-  possible, because the portal only allows relative moves. `ydotool` is used whenever it is installed.
+  characters, not key positions, so a US key position does not matter there. GNOME, though, drops a character that no
+  key of the layout in use types, and says nothing. So Tessera first checks text and the letters and digits of a hotkey
+  against the layout in use and refuses what it has no key for with a message: `€` on a US layout, or `ctrl+c` in a
+  session whose only layout is Russian. A "clipboard" step and `ctrl+v` types such text. The check needs to know the
+  layout in use, so it is made only where that can be read (see *Where the layout comes from* above). On GNOME with
+  more than one layout it cannot, because GNOME does not tell which one is in use, and the same goes for a layout
+  that cannot be read at all: then everything is sent unchecked, and a character the layout in use has no key for is
+  still dropped without a message. With English and Russian set up and Russian in use, `ctrl+c` does nothing; switch
+  to English first, or keep one layout. `moveto` is not
+  possible, because the portal only allows relative moves. `ydotool` is used when it is installed and its daemon is running (its socket exists); Tessera decides this when the first key is pressed, so start `ydotoold` before Tessera. Otherwise the portal is used, which also covers the old `ydotool` 0.1.x of Debian 12 and Ubuntu, which has no daemon and takes other commands.
 - **Next monitor** on Plasma uses KWin's own *Window to Next Screen* action.
 - **The editor window** asks before it closes with changes that are not saved yet, and *Export* asks where to save.
 - **The tray icon** on Plasma is the X11 one, through XWayland: Plasma shows it with `xembedsniproxy`, with the
@@ -149,7 +158,7 @@ Audio, media, secrets, sensors and the launcher do not depend on the display ser
 ### Windows on GNOME
 
 GNOME shows a program no other windows, so Tessera comes with a small extension for GNOME Shell
-(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51). It is marked for GNOME 51 only, so an older GNOME will not enable it:
+(`host/linux/gnome-extension/tessera-windows@tessera`, tried on GNOME 51). It is marked for GNOME 51 only, so any other GNOME (50 in Ubuntu 26.04 and Fedora 44, or 52 and later) will not enable it, and `./Tessera.sh --gnome-extension` says so. To try it on another version anyway (it is not tested there), turn off GNOME's version check for extensions first with `gsettings set org.gnome.shell disable-extension-version-validation true`; `gsettings reset org.gnome.shell disable-extension-version-validation` turns it back on. Then:
 
 ```
 ./Tessera.sh --gnome-extension          # copies it to ~/.local/share/gnome-shell/extensions
