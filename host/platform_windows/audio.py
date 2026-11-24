@@ -64,10 +64,30 @@ def apply_operation(control: _Control, operation: str, value: int | None = None,
     control.set_volume(max(0, min(100, target)) / 100, None)
 
 
+def _all_sessions() -> list:
+    """The audio sessions on every active output device: a program can play on a device other than the default one."""
+    from comtypes import CLSCTX_ALL, COMError
+    from pycaw.api.audiopolicy import IAudioSessionControl2, IAudioSessionManager2
+    from pycaw.constants import DEVICE_STATE, EDataFlow
+    from pycaw.pycaw import AudioSession, AudioUtilities
+    devices = AudioUtilities.GetDeviceEnumerator().EnumAudioEndpoints(EDataFlow.eRender.value, DEVICE_STATE.ACTIVE.value)
+    sessions = []
+    for index in range(devices.GetCount()):
+        try:
+            manager = devices.Item(index).Activate(IAudioSessionManager2._iid_, CLSCTX_ALL, None).QueryInterface(IAudioSessionManager2)
+            found = manager.GetSessionEnumerator()
+            for number in range(found.GetCount()):
+                control = found.GetSession(number).QueryInterface(IAudioSessionControl2)
+                if control is not None:
+                    sessions.append(AudioSession(control))
+        except COMError:  # a device that cannot be opened must not hide the programs on the others
+            continue
+    return sessions
+
+
 def _app_controls(name: str) -> list[_Control]:
-    from pycaw.pycaw import AudioUtilities
     controls = []
-    for session in AudioUtilities.GetAllSessions():
+    for session in _all_sessions():
         process = session.Process
         if process is not None and process.name().casefold() == name.casefold():
             volume = session.SimpleAudioVolume
@@ -115,10 +135,9 @@ def read_mixer(pinned: list | None = None, mic: bool = True) -> list[dict]:
     from cockpit import APP_COLORS, GREEN, MAX_APPS, MAX_ID, app_title
 
     def work(ends):
-        from pycaw.pycaw import AudioUtilities
         speaker, mic_end = ends['speaker'], ends['mic']
         apps = {}
-        for session in AudioUtilities.GetAllSessions():
+        for session in _all_sessions():
             process = session.Process
             if process is None:
                 continue

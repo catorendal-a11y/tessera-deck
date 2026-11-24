@@ -146,8 +146,14 @@ class SensorHintTests(unittest.TestCase):
         self.assertIn('setup_sensors', self.hint(False, []))
 
     def test_a_running_sensor_tool_needs_no_hint(self):
-        reading = {'type': 1, 'sensor': 'CPU', 'id': 1, 'label': 'Core', 'unit': 'C', 'value': 50.0, 'min': 0, 'max': 0, 'avg': 0}
+        reading = {'type': 1, 'sensor': 'CPU', 'id': 1, 'label': 'CPU Package', 'unit': '°C', 'value': 50.0, 'min': 0, 'max': 0, 'avg': 0}
         self.assertEqual(self.hint(True, [reading]), '')
+
+    def test_a_running_sensor_tool_without_a_cpu_temperature_names_the_driver_box(self):
+        # Libre Hardware Monitor answers but shows no CPU temperature when its PawnIO driver box was cancelled.
+        reading = {'type': 1, 'sensor': 'NVIDIA GeForce RTX 3060', 'id': 1, 'label': 'GPU Core', 'unit': '°C', 'value': 50.0,
+                   'min': 0, 'max': 0, 'avg': 0}
+        self.assertIn('PawnIO', self.hint(True, [reading]))
 
 
 if __name__ == '__main__':

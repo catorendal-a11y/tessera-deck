@@ -7,7 +7,8 @@
   Libre Hardware Monitor needs administrator rights for its sensor driver. Instead of a Windows prompt at every
   sign-in, this registers a scheduled task named "Tessera Sensors" that starts it at logon with the highest
   privileges for your user only, and starts it now. -Once only starts it now (setup_sensors.ps1 uses it).
-  -Remove deletes the task and the firewall rule again.
+  On a standard account only the start now works: the task would run without an administrator token, and Libre
+  Hardware Monitor will not start without one. -Remove deletes the task and the firewall rule again.
   Run through Tessera.cmd --sensors (and --sensors-off).
 
   The elevated copy is downloaded again, checked against the pinned SHA-256 and installed in
@@ -17,7 +18,10 @@
 #>
 param(
     [switch]$Remove,
-    [switch]$Once
+    [switch]$Once,
+    # The user who started the script. When the elevated copy runs as another account (a standard user approves UAC
+    # with an administrator's password), that user is on a standard account and gets no sign-in task.
+    [string]$UserSid
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,6 +40,7 @@ if (-not $IsAdmin) {
     $Arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
     if ($Remove) { $Arguments += '-Remove' }
     if ($Once) { $Arguments += '-Once' }
+    $Arguments += @('-UserSid', $Identity.User.Value)
     try { Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList $Arguments -Wait }
     catch { Write-Host 'Cancelled. Nothing was changed.'; Start-Sleep -Seconds 3 }
     return
@@ -90,8 +95,13 @@ try {
     }
     Install-AdminCopy
     Add-FirewallBlock
+    # Another account approved the prompt, so the user is on a standard account. A sign-in task for them runs without
+    # an administrator token, and Libre Hardware Monitor refuses to start without one. Start it from here instead.
+    $StandardAccount = $UserSid -and $UserSid -ne $Identity.User.Value
+    if ($StandardAccount) { $Once = $true }
     if (-not $Once) {
-        $User = "$($Identity.Name)"
+        if (-not $UserSid) { $UserSid = $Identity.User.Value }
+        $User = ([Security.Principal.SecurityIdentifier]$UserSid).Translate([Security.Principal.NTAccount]).Value
         $Action = New-ScheduledTaskAction -Execute $Exe -WorkingDirectory $InstallDir
         $Trigger = New-ScheduledTaskTrigger -AtLogOn -User $User
         $Principal = New-ScheduledTaskPrincipal -UserId $User -LogonType Interactive -RunLevel Highest
@@ -101,10 +111,24 @@ try {
             -Settings $Settings -Force | Out-Null
     }
     if (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue)) {
+        Write-Host 'If Libre Hardware Monitor asks to install PawnIO, click OK: without it there is no CPU temperature.'
         if ($Once) { Start-Process -FilePath $Exe -WorkingDirectory $InstallDir }
         else { Start-ScheduledTask -TaskName $TaskName }
+        $Waited = 0
+        while (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue) -and $Waited -lt 10) {
+            Start-Sleep -Seconds 1
+            $Waited++
+        }
+        if (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue)) {
+            throw "Libre Hardware Monitor did not start within 10 seconds. Open $Exe yourself to see what stops it."
+        }
     }
-    if ($Once) { Write-Host 'Done. Libre Hardware Monitor is running. Tessera.cmd --sensors starts it at every sign-in.' }
+    if ($StandardAccount) {
+        Write-Host 'Done. Libre Hardware Monitor is running now and stops when you sign out.'
+        Write-Host 'Windows cannot start it at sign-in without a prompt on a standard account, because it needs administrator rights.'
+        Write-Host 'Run Tessera.cmd --sensors again after each sign-in. On an administrator account, --sensors makes it start by itself.'
+    }
+    elseif ($Once) { Write-Host 'Done. Libre Hardware Monitor is running. Tessera.cmd --sensors starts it at every sign-in.' }
     else { Write-Host 'Done. Libre Hardware Monitor starts at every sign-in and is running now.' }
     Write-Host 'The temperatures appear on the status screen within a few seconds.'
 }

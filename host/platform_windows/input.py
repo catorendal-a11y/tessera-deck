@@ -57,6 +57,8 @@ if IS_WINDOWS:
     user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
     user32.SendInput.restype = wintypes.UINT
     user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.SetThreadDpiAwarenessContext.argtypes = [ctypes.c_void_p]
+    user32.SetThreadDpiAwarenessContext.restype = ctypes.c_void_p
     user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
     user32.GetWindowTextLengthW.argtypes = [wintypes.HWND]
     user32.GetWindowTextLengthW.restype = ctypes.c_int
@@ -119,9 +121,18 @@ def send_mouse(op, x=0, y=0, amount=0, press=None):
     elif op == 'move':
         press(0x1, x, y)
     elif op == 'moveto':
-        # with the virtual-desk flag 0..65535 spans every monitor, so scale with the virtual screen, not the primary one
-        left, top, width, height = (user32.GetSystemMetrics(index) for index in (76, 77, 78, 79))
-        press(0x8001 | 0x4000, round((x - left) * 65535 / max(1, width - 1)), round((y - top) * 65535 / max(1, height - 1)))
+        # With the virtual-desk flag 0..65535 spans every monitor, so scale with the virtual screen, not the primary one.
+        # The daemon is DPI-unaware: Windows would map both the metrics and the input through the scaled screen, so the
+        # pointer missed by the scale factor. Per-monitor aware (-4), for this thread only, both use the real pixels.
+        # Windows turns v back into floor(v * size / 65536), so round up to land on the typed pixel itself.
+        old = user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
+        try:
+            left, top, width, height = (user32.GetSystemMetrics(index) for index in (76, 77, 78, 79))
+            press(0x8001 | 0x4000, min(65535, -(-(x - left) * 65536 // max(1, width))),
+                  min(65535, -(-(y - top) * 65536 // max(1, height))))
+        finally:
+            if old:
+                user32.SetThreadDpiAwarenessContext(ctypes.c_void_p(old))
     else:
         raise ValueError(f'Unknown mouse operation: {op}')
 

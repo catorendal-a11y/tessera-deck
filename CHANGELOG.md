@@ -34,6 +34,15 @@
 - A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
 - On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
 
+Windows fixes:
+
+- *Move the pointer to* lands on the pixel you typed on a display scaled above 100%. Before, at 150% it landed half as far again to the right and down.
+- GPU load and VRAM show on German, French and other localized Windows.
+- A program that plays on another output device, such as a headset while the speakers are the default, keeps its volume and mute keys and its slot in the mixer.
+- The media progress bar advances while the music plays, not only when the track changes.
+- `--sensors` on a standard account starts Libre Hardware Monitor at once and says to run it again after each sign-in. It no longer sets up a sign-in task for the administrator who approved the prompt.
+- A Libre Hardware Monitor that shows no CPU temperature says why, and the setup says to click OK on its PawnIO box.
+
 Editor fixes. Each of these used to make the host refuse every save until the step was found by hand:
 
 - A value that is too long (toggle values, a timer message, a *Set variable* value, a process name) or two toggle values that are the same leave that step a draft, with the draft link. Emoji count as one character, as the host counts them.
