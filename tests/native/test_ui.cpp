@@ -125,8 +125,9 @@ static void test_long_press_reports_hold(){
     /* A key with a hold action reports a hold past the long-press time, and nothing else. */
     const int before=deck_model_last_event_id();hold(key_x(4),key_y(4),700);deck_event_t events[2]{};
     assert(deck_model_events_since(before,events,2)==1&&events[0].button_id==4&&events[0].hold);
-    /* A key without one still reports a single plain press however long it is held. */
-    const int again=deck_model_last_event_id();hold(key_x(1),key_y(1),700);
+    /* A key without one still reports a single plain press however long it is held. A press goes out only while
+     * the host is there, so keep it there. */
+    keep_host(1000);const int again=deck_model_last_event_id();hold(key_x(1),key_y(1),700);
     assert(deck_model_events_since(again,events,2)==1&&events[0].button_id==1&&!events[0].hold);
 }
 static void test_dimmed_touch_only_wakes(){
@@ -220,12 +221,25 @@ static void test_confirm_key(){
     /* Sliding off the key before the ring is full cancels too. */
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(5),key_y(5)};for(int i=0;i<12;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    /* So does sliding off downward onto the key below, or slowly sideways a few pixels per read. The host stays
+     * linked, or the press would be refused for that reason instead. */
+    keep_host(1000);touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();touch_at={key_x(1),key_y(7)};for(int i=0;i<12;++i)step();
+    touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    /* Slow means 2 px a read, under LVGL's gesture speed, from 4 px inside the right edge into the gap. */
+    keep_host(1000);touch_at={rail_w+pad+key_w-4,key_y(1)};touching=true;for(int i=0;i<4;++i)step();
+    for(int i=0;i<12;++i){touch_at.x+=2;step();}
+    touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
+    /* A quick flick down that stays inside the key is a swipe, and a swipe never presses the key it started on. */
+    keep_host(1000);touch_at={key_x(1),key_y(1)-sc(60)};touching=true;for(int i=0;i<2;++i)step();
+    for(int i=0;i<6;++i){touch_at.y+=sc(20);step();}
+    for(int i=0;i<12;++i)step();
+    touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
     /* A screen that comes up under the finger, such as a permission question, cancels the hold: nothing may run on the
      * PC while another screen shows. */
     touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<4;++i)step();assert(arcs_in(tile)==1);
     deck_model_request_view(1);for(int i=0;i<12;++i)step();
     touching=false;updates();assert(deck_model_last_event_id()==before+1&&!arcs_in(tile));
-    ui_show_view(0);updates();
+    ui_show_view(0);keep_host(1000);
     /* A plain key still presses on a tap. */
     tap(key_x(3),key_y(3));assert(deck_model_last_event_id()==before+2);
     deck_model_replace_buttons(saved,saved_count);updates();
@@ -263,7 +277,8 @@ static void test_host_disconnect_reconnect(){
     assert(visible("NO PC")&&ui_debug_visible_text(status,sizeof(status))==0&&strstr(status,"\"pc\":false"));
     ui_show_view(1);updates();assert(visible("PC not connected")&&visible("Start Tessera on the PC, or check the USB cable"));
     ui_show_view(0);updates();
-    const int before=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
+    /* The red flash says nothing runs, so nothing is kept for a PC that wakes up or answers later. */
+    const int before=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before);
     auto* tile=lv_obj_get_parent(find(lv_screen_active(),"Close tab"));
     assert(lv_color_eq(lv_obj_get_style_bg_color(tile,LV_PART_MAIN),lv_color_hex(ui_palette::AlertBg))&&!lv_anim_get(tile,nullptr));
     ui_show_view(1);deck_model_note_host();updates();
@@ -374,7 +389,7 @@ static void test_panel_lock(){
     drag(key_x(7),key_y(7),key_x(7)+sc(400),key_y(7));assert(taken().empty());
     hold(rail_x(),logo_y(),1000);assert(deck_model_locked()&&taken().empty());
     hold(rail_x(),logo_y(),2200);assert(!deck_model_locked()&&taken()==R"({"type":"unlocked"})"&&taken().empty());
-    updates();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
+    keep_host(1000);tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==before+1);
 }
 static void test_lock_covers_agents_and_mixer(){
     /* A locked panel still shows a question, but Allow, the faders and mute do nothing until it is unlocked. */
@@ -408,6 +423,30 @@ static void test_status_screen(){
  {"name":"VRAM","value":"14","unit":"%","p":14,"color":"#B388FF"},{"name":"Network","value":"244","unit":"KB/s","p":20,"color":"#A3B2BC"}]})"));
     ui_show_view(3);updates();assert(visible("CPU load")&&visible("Disk is high")&&visible("244")&&visible("KB/s"));
     capture("status.ppm");
+    /* A value that fits keeps the big font (40 px on a small screen, as ui_init picks it); a long one steps down. */
+    const lv_font_t* big=scale<.9f?&lv_font_montserrat_40:&lv_font_montserrat_48;
+    auto font_of=[](const char* value){auto* text=find(lv_screen_active(),value);assert(text);return lv_obj_get_style_text_font(text,LV_PART_MAIN);};
+    assert(font_of("244")==big);
+    /* The longest values host/cockpit.py really sends fit their card with the unit beside them. */
+    std::string longest=R"({"stats":[{"name":"Download","value":"123.4M","unit":"/s","p":100},
+ {"name":"Uptime","value":"12d 23h","unit":"","p":100},{"name":"CPU clock","value":"4800","unit":"MHz","p":80},
+ {"name":"GPU fan","value":"2450","unit":"RPM","p":80},{"name":"Uptime","value":"23h 59m","unit":"","p":14},
+ {"name":"Uptime","value":"3d 23h","unit":"","p":40}]})";
+    assert(deck_model_stats_from_json(longest.c_str()));
+    ui_show_view(3);updates();capture("status_long.ppm");
+    /* Without the smaller fonts 4800, 2450 and 3d 23h overflow only on 800 x 480, so CI runs this test at that size too. */
+    int clipped=0;
+    for(const char* value:{"123.4M","12d 23h","4800","2450","23h 59m","3d 23h"}){
+        auto* row=lv_obj_get_parent(find(lv_screen_active(),value));
+        lv_area_t room;lv_obj_get_coords(row,&room);
+        for(uint32_t i=0;i<lv_obj_get_child_count(row);++i){lv_area_t part;lv_obj_get_coords(lv_obj_get_child(row,i),&part);
+            if(part.x2>room.x2){fprintf(stderr,"%s: ends at %d, the card's room at %d\n",value,(int)part.x2,(int)room.x2);++clipped;}}}
+    assert(!clipped);
+    assert(font_of("123.4M")!=big&&font_of("12d 23h")!=big&&font_of("23h 59m")!=big);
+    /* 4800 MHz and 2450 RPM fit in 48 px on 1024 x 600 but not in 40 px on the narrower 800 x 480 cards. */
+    assert((font_of("4800")==big)==(scale>=.9f)&&(font_of("2450")==big)==(scale>=.9f));
+    /* The same card with a short value again gets the big font back. */
+    longest.replace(longest.find("123.4M"),6,"9");assert(deck_model_stats_from_json(longest.c_str()));updates();assert(font_of("9")==big);
     assert(deck_model_stats_from_json(R"({"stats":[{"name":"CPU load","value":"9","unit":"%","p":9}]})"));updates();assert(visible("9")&&visible("All good"));
     ui_show_view(0);updates();assert(visible("New tab 2"));
 }
@@ -562,7 +601,7 @@ static void test_boot_screen(){
     assert(!visible("v9.8.7")&&visible("14:32")&&deck_model_screen()==DECK_SCREEN_DECK&&boot_deleted);
     /* A finger down since boot presses nothing when it lifts over a key: LVGL presses no widget it was dragged onto. */
     const int before=deck_model_last_event_id();
-    ui_boot_start();touch_at={key_x(4),key_y(4)};touching=true;for(int t=0;t<1560;t+=40)step();
+    ui_boot_start();touch_at={key_x(4),key_y(4)};touching=true;for(int t=0;t<1560;t+=40){deck_model_note_host();step();}
     assert(visible("14:32"));touching=false;updates();assert(deck_model_last_event_id()==before&&taken().empty());
     tap(key_x(4),key_y(4));assert(deck_model_last_event_id()==before+1);
     /* An ambient request meanwhile waits for the boot screen, then wins; a touch brings the deck back. */
@@ -618,8 +657,36 @@ static void test_notice_banner(){
     ui_boot_start();step();assert(deck_model_notice_from_line("ok 5 Panel ready"));
     for(int t=0;t<800;t+=40)step();assert(!banners()&&visible("v9.8.7"));
     for(int t=0;t<1000;t+=40)step();assert(banner_of("Panel ready")&&visible("14:32"));
-    const int ready=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==ready+1);
+    deck_model_note_host();const int ready=deck_model_last_event_id();tap(key_x(1),key_y(1));assert(deck_model_last_event_id()==ready+1);
     deck_model_request_feedback(1,DECK_FEEDBACK_OK);keep_host(6000);assert(!banners());while(!taken().empty()){}
+}
+static void test_touch_across_screen_change(){
+    /* A finger that is down when the screen or view changes is spent: it presses nothing on what shows next. */
+    deck_button_t saved[18]{};int saved_count=0;saved_buttons(saved,&saved_count);
+    deck_button_t keys[2]{};int n=0;
+    assert(deck_model_buttons_from_json(R"({"buttons":[{"id":1,"label":"Held","hold":true},{"id":2,"label":"Plain"}]})",keys,2,&n));
+    assert(deck_model_replace_buttons(keys,n));keep_host(1000);
+    const int before=deck_model_last_event_id();
+    /* The touch that wakes the clock, kept on a key with a hold action. */
+    deck_model_request_screen(DECK_SCREEN_AMBIENT);updates();assert(deck_model_screen()==DECK_SCREEN_AMBIENT);
+    hold(key_x(1),key_y(1),900);assert(deck_model_screen()==DECK_SCREEN_DECK);assert(deck_model_last_event_id()==before);
+    /* A key held while the host switches to the agents view. */
+    touch_at={key_x(2),key_y(2)};touching=true;for(int i=0;i<3;++i)step();
+    deck_model_request_view(1);for(int i=0;i<3;++i)step();
+    touching=false;updates();assert(deck_model_last_event_id()==before);
+    ui_show_view(0);updates();
+    /* A hold key held while the host shows the clock: neither its hold nor its click runs behind the clock. */
+    touch_at={key_x(1),key_y(1)};touching=true;for(int i=0;i<3;++i)step();
+    deck_model_request_screen(DECK_SCREEN_AMBIENT);for(int i=0;i<20;++i){deck_model_note_host();step();}
+    touching=false;updates();assert(deck_model_screen()==DECK_SCREEN_AMBIENT&&deck_model_last_event_id()==before);
+    tap(width/2,height/2);assert(deck_model_screen()==DECK_SCREEN_DECK&&deck_model_take_touch_return());
+    /* A finger held on a hold key through the end of the boot screen: LVGL already waits for the release when it
+     * deletes the boot screen the finger pressed. */
+    ui_boot_start();touch_at={key_x(1),key_y(1)};touching=true;for(int t=0;t<2400;t+=40){deck_model_note_host();step();}
+    touching=false;updates();assert(visible("Held")&&deck_model_last_event_id()==before);
+    tap(key_x(2),key_y(2));assert(deck_model_last_event_id()==before+1);
+    deck_model_request_feedback(2,DECK_FEEDBACK_OK);keep_host(1000);while(!taken().empty()){}
+    deck_model_replace_buttons(saved,saved_count);updates();
 }
 int main(int argc,char** argv){
     output=argc>1?argv[1]:".";std::filesystem::create_directories(output);
@@ -645,7 +712,8 @@ int main(int argc,char** argv){
      {"rail back after a shortcut",test_rail_back_after_shortcut},{"panel lock",test_panel_lock},{"lock covers agents and mixer",test_lock_covers_agents_and_mixer},{"about sheet",test_about_sheet},
      {"status screen",test_status_screen},{"image cache",test_image_cache},{"image upload with acknowledgements",test_image_upload_ack},{"key styling",test_key_styling},
      {"tap after a layout swap",test_tap_after_layout_swap},{"image fills its key",test_image_fills_its_key},
-     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack},{"boot screen",test_boot_screen},{"notice banner",test_notice_banner}};
+     {"ambient clock",test_ambient_clock},{"icon pack",test_icon_pack},{"boot screen",test_boot_screen},{"notice banner",test_notice_banner},
+     {"touch across a screen change",test_touch_across_screen_change}};
     for(const auto& test:tests){printf("- %s\n",test.name);fflush(stdout);test.run();}
     capture("deck.ppm");puts("Standalone Deck model, context and render checks passed.");
 }

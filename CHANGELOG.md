@@ -12,6 +12,12 @@
 - Closing the editor no longer cuts off a firmware install that is running. The window stays open until the install is done.
 - A firmware install and a Tessera update can no longer run at the same time. The *Update Tessera* button is greyed out while the panel firmware installs, and a firmware install started during an update is refused with the update named as the reason.
 
+- A *Hold to confirm* key is cancelled when the finger slides off it in any direction, or flicks up or down on it. Before, only a fast swipe to the side cancelled it, and sliding down still sent the press after 600 ms.
+- A touch that wakes the clock presses nothing. The same goes for a finger that is down when the screen changes, for example to a permission question or when the PC shows the clock.
+- Long status values such as `123.4M /s` and `12d 23h` fit their card. The value gets a smaller font when it needs one, also on 800 × 480 panels.
+- A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
+- A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
+
 - While the panel is away, the host no longer opens every Espressif and CH340 port on each retry. A board that stays silent three times or answers as another board is left alone until it is plugged in again, and with `TESSERA_PORT` set only that port is opened. On Linux each of those opens restarted a UART board.
 - A CrowPanel or Sunton panel that restarts without leaving USB gets its page, rail and lock again. The host asks the panel every 5 s and sets it up again after a restart.
 - `deckctl press` and `POST /v1/press` answer that the panel is not connected and the key was not pressed. Before, they answered OK.

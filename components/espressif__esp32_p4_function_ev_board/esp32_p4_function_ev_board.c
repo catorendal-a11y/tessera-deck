@@ -1047,9 +1047,14 @@ static lv_display_t *bsp_display_lcd_init(const bsp_display_cfg_t *cfg)
 
 static lv_indev_t *bsp_display_indev_init(lv_display_t *disp)
 {
-    esp_lcd_touch_handle_t tp;
-    BSP_ERROR_CHECK_RETURN_NULL(bsp_touch_new(NULL, &tp));
-    assert(tp);
+    esp_lcd_touch_handle_t tp = NULL;
+    /* Not the abort macro: a GT911 that does not answer (loose flex, address glitch) would restart the panel in a
+     * loop before the USB console runs. Without touch the screen still shows and the host can still reach it. */
+    const esp_err_t err = bsp_touch_new(NULL, &tp);
+    if (err != ESP_OK || !tp) {
+        ESP_LOGE(TAG, "Touch controller did not start (%s); running without touch", esp_err_to_name(err));
+        return NULL;
+    }
 
     /* Add touch input (for selected screen) */
     const lvgl_port_touch_cfg_t touch_cfg = {
@@ -1093,7 +1098,7 @@ lv_display_t *bsp_display_start_with_config(const bsp_display_cfg_t *cfg)
     // lv_disp_set_rotation(disp,LV_DISPLAY_ROTATION_90);
     // bsp_display_unlock();
 
-    BSP_NULL_CHECK(disp_indev = bsp_display_indev_init(disp), NULL);
+    disp_indev = bsp_display_indev_init(disp);  /* NULL without touch: the display still runs */
 
     return disp;
 }

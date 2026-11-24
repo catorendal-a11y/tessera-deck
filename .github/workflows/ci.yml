@@ -122,6 +122,7 @@ jobs:
           cmake -S tests/native -B build/native -DCMAKE_BUILD_TYPE=Release
           cmake --build build/native --parallel
           build/native/test_ui build/native/out
+          TESSERA_SCREEN=800x480 build/native/test_ui build/native/out-800x480  # the small layout, as ui_init picks it for 800 x 480 screens
       - name: Image cache benchmark
         shell: bash
         run: |
