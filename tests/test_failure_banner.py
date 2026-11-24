@@ -61,7 +61,7 @@ class PluginKeyTests(unittest.TestCase):
         import platform_linux.secrets as keyring_secrets
         import secrets_store
         daemon = self.daemon(state='stopped')
-        daemon.plugins._spawn = Mock()
+        daemon.plugins._spawn, daemon.plugins._log = Mock(), Mock()
         daemon.config['plugins']['obs']['settings'] = {'password': '$(keyring:abc)'}
         with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
                 patch.object(keyring_secrets, 'fetch', side_effect=OSError('locked')):
