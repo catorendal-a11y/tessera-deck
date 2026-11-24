@@ -168,8 +168,11 @@ def _plugin_problem(plugin_id, plugins) -> str:
     name = known.get('name') or plugin_id
     if not known.get('enabled'):
         return f'{name} is off: turn it on in More → Plugins'
+    # advice first: the panel banner takes 100 characters and a plugin name up to 60, so a long name is what it cuts
     if known.get('state') == 'failed':
-        return f'{name} has stopped: turn it off and on in More → Plugins'
+        return f'Plugin stopped: turn it off and on in More → Plugins ({name})'
+    if known.get('state') == 'waiting':
+        return f'Unlock the keyring or type the secret again in the editor ({name})'
     return f'{name} has stopped' if known.get('state') == 'crashed' else ''
 
 

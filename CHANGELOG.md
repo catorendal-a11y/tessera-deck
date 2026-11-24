@@ -35,6 +35,11 @@
 - A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
 - A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
 
+- A plugin whose secret is in a locked keyring waits and starts once the keyring is unlocked or the secret is typed again. Its key says to do one of those. Before, the plugin started with an empty secret, and the unlock prompt froze the host until someone answered it.
+- A meeting that repeats on weekdays no longer shows up on Saturday and Sunday, and one with a set number of repeats that began years ago shows up again.
+- A calendar of up to 16 MB is read. Before, the limit was 2 MB, and the message about a bigger one was cut off mid-word.
+- Home Assistant says when the certificate is the problem, when the address lacks `http://` or `https://`, and when an `https://` address only speaks http. Before, all of these said "not reachable" or "certificate not trusted".
+
 - A key that waits (a delay, a shell or HTTP step, slow typing) stops when another program or key changes the page during the wait. Before, its next *Press* step ran the key in that slot on the new page. The panel says what happened: "The page changed while this key waited. Open its page and press it again." A key that changes the page itself still goes on, and so do hotkey and typing steps after an app opened and the profile followed it.
 - A hotkey key pressed while another key is still typing slowly fails at once and flashes red, and the keys pressed after it keep working. Before, they queued behind it and were dropped.
 - A file trigger on a network share that hangs no longer holds up the panel's keys.

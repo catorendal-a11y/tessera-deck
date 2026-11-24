@@ -108,6 +108,24 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual(summaries(ics(['DTSTART;VALUE=DATE:19801113', 'RRULE:FREQ=YEARLY', 'SUMMARY:Birthday'])),
                          [('Fri 00:00', 'Birthday')])
 
+    def test_a_daily_rule_with_weekdays_skips_the_weekend_and_counts_only_the_days_it_keeps(self):
+        # Thunderbird writes "every weekday" this way. 2026-11-20 is a Friday; the window runs to Sunday evening.
+        friday_evening = datetime(2026, 11, 20, 20, 0)
+        rule = 'RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR'
+        self.assertEqual(summaries(ics(['DTSTART:20250106T090000', rule, 'SUMMARY:Standup']), friday_evening),
+                         [('Fri 09:00', 'Standup')])
+        # From Monday 2025-01-06 to Friday 2026-11-20 there are 97 whole weeks (485 weekdays) plus 5: the 490th is that Friday.
+        for count, shown in ((490, [('Fri 09:00', 'Standup')]), (489, [])):
+            text = ics(['DTSTART:20250106T090000', rule + f';COUNT={count}', 'SUMMARY:Standup'])
+            self.assertEqual(summaries(text, friday_evening), shown, count)
+
+    def test_a_weekday_rule_with_a_count_started_long_ago_is_still_shown(self):
+        # Monday 2010-01-04 to Friday 2026-11-20: 880 whole weeks (4400 weekdays) plus 5, so the 4405th is that Friday.
+        friday_evening = datetime(2026, 11, 20, 20, 0)
+        for count, shown in ((4405, [('Fri 09:00', 'Standup')]), (4404, []), (9999, [('Fri 09:00', 'Standup')])):
+            text = ics(['DTSTART:20100104T090000', f'RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;COUNT={count}', 'SUMMARY:Standup'])
+            self.assertEqual(summaries(text, friday_evening), shown, count)
+
     def test_until_count_month_days_and_odd_rules(self):
         until = ics(['DTSTART:20261111T091000', 'RRULE:FREQ=DAILY;UNTIL=20261113T091000', 'SUMMARY:Last'])
         self.assertEqual(summaries(until), [('Fri 09:10', 'Last')], 'UNTIL at the start time includes it')
@@ -197,6 +215,19 @@ class FeedTests(unittest.TestCase):
         feed.events(settings, NOW)
         self.settle(feed)
         self.assertEqual(feed.events(settings, NOW)[0][0]['summary'], 'Lunch', 'a failed refresh keeps the last calendar')
+
+    def test_a_calendar_of_several_megabytes_is_read_and_a_huge_one_is_refused_in_plain_words(self):
+        # A calendar kept for years lists every past event: 3 MB is ordinary.
+        big = ics(['DTSTART:20261113T110000', 'SUMMARY:Lunch', 'X-NOTES:' + 'x' * 3 * 1024 * 1024]).encode()
+        feed = calendar_feed.Feed(lambda request, timeout: Reply(big))
+        feed.events({'url': 'https://example.com/a.ics'}, NOW)
+        self.settle(feed)
+        self.assertEqual(feed.events({'url': 'https://example.com/a.ics'}, NOW)[0][0]['summary'], 'Lunch')
+        huge = b'BEGIN:VCALENDAR\r\n' + b'x' * (16 * 1024 * 1024 + 1)
+        feed = calendar_feed.Feed(lambda request, timeout: Reply(huge))
+        feed.events({'url': 'https://example.com/b.ics'}, NOW)
+        self.settle(feed)
+        self.assertEqual(feed.events({'url': 'https://example.com/b.ics'}, NOW), (None, 'The calendar is over 16 MB'))
 
     def test_a_page_that_is_no_calendar_says_so(self):
         feed = calendar_feed.Feed(lambda request, timeout: Reply(b'<html>sign in</html>'))

@@ -15,6 +15,7 @@ left out when you export your keys.
 import json
 import os
 import re
+import ssl
 import time
 import urllib.error
 import urllib.parse
@@ -98,6 +99,15 @@ def run(command, args):
 def reason(exc):
     if isinstance(exc, urllib.error.HTTPError):  # the server answered, so it is reachable
         return 'wrong token' if exc.code == 401 else f'HA error {exc.code}'
+    cause = exc.reason if isinstance(exc, urllib.error.URLError) else exc  # urllib wraps what the socket layer raised
+    if isinstance(cause, ssl.SSLCertVerificationError):
+        return 'certificate not trusted'
+    # https:// to a plain http server. Ubuntu's OpenSSL 3.5 says record layer failure where others say wrong version
+    # number, and Python 3.11 has no code for the first: the text is what all of them share.
+    if isinstance(cause, ssl.SSLError) and any(text in str(cause) for text in ('wrong version number', 'record layer failure')):
+        return 'use http://, not https://'
+    if 'unknown url type' in str(cause):  # an address typed without http:// or https://
+        return 'address must start with http:// or https://'
     return 'not reachable'
 
 

@@ -76,7 +76,9 @@ ports it finds and keeps the one that answers like a panel.
 - **Volume** uses `pactl`; per-program volume (`app:firefox`) follows PulseAudio/PipeWire streams. The media session comes
   from MPRIS, so Spotify, browsers, VLC and mpv work.
 - **Secrets** (settings named like a password or token) go to the system keyring, and the profile keeps only
-  `$(keyring:<id>)`. Without a keyring the save fails with a message; nothing is written in plain text.
+  `$(keyring:<id>)`. Without a keyring the save fails with a message; nothing is written in plain text. A plugin
+  whose secret is in a keyring that is still locked when Tessera starts (auto-login does this) waits instead of
+  starting without it. Unlock the keyring and the plugin starts within a minute.
 - **Sensors** come from the kernel: CPU temperature (`k10temp`, `coretemp`), AMD GPUs (`amdgpu`), NVIDIA through `nvidia-smi`,
   and Intel RAPL power where it is readable.
 - **Window actions** (`maximize`, `topmost`, `next_monitor` ...) need a window manager that follows the EWMH standard

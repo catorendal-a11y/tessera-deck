@@ -18,7 +18,7 @@ import urllib.request
 
 REFRESH_SECONDS = 300
 RETRY_SECONDS = 60
-MAX_BYTES = 2 * 1024 * 1024
+MAX_BYTES = 16 * 1024 * 1024  # a calendar kept for years lists every past event, several MB
 MAX_URL = 500
 LOOK_AHEAD = timedelta(days=2)
 # Repeat periods (days, weeks, months, years) one feed may walk in total: a hostile invite or feed cannot keep the host busy for minutes.
@@ -195,7 +195,10 @@ def _starts(event: dict, until: datetime, budget: list | None = None):
     if frequency in ('DAILY', 'WEEKLY'):  # jump over the years before the window instead of walking them
         period = interval * (1 if frequency == 'DAILY' else 7)
         skip = max(0, ((until - LOOK_AHEAD * 2).date() - first).days // period - 1)
-        if skip:  # what COUNT has already used up in the skipped weeks or days
+        if frequency == 'DAILY' and by_day:  # BYDAY drops days, and every 7 steps land on each weekday the same way
+            skip -= skip % 7
+            made = skip // 7 * sum((first + timedelta(days=step * interval)).weekday() in days for step in range(7))
+        elif skip:  # what COUNT has already used up in the skipped weeks or days
             made = skip if frequency == 'DAILY' else skip * len(days) - sum(day < first.weekday() for day in days)
     elif frequency in ('MONTHLY', 'YEARLY') and count is None:  # the same jump; COUNT needs the walk to count
         target = (until - LOOK_AHEAD * 2).date()
@@ -212,7 +215,9 @@ def _starts(event: dict, until: datetime, budget: list | None = None):
                 if budget[0] < 0:
                     raise OverflowError('The calendar repeats too much')
             if frequency == 'DAILY':
-                yield first + timedelta(days=step * interval)
+                day = first + timedelta(days=step * interval)
+                if not by_day or day.weekday() in days:  # DAILY;BYDAY=MO,TU,... is "every weekday"
+                    yield day
             elif frequency == 'WEEKLY':
                 monday = first - timedelta(days=first.weekday()) + timedelta(weeks=step * interval)
                 for weekday in days:
@@ -378,9 +383,10 @@ class Feed:
             with self._opener(request, timeout=10) as response:
                 data = response.read(MAX_BYTES + 1)
             if len(data) > MAX_BYTES:
-                raise ValueError('the calendar is larger than 2 MB')
-            text = data.decode('utf-8', 'replace')
-            if 'BEGIN:VCALENDAR' not in text[:2000].upper():
+                error = f'The calendar is over {MAX_BYTES >> 20} MB'  # short: the panel cuts the text at 60 characters
+            else:
+                text = data.decode('utf-8', 'replace')
+            if text is not None and 'BEGIN:VCALENDAR' not in text[:2000].upper():
                 text, error = None, 'That address is not an iCal calendar'
         except Exception as exc:  # any failure must clear _busy below, or the calendar would never refresh again
             error = f'Could not read the calendar: {exc}'[:60]

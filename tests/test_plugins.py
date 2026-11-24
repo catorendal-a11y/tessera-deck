@@ -241,6 +241,64 @@ class ManagerTests(unittest.TestCase):
         self.assertEqual(self.grants[0][:5], ('demo', frozenset({'var', 'vars'}), 'demo.', True, False))
         self.assertEqual(Path(kwargs['cwd']).name, 'demo')
 
+    def test_a_keyring_secret_that_cannot_be_read_yet_holds_the_plugin_back_until_it_can(self):
+        import platform_linux.secrets as keyring_secrets  # importable everywhere; only the keyring behind it is Linux
+        sealed = '$(keyring:abc)'
+        answers = [OSError('locked')]
+
+        def fetch(identifier):
+            answer = answers[0]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
+                patch.object(keyring_secrets, 'fetch', fetch):
+            self.manager.sync(self.enabled(token=sealed))
+            self.assertEqual(self.spawned, [], 'started with an empty token while the keyring was locked')
+            status = self.manager.status(self.enabled(token=sealed))[0]
+            self.assertIn('keyring', status['error'])
+            answers[0] = 'abc123'  # the keyring is unlocked
+            self.now[0] += 61
+            self.manager.sync(self.enabled(token=sealed))
+        self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
+
+    def test_a_secret_typed_again_starts_a_waiting_plugin_at_once_not_a_minute_later(self):
+        import platform_linux.secrets as keyring_secrets
+        with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
+                patch.object(keyring_secrets, 'fetch', lambda identifier: {'new': 'abc123'}.get(identifier)):
+            self.manager.sync(self.enabled(token='$(keyring:gone)'))  # an id this keyring does not have
+            self.assertEqual(self.spawned, [])
+            self.now[0] += 3  # the next sync, after the user typed the secret again and the editor saved it
+            self.manager.sync(self.enabled(token='$(keyring:new)'))
+        self.assertEqual(len(self.spawned), 1, 'the new secret waited out the minute of the old one')
+        self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
+
+    def test_a_keyring_unlock_prompt_does_not_hold_up_the_host_while_it_waits_for_the_user(self):
+        import platform_linux.secrets as keyring_secrets
+        unlocked = threading.Event()  # secretstorage waits for the answer to the unlock prompt with no time limit
+        self.addCleanup(unlocked.set)
+
+        def fetch(identifier):
+            unlocked.wait(30)
+            return 'abc123'
+
+        config = self.enabled(token='$(keyring:abc)')
+        with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
+                patch.object(keyring_secrets, 'fetch', fetch):
+            tick = threading.Thread(target=self.manager.sync, args=(config,), daemon=True)
+            tick.start()
+            tick.join(5)
+            self.assertFalse(tick.is_alive(), 'sync() waited for the keyring prompt, so the whole host stood still')
+            self.assertEqual(self.spawned, [])
+            self.assertEqual(self.manager.status(config)[0]['state'], 'waiting')
+            unlocked.set()  # the user typed the keyring password
+            deadline = time.monotonic() + 5
+            while not self.spawned and time.monotonic() < deadline:
+                self.manager.sync(config)
+                time.sleep(0.01)
+        self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
+
     @unittest.skipUnless(os.name == 'nt', 'DPAPI is Windows only')
     def test_an_encrypted_secret_reaches_the_plugin_in_plain_text_only(self):
         sealed = secrets_store.protect('abc123')
