@@ -18,6 +18,12 @@
 - A key pressed while the panel shows NO PC is not sent later. Before, the press waited in the USB buffer and ran when a sleeping PC woke up.
 - A P4 panel whose touch controller does not answer still starts, without touch. Before, it restarted in a loop.
 
+- A key that waits (a delay, a shell or HTTP step, slow typing) stops when another program or key changes the page during the wait. Before, its next *Press* step ran the key in that slot on the new page. The panel says what happened: "The page changed while this key waited. Open its page and press it again." A key that changes the page itself still goes on, and so do hotkey and typing steps after an app opened and the profile followed it.
+- A hotkey key pressed while another key is still typing slowly fails at once and flashes red, and the keys pressed after it keep working. Before, they queued behind it and were dropped.
+- A file trigger on a network share that hangs no longer holds up the panel's keys.
+- A tap just as the panel shows a permission question no longer allows it. The 0.8 s guard now starts when the panel shows the question, also after a reconnect.
+- On Linux the deck stays on the Chrome profile when a Claude tab or a `claude` process sits under the Chrome window.
+
 - While the panel is away, the host no longer opens every Espressif and CH340 port on each retry. A board that stays silent three times or answers as another board is left alone until it is plugged in again, and with `TESSERA_PORT` set only that port is opened. On Linux each of those opens restarted a UART board.
 - A CrowPanel or Sunton panel that restarts without leaving USB gets its page, rail and lock again. The host asks the panel every 5 s and sets it up again after a restart.
 - `deckctl press` and `POST /v1/press` answer that the panel is not connected and the key was not pressed. Before, they answered OK.
