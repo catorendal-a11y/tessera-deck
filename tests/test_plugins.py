@@ -263,6 +263,31 @@ class ManagerTests(unittest.TestCase):
             self.manager.sync(self.enabled(token=sealed))
         self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
 
+    def test_a_keyring_unlock_prompt_does_not_hold_up_the_host_while_it_waits_for_the_user(self):
+        import platform_linux.secrets as keyring_secrets
+        unlocked = threading.Event()  # secretstorage waits for the answer to the unlock prompt with no time limit
+        self.addCleanup(unlocked.set)
+
+        def fetch(identifier):
+            unlocked.wait(30)
+            return 'abc123'
+
+        config = self.enabled(token='$(keyring:abc)')
+        with patch.object(secrets_store, 'load', return_value=keyring_secrets), \
+                patch.object(keyring_secrets, 'fetch', fetch):
+            tick = threading.Thread(target=self.manager.sync, args=(config,), daemon=True)
+            tick.start()
+            tick.join(5)
+            self.assertFalse(tick.is_alive(), 'sync() waited for the keyring prompt, so the whole host stood still')
+            self.assertEqual(self.spawned, [])
+            self.assertEqual(self.manager.status(config)[0]['state'], 'waiting')
+            unlocked.set()  # the user typed the keyring password
+            deadline = time.monotonic() + 5
+            while not self.spawned and time.monotonic() < deadline:
+                self.manager.sync(config)
+                time.sleep(0.01)
+        self.assertEqual(json.loads(self.spawned[0][1]['env']['TESSERA_SETTINGS']), {'token': 'abc123'})
+
     @unittest.skipUnless(os.name == 'nt', 'DPAPI is Windows only')
     def test_an_encrypted_secret_reaches_the_plugin_in_plain_text_only(self):
         sealed = secrets_store.protect('abc123')

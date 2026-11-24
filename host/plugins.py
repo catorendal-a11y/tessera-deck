@@ -207,6 +207,8 @@ class PluginManager:
         self.problems: list[str] = []
         self.running: dict[str, dict] = {}
         self.history: dict[str, dict] = {}
+        self._reading: dict[str, dict] = {}  # keyring secrets being read in the background, by plugin id
+        self._keyring_turn = threading.Lock()
 
     # --- discovery and lifecycle ----------------------------------------------------
     def refresh(self) -> None:
@@ -253,8 +255,12 @@ class PluginManager:
         # remembered through crashes, so sync() can tell when the user changed the settings of a plugin that gave up
         state = self.history.setdefault(manifest.id, _blank())
         state['settings'] = settings
-        opened = secrets_store.open_settings(settings)
-        if any(opened[key] == '' and str(value).startswith(secrets_store.KEYRING_PREFIX) for key, value in settings.items()):
+        opened = self._open(manifest.id, settings)
+        if opened is None:  # the keyring has not answered yet, maybe because its unlock prompt is open: look again next sync
+            state.update(state='waiting', error='Reading the system keyring. If it asks, unlock it.', next=self._clock())
+            return
+        if any(opened.get(key, '') == '' and str(value).startswith(secrets_store.KEYRING_PREFIX)
+               for key, value in settings.items()):
             # a locked keyring (Linux, at autostart) gives '': starting now would show "add the token" for one the user
             # did enter, and the plugin would never see it once the keyring opens. Try again every minute, not counted as a crash.
             state.update(state='waiting', error='The system keyring is locked or does not have this secret. Unlock it, '
@@ -288,6 +294,29 @@ class PluginManager:
                                      'settings': settings}
         self.history.setdefault(manifest.id, _blank())['state'] = 'running'
         self._log(f'Plugin {manifest.id} started')
+
+    def _open(self, plugin_id: str, settings: dict) -> dict | None:
+        """`settings` with the secrets opened, or None while the keyring is still being read.
+
+        A locked keyring shows an unlock prompt and the read waits for the user's answer with no time limit, so it
+        runs in a thread and sync() goes on. The reads take turns, so the user gets one prompt, not one per plugin."""
+        if not any(str(value).startswith(secrets_store.KEYRING_PREFIX) for value in settings.values()):
+            return secrets_store.open_settings(settings)  # plain and DPAPI values open at once
+        reading = self._reading.get(plugin_id)
+        if reading is None or (reading['settings'] != settings and not reading['thread'].is_alive()):
+            reading = self._reading[plugin_id] = {'settings': settings, 'opened': {}}
+
+            def read():
+                with self._keyring_turn:
+                    reading['opened'] = secrets_store.open_settings(settings)
+
+            reading['thread'] = threading.Thread(target=read, name=f'keyring read for {plugin_id}', daemon=True)
+            reading['thread'].start()
+            reading['thread'].join(1)  # an open keyring answers at once, so the plugin starts on this sync
+        if reading['thread'].is_alive() or reading['settings'] != settings:
+            return None
+        del self._reading[plugin_id]
+        return reading['opened']  # still {} when the read failed: every keyring secret counts as missing
 
     def _log_full(self, plugin_id: str) -> bool:
         try:
