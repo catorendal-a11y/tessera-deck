@@ -201,13 +201,13 @@ void flash(int slot,uint32_t color,uint32_t ms) {
     lv_anim_set_repeat_count(&pulse,LV_ANIM_REPEAT_INFINITE);lv_anim_start(&pulse);
 }
 void send_press(int slot,bool hold) {
+    /* Without a host nothing runs the action: say so at once, and keep nothing back, or a PC that wakes from sleep
+     * or answers late would run the press the panel just showed as refused. */
+    if(!deck_model_host_linked(HostTimeoutMs)){flash(slot,AlertBg,500);return;}
     /* Refused when a new layout arrived since this grid was built: the key at this slot may belong to it. */
     if(!deck_model_record_touch(ids[slot],hold,button_version))return;
     awaiting[ids[slot]]=true;stale[ids[slot]]=false;
-    /* Without a host nothing runs the action: say so at once instead of
-     * flashing as if it worked. */
-    if(deck_model_host_linked(HostTimeoutMs))flash(slot,PressedBg,PendingMs);
-    else flash(slot,AlertBg,500);
+    flash(slot,PressedBg,PendingMs);
 }
 void press(lv_event_t *event) {
     const int slot=slot_of(event);
@@ -216,7 +216,7 @@ void press(lv_event_t *event) {
 }
 /* A confirm key: a ring fills over ConfirmMs while the finger stays, and only then is the press sent
  * (by update()); lifting the finger or sliding off early sends nothing. */
-lv_obj_t *confirm_ring=nullptr;int confirm_slot=-1;uint32_t confirm_started=0;
+lv_obj_t *confirm_ring=nullptr;int confirm_slot=-1;uint32_t confirm_started=0;lv_indev_t *confirm_indev=nullptr;
 void confirm_fill(void *arc,int32_t value) {lv_arc_set_value(static_cast<lv_obj_t*>(arc),value);}
 void confirm_stop() {if(confirm_ring)lv_obj_delete(confirm_ring);confirm_ring=nullptr;confirm_slot=-1;}  /* the delete ends its anim */
 void confirm_touch(lv_event_t *event) {
@@ -226,13 +226,16 @@ void confirm_touch(lv_event_t *event) {
     if(lv_event_get_code(event)!=LV_EVENT_PRESSED||deck_model_locked())return;
     auto *tile=keys[slot];const int size=LV_MIN(lv_obj_get_width(tile),lv_obj_get_height(tile))-sc(28);
     auto *arc=confirm_ring=make_ring(tile,size,sc(8),Bg,Accent,0);lv_obj_center(arc);
-    confirm_slot=slot;confirm_started=millis();
+    confirm_slot=slot;confirm_started=millis();confirm_indev=lv_indev_active();
     lv_anim_t fill;lv_anim_init(&fill);lv_anim_set_var(&fill,arc);lv_anim_set_exec_cb(&fill,confirm_fill);
     lv_anim_set_values(&fill,0,100);lv_anim_set_duration(&fill,ConfirmMs);lv_anim_start(&fill);
 }
 void confirm_tick() {
     if(confirm_slot<0)return;
     if(deck_model_locked()){confirm_stop();return;}
+    /* LVGL keeps a pressed key pressed wherever the finger goes, so PRESS_LOST never comes: check the point here. */
+    if(confirm_indev){lv_point_t at;lv_indev_get_point(confirm_indev,&at);lv_area_t area;lv_obj_get_coords(keys[confirm_slot],&area);
+        if(at.x<area.x1||at.x>area.x2||at.y<area.y1||at.y>area.y2){confirm_stop();return;}}
     if(millis()-confirm_started<ConfirmMs)return;
     const int slot=confirm_slot;confirm_stop();send_press(slot,false);
 }
@@ -240,13 +243,16 @@ void confirm_tick() {
  * show. A swipe is never a tap on the key it started on. */
 void swipe(lv_event_t *) {
     auto *indev=lv_indev_active();if(!indev)return;
+    confirm_stop();  /* any swipe, up and down too, cancels a confirm hold, even one that stays on the key */
     const lv_dir_t dir=lv_indev_get_gesture_dir(indev);
     if(dir!=LV_DIR_LEFT&&dir!=LV_DIR_RIGHT)return;
-    confirm_stop();lv_indev_wait_release(indev);
+    lv_indev_wait_release(indev);
     if(dir!=LV_DIR_RIGHT||deck_model_locked()||!deck_model_host_linked(HostTimeoutMs))return;
     for(int i=0;i<rail_count;++i)if(rail_list[i].kind==ViewKeys){
         char line[40];snprintf(line,sizeof(line),"{\"type\":\"rail\",\"i\":%d}",i);deck_model_queue_line(line);return;}
 }
+/* The touch that is down now is spent: it must not press or hold what shows next. */
+void wait_release_all() {for(auto *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_wait_release(indev);}
 /* A touch on a dimmed panel only wakes it, wherever it lands, and never
  * reaches a key: the indev ignores the rest of the touch until release. */
 void wake_touch(lv_event_t *event) {
@@ -631,8 +637,14 @@ void sync_faders() {
 /* ---- Status -------------------------------------------------------------------------------------- */
 void draw_stat(int i,const deck_stat_t& stat) {
     if(strcmp(lv_label_get_text(stat_name[i]),stat.name))lv_label_set_text(stat_name[i],stat.name);
-    if(strcmp(lv_label_get_text(stat_value[i]),stat.value))lv_label_set_text(stat_value[i],stat.value);
-    if(strcmp(lv_label_get_text(stat_unit[i]),stat.unit))lv_label_set_text(stat_unit[i],stat.unit);
+    bool resized=false;
+    if(strcmp(lv_label_get_text(stat_value[i]),stat.value)){lv_label_set_text(stat_value[i],stat.value);resized=true;}
+    if(strcmp(lv_label_get_text(stat_unit[i]),stat.unit)){lv_label_set_text(stat_unit[i],stat.unit);resized=true;}
+    /* "123.4M /s" or "12d 23h" is wider than the card in the big font: step down until value, gap and unit fit. */
+    if(resized)for(const lv_font_t *font:{small?&lv_font_montserrat_40:&lv_font_montserrat_48,&lv_font_montserrat_32,&lv_font_montserrat_24}) {
+        lv_obj_set_style_text_font(stat_value[i],font,0);lv_obj_update_layout(stat_value[i]);
+        if(lv_obj_get_width(stat_value[i])+sc(6)+lv_obj_get_width(stat_unit[i])<=StatW-2*sc(20))break;
+    }
     set_color(stat_value[i],LV_STYLE_TEXT_COLOR,stat.color);
     set_color(stat_unit[i],LV_STYLE_TEXT_COLOR,mix(stat.color,Muted,.45f));
     const int fill=(StatW-2*sc(20))*stat.percent/100;
@@ -689,6 +701,7 @@ void refresh_rail() {
 void set_view(int next) {
     if(next<0||next>=ViewCount)return;
     confirm_stop();  /* a hold on a confirm key does not outlive the screen it was made on */
+    if(next!=view)wait_release_all();  /* nor does any other touch: a hidden key would still get its click */
     view=next;
     for(int i=0;i<ViewCount;++i)lv_obj_set_hidden(views[i],i!=view);
     if(view==ViewAgents&&(agents_dirty||agents_version!=deck_model_agents_version()))build_agents();
@@ -803,7 +816,7 @@ void update_lock() {
     lv_arc_set_value(lock_ring,static_cast<int32_t>(held>=LockHoldMs?100:held*100/LockHoldMs));
     if(held<LockHoldMs)return;
     deck_model_set_locked(false);deck_model_queue_line("{\"type\":\"unlocked\"}");
-    for(auto *indev=lv_indev_get_next(nullptr);indev;indev=lv_indev_get_next(indev))lv_indev_wait_release(indev);  /* the same touch must not tap what shows next */
+    wait_release_all();  /* the same touch must not tap what shows next */
 }
 
 void update_link() {
@@ -902,14 +915,14 @@ void draw_big_clock(const char *text,const char *meridiem) {
 lv_obj_t *boot=nullptr;  /* the boot screen, while it plays */
 void show_ambient(bool on) {
     if(!ambient||on==(deck_model_screen()==DECK_SCREEN_AMBIENT))return;
-    confirm_stop();
+    confirm_stop();wait_release_all();  /* a touch that is down now, on the clock or on a key, presses nothing on the next screen */
     deck_model_set_screen(on?DECK_SCREEN_AMBIENT:DECK_SCREEN_DECK);
     if(on){ambient_time[0]='\0';ambient_seen=0;}
     if(!boot)lv_screen_load(on?ambient:screen);  /* the boot screen loads the one asked for when it ends */
 }
 void ambient_touched(lv_event_t *) {
     if(deck_model_screen()!=DECK_SCREEN_AMBIENT)return;
-    show_ambient(false);deck_model_note_touch_return();deck_model_request_wake();
+    show_ambient(false);deck_model_note_touch_return();deck_model_request_wake();  /* the waking touch only wakes */
 }
 void build_ambient() {
     ambient=lv_obj_create(nullptr);flat(ambient,Bg);
