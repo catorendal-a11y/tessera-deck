@@ -300,7 +300,12 @@ class PluginManager:
         """`settings` with the secrets opened, or None while the keyring is still being read.
 
         A locked keyring shows an unlock prompt and the read waits for the user's answer with no time limit, so it
-        runs in a thread and sync() goes on. The reads take turns, so the user gets one prompt, not one per plugin."""
+        runs in a thread. sync() waits up to 1 s for each new read, which is enough for an open keyring. The reads take
+        turns, so only one prompt is open at a time, and once the user unlocks it the reads behind it go through without
+        one. If the user closes it instead, the next plugin's read opens a new prompt at once, and every waiting plugin
+        reads again a minute later: a keyring that stays locked asks once per plugin each minute. One shared wait would
+        stop that, but '' does not tell a closed prompt from an id this keyring does not have, and a missing id must not
+        hold back the plugins whose secrets are there."""
         if not any(str(value).startswith(secrets_store.KEYRING_PREFIX) for value in settings.values()):
             return secrets_store.open_settings(settings)  # plain and DPAPI values open at once
         reading = self._reading.get(plugin_id)
