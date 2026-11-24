@@ -17,8 +17,8 @@ You need Python 3.12 or newer with `venv`, and these tools:
 | `xclip` | `xclip` | the clipboard action |
 | `pactl` | `libpulse` / `pulseaudio-utils` | volume, mute, mixer (PulseAudio or PipeWire) |
 | a Secret Service | GNOME Keyring, KWallet or KeePassXC | plugin passwords and tokens |
-| PyGObject (system Python) | `python-gobject` / `python3-gi` | the themed tray menu (optional), and the tray icon on Wayland |
-| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1` | the tray icon on Wayland (see [Wayland](#wayland)) |
+| PyGObject (system Python) | `python-gobject` / `python3-gi`; on Fedora `python3-gobject` | the themed tray menu (optional), and the tray icon on Wayland |
+| libayatana-appindicator with its typelib | `libayatana-appindicator` / `gir1.2-ayatanaappindicator3-0.1`; on Fedora `libayatana-appindicator-gtk3` | the tray icon on Wayland (see [Wayland](#wayland)) |
 | WebKitGTK (system Python) | `webkit2gtk-4.1` / `gir1.2-webkit2-4.1` | the editor's own window (optional; without it the editor opens in your browser) |
 
 Then, in the Tessera folder:
