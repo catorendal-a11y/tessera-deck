@@ -73,14 +73,23 @@ return {calls: calls.filter(c => c[0] === 'command/keep-backup'), reloaded: call
         self.assertNotIn('kept', found['plain'])
         self.assertTrue(found['kept'].endswith(' · kept'))
 
-    def test_the_status_screen_offers_sixteen_readings_and_shows_eight_by_default(self):
+    def test_the_status_screen_offers_twenty_readings_and_shows_eight_by_default(self):
         found = self.run_editor(r"""
 config = {profiles: {}};
 return {all: PANEL_STATS.map(s => s[0]), shown: panelChoice().stats};
 """)
         self.assertEqual(found['all'], ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down', 'net_up', 'uptime',
-                                        'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps'])
+                                        'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps',
+                                        'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'])
         self.assertEqual(found['shown'], found['all'][:8])
+
+    def test_the_four_new_readings_can_be_key_gauges(self):
+        found = self.run_editor(r"""
+return Object.fromEntries(['cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'].map(key => [key, gaugeSensors[key] || null]));
+""")
+        self.assertTrue(all(found.values()), found)
+        self.assertEqual((found['cpu_volt'][1]['unit'], found['gpu_volt'][1]['unit']), ('mV', 'mV'))
+        self.assertEqual((found['cpu_core_max'][1]['unit'], found['gpu_hotspot'][1]['unit']), ('%', 'C'))
 
     def test_a_ready_made_key_that_shows_state_keeps_its_states_only_for_a_new_key(self):
         found = self.run_editor(r"""
