@@ -19,6 +19,10 @@ HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If
                       '-File tools\\setup_sensors.ps1 in the Tessera folder, then Tessera.cmd --sensors.')
 HINT_NO_CPU_TEMP = ('Libre Hardware Monitor is running but reports no CPU temperature. It asks to install its PawnIO driver; '
                     'if you cancelled that box, close Libre Hardware Monitor, start it again and click OK.')
+HINT_PASSWORD = ('Libre Hardware Monitor is running but its web server asks for a password. Switch off '
+                 'Options > Remote Web Server > Authentication, then switch Run off and on again.')
+HINT_INTERFACE = ('Libre Hardware Monitor is running but its web server turns Tessera away. Set Options > Remote '
+                  'Web Server > Interface / Port to 0.0.0.0 and port 8085, then switch Run off and on again.')
 
 
 # Sensor names that identify a graphics card on any vendor; integrated ones are demoted below.
@@ -41,8 +45,8 @@ def _norm(value: str) -> str:
 def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
     """Pick stable desktop metrics from HWiNFO's hardware-specific labels."""
     specs = {
-        'cpu_temp': (('core (tctl/tdie)', 'cpu (tctl/tdie)', 'cpu die (average)', 'cpu package',
-                      'core temperatures', 'cpu die'), ('cpu', 'ryzen'), ('c',)),
+        'cpu_temp': (('core (tctl/tdie)', 'core (tdie)', 'core (tctl)', 'cpu (tctl/tdie)', 'cpu die (average)',
+                      'cpu package', 'core temperatures', 'cpu die'), ('cpu', 'ryzen'), ('c',)),
         'cpu_power': (('cpu package power', 'cpu ppt', 'package power', 'package'),
                       ('cpu', 'ryzen'), ('w',)),
         'cpu_clock': (('cores (average)', 'core effective clocks', 'core clocks', 'cpu clock'),
@@ -70,6 +74,8 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
                                if label == name or name in label), 0)
             if not label_rank or unit not in units:
                 continue
+            if key in ('cpu_temp', 'cpu_power') and float(item['value']) <= 0:
+                continue  # Libre Hardware Monitor without its PawnIO driver lists these at 0
             sensor_rank = sum(term in sensor for term in sensors)
             if not sensor_rank:
                 continue  # a generic label such as 'Package' must come from the right chip
@@ -195,7 +201,9 @@ class SystemStats:
         elif lhm_readings and 'cpu_temp' not in sensor_values:
             self.hint = HINT_NO_CPU_TEMP
         else:
-            self.hint = '' if readings else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED
+            status = self.lhm.status  # an error reply means it runs but is set up so that Tessera cannot read it
+            self.hint = ('' if readings else HINT_PASSWORD if status == 401 else HINT_INTERFACE if status
+                         else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED)
         return dict(self.display)
 
 

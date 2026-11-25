@@ -30,7 +30,8 @@ def flatten_sensor_tree(node: dict, depth: int = 0, hardware: str = '') -> list[
     readings = []
     sensor_id = str(node.get('SensorId', ''))
     if sensor_id and 'Value' in node:
-        parsed = parse_value(str(node['Value']))
+        # Value follows Options > Temperature Unit; RawValue (in 0.9.6) stays in °C.
+        parsed = parse_value(str(node.get('RawValue', node['Value'])))
         if parsed:
             kind = '/'.join(sensor_id.split('/')[1:3])  # e.g. 'amdcpu/0' or 'gpu-amd/0'
             readings.append({'label': text, 'sensor': f'{hardware} {kind}'.strip(), 'unit': parsed[1],
@@ -50,6 +51,7 @@ class LibreHardwareMonitorReader:
         self.timeout = timeout
         self._retry_at = 0.0
         self._connection = None  # kept open between reads: connecting took as long as the rest of the read
+        self.status = None  # the HTTP status of the last error reply (401: a password is set), for the hint
 
     def _fetch(self) -> bytes:
         parts = urllib.parse.urlsplit(self.url)
@@ -61,6 +63,7 @@ class LibreHardwareMonitorReader:
             reply = connection.getresponse()
             body = reply.read(MAX_SENSOR_BYTES)
             if reply.status != 200:
+                self.status = reply.status
                 raise OSError(f'HTTP {reply.status}')
         except (OSError, http.client.HTTPException):
             connection.close()
@@ -76,6 +79,7 @@ class LibreHardwareMonitorReader:
     def read(self) -> list[dict]:
         if time.monotonic() < self._retry_at:
             return []
+        self.status = None
         try:
             tree = json.loads(self._fetch())
         except (OSError, ValueError, http.client.HTTPException):

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Sensors: Libre Hardware Monitor without PawnIO shows `--` and the driver hint instead of 0, readings come through when it is set to Fahrenheit or reports Tctl and Tdie apart, and a password or another interface on its web server gets a hint that names the setting (#47).
+
 ## 1.2.12
 
 Fixes from a review of the whole program. The panel firmware changes too, so give the panel an *Update* after you update Tessera. A panel on 1.2.11 works with this host until then.
