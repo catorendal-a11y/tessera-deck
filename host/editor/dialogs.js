@@ -613,17 +613,21 @@ const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], 
   ['net_up', 'Upload speed'], ['uptime', 'Uptime'], ['cpu_clock', 'CPU clock'], ['cpu_power', 'CPU power'], ['gpu_power', 'GPU power'], ['gpu_clock', 'GPU clock'], ['gpu_fan', 'GPU fan'], ['fps', 'FPS'],
   ['cpu_core_max', 'Busiest CPU core'], ['cpu_volt', 'CPU voltage'], ['gpu_volt', 'GPU voltage'], ['gpu_hotspot', 'GPU hot spot']];
 /* How many readings the panel shows (statsMax, up to the host's twelve). The host keeps the panel it last saw while it is
- * unplugged or updating; eight for older firmware or when no panel has been seen. */
-function panelStatsMax() {
+ * unplugged, and reports none until a panel has answered (a stopped host reports none either). Eight when unknown. */
+function panelStatsKnown() {
   const most = dashboard.device?.stats_max;
-  return Number.isInteger(most) && most > 0 ? Math.min(most, 12) : 8;
+  return Number.isInteger(most) && most > 0;
+}
+function panelStatsMax() {
+  return panelStatsKnown() ? Math.min(dashboard.device.stats_max, 12) : 8;
 }
 /* Every 1.x editor saved its default eight whenever another panel setting changed, so that list in that order is no
- * choice (cockpit.saved_stats has the same rule). */
-const LEGACY_DEFAULT_STATS = PANEL_STATS.slice(0, 8).map(s => s[0]).join();
+ * choice, and neither is an empty list (cockpit.saved_stats has the same rules). A pick of exactly those eight is saved
+ * in reverse order to stay a pick: the panel shows them in screen order whatever the order of the list. */
+const LEGACY_DEFAULT_STATS = PANEL_STATS.slice(0, 8).map(s => s[0]);
 function savedStats() {
   const stats = config?.panel?.stats;
-  return Array.isArray(stats) && stats.join() !== LEGACY_DEFAULT_STATS ? stats : null;
+  return Array.isArray(stats) && stats.length && stats.join() !== LEGACY_DEFAULT_STATS.join() ? stats : null;
 }
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
@@ -867,12 +871,17 @@ function renderScreen() {
   } else {
     const stats = dashboard.stats || {};
     // The panel shows the first `most` of the list in screen order (cockpit.stats_payload), so only those are ticked.
-    const most = panelStatsMax(), shown = PANEL_STATS.map(s => s[0]).filter(key => choice.stats.includes(key)).slice(0, most);
-    const full = shown.length >= most;
+    // With no panel known, the whole list stays, up to the host's twelve, so an edit drops nothing the user saved.
+    const most = panelStatsKnown() ? panelStatsMax() : 12;
+    const shown = PANEL_STATS.map(s => s[0]).filter(key => choice.stats.includes(key)).slice(0, most), full = shown.length >= most;
+    const pick = (id, on) => {
+      const next = PANEL_STATS.map(s => s[0]).filter(key => key === id ? on : shown.includes(key));
+      return next.join() === LEGACY_DEFAULT_STATS.join() ? next.reverse() : next;
+    };
     const cards = PANEL_STATS.map(([id, name]) => {
-      const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: PANEL_STATS.map(s => s[0]).filter(key => key === id ? event.target.checked : shown.includes(key))})});
+      const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: pick(id, event.target.checked)})});
       box.checked = shown.includes(id);
-      box.disabled = !box.checked && full;
+      box.disabled = box.checked ? shown.length === 1 : full;  // the host shows the defaults for an empty list
       return element('label', {class: 'screen-stat' + (box.checked ? '' : ' off')}, text('small', name), text('strong', stats[id] === undefined ? '--' : String(stats[id])), element('span', {class: 'screen-check'}, box, text('span', 'Show')));
     });
     body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), ...(full ? [text('p', `The panel shows ${most} readings. Untick one to choose another.`, 'hint')] : []), element('div', {class: 'screen-stats'}, ...cards)];

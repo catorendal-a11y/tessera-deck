@@ -309,7 +309,7 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                  'buttons': len(buttons), 'layout_bytes': layout_bytes(buttons), 'error': str(error) if error else None,
                  'foreground': self.foreground.get('exe', ''), 'auto_profile': self.auto_profile,
                  'firmware': self.device_info.get('firmwareVersion'), 'protocol': self.device_info.get('protocol'), 'board': self.device_info.get('boardId'), 'reset': self.device_info.get('reset'),
-                 'stats_max': cockpit.stats_limit(self.device_info),
+                 'stats_max': cockpit.stats_limit(self.device_info) if self.device_info else None,  # None: no panel yet
                  'agents': self.agents, 'agent_states': dict(self.agent_seen), 'mixer': self.cockpit_mixer,
                  'remote_devices': [{'id': item['id'], 'name': item['name']} for item in remote_devices.known()], 'stats': self.stats.display, 'sensor_hint': self.stats.hint, 'vars': self.custom_vars,
                  'notices': list(self.notices), 'variables': self.variables(),

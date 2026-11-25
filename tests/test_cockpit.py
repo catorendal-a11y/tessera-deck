@@ -173,7 +173,8 @@ class RailTests(HostCase):
         daemon.log, daemon.panel = Mock(), Mock()
         with tempfile.TemporaryDirectory() as folder:
             daemon.runtime_path = Path(folder) / 'runtime.json'
-            for info, count in (({'protocol': 4, 'statsMax': 12}, 12), ({'protocol': 4}, 8)):
+            # None until a panel has answered in this run: the editor then keeps the saved readings as they are.
+            for info, count in (({'protocol': 4, 'statsMax': 12}, 12), ({'protocol': 4}, 8), ({}, None)):
                 daemon.device_info = info
                 daemon.publish_runtime(True, force=True)
                 self.assertEqual(json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['stats_max'], count)

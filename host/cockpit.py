@@ -39,7 +39,8 @@ def stats_limit(info: dict) -> int:
 
 
 # Every 1.x editor wrote its default eight into panel.stats when any other panel setting changed, so that list in that
-# order is no choice: it leaves the readings to follow the panel. host/editor/dialogs.js has the same rule.
+# order is no choice: it leaves the readings to follow the panel. host/editor/dialogs.js has the same rule, and saves a
+# pick of exactly those eight in reverse order.
 LEGACY_DEFAULT_STATS = STAT_IDS[:OLD_PANEL_STATS]
 
 
