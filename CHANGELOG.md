@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Four new readings for status cards and key gauges: the busiest CPU core, CPU voltage, GPU voltage and GPU hot spot.
+
 ## 1.2.12
 
 Fixes from a review of the whole program. The panel firmware changes too, so give the panel an *Update* after you update Tessera. A panel on 1.2.11 works with this host until then.

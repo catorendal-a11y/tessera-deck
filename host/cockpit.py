@@ -23,7 +23,9 @@ STATS = (('CPU load', 'cpu_load', '%', 100, 95, GREEN), ('CPU temp', 'cpu_temp',
          ('Upload', 'net_up', '/s', 10 * 1024 * 1024, None, GREY), ('Uptime', 'uptime', '', 7 * 86400, None, GREY),
          ('CPU clock', 'cpu_clock', 'MHz', 6000, None, GREEN), ('CPU power', 'cpu_power', 'W', 250, None, GREEN),
          ('GPU power', 'gpu_power', 'W', 450, None, PURPLE), ('GPU clock', 'gpu_clock', 'MHz', 3000, None, PURPLE),
-         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE))
+         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE),
+         ('Busiest core', 'cpu_core_max', '%', 100, None, GREEN), ('CPU voltage', 'cpu_volt', 'mV', 1500, None, GREEN),
+         ('GPU voltage', 'gpu_volt', 'mV', 1200, None, PURPLE), ('GPU hot spot', 'gpu_hotspot', 'C', 110, 100, PURPLE))
 STAT_IDS = tuple(key for _, key, *_ in STATS)
 DEFAULT_STATS = STAT_IDS[:8]  # what the status screen shows until the user picks readings
 MAX_STATS = 8  # DECK_STATS_MAX in main/deck_model.h

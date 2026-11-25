@@ -58,6 +58,10 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
         'gpu_fan': (('gpu fan', 'fan speed'), GPU_SENSORS, ('rpm',)),
         'vram': (('gpu memory usage', 'gpu memory utilization', 'vram usage'),
                   GPU_SENSORS, ('%',)),
+        'gpu_hotspot': (('gpu hot spot', 'gpu hotspot'), GPU_SENSORS, ('c',)),
+        # The core rail, else a per-core VID ("Core #1 VID" in Libre Hardware Monitor, "Core VIDs" in HWiNFO).
+        'cpu_volt': (('cpu core', 'core (svi2 tfn)', 'vid'), ('cpu', 'ryzen'), ('v',)),
+        'gpu_volt': (('gpu core',), GPU_SENSORS, ('v',)),
     }
     selected = {}
     for key, (labels, sensors, units) in specs.items():
@@ -76,7 +80,7 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
             discrete_bonus = gpu_discrete_bonus(sensor) if key.startswith(('gpu', 'vram')) else 0
             score = label_rank * 10 + sensor_rank + discrete_bonus
             if best is None or score > best[0]:
-                best = (score, float(item['value']))
+                best = (score, float(item['value']) * (1000 if unit == 'v' else 1))  # voltages are shown in mV
         if best is not None:
             selected[key] = best[1]
     return selected
@@ -141,16 +145,18 @@ class SystemStats:
         self.display = {key: '--' for key in (
             'cpu_temp', 'cpu_load', 'cpu_power', 'cpu_clock', 'gpu_temp',
             'gpu_load', 'gpu_power', 'gpu_clock', 'gpu_fan', 'ram', 'vram',
-            'disk', 'net_down', 'net_up', 'uptime', 'fps')}
+            'disk', 'net_down', 'net_up', 'uptime', 'fps', 'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot')}
         self.display['sensor_status'] = 'BASIC'
         self.hint = ''  # why temperatures may be missing and what to do about it
         self._net = psutil.net_io_counters()
         self._net_at = time.monotonic()
         psutil.cpu_percent(None)
+        psutil.cpu_percent(None, percpu=True)  # psutil counts the per-core loads from their own first call
 
     def sample(self) -> dict[str, str]:
         now = time.monotonic()
         cpu = psutil.cpu_percent(None)
+        cores = psutil.cpu_percent(None, percpu=True)
         ram = psutil.virtual_memory().percent
         drive = load('sensors').disk_root()
         try:
@@ -175,10 +181,10 @@ class SystemStats:
             fps = select_radeon_fps(lhm_readings)
         if fps is not None:
             merged['fps'] = fps
-        self.raw = dict(merged, cpu_load=cpu, ram=ram, disk=disk, net_down=down, net_up=up,
-                        uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
+        self.raw = dict(merged, cpu_load=cpu, cpu_core_max=max(cores, default=cpu), ram=ram, disk=disk, net_down=down,
+                        net_up=up, uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
         for key in ('cpu_temp', 'cpu_load', 'cpu_power', 'gpu_temp', 'gpu_load',
-                    'gpu_power', 'ram', 'vram', 'disk', 'fps'):
+                    'gpu_power', 'ram', 'vram', 'disk', 'fps', 'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'):
             value = self.raw.get(key)
             self.display[key] = '--' if value is None else f'{value:.0f}'
         for key in ('cpu_clock', 'gpu_clock'):

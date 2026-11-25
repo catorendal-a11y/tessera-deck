@@ -5,7 +5,7 @@ import sys
 import tempfile
 import types
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import gpu_sources as gpu
@@ -29,7 +29,15 @@ class AmdTests(unittest.TestCase):
 
     def test_the_slots_become_gauge_values(self):
         self.assertEqual(gpu_adl.parse_pmlog(DISCRETE), {'gpu_temp': 47.0, 'gpu_power': 43.0, 'gpu_clock': 0.0,
-                                                     'gpu_fan': 301.0, 'gpu_load': 0.0})
+                                                     'gpu_fan': 301.0, 'gpu_load': 0.0, 'gpu_hotspot': 56.0,
+                                                     'gpu_volt': 0.0})
+
+    def test_the_hot_spot_and_the_core_voltage_have_their_own_readings(self):
+        # ADL_PMLOG_TEMPERATURE_HOTSPOT (27) in degrees and ADL_PMLOG_GFX_VOLTAGE (21) in millivolts
+        values = gpu_adl.parse_pmlog(DISCRETE | {21: 862})
+        self.assertEqual((values['gpu_temp'], values['gpu_hotspot'], values['gpu_volt']), (47.0, 56.0, 862.0))
+        self.assertNotIn('gpu_hotspot', gpu_adl.parse_pmlog({27: 9999}))
+        self.assertNotIn('gpu_volt', gpu_adl.parse_pmlog({8: 50}))
 
     def test_the_hotspot_stands_in_for_a_missing_edge_temperature_and_nonsense_is_ignored(self):
         self.assertEqual(gpu_adl.parse_pmlog({27: 61})['gpu_temp'], 61.0)
@@ -118,6 +126,24 @@ class StatusScreenTests(unittest.TestCase):
         shown = self.stats([reading], {'gpu_temp': 47.0}).sample()
         self.assertEqual(shown['gpu_temp'], '52')
         self.assertEqual(shown['sensor_status'], 'LIVE')
+
+    def test_the_busiest_core_is_the_highest_load_of_any_one_core(self):
+        def loads(interval=None, percpu=False):
+            return [12.0, 97.4, 30.0] if percpu else 46.0
+        with patch('system_stats.psutil.cpu_percent', side_effect=loads) as cpu_percent:
+            stats = self.stats([], {})
+            primed = list(cpu_percent.call_args_list)
+            shown = stats.sample()
+        self.assertIn(call(None, percpu=True), primed, 'primed like the average, or the first sample is wrong')
+        self.assertEqual((shown['cpu_core_max'], shown['cpu_load']), ('97', '46'))
+        self.assertEqual(stats.raw['cpu_core_max'], 97.4)
+
+    def test_voltages_show_as_whole_millivolts_and_a_missing_reading_as_dashes(self):
+        card = 'AMD Radeon RX 9070 gpu-amd/1'
+        readings = [{'sensor': card, 'label': 'GPU Core', 'unit': 'V', 'value': 0.8621},
+                    {'sensor': card, 'label': 'GPU Hot Spot', 'unit': '°C', 'value': 71.6}]
+        shown = self.stats(readings, {}).sample()
+        self.assertEqual((shown['gpu_volt'], shown['gpu_hotspot'], shown['cpu_volt']), ('862', '72', '--'))
 
 
 class SensorHintTests(unittest.TestCase):
