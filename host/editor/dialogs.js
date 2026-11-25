@@ -761,7 +761,8 @@ function panelChoice() {
 }
 function savePanel(change) {
   const label = document.activeElement?.getAttribute?.('aria-label');
-  mutate(() => { config.panel = {...panelChoice(), ...change}; });
+  // The default readings follow the connected panel, so they are saved only once the user picks some.
+  mutate(() => { const {stats, ...rest} = panelChoice(); config.panel = {...rest, ...(config.panel?.stats ? {stats} : {}), ...change}; });
   renderScreen();
   if (typeof label === 'string') document.querySelector(`#screens-view [aria-label="${CSS.escape(label)}"]`)?.focus();  // the screen was redrawn under the control
 }

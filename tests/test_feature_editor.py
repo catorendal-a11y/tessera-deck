@@ -107,6 +107,25 @@ return result;
         self.assertIn('12 readings', found['hint'])
         self.assertEqual(found['locked'], 4)
 
+    def test_another_panel_setting_saves_no_readings_the_user_never_picked(self):
+        found = self.run_editor(r"""
+const result = {}, fresh = panel => ({profiles: {Main: {match: [], pages: {First: []}}}, ...(panel ? {panel} : {})});
+dashboard = {device: {connected: false}}; profile = 'Main'; page = 'First';
+config = fresh();
+savePanel({mic: false});
+result.none = {mic: config.panel.mic, has: 'stats' in config.panel};
+config = fresh({stats: ['ram']});
+savePanel({mic: false});
+result.kept = config.panel.stats;
+config = fresh();
+savePanel({stats: ['cpu_load', 'fps']});
+result.picked = config.panel.stats;
+return result;
+""")
+        self.assertEqual(found['none'], {'mic': False, 'has': False})
+        self.assertEqual(found['kept'], ['ram'])
+        self.assertEqual(found['picked'], ['cpu_load', 'fps'])
+
     def test_a_ready_made_key_that_shows_state_keeps_its_states_only_for_a_new_key(self):
         found = self.run_editor(r"""
 actionCatalog = {packs: [{name: 'Mute mic', label: 'Mic', icon: 'mic', color: '#35D07F', actions: [], bind: 'mic_muted',
