@@ -8,7 +8,8 @@ from __future__ import annotations
 import json
 
 PROTOCOL = 4
-MAX_LINE = 1000
+# The payload after the command word. Twelve of the 20 readings, all full and over their limits, come to 1004.
+MAX_LINE = 1050
 MAX_ID = 39  # DECK_ID_MAX in main/deck_model.h: the panel refuses a longer id
 AGENTS = (('claude', 'Claude Code', 'claude.exe'), ('codex', 'Codex', 'codex.exe'), ('zcode', 'ZCode', 'zcode.exe'))
 AGENT_ACTIONS = ('allow', 'deny', 'stop', 'open')
@@ -23,10 +24,30 @@ STATS = (('CPU load', 'cpu_load', '%', 100, 95, GREEN), ('CPU temp', 'cpu_temp',
          ('Upload', 'net_up', '/s', 10 * 1024 * 1024, None, GREY), ('Uptime', 'uptime', '', 7 * 86400, None, GREY),
          ('CPU clock', 'cpu_clock', 'MHz', 6000, None, GREEN), ('CPU power', 'cpu_power', 'W', 250, None, GREEN),
          ('GPU power', 'gpu_power', 'W', 450, None, PURPLE), ('GPU clock', 'gpu_clock', 'MHz', 3000, None, PURPLE),
-         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE))
+         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE),
+         ('Busiest core', 'cpu_core_max', '%', 100, None, GREEN), ('CPU voltage', 'cpu_volt', 'mV', 1500, None, GREEN),
+         ('GPU voltage', 'gpu_volt', 'mV', 1200, None, PURPLE), ('GPU hot spot', 'gpu_hotspot', 'C', 110, 100, PURPLE))
 STAT_IDS = tuple(key for _, key, *_ in STATS)
-DEFAULT_STATS = STAT_IDS[:8]  # what the status screen shows until the user picks readings
-MAX_STATS = 8  # DECK_STATS_MAX in main/deck_model.h
+MAX_STATS = 12  # DECK_STATS_MAX in main/deck_model.h
+OLD_PANEL_STATS = 8  # firmware that does not send statsMax shows eight
+
+
+def stats_limit(info: dict) -> int:
+    """How many readings the panel's status screen shows (statsMax in its get_info answer)."""
+    value = info.get('statsMax')
+    return min(value, MAX_STATS) if type(value) is int and value > 0 else OLD_PANEL_STATS
+
+
+# Every 1.x editor wrote its default eight into panel.stats when any other panel setting changed, so that list in that
+# order is no choice: it leaves the readings to follow the panel. host/editor/dialogs.js has the same rule, and saves a
+# pick of exactly those eight in reverse order.
+LEGACY_DEFAULT_STATS = STAT_IDS[:OLD_PANEL_STATS]
+
+
+def saved_stats(choice: dict) -> list | None:
+    """The readings the user picked for the status screen, or None for the panel's default."""
+    stats = choice.get('stats')
+    return list(stats) if stats and tuple(stats) != LEGACY_DEFAULT_STATS else None
 
 
 def _line(payload: dict) -> str:
@@ -102,19 +123,26 @@ def agents_payload(variables: dict, running: dict, asking: dict | None = None, s
     return line
 
 
-def stats_payload(display: dict, raw: dict, shown: list | None = None) -> str:
-    """The readings for the status screen (the first eight unless `shown` picks, never more than eight); a missing sensor shows as --."""
+def stats_payload(display: dict, raw: dict, shown: list | None = None, limit: int = OLD_PANEL_STATS) -> str:
+    """The readings for the status screen: the first `limit` unless `shown` picks, never more than `limit`.
+
+    A missing sensor shows as --. 'warn' is only sent when true, since the panel reads a missing one as false. That
+    keeps twelve readings on one line; a line that is still too long loses readings from the end."""
     stats = []
     for label, key, unit, full, warn_from, color in STATS:
-        if key not in (shown or DEFAULT_STATS) or len(stats) == MAX_STATS:
+        if key not in (shown or STAT_IDS[:limit]) or len(stats) == limit:
             continue
         value = raw.get(key)
         known = isinstance(value, (int, float))
         warn = known and warn_from is not None and value >= warn_from
         stats.append({'name': label, 'value': str(display.get(key, '--'))[:7], 'unit': unit,
                       'p': max(0, min(100, round(value / full * 100))) if known else 0,
-                      'color': AMBER if warn else color, 'warn': bool(warn)})
-    return _line({'stats': stats})
+                      'color': AMBER if warn else color, **({'warn': True} if warn else {})})
+    line = _line({'stats': stats})
+    while len(line) > MAX_LINE:  # only reachable with non-ASCII values
+        stats.pop()
+        line = _line({'stats': stats})
+    return line
 
 
 def app_title(process_name: str) -> str:

@@ -583,6 +583,7 @@ static void usb_console_task(void *)
                 cJSON_AddStringToObject(reply,"reset",reset_reason);cJSON_AddNumberToObject(reply,"ota",1);
                 cJSON_AddNumberToObject(reply,"imgAck",1);  /* "AD_IMG_BEGIN <id> <bytes> <crc> ack", see deck_images.cpp */
                 cJSON_AddNumberToObject(reply,"notify",1);  /* shows AD_NOTIFY as a banner; older firmware gets a Windows notification */
+                cJSON_AddNumberToObject(reply,"statsMax",DECK_STATS_MAX);  /* readings on the status screen; a host that finds none sends 8 */
                 cJSON_AddNumberToObject(reply,"layoutSaved",static_cast<double>(s_layout_saved_unix));
                 cJSON_AddNumberToObject(reply,"draws",s_draws.exchange(0));
 #ifndef CONFIG_ESP_CONSOLE_UART

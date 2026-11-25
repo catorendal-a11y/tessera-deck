@@ -14,11 +14,22 @@ LHM_EXE = Path(__file__).resolve().parent / 'sensors' / 'LibreHardwareMonitor' /
 HINT_NOT_RUNNING = ('CPU temperature and power need Libre Hardware Monitor, which is installed but not running. '
                     'Run Tessera.cmd --sensors to start it. On an administrator account it then starts at every '
                     'sign-in; on a standard account, run --sensors again after each sign-in.')
-HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If you already run it, switch on '
-                      'Options > Remote Web Server > Run (port 8085). If not, run powershell -ExecutionPolicy Bypass '
-                      '-File tools\\setup_sensors.ps1 in the Tessera folder, then Tessera.cmd --sensors.')
+# Without a password Libre also takes fan and pump settings from anyone who reaches the port, and it adds no
+# firewall rule. setup_sensors.ps1 and --sensors add the block rule; a copy the user runs alone may have none, so every
+# hint that opens the web server asks for the block first.
+FIREWALL_FIRST = ('First block port 8085 from the network in Windows Firewall: without a password, other PCs could '
+                  'change its fan settings. Then ')
+HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If you already run it: '
+                      + FIREWALL_FIRST + 'switch on Options > Remote Web Server > Run (port 8085). If not, run '
+                      'powershell -ExecutionPolicy Bypass -File tools\\setup_sensors.ps1 in the Tessera folder, '
+                      'then Tessera.cmd --sensors.')
 HINT_NO_CPU_TEMP = ('Libre Hardware Monitor is running but reports no CPU temperature. It asks to install its PawnIO driver; '
                     'if you cancelled that box, close Libre Hardware Monitor, start it again and click OK.')
+HINT_PASSWORD = ('Libre Hardware Monitor is running but its web server asks for a password. ' + FIREWALL_FIRST
+                 + 'switch off Options > Remote Web Server > Authentication and switch Run off and on again.')
+HINT_INTERFACE = ('Libre Hardware Monitor is running but its web server turns Tessera away. ' + FIREWALL_FIRST
+                  + 'set Options > Remote Web Server > Interface / Port to 0.0.0.0 and port 8085 and switch Run off '
+                  'and on again.')
 
 
 # Sensor names that identify a graphics card on any vendor; integrated ones are demoted below.
@@ -34,6 +45,10 @@ def gpu_discrete_bonus(sensor: str) -> int:
     return 4 if any(name in sensor for name in DISCRETE_GPU) else 0
 
 
+# Labels that only match in full, so "VDDCR" leaves out "VDDCR SoC".
+EXACT_LABELS = ('vddcr',)
+
+
 def _norm(value: str) -> str:
     return value.casefold().replace('°', '').strip()
 
@@ -41,8 +56,8 @@ def _norm(value: str) -> str:
 def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
     """Pick stable desktop metrics from HWiNFO's hardware-specific labels."""
     specs = {
-        'cpu_temp': (('core (tctl/tdie)', 'cpu (tctl/tdie)', 'cpu die (average)', 'cpu package',
-                      'core temperatures', 'cpu die'), ('cpu', 'ryzen'), ('c',)),
+        'cpu_temp': (('core (tctl/tdie)', 'core (tdie)', 'core (tctl)', 'cpu (tctl/tdie)', 'cpu die (average)',
+                      'cpu package', 'core temperatures', 'cpu die'), ('cpu', 'ryzen'), ('c',)),
         'cpu_power': (('cpu package power', 'cpu ppt', 'package power', 'package'),
                       ('cpu', 'ryzen'), ('w',)),
         'cpu_clock': (('cores (average)', 'core effective clocks', 'core clocks', 'cpu clock'),
@@ -58,6 +73,11 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
         'gpu_fan': (('gpu fan', 'fan speed'), GPU_SENSORS, ('rpm',)),
         'vram': (('gpu memory usage', 'gpu memory utilization', 'vram usage'),
                   GPU_SENSORS, ('%',)),
+        'gpu_hotspot': (('gpu hot spot', 'gpu hotspot'), GPU_SENSORS, ('c',)),
+        # The core rail, else a per-core VID ("Core #1 VID" in Libre Hardware Monitor, "Core VIDs" in HWiNFO).
+        # Zen 4 desktop has no SVI2 reading in Libre Hardware Monitor, but its SMU table gives "VDDCR".
+        'cpu_volt': (('cpu core', 'core (svi2 tfn)', 'vddcr', 'vid'), ('cpu', 'ryzen'), ('v',)),
+        'gpu_volt': (('gpu core',), GPU_SENSORS, ('v',)),
     }
     selected = {}
     for key, (labels, sensors, units) in specs.items():
@@ -67,16 +87,20 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
             sensor = _norm(str(item.get('sensor', '')))
             unit = _norm(str(item.get('unit', '')))
             label_rank = next((len(labels) - i for i, name in enumerate(labels)
-                               if label == name or name in label), 0)
+                               if label == name or (name in label and name not in EXACT_LABELS)), 0)
             if not label_rank or unit not in units:
                 continue
+            if key in ('cpu_temp', 'cpu_power') and float(item['value']) <= 0:
+                continue  # Libre Hardware Monitor without its PawnIO driver lists these at 0
             sensor_rank = sum(term in sensor for term in sensors)
             if not sensor_rank:
                 continue  # a generic label such as 'Package' must come from the right chip
             discrete_bonus = gpu_discrete_bonus(sensor) if key.startswith(('gpu', 'vram')) else 0
             score = label_rank * 10 + sensor_rank + discrete_bonus
-            if best is None or score > best[0]:
-                best = (score, float(item['value']))
+            value = float(item['value']) * (1000 if unit == 'v' else 1)  # voltages are shown in mV
+            # All cores share one rail, which follows the highest VID, so the highest of equal CPU voltages wins.
+            if best is None or score > best[0] or (key == 'cpu_volt' and score == best[0] and value > best[1]):
+                best = (score, value)
         if best is not None:
             selected[key] = best[1]
     return selected
@@ -141,16 +165,18 @@ class SystemStats:
         self.display = {key: '--' for key in (
             'cpu_temp', 'cpu_load', 'cpu_power', 'cpu_clock', 'gpu_temp',
             'gpu_load', 'gpu_power', 'gpu_clock', 'gpu_fan', 'ram', 'vram',
-            'disk', 'net_down', 'net_up', 'uptime', 'fps')}
+            'disk', 'net_down', 'net_up', 'uptime', 'fps', 'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot')}
         self.display['sensor_status'] = 'BASIC'
         self.hint = ''  # why temperatures may be missing and what to do about it
         self._net = psutil.net_io_counters()
         self._net_at = time.monotonic()
         psutil.cpu_percent(None)
+        psutil.cpu_percent(None, percpu=True)  # psutil counts the per-core loads from their own first call
 
     def sample(self) -> dict[str, str]:
         now = time.monotonic()
         cpu = psutil.cpu_percent(None)
+        cores = psutil.cpu_percent(None, percpu=True)
         ram = psutil.virtual_memory().percent
         drive = load('sensors').disk_root()
         try:
@@ -175,10 +201,10 @@ class SystemStats:
             fps = select_radeon_fps(lhm_readings)
         if fps is not None:
             merged['fps'] = fps
-        self.raw = dict(merged, cpu_load=cpu, ram=ram, disk=disk, net_down=down, net_up=up,
-                        uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
+        self.raw = dict(merged, cpu_load=cpu, cpu_core_max=max(cores, default=cpu), ram=ram, disk=disk, net_down=down,
+                        net_up=up, uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
         for key in ('cpu_temp', 'cpu_load', 'cpu_power', 'gpu_temp', 'gpu_load',
-                    'gpu_power', 'ram', 'vram', 'disk', 'fps'):
+                    'gpu_power', 'ram', 'vram', 'disk', 'fps', 'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'):
             value = self.raw.get(key)
             self.display[key] = '--' if value is None else f'{value:.0f}'
         for key in ('cpu_clock', 'gpu_clock'):
@@ -195,7 +221,9 @@ class SystemStats:
         elif lhm_readings and 'cpu_temp' not in sensor_values:
             self.hint = HINT_NO_CPU_TEMP
         else:
-            self.hint = '' if readings else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED
+            status = self.lhm.status  # an error reply means it runs but is set up so that Tessera cannot read it
+            self.hint = ('' if readings else HINT_PASSWORD if status == 401 else HINT_INTERFACE if status
+                         else HINT_NOT_RUNNING if LHM_EXE.is_file() else HINT_NOT_INSTALLED)
         return dict(self.display)
 
 

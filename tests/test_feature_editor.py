@@ -73,14 +73,147 @@ return {calls: calls.filter(c => c[0] === 'command/keep-backup'), reloaded: call
         self.assertNotIn('kept', found['plain'])
         self.assertTrue(found['kept'].endswith(' · kept'))
 
-    def test_the_status_screen_offers_sixteen_readings_and_shows_eight_by_default(self):
+    def test_the_status_screen_offers_twenty_readings_and_shows_eight_by_default(self):
         found = self.run_editor(r"""
 config = {profiles: {}};
 return {all: PANEL_STATS.map(s => s[0]), shown: panelChoice().stats};
 """)
         self.assertEqual(found['all'], ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down', 'net_up', 'uptime',
-                                        'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps'])
+                                        'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps',
+                                        'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'])
         self.assertEqual(found['shown'], found['all'][:8])
+
+    def test_the_status_screen_offers_as_many_readings_as_the_connected_panel_shows(self):
+        found = self.run_editor(r"""
+config = {profiles: {}};
+const result = {};
+for (const [name, device] of [['twelve', {connected: true, stats_max: 12}], ['old', {connected: true}],
+                              ['gone', {connected: false, stats_max: 12}], ['odd', {connected: true, stats_max: '12'}]]) {
+  dashboard = {device};
+  result[name] = [panelStatsMax(), panelChoice().stats.length];
+}
+const made = [], plain = element;
+element = (tag, attrs = {}, ...children) => { const node = plain(tag, attrs, ...children); made.push([attrs, node]); return node; };
+editorView = 'status';
+dashboard = {device: {connected: true, stats_max: 12}};
+config = {profiles: {}, panel: {stats: PANEL_STATS.slice(0, 12).map(s => s[0])}};
+renderScreen();
+result.hint = made.map(([attrs]) => String(attrs.text || '')).find(line => line.startsWith('The panel shows')) || '';
+result.locked = made.filter(([attrs, node]) => attrs.type === 'checkbox' && node.disabled).length;
+result.unticked = PANEL_STATS.length - 12;
+return result;
+""")
+        self.assertEqual(found['twelve'], [12, 12])
+        self.assertEqual(found['gone'], [12, 12])  # the panel last seen, while it is unplugged or updating
+        for name in ('old', 'odd'):
+            self.assertEqual(found[name], [8, 8], name)
+        self.assertIn('12 readings', found['hint'])
+        self.assertEqual(found['locked'], found['unticked'])
+
+    def test_more_saved_readings_than_the_panel_shows_tick_only_the_ones_it_shows(self):
+        found = self.run_editor(r"""
+const made = [], plain = element;
+element = (tag, attrs = {}, ...children) => { const node = plain(tag, attrs, ...children); made.push([attrs, node]); return node; };
+const boxes = () => made.filter(([attrs]) => attrs.type === 'checkbox');
+const ids = PANEL_STATS.map(s => s[0]), saved = [...ids.slice(4, 12), ...ids.slice(16, 20)];
+editorView = 'status'; profile = 'Main'; page = 'First';
+const result = {};
+for (const [name, device] of [['old', {connected: true, stats_max: 8}], ['stopped', {connected: false, port: 'COM4'}]]) {
+  dashboard = {device};  // firmware without statsMax, as the host reports it; a host that has not seen a panel
+  config = {profiles: {Main: {match: [], pages: {First: []}}}, panel: {stats: saved}};
+  made.length = 0;
+  renderScreen();
+  result[name] = {ticked: ids.filter((id, i) => boxes()[i][1].checked), locked: boxes().filter(([, box]) => box.disabled).length};
+  const [untick] = boxes()[ids.indexOf(saved[0])];
+  made.length = 0;
+  untick.onchange({target: {checked: false}});
+  result[name].after = {saved: config.panel.stats.length, locked: boxes().filter(([, box]) => box.disabled).length};
+}
+return result;
+""")
+        ids = ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down', 'net_up', 'uptime',
+               'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps']
+        new = ['cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot']
+        old = found['old']
+        self.assertEqual(old['ticked'], ids[4:12])  # what the panel shows: the first eight in screen order
+        self.assertEqual(old['locked'], 12)
+        self.assertEqual(old['after'], {'saved': 7, 'locked': 0})
+        stopped = found['stopped']  # nothing is known about the panel, so nothing saved is dropped
+        self.assertEqual(stopped['ticked'], ids[4:12] + new)
+        self.assertEqual(stopped['after']['saved'], 11)
+
+    def test_the_last_reading_cannot_be_unticked(self):
+        # The host shows the default readings for an empty list, so the editor never saves one.
+        found = self.run_editor(r"""
+const made = [], plain = element;
+element = (tag, attrs = {}, ...children) => { const node = plain(tag, attrs, ...children); made.push([attrs, node]); return node; };
+editorView = 'status'; profile = 'Main'; page = 'First';
+dashboard = {device: {connected: true, stats_max: 12}};
+config = {profiles: {Main: {match: [], pages: {First: []}}}, panel: {stats: ['ram']}};
+renderScreen();
+const ram = made.find(([attrs]) => attrs['aria-label'] === 'Show RAM')[1];
+return {checked: ram.checked, disabled: ram.disabled};
+""")
+        self.assertEqual(found, {'checked': True, 'disabled': True})
+
+    def test_the_old_default_eight_can_still_be_picked_on_purpose(self):
+        found = self.run_editor(r"""
+const made = [], plain = element;
+element = (tag, attrs = {}, ...children) => { const node = plain(tag, attrs, ...children); made.push([attrs, node]); return node; };
+editorView = 'status'; profile = 'Main'; page = 'First';
+dashboard = {device: {connected: true, stats_max: 12}};
+config = {profiles: {Main: {match: [], pages: {First: []}}}};
+renderScreen();
+for (const name of ['CPU power', 'CPU clock', 'Uptime', 'Upload speed']) {  // the default twelve down to the old eight
+  const [attrs] = made.filter(([a]) => a['aria-label'] === `Show ${name}`).at(-1);
+  attrs.onchange({target: {checked: false}});  // saves and draws the screen again
+}
+const boxes = made.filter(([attrs]) => attrs.type === 'checkbox').slice(-PANEL_STATS.length);
+return {saved: [...config.panel.stats].sort(), shown: panelChoice().stats.length, ticked: boxes.filter(([, node]) => node.checked).length};
+""")
+        old = ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down']
+        self.assertEqual(found, {'saved': sorted(old), 'shown': 8, 'ticked': 8})
+
+    def test_the_eight_readings_older_versions_saved_by_themselves_count_as_no_choice(self):
+        found = self.run_editor(r"""
+const old = ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down'];
+dashboard = {device: {connected: true, stats_max: 12}}; profile = 'Main'; page = 'First';
+config = {profiles: {Main: {match: [], pages: {First: []}}}, panel: {mic: false, stats: old}};
+const result = {shown: panelChoice().stats.length};
+savePanel({mic: true});
+result.saved = 'stats' in config.panel;
+config.panel.stats = [...old].reverse();
+result.picked = panelChoice().stats.length;
+return result;
+""")
+        self.assertEqual(found, {'shown': 12, 'saved': False, 'picked': 8})
+
+    def test_another_panel_setting_saves_no_readings_the_user_never_picked(self):
+        found = self.run_editor(r"""
+const result = {}, fresh = panel => ({profiles: {Main: {match: [], pages: {First: []}}}, ...(panel ? {panel} : {})});
+dashboard = {device: {connected: false}}; profile = 'Main'; page = 'First';
+config = fresh();
+savePanel({mic: false});
+result.none = {mic: config.panel.mic, has: 'stats' in config.panel};
+config = fresh({stats: ['ram']});
+savePanel({mic: false});
+result.kept = config.panel.stats;
+config = fresh();
+savePanel({stats: ['cpu_load', 'fps']});
+result.picked = config.panel.stats;
+return result;
+""")
+        self.assertEqual(found['none'], {'mic': False, 'has': False})
+        self.assertEqual(found['kept'], ['ram'])
+        self.assertEqual(found['picked'], ['cpu_load', 'fps'])
+
+    def test_the_four_new_readings_can_be_key_gauges(self):
+        found = self.run_editor(r"""
+return Object.fromEntries(['cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'].map(key => [key, gaugeSensors[key] || null]));
+""")
+        self.assertTrue(all(found.values()), found)
+        self.assertEqual((found['cpu_volt'][1]['unit'], found['gpu_volt'][1]['unit']), ('mV', 'mV'))
+        self.assertEqual((found['cpu_core_max'][1]['unit'], found['gpu_hotspot'][1]['unit']), ('%', 'C'))
 
     def test_a_ready_made_key_that_shows_state_keeps_its_states_only_for_a_new_key(self):
         found = self.run_editor(r"""

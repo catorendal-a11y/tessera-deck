@@ -147,7 +147,7 @@ bool deck_model_host_linked(int64_t timeout_ms);
  * vital signs. The host sends each as one JSON line; the UI redraws when the version changes. */
 #define DECK_AGENTS_MAX 3
 #define DECK_FADERS_MAX 5
-#define DECK_STATS_MAX 8
+#define DECK_STATS_MAX 12  /* three rows of four; sent to the host as statsMax in get_info */
 #define DECK_ID_MAX 39
 typedef enum { DECK_AGENT_IDLE = 0, DECK_AGENT_WORKING = 1, DECK_AGENT_WAITING = 2 } deck_agent_state_t;
 typedef struct {

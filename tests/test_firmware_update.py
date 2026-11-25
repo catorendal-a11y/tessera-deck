@@ -530,7 +530,7 @@ class DetectTests(unittest.TestCase):
         self.assertEqual(unnamed['boards'], ['tessera-p4-v3'])
         s3 = fw.detect_chip('COM5', Mock(return_value=(0, 'Chip is ESP32-S3 (QFN56) (revision v0.2)\n')))
         self.assertEqual((s3['chip'], s3['revision']), ('esp32s3', '0.2'))
-        self.assertEqual(s3['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
+        self.assertEqual(s3['boards'], ['tessera-s3-ws7', 'tessera-s3-ws7b', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
 
     def test_a_port_without_an_esp32_or_with_another_chip_is_reported(self):
         with self.assertRaisesRegex(fw.InstallError, 'COM7 has no ESP32.*No serial data received'):
@@ -664,7 +664,7 @@ class EditorDetectTests(unittest.TestCase):
         self.assertEqual(runs, [], 'esptool must not reset the device before the user agrees')
         self.assertEqual((found['port'], found['ask']), ('COM7', 'USB-SERIAL CH340 (COM7)'))
         found, runs = self.look_at_a_lone_silent_port(0x1A86, {'restart': True})
-        self.assertEqual(found['boards'], ['tessera-s3-ws7', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
+        self.assertEqual(found['boards'], ['tessera-s3-ws7', 'tessera-s3-ws7b', 'tessera-s3-8048s070', 'tessera-s3-crowpanel7'])
         self.assertEqual(len(runs), 1)
 
     def test_a_lone_silent_espressif_port_is_asked_for_its_chip_at_once(self):

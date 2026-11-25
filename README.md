@@ -45,6 +45,7 @@ Questions, ideas and photos of your setup go in [Discussions](https://github.com
 | [GUITION JC1060P470C](https://www.aliexpress.com/item/1005010022828767.html) | ESP32-P4, 7-inch, 1024 × 600 | The main board, about $35 to $42. Tested on hardware, with firmware in every release. Newer boards with a v3.x chip take their own package, which a user runs on a v3.2 board ([INSTALL.md](docs/INSTALL.md#flash-the-panel)). |
 | [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Works on a contributor's board, colors and touch included. The firmware is in the releases from 1.2.0. |
 | [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. One tester has the display, touch, keys and PC actions working over native USB. |
+| [Waveshare ESP32-S3-Touch-LCD-7B](docs/S3.md) | ESP32-S3, 7-inch, 1024 × 600 | Experimental. One tester has the display, touch and the USB link working; the backlight is on/off. |
 | [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
 | [Elecrow CrowPanel Advance 7.0 ESP32-S3](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental, hardware V1.3 to V1.5. One tester has the display, touch and brightness working on a V1.5 board. |
 
@@ -214,7 +215,7 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 | [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
 | [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what has not been tried or measured yet |
-| [ESP32-S3 boards](docs/S3.md) | The experimental port to three 800 x 480 S3 boards and what is still untested |
+| [ESP32-S3 boards](docs/S3.md) | The experimental port to four S3 boards (800 x 480, and 1024 x 600 on the Waveshare 7B) and what is still untested |
 | [CrowPanel Advance 7.0](docs/CROWPANEL.md) | The Elecrow CrowPanel Advance 7.0 (ESP32-P4): building, flashing and what is still open |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 

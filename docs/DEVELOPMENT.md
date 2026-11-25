@@ -21,7 +21,7 @@ Plugins and AI tools         --control API------> host
 ```text
 main/            Panel firmware: USB console, button model, LVGL UI, fonts, image decoder
 components/      Board support package for the ESP32-P4 Function EV Board (the GUITION board and the CrowPanel)
-boards/          Build settings for the CrowPanel and the three S3 boards, and the S3 board support
+boards/          Build settings for the CrowPanel and the four S3 boards, and the S3 board support
 host/            The host, for Windows and Linux
   tesserad.py          USB daemon: owns the panel, the job queue and the actions
   daemon_presses.py    Key presses: fast lane, slow lane, double taps
@@ -206,7 +206,7 @@ GitHub Actions runs these on every pull request and every push to main:
 | `ci.yml`, host-lock-linux | A clean venv installed from `host/requirements.lock` on Linux (Python 3.12), then an import of every package the first start checks for, under Xvfb |
 | `ci.yml`, firmware-analysis | `cppcheck` on the firmware sources |
 | `ci.yml`, firmware | Firmware build in the ESP-IDF 6.1 container, packaging, native LVGL tests at 1024 x 600 and 800 x 480, and the image cache benchmark with `--check`, with and without `--old-firmware` |
-| `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the three S3 boards, each with its board file |
+| `ci.yml`, firmware-boards | Firmware build and packaging for the CrowPanel and the four S3 boards, each with its board file |
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 | `audit.yml` | `pip-audit` on the versions in `host/requirements.lock`, once on Windows and once on Linux, because each skips the packages marked for the other system. It runs when `host/requirements*` changes and every Monday |
 

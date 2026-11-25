@@ -87,6 +87,45 @@ class HostRuntimeTests(HostCase):
         self.assertEqual(metrics['gpu_clock'], 313.0)
         self.assertEqual(metrics['gpu_fan'], 301.0)
 
+    @staticmethod
+    def fahrenheit_tree(**values):
+        return {'Text': 'Sensor', 'Children': [{'Text': 'PC', 'Children': [{'Text': 'AMD Ryzen 7 8845HS', 'Children': [
+            {'Text': 'Temperatures', 'Children': [{'Text': 'Core (Tctl/Tdie)', 'SensorId': '/amdcpu/0/temperature/2',
+                                                   'Value': '135,0 °F', 'Children': [], **values}]}]}]}]}
+
+    def test_libre_hardware_monitor_set_to_fahrenheit_still_gives_celsius(self):
+        # Options > Temperature Unit > Fahrenheit changes Value; RawValue stays in °C (Libre 0.9.5 and later).
+        from lhm_reader import flatten_sensor_tree
+        tree = self.fahrenheit_tree(RawValue='57,2 °C')
+        self.assertEqual(select_hwinfo_metrics(flatten_sensor_tree(tree))['cpu_temp'], 57.2)
+
+    def test_an_older_libre_hardware_monitor_set_to_fahrenheit_still_gives_celsius(self):
+        # Libre 0.9.4 and older write only Value, so a °F reading is turned back into °C.
+        from lhm_reader import flatten_sensor_tree
+        self.assertAlmostEqual(select_hwinfo_metrics(flatten_sensor_tree(self.fahrenheit_tree()))['cpu_temp'], 57.2,
+                               places=1)
+
+    def test_zeros_from_libre_hardware_monitor_without_its_driver_are_no_reading(self):
+        # Libre 0.9.6 without PawnIO still lists the CPU sensors, all at 0 (issue 47).
+        cpu = 'AMD Ryzen 7 8845HS amdcpu/0'
+        readings = [{'sensor': cpu, 'label': 'Core (Tctl/Tdie)', 'unit': 'c', 'value': 0.0},
+                    {'sensor': cpu, 'label': 'Package', 'unit': 'w', 'value': 0.0},
+                    {'sensor': cpu, 'label': 'Core #1 (SMU)', 'unit': 'w', 'value': 0.5}]
+        metrics = select_hwinfo_metrics(readings)
+        self.assertNotIn('cpu_temp', metrics)
+        self.assertNotIn('cpu_power', metrics)  # an idle core is not the package
+        idle = [{'sensor': cpu, 'label': 'Package', 'unit': 'w', 'value': 0.5}]
+        self.assertEqual(select_hwinfo_metrics(idle)['cpu_power'], 0.5)
+
+    def test_a_ryzen_with_a_temperature_offset_shows_its_die_temperature(self):
+        # A 1600X, 1700X, 1800X, 2700X or Threadripper 1900X/2900X reports Tctl with an offset above the die.
+        cpu = 'AMD Ryzen 7 2700X amdcpu/0'
+        readings = [{'sensor': cpu, 'label': 'Core (Tctl)', 'unit': 'c', 'value': 70.0},
+                    {'sensor': cpu, 'label': 'Core (Tdie)', 'unit': 'c', 'value': 60.0}]
+        self.assertEqual(select_hwinfo_metrics(readings)['cpu_temp'], 60.0)
+        self.assertEqual(select_hwinfo_metrics(readings[::-1])['cpu_temp'], 60.0)
+        self.assertEqual(select_hwinfo_metrics(readings[:1])['cpu_temp'], 70.0)
+
     def toggle_daemon(self):
         daemon = self.daemon()
         page = daemon.config['profiles']['main']['pages']['main']
@@ -611,13 +650,14 @@ class HostRuntimeTests(HostCase):
             controller.runtime_path.write_text(json.dumps({
                 'pid': 77, 'updated': __import__('time').time(), 'connected': True,
                 'port': 'COM4', 'profile': 'main', 'page': 'apps', 'buttons': 8, 'board': 'tessera-p4-crowpanel7',
-                'last_action': {'id': 2, 'label': 'ChatGPT', 'ok': True, 'at': 10},
+                'last_action': {'id': 2, 'label': 'ChatGPT', 'ok': True, 'at': 10}, 'stats_max': 12,
                 'vars': {'claude': 'working'}, 'stats': {'cpu_temp': '58'}}))
             status = controller.status()
             self.assertTrue(status['device']['connected'])
             self.assertEqual((status['device']['profile'], status['device']['page']), ('main', 'apps'))
             self.assertEqual(status['device']['last_action']['label'], 'ChatGPT')
             self.assertEqual(status['device']['board'], 'tessera-p4-crowpanel7')  # the update check picks its package
+            self.assertEqual(status['device']['stats_max'], 12)  # the editor offers that many readings
             # The editor previews $(var:…) and $(stat:…) labels with these values.
             self.assertEqual((status['vars'], status['stats']), ({'claude': 'working'}, {'cpu_temp': '58'}))
 

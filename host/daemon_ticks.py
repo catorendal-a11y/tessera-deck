@@ -308,7 +308,8 @@ class BackgroundMixin:
         version = tuple(int(part) for part in re.findall(r'\d+', str(self.device_info.get('firmwareVersion') or ''))[:3])
         self.rail_items = cockpit.rail_items(choice, self.config['profiles'], actions=version >= (0, 6, 3))
         lines = {'AD_RAIL': cockpit.rail_payload(self.rail_items),
-                 'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, choice.get('stats') or None)}
+                 'AD_STATS': cockpit.stats_payload(self.stats.display, self.stats.raw, cockpit.saved_stats(choice),
+                                                   cockpit.stats_limit(self.device_info))}
         # Reading the sound sessions takes 15-45 ms: every second on the mixer screen, every 5 s behind it.
         if getattr(self, 'panel_view', None) == 2 or now - getattr(self, 'mixer_at', 0.0) >= 5:
             self.mixer_at = now
