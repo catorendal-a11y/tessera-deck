@@ -34,6 +34,10 @@ def gpu_discrete_bonus(sensor: str) -> int:
     return 4 if any(name in sensor for name in DISCRETE_GPU) else 0
 
 
+# Labels that only match in full, so "VDDCR" leaves out "VDDCR SoC".
+EXACT_LABELS = ('vddcr',)
+
+
 def _norm(value: str) -> str:
     return value.casefold().replace('°', '').strip()
 
@@ -60,7 +64,8 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
                   GPU_SENSORS, ('%',)),
         'gpu_hotspot': (('gpu hot spot', 'gpu hotspot'), GPU_SENSORS, ('c',)),
         # The core rail, else a per-core VID ("Core #1 VID" in Libre Hardware Monitor, "Core VIDs" in HWiNFO).
-        'cpu_volt': (('cpu core', 'core (svi2 tfn)', 'vid'), ('cpu', 'ryzen'), ('v',)),
+        # Zen 4 desktop has no SVI2 reading in Libre Hardware Monitor, but its SMU table gives "VDDCR".
+        'cpu_volt': (('cpu core', 'core (svi2 tfn)', 'vddcr', 'vid'), ('cpu', 'ryzen'), ('v',)),
         'gpu_volt': (('gpu core',), GPU_SENSORS, ('v',)),
     }
     selected = {}
@@ -71,7 +76,7 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
             sensor = _norm(str(item.get('sensor', '')))
             unit = _norm(str(item.get('unit', '')))
             label_rank = next((len(labels) - i for i, name in enumerate(labels)
-                               if label == name or name in label), 0)
+                               if label == name or (name in label and name not in EXACT_LABELS)), 0)
             if not label_rank or unit not in units:
                 continue
             sensor_rank = sum(term in sensor for term in sensors)
@@ -79,8 +84,10 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
                 continue  # a generic label such as 'Package' must come from the right chip
             discrete_bonus = gpu_discrete_bonus(sensor) if key.startswith(('gpu', 'vram')) else 0
             score = label_rank * 10 + sensor_rank + discrete_bonus
-            if best is None or score > best[0]:
-                best = (score, float(item['value']) * (1000 if unit == 'v' else 1))  # voltages are shown in mV
+            value = float(item['value']) * (1000 if unit == 'v' else 1)  # voltages are shown in mV
+            # All cores share one rail, which follows the highest VID, so the highest of equal CPU voltages wins.
+            if best is None or score > best[0] or (key == 'cpu_volt' and score == best[0] and value > best[1]):
+                best = (score, value)
         if best is not None:
             selected[key] = best[1]
     return selected

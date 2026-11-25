@@ -139,6 +139,17 @@ class VoltageAndHotSpotTests(unittest.TestCase):
                 reading('Nuvoton NCT6798D lpc/nct6798d/0', 'Vcore', 1.3, 'V')]
         self.assertNotIn('cpu_volt', select_hwinfo_metrics(none))
 
+    def test_core_vids_give_the_highest_one_since_the_cores_share_one_rail(self):
+        vids = [reading(self.RYZEN, f'Core #{n} VID', volts, 'V') for n, volts in enumerate((0.9, 1.3, 1.1, 1.25), 1)]
+        self.assertAlmostEqual(select_hwinfo_metrics(vids)['cpu_volt'], 1300)
+
+    def test_zen_4_desktop_gives_the_measured_vddcr_but_never_the_soc_rail(self):
+        raphael = 'AMD Ryzen 7 7700X amdcpu/0'  # no Core (SVI2 TFN) on Zen 4 and 5 desktop in Libre Hardware Monitor
+        readings = [reading(raphael, 'VDDCR SoC', 1.3, 'V'), reading(raphael, 'Core #1 VID', 1.4, 'V'),
+                    reading(raphael, 'VDDCR', 1.1, 'V')]
+        self.assertAlmostEqual(select_hwinfo_metrics(readings)['cpu_volt'], 1100)
+        self.assertNotIn('cpu_volt', select_hwinfo_metrics([reading(raphael, 'VDDCR SoC', 1.3, 'V')]))
+
     def test_the_gpu_voltage_is_the_core_rail_of_the_discrete_card(self):
         amd = [reading(self.IGPU, 'GPU Core', 1.0, 'V'), reading(self.RX, 'GPU Memory', 1.35, 'V'),
                reading(self.RX, 'GPU SoC', 0.75, 'V'), reading(self.RX, 'GPU Core', 0.85, 'V')]
