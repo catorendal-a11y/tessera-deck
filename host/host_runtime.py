@@ -13,6 +13,8 @@ PANEL_VIDS = (ESPRESSIF_VID, CH340_VID)
 UART_BAUD = 921600  # firmware UART speed on the CH340 board; USB Serial/JTAG ignores the baud rate
 DEFAULT_BAUD = 115200
 DEFAULT_PORT = load('labels').DEFAULT_PORT  # Linux has no fixed port name: the panel is found by its USB id
+PIN_FILE = 'deck-port.local.json'  # {"port": ...}: the one port to use, set in the editor
+PORT_EXAMPLE = '/dev/ttyUSB0' if IS_LINUX else 'COM7'
 
 
 class SuspendableRLock:
@@ -135,13 +137,59 @@ def _espressif_ports():
     return [port.device for port in list_ports.comports() if port.vid in PANEL_VIDS]
 
 
+def device_name(port):
+    """The name the port list has for `port`: on Linux a pinned port may be a link such as /dev/serial/by-id/..."""
+    return os.path.realpath(port) if IS_LINUX and port.startswith('/') else port
+
+
 def port_baud(port):
     try:
         from serial.tools import list_ports
-        uart = any(item.device == port and item.vid == CH340_VID for item in list_ports.comports())
+        device = device_name(port)
+        uart = any(item.device == device and item.vid == CH340_VID for item in list_ports.comports())
     except Exception:  # no pyserial tools, or a driver that cannot be listed: the USB default works for the P4
         uart = False
     return UART_BAUD if uart else DEFAULT_BAUD
+
+
+def port_name(value):
+    """A port as the user wrote it, in the system's spelling (com7 is COM7); None when it cannot be a port's name."""
+    value = value.strip() if isinstance(value, str) else ''
+    if IS_LINUX:
+        return value if value.startswith('/dev/') and len(value) > 5 else None
+    return value.upper() if value[:3].upper() == 'COM' and value[3:].isdigit() else None
+
+
+def pinned_port(folder):
+    """The one port the user told Tessera to use, or None. With it no other port is opened and none is looked for.
+
+    The environment variable TESSERA_PORT wins over the port kept in deck-port.local.json in `folder` (the editor
+    writes that file). The file is read each time, so a change counts at the host's next attempt to connect.
+    """
+    named = os.environ.get('TESSERA_PORT', '').strip()
+    if named:
+        return port_name(named) or named  # the variable is taken as it is: it was the only way before, for any name
+    return stored_pin(folder)
+
+
+def stored_pin(folder):
+    """The port kept in deck-port.local.json, whatever TESSERA_PORT says."""
+    return port_name(_remembered(Path(folder) / PIN_FILE, 'port'))
+
+
+def pin_port(folder, port):
+    """Keep `port` as the only port to use; an empty `port` lets Tessera find the panel by itself again."""
+    path = Path(folder) / PIN_FILE
+    if not port:
+        path.unlink(missing_ok=True)
+        return None
+    name = port_name(port)
+    if not name:
+        raise ValueError(f'{port!r} is not a port name. Write it like {PORT_EXAMPLE}.')
+    temporary = path.with_suffix('.tmp')
+    temporary.write_text(json.dumps({'port': name}), encoding='utf-8')
+    os.replace(temporary, path)
+    return name
 
 
 def candidate_ports(requested, state_path, installed=None, espressif=None):
@@ -149,15 +197,16 @@ def candidate_ports(requested, state_path, installed=None, espressif=None):
 
     Every candidate is verified with a handshake before it is configured, so a second ESP32 is never configured. It is
     still opened to ask, which restarts a UART board on Linux; the host's open_panel asks such a device only a few times.
+    A pinned port (pinned_port) never comes here: its callers use that port alone.
     """
     first = resolve_port(requested, state_path, installed)
     try:
         others = espressif if espressif is not None else _espressif_ports()
     except (ImportError, OSError):
         return [first] if first else []
-    # Without TESSERA_PORT the port name (COM4 on Windows) is a guess: it is tried only when a panel's USB id is on it,
-    # so a modem or Bluetooth port there is never opened and its errors never hide what the real panel said.
-    if first not in others and not os.environ.get('TESSERA_PORT'):
+    # The port name (COM4 on Windows) is a guess: it is tried only when a panel's USB id is on it, so a modem or
+    # Bluetooth port there is never opened and its errors never hide what the real panel said.
+    if first not in others:
         first = None
     return ([first] if first else []) + [device for device in sorted(others) if device != first]
 

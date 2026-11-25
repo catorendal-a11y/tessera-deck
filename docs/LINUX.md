@@ -61,7 +61,11 @@ restarts into the new firmware (a board on the chip's own USB, like the GUITION 
 breaks. The installer then closes it, waits a little over a minute until the new firmware has kept itself, and opens
 the port again to check the version. The dialog stays at 100 % meanwhile.
 
-If you have other USB serial devices, set `TESSERA_PORT=/dev/ttyUSB1`, and the host opens no other port. Without it the
+If you have other USB serial devices, choose the panel's port in the editor in **⚙ Program settings**, and the host
+opens no other port: not to connect and not to install firmware. The list also has each device under its name in
+`/dev/serial/by-id`, which stays the same when the device gets another `ttyUSB` or `ttyACM` number; a udev link of your
+own can be written in the field below it. The environment variable `TESSERA_PORT=/dev/ttyUSB1` does the same and wins
+over the choice in the editor. Without a chosen port the
 host tries the Espressif and CH340 ports it finds and keeps the one that answers like a panel. Opening a port restarts a
 board with a USB-UART bridge, so a device that is not a panel is asked at most three times, and again only after it has
 been unplugged and plugged in.

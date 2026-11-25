@@ -11,7 +11,7 @@ import psutil
 import config_store
 from config_store import write_atomic
 import secrets_store
-from host_runtime import DEFAULT_PORT
+from host_runtime import DEFAULT_PORT, pinned_port
 from platform_support import IS_WINDOWS, load
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -192,7 +192,7 @@ class Controller:
     def status(self):
         processes = self.processes()
         result = {'running': bool(processes), 'connection': 'The host has stopped',
-                  'device': {'connected': False, 'port': os.environ.get('TESSERA_PORT', DEFAULT_PORT)}}
+                  'device': {'connected': False, 'port': pinned_port(ROOT / 'host') or DEFAULT_PORT}}
         if not processes:
             return result
         result['connection'] = 'Waiting for the panel'
@@ -228,7 +228,7 @@ class Controller:
         if self.processes():
             emit('The deck host is already running.')
             return
-        port = os.environ.get('TESSERA_PORT', DEFAULT_PORT)
+        port = pinned_port(ROOT / 'host') or DEFAULT_PORT  # the host reads the pinned port itself; this is only its first guess
         from tesserad import Daemon, shift_logs
         profiles = ROOT / 'host/profiles.json'
         log_path = ROOT / 'host/deck.local.log'

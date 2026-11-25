@@ -468,13 +468,25 @@ function displayChoices(values,current,format) {
   const all=values.includes(current)?values:[...values,current].sort((a,b)=>b-a);
   return all.map(v=>[String(v),v===0&&values===dimAfterChoices?'Never':format(v)]);
 }
-function appSettings() {
+/* The panel's USB port in Program settings: one fixed port, which the host then opens alone, or none, and the host
+   finds the panel. With TESSERA_PORT set the variable decides, and the note under the field says so. */
+function portFields(state) {
+  const choices=[['','Find the panel by itself'],...state.ports.map(p=>[p.port,p.name.includes(p.port)?p.name:`${p.port} · ${p.name}`])];
+  if(state.pinned&&!state.ports.some(p=>p.port===state.pinned))choices.push([state.pinned,state.present?state.pinned:`${state.pinned} · not connected now`]);
+  const note='With a port chosen, Tessera opens only that port and no longer looks for the panel on others. If the panel gets another port name later, choose it here again.';
+  return [{name:'port',label:"The panel's USB port",options:choices,value:state.pinned||'',note:state.variable?`The environment variable TESSERA_PORT is set to ${state.variable}. Tessera uses that port, whatever is chosen here.`:note},
+    {name:'otherPort',label:'Or write the port',placeholder:state.example}];
+}
+async function appSettings() {
+  let ports=null;try{ports=await api('command/usb-ports',{});}catch(error){/* the other settings still open; the port fields are left out */}
   dialog('Program settings',[
   {name:'autostart',label:'Start the USB host automatically when I sign in',type:'checkbox',value:!!dashboard.autostart,note:'The panel is ready without opening the editor window. You can still open Tessera from the desktop to edit.'},
   {name:'notifications',label:hostRules.platform==='linux'?'Show desktop notifications':'Show Windows notifications',type:'checkbox',value:config.notifications!==false,note:'When a panel connects or disconnects, an agent waits for you or a timer ends. The tray menu has the same switch.'},
   {name:'autoProfiles',label:'Switch profile automatically by active program',type:'checkbox',value:config.auto_profiles!==false,note:'Turn off if the panel should stay on the program launcher until you switch profile yourself.'},
-  {name:'calendar',label:'Calendar for the Next meeting widget (iCal address, optional)',value:config.calendar?.url||'',placeholder:'https://calendar.google.com/calendar/ical/…/basic.ics',note:'Paste the secret iCal address of your Google, Outlook or iCloud calendar. Tessera reads it every five minutes and leaves it out when you export your keys.'}
-],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.notifications=values.notifications;const calendar=values.calendar.trim();if(calendar)config.calendar={url:calendar};else delete config.calendar;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);},'Apply');}
+  {name:'calendar',label:'Calendar for the Next meeting widget (iCal address, optional)',value:config.calendar?.url||'',placeholder:'https://calendar.google.com/calendar/ical/…/basic.ics',note:'Paste the secret iCal address of your Google, Outlook or iCloud calendar. Tessera reads it every five minutes and leaves it out when you export your keys.'},
+  ...(ports?portFields(ports):[])
+],values=>{mutate(()=>{config.auto_profiles=values.autoProfiles;config.notifications=values.notifications;const calendar=values.calendar.trim();if(calendar)config.calendar={url:calendar};else delete config.calendar;});if(values.autostart!==!!dashboard.autostart)command('autostart',{enabled:values.autostart}).catch(showError);
+  if(ports){const port=values.otherPort.trim()||values.port;if(port!==(ports.pinned||''))savePinnedPort(port,ports).catch(showError);}},'Apply');}
 /* Rename (name) or delete (null) the current page and fix every action, rail step, shortcut and trigger that points to it. */
 function changePage(name) {
   const pages=config.profiles[profile].pages,old=page,remove=name===null;
@@ -615,6 +627,11 @@ async function dismissFirmwareHint() {
   try{setupState=await api('command/setup-done',{firmware_hint_dismissed:String(dashboard.host_version||'')});}catch(error){showError(error);}
   renderStatusBar();
 }
+/* A choice that the variable overrules is saved only after the user has been told that it changes nothing for now. */
+async function savePinnedPort(port,state) {
+  if(state.variable&&!await askDialog('TESSERA_PORT is set',`The environment variable TESSERA_PORT is set to ${state.variable}, and it wins over the port chosen here. Tessera keeps using ${state.variable} until you remove the variable and start Tessera again. Save ${port||'“Find the panel by itself”'} anyway?`,{ok:'Save anyway'}))return;
+  await command('usb-port-pin',{port});
+}
 /* Why no panel connected, read from the host's own error, so the advice fits the cause. */
 function panelProblem(error) {
   const firmware=['Panel firmware …',()=>openFirmware().catch(showError)],log=['Show the host log',()=>openLog().catch(showError)];
@@ -627,6 +644,10 @@ function panelProblem(error) {
   // The driver lost the device, while opening or after: pulled out mid-handshake, after sleep, a flaky cable. New firmware will not help.
   if(/stopped responding/i.test(error)&&!silent)return ['A USB device stopped responding. Unplug it and plug it in again; the second line names its port.',log,error];
   if(/access is denied|permission|busy|in use/i.test(error)&&!silent)return ["Another program is using the panel's USB port. Close it (for example Arduino IDE, PuTTY or Thonny) and the panel connects by itself.",log,error];
+  // A pinned port is not followed when the system gives the panel another name, so that is the first thing to check.
+  const pinned=/is set to use only (.+)$/.exec(error),port=['Program settings …',()=>appSettings().catch(showError)];
+  // A device that opened but stayed silent may be the panel without firmware, so that stays the first thing offered.
+  if(pinned)return [`Tessera is set to use only ${pinned[1]}, and no panel answered there. `+(silent?'A new panel needs its firmware first; if':'If')+' the panel has another port now, choose it in Program settings.',silent?firmware:port,error,silent?port:log];
   if(/different device/i.test(error))return ['The USB device found is not a Tessera panel. Plug in the panel with its USB Serial/JTAG port.',log,error];
   return ["No panel found. Check the USB cable and use the board's USB Serial/JTAG port; a new panel needs its firmware first.",firmware,error,log];
 }
@@ -813,7 +834,7 @@ async function start() {
   $('#icons-prev').onclick=()=>{if(iconPage>0){iconPage--;renderIconResults();}};
   $('#icons-next').onclick=()=>{iconPage++;renderIconResults();};
   $('#new-page').onclick=$('#new-page-menu').onclick=()=>newPage();$('#delete-page').onclick=deletePage;$('#delete-profile').onclick=deleteProfile;$('#page-options').onclick=pageSettings;$('#profile-options').onclick=profileSettings;
-  $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=appSettings;
+  $('#duplicate-page').onclick=duplicatePage;$('#duplicate-profile').onclick=duplicateProfile;$('#app-settings').onclick=()=>appSettings().catch(showError);
   $('#key-menu').onclick=event=>{const action=event.target.closest('[data-menu]')?.dataset.menu;if(!action)return;hideKeyMenu();if(action==='rename')renameButton();if(action==='move')moveToSlot();if(action==='page')moveToPageDialog();if(action==='duplicate')duplicateButton();if(action==='copy')copyButton();if(action==='pin')togglePin();if(action==='clear')clearButton();if(action==='test')testButton(selected).catch(showError);};
   $('#profile-templates').onclick=openTemplates;
   $('#new-profile').onclick=()=>dialog('New profile',[{name:'name',label:'Profile name',required:true,maxLength:100}],values=>{const name=values.name.trim();if(!name||config.profiles[name])throw new Error('Choose a new profile name.');mutate(()=>{config.profiles[name]={match:[],pages:{Main:[]}};profile=name;page='Main';});renderAll();});

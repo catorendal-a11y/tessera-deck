@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- USB: the panel's port can be fixed in the editor in *Program settings* (`COM7` on Windows, `/dev/ttyUSB0` or a name under `/dev/serial/by-id` on Linux). With a fixed port Tessera opens only that port and looks for the panel on no other, also for a firmware install, which before went on to the other Espressif and CH340 ports even with `TESSERA_PORT` set. `TESSERA_PORT` still works and wins over the choice in the editor. Program settings says when the variable is set, and asks before it saves a port the variable overrules. Not run on a panel.
+
 ## 1.2.12
 
 Fixes from a review of the whole program. The panel firmware changes too, so give the panel an *Update* after you update Tessera. A panel on 1.2.11 works with this host until then.

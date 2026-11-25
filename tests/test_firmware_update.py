@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 import firmware_update as fw
 from tessera_app import Editor
 from panel_serial import DeviceRejected
+import platform_marks  # noqa: E402
 
 SUPPORTED = (1, 2)
 
@@ -263,7 +264,7 @@ class EditorFirmwareTests(unittest.TestCase):
         flag_patch.start()
         self.addCleanup(flag_patch.stop)
 
-    def port_with(self, installed, espressif, answers):
+    def port_with(self, installed, espressif, answers, pinned=None):
         import host_runtime
 
         def identify(port):
@@ -271,7 +272,9 @@ class EditorFirmwareTests(unittest.TestCase):
             if isinstance(answer, Exception):
                 raise answer
             return answer
-        with patch.object(host_runtime, '_installed_ports', return_value=installed),                 patch.object(host_runtime, '_espressif_ports', return_value=espressif),                 patch.object(Editor, 'identify_panel', staticmethod(identify)),                 patch.dict('os.environ', {'TESSERA_PORT': 'COM4'}):
+        with patch.object(host_runtime, '_installed_ports', return_value=installed),                 patch.object(host_runtime, '_espressif_ports', return_value=espressif),                 patch.object(Editor, 'identify_panel', staticmethod(identify)),                 patch.dict('os.environ', pinned or {}):
+            if not pinned:
+                __import__('os').environ.pop('TESSERA_PORT', None)
             return self.editor.firmware_port()
 
     def test_the_install_port_is_the_one_that_answers_not_the_default(self):
@@ -289,6 +292,104 @@ class EditorFirmwareTests(unittest.TestCase):
         with self.assertRaises(fw.InstallError) as caught:
             self.port_with({}, [], {})
         self.assertIn('No USB port', str(caught.exception))
+
+    def test_a_pinned_port_is_the_install_port_and_no_other_port_is_asked(self):
+        import host_runtime
+        installed, asked = {'COM7': 'P4', 'COM9': 'P4B'}, []
+
+        class Answers(dict):  # COM9 would answer as a panel, and COM7 is the lone other candidate
+            def get(self, port):
+                asked.append(port)
+                return {'boardId': 'x'} if port == 'COM9' else None
+        self.assertEqual(self.port_with(installed, ['COM7', 'COM9'], Answers(), {'TESSERA_PORT': 'COM8'}), 'COM8')
+        name = '/dev/ttyACM3' if host_runtime.IS_LINUX else 'COM3'
+        host_runtime.pin_port(self.folder, name)
+        self.assertEqual(self.port_with(installed, ['COM7', 'COM9'], Answers()), name)
+        self.assertEqual(asked, [])
+        self.assertEqual(self.port_with(installed, ['COM7', 'COM9'], Answers(), {'TESSERA_PORT': 'COM8'}), 'COM8',
+                         'the variable wins over the port chosen in the editor')
+        self.assertEqual(asked, [])
+        host_runtime.pin_port(self.folder, '')
+        self.assertEqual(self.port_with(installed, ['COM7', 'COM9'], Answers()), 'COM9')
+
+    @platform_marks.linux_only
+    def test_the_port_list_has_usb_devices_and_the_links_to_them_but_not_the_other_serial_ports(self):
+        import types
+        links = Path(self.temp.name) / 'dev'
+        (links / 'serial/by-id').mkdir(parents=True)
+        (links / 'ttyTesseraDeck').symlink_to('/dev/ttyUSB0')
+        (links / 'serial/by-id/usb-1a86_USB_Serial-if00-port0').symlink_to('/dev/ttyUSB0')
+        (links / 'modem').symlink_to('/dev/ttyS0')  # a link to a port that is not a USB device
+        (links / 'ttyUSB0').write_text('')  # a file, not a link
+        listed = [types.SimpleNamespace(device='/dev/ttyS0', vid=None, description='n/a'),
+                  types.SimpleNamespace(device='/dev/ttyUSB0', vid=0x1A86, description='USB Serial')]
+        real = Path
+
+        def moved(*parts):  # /dev is the folder made above
+            path = real(*parts)
+            return links / path.relative_to('/dev') if path.is_relative_to('/dev') else path
+        with patch('serial.tools.list_ports.comports', return_value=listed), patch('tessera_app.Path', moved):
+            ports = self.editor.usb_ports()['ports']
+        self.assertEqual([item['port'] for item in ports],
+                         ['/dev/ttyUSB0', str(links / 'ttyTesseraDeck'), str(links / 'serial/by-id/usb-1a86_USB_Serial-if00-port0')])
+        self.assertTrue(all(item['panel'] for item in ports))
+
+    def test_a_port_chosen_while_the_variable_is_set_is_saved_and_said_not_to_count(self):
+        import host_runtime
+        name = '/dev/ttyACM3' if host_runtime.IS_LINUX else 'COM3'
+        with patch('serial.tools.list_ports.comports', return_value=[]), patch.dict('os.environ', {'TESSERA_PORT': 'COM8'}):
+            self.assertEqual(self.editor.command('usb-ports', {})['variable'], 'COM8')
+            answer = self.editor.command('usb-port-pin', {'port': name})
+            self.assertEqual(answer['pinned'], name)
+            self.assertIn('keeps using COM8', answer['message'])
+            self.assertIn('TESSERA_PORT', answer['message'])
+            self.assertEqual(host_runtime.pinned_port(self.folder), 'COM8')
+            self.controller.stop.assert_not_called()  # the host uses the variable's port either way
+
+    def test_a_pinned_port_that_does_not_open_is_named_as_the_pinned_one(self):
+        import host_runtime
+        name = '/dev/ttyACM3' if host_runtime.IS_LINUX else 'COM3'
+
+        def gone(port):
+            raise fw.InstallError(f'{port} could not be opened: no such port')
+        with patch.object(Editor, 'identify_panel', staticmethod(gone)), patch.dict('os.environ'):
+            __import__('os').environ.pop('TESSERA_PORT', None)
+            with self.assertRaises(fw.InstallError) as caught:
+                self.editor.identify_for_install(name)
+            self.assertNotIn('set to use only', str(caught.exception))  # a port Tessera found by itself
+            host_runtime.pin_port(self.folder, name)
+            with self.assertRaises(fw.InstallError) as caught:
+                self.editor.identify_for_install(name)
+            self.assertIn(f'could not be opened: no such port. Tessera is set to use only {name}', str(caught.exception))
+            self.assertIn('Program settings', str(caught.exception))
+            with self.assertRaises(fw.InstallError) as caught:
+                self.editor.detect_panel()
+            self.assertIn(f'set to use only {name}', str(caught.exception))
+
+    def test_the_usb_port_dialog_pins_a_port_and_starts_the_host_again(self):
+        import types
+        import host_runtime
+        name = '/dev/ttyACM3' if host_runtime.IS_LINUX else 'COM3'
+        listed = [types.SimpleNamespace(device=name, vid=0x303A, description='USB JTAG/serial debug unit'),
+                  types.SimpleNamespace(device=name[:-1] + '5', vid=0x0403, description='FT232R')]
+        with patch('serial.tools.list_ports.comports', return_value=listed), patch.dict('os.environ'):
+            __import__('os').environ.pop('TESSERA_PORT', None)
+            state = self.editor.command('usb-ports', {})
+            self.assertIsNone(state['pinned'])
+            self.assertEqual([(item['port'], item['panel']) for item in state['ports'] if '/by-id/' not in item['port']],
+                             [(name, True), (name[:-1] + '5', False)])
+            answer = self.editor.command('usb-port-pin', {'port': f' {name} ' if host_runtime.IS_LINUX else name.lower()})
+            self.assertEqual(answer['pinned'], name)
+            self.assertIn(name, answer['message'])
+            self.assertEqual(host_runtime.pinned_port(self.folder), name)
+            self.controller.stop.assert_called_once()  # the running host would keep the port it has
+            self.controller.start.assert_called_once()
+            with self.assertRaises(ValueError) as caught:
+                self.editor.command('usb-port-pin', {'port': 'LPT1'})
+            self.assertIn(host_runtime.PORT_EXAMPLE, str(caught.exception))
+            self.assertEqual(self.editor.command('usb-ports', {})['pinned'], name, 'a refused name changes nothing')
+            self.assertIsNone(self.editor.command('usb-port-pin', {'port': ''})['pinned'])
+            self.assertIsNone(host_runtime.pinned_port(self.folder))
 
     def test_the_host_cannot_be_started_or_stopped_during_an_install(self):
         release = __import__('threading').Event()
