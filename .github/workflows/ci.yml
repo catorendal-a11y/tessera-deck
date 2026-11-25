@@ -157,6 +157,7 @@ jobs:
       matrix:  # the boards with a board file; the GUITION P4 build is the firmware job above
         include:
           - {board: tessera-s3-ws7, target: esp32s3, defaults: boards/tessera-s3-ws7.defaults}
+          - {board: tessera-s3-ws7b, target: esp32s3, defaults: boards/tessera-s3-ws7b.defaults}
           - {board: tessera-s3-8048s070, target: esp32s3, defaults: boards/tessera-s3-8048s070.defaults}
           - {board: tessera-s3-crowpanel7, target: esp32s3, defaults: boards/tessera-s3-crowpanel7.defaults}
           - {board: tessera-p4-crowpanel7, target: esp32p4, defaults: boards/crowpanel-p4-7.defaults}

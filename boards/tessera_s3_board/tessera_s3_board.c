@@ -1,5 +1,6 @@
-/* Display, touch and backlight for the 800 x 480 ESP32-S3 boards: a 16-bit RGB565 panel, a GT911 on I2C, and a
- * backlight that is a CH422G expander pin (Waveshare), an LEDC pin (Sunton) or a command to a helper MCU (CrowPanel). */
+/* Display, touch and backlight for the ESP32-S3 boards (800 x 480, 1024 x 600 on the Waveshare -7B): a 16-bit RGB565
+ * panel, a GT911 on I2C, and a backlight that is an expander pin (the CH422G on the Waveshare -7, the IO extension at
+ * 0x24 on the -7B), an LEDC pin (Sunton) or a command to a helper MCU (CrowPanel). */
 #include "bsp/esp-bsp.h"
 #include "driver/gpio.h"
 #include "driver/i2c_master.h"
@@ -77,6 +78,60 @@ static esp_err_t board_io_start(void)
     ESP_RETURN_ON_ERROR(exio_write(EXIO_LCD_RST | EXIO_SD_CS), TAG, "CH422G outputs");
     vTaskDelay(pdMS_TO_TICKS(10));
     ESP_RETURN_ON_ERROR(exio_write(s_exio_out | EXIO_TOUCH_RST), TAG, "CH422G outputs");
+    touch_int_release(TOUCH_INT);
+    return ESP_OK;
+}
+
+esp_err_t bsp_display_brightness_set(int brightness_percent)
+{
+    if (!s_exio) return ESP_ERR_INVALID_STATE;
+    return exio_write(brightness_percent > 0 ? (s_exio_out | EXIO_BACKLIGHT) : (s_exio_out & ~EXIO_BACKLIGHT));
+}
+
+#elif CONFIG_TESSERA_BOARD_S3_WS7B
+/* Waveshare ESP32-S3-Touch-LCD-7B. Its "IO extension" answers at 0x24 only and takes register writes, from Waveshare's
+ * io_extension.c: {0x02, mask} sets the pin directions (1 = output), {0x03, levels} sets the outputs. There is no
+ * 0x38 as on the CH422G of the plain -7 board. EXIO5 (USB_SEL) stays low, high would move GPIO19/20 from the USB
+ * socket to the CAN transceiver. EXIO6 enables the panel supply. */
+#define EXIO_TOUCH_RST (1 << 1)
+#define EXIO_BACKLIGHT (1 << 2)
+#define EXIO_LCD_RST (1 << 3)
+#define EXIO_SD_CS (1 << 4)
+#define EXIO_LCD_VDD (1 << 6)
+#define EXIO_REG_MODE 0x02
+#define EXIO_REG_OUT 0x03
+#define EXIO_REG_PWM 0x05
+#define TOUCH_INT GPIO_NUM_4
+static i2c_master_dev_handle_t s_exio;
+static uint8_t s_exio_out;
+
+static esp_err_t exio_write(uint8_t out)
+{
+    s_exio_out = out;
+    const uint8_t data[2] = {EXIO_REG_OUT, out};
+    return i2c_master_transmit(s_exio, data, sizeof data, 100);
+}
+
+static esp_err_t board_io_start(void)
+{
+    ESP_RETURN_ON_ERROR(i2c_start(GPIO_NUM_8, GPIO_NUM_9), TAG, "I2C");
+    const i2c_device_config_t dev = {.dev_addr_length = I2C_ADDR_BIT_LEN_7, .device_address = 0x24, .scl_speed_hz = 100000};
+    ESP_RETURN_ON_ERROR(i2c_master_bus_add_device(s_i2c, &dev, &s_exio), TAG, "IO extension");
+    /* Levels first, then the directions, so USB_SEL never goes high on the way. Backlight off until main sets
+     * the brightness, as on the P4; panel supply on, panel and touch in reset. */
+    touch_int_low(TOUCH_INT);
+    ESP_RETURN_ON_ERROR(exio_write(EXIO_LCD_VDD | EXIO_SD_CS), TAG, "IO extension outputs");
+    const uint8_t mode[2] = {EXIO_REG_MODE, 0xFF};
+    ESP_RETURN_ON_ERROR(i2c_master_transmit(s_exio, mode, sizeof mode, 100), TAG, "IO extension mode");
+    ESP_RETURN_ON_ERROR(exio_write(s_exio_out), TAG, "IO extension outputs");
+    /* Register 0x05 dims the backlight, inverted (0 is full, Waveshare's examples stop at 247). This build never dims,
+     * but the extension does not reset with the ESP32, so a value left by other firmware would keep the screen dim. */
+    const uint8_t pwm[2] = {EXIO_REG_PWM, 0};
+    ESP_RETURN_ON_ERROR(i2c_master_transmit(s_exio, pwm, sizeof pwm, 100), TAG, "IO extension backlight PWM");
+    vTaskDelay(pdMS_TO_TICKS(20));
+    ESP_RETURN_ON_ERROR(exio_write(s_exio_out | EXIO_LCD_RST), TAG, "IO extension outputs");
+    vTaskDelay(pdMS_TO_TICKS(10));
+    ESP_RETURN_ON_ERROR(exio_write(s_exio_out | EXIO_TOUCH_RST), TAG, "IO extension outputs");
     touch_int_release(TOUCH_INT);
     return ESP_OK;
 }
@@ -200,6 +255,24 @@ static esp_lcd_panel_handle_t panel_start(void)
     cfg.timings.vsync_pulse_width = 4;
     cfg.timings.vsync_back_porch = 8;
     cfg.timings.vsync_front_porch = 8;
+    cfg.timings.flags.pclk_active_neg = 1;
+#elif CONFIG_TESSERA_BOARD_S3_WS7B
+    /* Pins and porches from Waveshare's ESP32-S3-Touch-LCD-7B 06_LCD example (data0..15 are B3-7, G2-7, R3-7). The
+     * example clocks the 1024 x 600 panel at 30 MHz (33 Hz). 21 MHz (23 Hz) reads PSRAM about as fast as the -7 at
+     * 16 MHz, the clock that made the -7 picture jump; on a real 7B it stayed still through a firmware update and a
+     * page of key images uploading. If it jumps on another board, 16 MHz is the next step down. */
+    static const gpio_num_t data[16] = {14, 38, 18, 17, 10, 39, 0, 45, 48, 47, 21, 1, 2, 42, 41, 40};
+    cfg.hsync_gpio_num = GPIO_NUM_46;
+    cfg.vsync_gpio_num = GPIO_NUM_3;
+    cfg.de_gpio_num = GPIO_NUM_5;
+    cfg.pclk_gpio_num = GPIO_NUM_7;
+    cfg.timings.pclk_hz = 21 * 1000 * 1000;
+    cfg.timings.hsync_pulse_width = 162;
+    cfg.timings.hsync_back_porch = 152;
+    cfg.timings.hsync_front_porch = 48;
+    cfg.timings.vsync_pulse_width = 45;
+    cfg.timings.vsync_back_porch = 13;
+    cfg.timings.vsync_front_porch = 3;
     cfg.timings.flags.pclk_active_neg = 1;
 #elif CONFIG_TESSERA_BOARD_S3_CROWPANEL7
     /* Pins, porches and clock edge from Elecrow's factory code; data0..15 are B0-4, G0-5, R0-4. Elecrow's IDF example

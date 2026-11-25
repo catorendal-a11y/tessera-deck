@@ -1,8 +1,14 @@
 #pragma once
 #include "esp_err.h"
+#include "sdkconfig.h"
 
+#if CONFIG_TESSERA_BOARD_S3_WS7B
+#define BSP_LCD_H_RES 1024
+#define BSP_LCD_V_RES 600
+#else
 #define BSP_LCD_H_RES 800
 #define BSP_LCD_V_RES 480
+#endif
 
 #ifdef __cplusplus
 extern "C" {
