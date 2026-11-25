@@ -1,7 +1,10 @@
 """The cockpit screens of a protocol 4 panel: what the host sends and what a touch on them does."""
+import itertools
 import json
 from pathlib import Path
+import re
 import sys
+import tempfile
 import unittest
 import unittest.mock
 from unittest.mock import Mock, patch
@@ -9,6 +12,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import cockpit
 import tesserad as deck
+import host_support
 from host_support import HostCase
 
 
@@ -41,9 +45,39 @@ class PayloadTests(unittest.TestCase):
         stats = json.loads(cockpit.stats_payload({'disk': '93', 'cpu_load': '4'}, {'disk': 93.0, 'cpu_load': 4.2}))['stats']
         by_name = {stat['name']: stat for stat in stats}
         self.assertTrue(by_name['Disk']['warn'])
-        self.assertEqual((by_name['Disk']['p'], by_name['CPU load']['p'], by_name['CPU load']['warn']), (93, 4, False))
+        self.assertEqual((by_name['Disk']['p'], by_name['CPU load']['p']), (93, 4))
+        self.assertNotIn('warn', by_name['CPU load'])  # the panel reads a missing warn as false
         self.assertEqual((by_name['GPU temp']['value'], by_name['GPU temp']['p']), ('--', 0))
         self.assertEqual(len(stats), 8)
+
+    def test_twelve_readings_fit_one_line_whichever_twelve_are_chosen(self):
+        display = {key: '1234567' for key in cockpit.STAT_IDS}  # seven characters, the longest value the panel gets
+        raw = {key: 10.0 ** 12 for key in cockpit.STAT_IDS}  # every bar full, every reading with a limit over it
+        for chosen in itertools.combinations(cockpit.STAT_IDS, 12):
+            line = cockpit.stats_payload(display, raw, list(chosen), limit=12)
+            self.assertLessEqual(len(line), cockpit.MAX_LINE, chosen)
+            self.assertEqual(len(json.loads(line)['stats']), 12, chosen)
+
+    def test_a_line_that_would_be_too_long_loses_readings_from_the_end(self):
+        display = {key: 'æøåæøåæ' for key in cockpit.STAT_IDS}  # each letter is sent as six characters
+        line = cockpit.stats_payload(display, {}, list(cockpit.STAT_IDS), limit=12)
+        self.assertLessEqual(len(line), cockpit.MAX_LINE)
+        names = [stat['name'] for stat in json.loads(line)['stats']]
+        self.assertTrue(0 < len(names) < 12)
+        self.assertEqual(names, [label for label, *_ in cockpit.STATS][:len(names)])
+
+    def test_the_panel_says_how_many_readings_it_shows_and_an_older_one_shows_eight(self):
+        self.assertEqual(cockpit.stats_limit({'statsMax': 12}), 12)
+        self.assertEqual(cockpit.stats_limit({'statsMax': 10}), 10)
+        for info in ({}, {'statsMax': 0}, {'statsMax': True}, {'statsMax': '12'}, {'statsMax': None}):
+            self.assertEqual(cockpit.stats_limit(info), 8, info)
+        self.assertEqual(cockpit.stats_limit({'statsMax': 40}), cockpit.MAX_STATS)  # the host knows no more than that
+
+    def test_the_limit_matches_the_firmware(self):
+        root = Path(__file__).resolve().parents[1]
+        header = (root / 'main/deck_model.h').read_text(encoding='utf-8')
+        self.assertEqual(re.search(r'#define DECK_STATS_MAX (\d+)', header).group(1), str(cockpit.MAX_STATS))
+        self.assertIn('"statsMax",DECK_STATS_MAX', (root / 'main/main.cpp').read_text(encoding='utf-8'))
 
     def test_a_program_name_becomes_a_short_title(self):
         self.assertEqual(cockpit.app_title('spotify.exe'), 'Spotify')
@@ -110,6 +144,25 @@ class RailTests(HostCase):
         for bad in ({'type': 'actions', 'actions': []}, {'type': 'actions', 'actions': steps, 'label': 'x' * 41}, {'type': 'other', 'profile': 'a', 'page': 'b'}):
             with self.assertRaises(ValueError, msg=bad):
                 deck.validate_config(dict(daemon.config, panel={'shortcuts': [bad]}))
+
+    def test_the_status_screen_gets_as_many_readings_as_the_panel_shows(self):
+        daemon = self.daemon()
+        for info, count in (({'protocol': 4, 'firmwareVersion': '1.3.0', 'statsMax': 12}, 12),
+                            ({'protocol': 4, 'firmwareVersion': '1.2.12'}, 8)):
+            daemon.device_info, daemon.cockpit_at = info, 0.0
+            daemon.cockpit_tick(100.0)
+            sent = [call.args[0] for call in daemon.panel.send_line.call_args_list if call.args[0].startswith('AD_STATS ')][-1]
+            self.assertEqual(len(json.loads(sent[len('AD_STATS '):])['stats']), count, info)
+
+    def test_the_editor_learns_how_many_readings_the_panel_shows(self):
+        daemon = host_support.test_daemon()
+        daemon.log, daemon.panel = Mock(), Mock()
+        with tempfile.TemporaryDirectory() as folder:
+            daemon.runtime_path = Path(folder) / 'runtime.json'
+            for info, count in (({'protocol': 4, 'statsMax': 12}, 12), ({'protocol': 4}, 8)):
+                daemon.device_info = info
+                daemon.publish_runtime(True, force=True)
+                self.assertEqual(json.loads(daemon.runtime_path.read_text(encoding='utf-8'))['stats_max'], count)
 
     def test_a_shortcut_on_the_panel_goes_to_that_page_and_nonsense_does_nothing(self):
         daemon = self.daemon()

@@ -611,7 +611,11 @@ $('#iconify-query').addEventListener('keydown', event => { if (event.key === 'En
 const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', 'ZCode']];
 const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed'],
   ['net_up', 'Upload speed'], ['uptime', 'Uptime'], ['cpu_clock', 'CPU clock'], ['cpu_power', 'CPU power'], ['gpu_power', 'GPU power'], ['gpu_clock', 'GPU clock'], ['gpu_fan', 'GPU fan'], ['fps', 'FPS']];
-const PANEL_STATS_MAX = 8;  // the panel shows eight, and the host refuses more
+/* How many readings the connected panel shows (statsMax, up to the host's twelve); eight for older firmware or no panel. */
+function panelStatsMax() {
+  const most = dashboard.device?.connected && dashboard.device.stats_max;
+  return Number.isInteger(most) && most > 0 ? Math.min(most, 12) : 8;
+}
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
 async function claudeSettings() {
@@ -753,7 +757,7 @@ const RAIL = [
 ];
 let editorView = 'keys', hooksState = null;
 function panelChoice() {
-  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.slice(0, PANEL_STATS_MAX).map(s => s[0]), ...(config?.panel || {})};
+  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.slice(0, panelStatsMax()).map(s => s[0]), ...(config?.panel || {})};
 }
 function savePanel(change) {
   const label = document.activeElement?.getAttribute?.('aria-label');
@@ -851,14 +855,14 @@ function renderScreen() {
       element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Remote devices'), text('small', 'The volume of a device paired with KDE Connect, such as a phone, as a fader. It takes a place of the programs: the panel shows five faders.')), remoteSelect) ];
   } else {
     const stats = dashboard.stats || {};
-    const full = choice.stats.length >= PANEL_STATS_MAX;
+    const most = panelStatsMax(), full = choice.stats.length >= most;
     const cards = PANEL_STATS.map(([id, name]) => {
       const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: PANEL_STATS.map(s => s[0]).filter(key => key === id ? event.target.checked : choice.stats.includes(key))})});
       box.checked = choice.stats.includes(id);
       box.disabled = !box.checked && full;
       return element('label', {class: 'screen-stat' + (box.checked ? '' : ' off')}, text('small', name), text('strong', stats[id] === undefined ? '--' : String(stats[id])), element('span', {class: 'screen-check'}, box, text('span', 'Show')));
     });
-    body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), ...(full ? [text('p', `The panel shows ${PANEL_STATS_MAX} readings. Untick one to choose another.`, 'hint')] : []), element('div', {class: 'screen-stats'}, ...cards)];
+    body = [...head('Status', 'The readings on the panel’s status screen. Untick what you do not need.'), ...(full ? [text('p', `The panel shows ${most} readings. Untick one to choose another.`, 'hint')] : []), element('div', {class: 'screen-stats'}, ...cards)];
   }
   area.replaceChildren(element('div', {class: 'screens-inner'}, ...body));
 }

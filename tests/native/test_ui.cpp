@@ -447,6 +447,20 @@ static void test_status_screen(){
     assert((font_of("4800")==big)==(scale>=.9f)&&(font_of("2450")==big)==(scale>=.9f));
     /* The same card with a short value again gets the big font back. */
     longest.replace(longest.find("123.4M"),6,"9");assert(deck_model_stats_from_json(longest.c_str()));updates();assert(font_of("9")==big);
+    /* Twelve readings make three rows of four, and every card is whole on the screen. A thirteenth is refused. */
+    const std::string twelve=R"({"stats":[{"name":"CPU load","value":"12","unit":"%","p":12},{"name":"CPU temp","value":"61","unit":"C","p":61},
+ {"name":"RAM","value":"48","unit":"%","p":48,"color":"#64B5F6"},{"name":"Disk","value":"71","unit":"%","p":71,"color":"#64B5F6"},
+ {"name":"GPU load","value":"97","unit":"%","p":97,"color":"#B388FF"},{"name":"GPU temp","value":"88","unit":"C","p":88,"color":"#FFB74D","warn":true},
+ {"name":"VRAM","value":"64","unit":"%","p":64,"color":"#B388FF"},{"name":"Download","value":"2.4M","unit":"/s","p":24,"color":"#A3B2BC"},
+ {"name":"Upload","value":"310K","unit":"/s","p":3,"color":"#A3B2BC"},{"name":"Uptime","value":"3d 4h","p":44,"color":"#A3B2BC"},
+ {"name":"CPU clock","value":"4800","unit":"MHz","p":80},{"name":"CPU power","value":"54","unit":"W","p":21})";
+    assert(deck_model_stats_from_json((twelve+"]}").c_str()));
+    ui_show_view(3);keep_host(1000);capture("status_12.ppm");
+    for(const char* name:{"CPU load","Disk","GPU load","VRAM","Upload","CPU power"}){
+        auto* card=lv_obj_get_parent(find(lv_screen_active(),name));assert(card&&shown(card));
+        lv_area_t at;lv_obj_get_coords(card,&at);
+        if(at.y2>=height||at.x2>=width){fprintf(stderr,"%s: card ends at %d,%d on a %dx%d screen\n",name,(int)at.x2,(int)at.y2,width,height);assert(false);}}
+    assert(!deck_model_stats_from_json((twelve+R"(,{"name":"FPS","value":"60"}]})").c_str()));
     assert(deck_model_stats_from_json(R"({"stats":[{"name":"CPU load","value":"9","unit":"%","p":9}]})"));updates();assert(visible("9")&&visible("All good"));
     ui_show_view(0);updates();assert(visible("New tab 2"));
 }

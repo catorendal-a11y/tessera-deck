@@ -33,7 +33,7 @@ The host and the panel talk over USB Serial/JTAG at 115200 baud. On both CrowPan
 | `AD_NOTIFY <info\|ok\|warn\|error> <1-30> <text>` | `AD_NOTIFY OK` or `INVALID` | A short message in a banner over whatever screen is open, for that many seconds. A tap on the banner closes it, a new message replaces it, and one that arrives during the boot screen waits for it to end. The text is shortened to two lines. Sent only to a panel with `"notify":1`; without it the host shows a Windows notification. |
 | `AD_AGENTS {"agents":[…]}` | `AD_AGENTS OK` or `INVALID` | The agents screen, up to 3 lanes (protocol 4). |
 | `AD_MIXER {"faders":[…]}` | `AD_MIXER OK` or `INVALID` | The mixer screen, up to 5 faders (protocol 4). |
-| `AD_STATS {"stats":[…]}` | `AD_STATS OK` or `INVALID` | The status screen, up to 8 readings (protocol 4). |
+| `AD_STATS {"stats":[…]}` | `AD_STATS OK` or `INVALID` | The status screen, up to `statsMax` readings, 8 when the panel does not send it (protocol 4). |
 | `AD_RAIL {"rail":[…]}` | `AD_RAIL OK` or `INVALID` | The rail's buttons, at most 7 (protocol 4). |
 | `AD_VIEW keys`, `agents`, `mixer` or `status` | `AD_VIEW OK` or `INVALID` | Brings one screen forward, for example for a permission question (protocol 4). |
 | `AD_OTA_BEGIN <bytes> <sha256>`, `AD_OTA_DATA <offset> <hex>`, `AD_OTA_END`, `AD_OTA_ABORT` | see [Firmware update](#firmware-update) | Updates the firmware over USB. |
@@ -67,7 +67,7 @@ Each list is a JSON object with one array. Text fields are shortened to fit; ids
 |---|---|
 | `AD_AGENTS` | `id`, `name` (needed), `state` (`idle`, `working` or `waiting`), `text`, `sub`, `q` (`1` when the lane asks a question), `at` (`HH:MM` the agent started working or waiting; older firmware ignores it). |
 | `AD_MIXER` | `id` (the host's audio target: `speaker`, `mic`, `app:NAME` or, for a device paired with KDE Connect, `remote:` and ten characters of the hash of its id), `name`, `level` (0-100), `muted`, `mic`, `color`. |
-| `AD_STATS` | `name`, `value`, `unit`, `p` (0-100), `color`, `warn`. |
+| `AD_STATS` | `name`, `value`, `unit`, `p` (0-100), `color`, `warn`. A missing `p` is 0 and a missing `warn` is false, so the host sends `warn` only when it is true. |
 | `AD_RAIL` | `k` is `keys`, `agents`, `mixer`, `status`, `page` or `act`. A `page` entry also needs `p` (profile) and `g` (page) and may carry `i` (icon). An `act` entry (firmware 0.6.3) carries only `i`. |
 
 A color is a hex string. A wrong color, an unknown `k` or a missing name makes the whole message `INVALID`.
@@ -76,7 +76,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 
 | Message | When | What the host does |
 |---|---|---|
-| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"w":N,"h":N,"imgCache":N,"reset":"…","ota":1,"imgAck":1,"notify":1,"layoutSaved":N,"draws":N,"drawMaxMs":N,"usbGaps":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
+| `{"type":"info","boardId":"tessera-p4","firmwareVersion":"…","protocol":4,"bootId":N,"uptime":N,"heap":N,"psramFree":N,"w":N,"h":N,"imgCache":N,"reset":"…","ota":1,"imgAck":1,"notify":1,"statsMax":12,"layoutSaved":N,"draws":N,"drawMaxMs":N,"usbGaps":N}` | The answer to `get_info` | Accepts a board id from `BOARD_IDS` in `host/panel_serial.py` and a supported protocol. See [Handshake fields](#handshake-fields). |
 | `{"type":"deck_event","id":N,"button":N,"label":"…","hold":true}` | A key was pressed. `hold` is present for a long press. | Runs the key's actions. |
 | `{"type":"wake"}` | A touch woke the dimmed panel. | Resets the idle timer. No key is pressed. |
 | `{"type":"brightness","level":N}` | The brightness slider was released. | Stores the level (1 to 100). |
@@ -102,6 +102,7 @@ A color is a hex string. A wrong color, an unknown `k` or a missing name makes t
 | `imgAck` | `1` when `AD_IMG_BEGIN` takes `ack` and the panel then acknowledges image data. Missing on older firmware: the host sends 160-byte lines and pauses 10 ms after every 4. |
 | `layoutSaved` | Unix time of the saved offline layout, 0 when unknown. Missing on older firmware. |
 | `notify` | `1` when the panel shows `AD_NOTIFY` banners. Missing on older firmware. |
+| `statsMax` | How many readings one `AD_STATS` list may hold (12). The panel refuses a longer list as a whole. Missing on older firmware, which shows 8; the host then sends at most 8. |
 | `draws`, `drawMaxMs` | Screen updates since the previous `get_info`, and how long the slowest took to draw and send to the panel, in ms. Reading them starts a new count. Missing on older firmware. |
 | `usbGaps` | Times since the start that the USB driver wrongly took the PC for unplugged for a moment and the firmware held on to the line it was printing. Only on boards with a USB console, and missing on firmware up to 1.2.10, which lost such a line. |
 

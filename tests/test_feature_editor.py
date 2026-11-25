@@ -82,6 +82,31 @@ return {all: PANEL_STATS.map(s => s[0]), shown: panelChoice().stats};
                                         'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps'])
         self.assertEqual(found['shown'], found['all'][:8])
 
+    def test_the_status_screen_offers_as_many_readings_as_the_connected_panel_shows(self):
+        found = self.run_editor(r"""
+config = {profiles: {}};
+const result = {};
+for (const [name, device] of [['twelve', {connected: true, stats_max: 12}], ['old', {connected: true}],
+                              ['gone', {connected: false, stats_max: 12}], ['odd', {connected: true, stats_max: '12'}]]) {
+  dashboard = {device};
+  result[name] = [panelStatsMax(), panelChoice().stats.length];
+}
+const made = [], plain = element;
+element = (tag, attrs = {}, ...children) => { const node = plain(tag, attrs, ...children); made.push([attrs, node]); return node; };
+editorView = 'status';
+dashboard = {device: {connected: true, stats_max: 12}};
+config = {profiles: {}, panel: {stats: PANEL_STATS.slice(0, 12).map(s => s[0])}};
+renderScreen();
+result.hint = made.map(([attrs]) => String(attrs.text || '')).find(line => line.startsWith('The panel shows')) || '';
+result.locked = made.filter(([attrs, node]) => attrs.type === 'checkbox' && node.disabled).length;
+return result;
+""")
+        self.assertEqual(found['twelve'], [12, 12])
+        for name in ('old', 'gone', 'odd'):
+            self.assertEqual(found[name], [8, 8], name)
+        self.assertIn('12 readings', found['hint'])
+        self.assertEqual(found['locked'], 4)
+
     def test_a_ready_made_key_that_shows_state_keeps_its_states_only_for_a_new_key(self):
         found = self.run_editor(r"""
 actionCatalog = {packs: [{name: 'Mute mic', label: 'Mic', icon: 'mic', color: '#35D07F', actions: [], bind: 'mic_muted',

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The *This PC* screen shows up to 12 readings instead of 8. A panel on older firmware still gets 8.
+
 ## 1.2.12
 
 Fixes from a review of the whole program. The panel firmware changes too, so give the panel an *Update* after you update Tessera. A panel on 1.2.11 works with this host until then.
