@@ -28,11 +28,11 @@
 2. Compare the zip's SHA-256 with its line in `SHA256SUMS`. The two hashes must match (letter case does not matter).
 
    ```powershell
-   Get-FileHash .\tessera-host-v1.2.12.zip -Algorithm SHA256
+   Get-FileHash .\tessera-host-v1.2.13.zip -Algorithm SHA256
    Get-Content .\SHA256SUMS
    ```
 
-3. Optional, with the GitHub CLI: `gh attestation verify tessera-host-v1.2.12.zip --repo catorendal-a11y/tessera-deck` checks that the release workflow built the zip.
+3. Optional, with the GitHub CLI: `gh attestation verify tessera-host-v1.2.13.zip --repo catorendal-a11y/tessera-deck` checks that the release workflow built the zip.
 4. Unpack the zip. It holds the host, the editor and the firmware packages in `firmware/`.
 
 The release also has the same file as `tessera-host.zip`, without the version in its name, so one address always gives the latest: `https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip`. The README's terminal commands use it. `SHA256SUMS` lists both names with the same checksum.
