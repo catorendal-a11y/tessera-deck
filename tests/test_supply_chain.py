@@ -17,8 +17,10 @@ SCRIPTS = ('tools/lhm_release.ps1', 'tools/setup_sensors.ps1', 'tools/enable_sen
 # task for an account without an administrator token never starts it; Start-ScheduledTask models that with STARTS.
 ELEVATED_PART = r'''
 $ErrorActionPreference = 'Stop'
-$global:Started = $false
+$global:Started = [bool]$env:RUNNING
 function Write-Host { param([Parameter(Position = 0)]$Object, $ForegroundColor) "say: $Object" }
+function Invoke-WebRequest { param($Uri, [switch]$UseBasicParsing, $TimeoutSec) if (-not $env:ANSWERS) { throw 'Unable to connect' } }
+$LhmPort = 8085
 function Start-Sleep { param($Seconds) }
 function Install-AdminCopy { }
 function Add-FirewallBlock { }
@@ -49,9 +51,10 @@ def read(path):
     return (ROOT / path).read_text(encoding='utf-8')
 
 
-def run_elevated_part(standard, once=False, starts=True):
+def run_elevated_part(standard, once=False, starts=True, running=False, answers=False):
     env = dict(os.environ, SCRIPT=str(ROOT / 'tools/enable_sensors.ps1'), STANDARD='1' if standard else '',
-               ONCE='1' if once else '', STARTS='1' if starts else '')
+               ONCE='1' if once else '', STARTS='1' if starts else '', RUNNING='1' if running else '',
+               ANSWERS='1' if answers else '')
     result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', ELEVATED_PART],
                             capture_output=True, text=True, timeout=60, env=env)
     return result.stdout + result.stderr
@@ -129,6 +132,19 @@ class SensorScriptTests(unittest.TestCase):
         self.assertRegex(output, r'task for: \S+\\')
         self.assertIn('task started', output)
         self.assertIn('Done. Libre Hardware Monitor starts at every sign-in and is running now.', output)
+
+    @windows_only
+    def test_a_copy_that_already_runs_but_cannot_be_read_says_what_to_switch_on(self):
+        # Often the user's own copy, with its web server off, a password or another interface (issue 47).
+        output = run_elevated_part(standard=False, running=True)
+        self.assertNotIn('task started', output)
+        self.assertIn('Options > Remote Web Server > Run', output)
+        self.assertIn('0.0.0.0', output)
+        self.assertNotIn('The temperatures appear', output)
+        self.assertNotIn('Could not finish', output)
+        answered = run_elevated_part(standard=False, running=True, answers=True)
+        self.assertIn('The temperatures appear on the status screen', answered)
+        self.assertNotIn('Remote Web Server', answered)
 
 
 class WorkflowTests(unittest.TestCase):

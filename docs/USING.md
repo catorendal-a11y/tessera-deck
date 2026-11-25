@@ -313,9 +313,15 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 
 To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. On a standard Windows account it cannot, because Libre Hardware Monitor needs administrator rights: `--sensors` starts it once after the prompt, and you run it again after each sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
 
-The first time it starts, Libre Hardware Monitor asks to install its PawnIO driver. Click OK: without it the CPU temperature and power stay `--` while the tile shows `LIVE`, and the box comes back at every sign-in until it is installed.
+The first time it starts, Libre Hardware Monitor asks to install its PawnIO driver. Click OK: without it Libre Hardware Monitor lists the CPU temperature and power as 0, Tessera shows them as `--` while the tile shows `LIVE`, and the box comes back at every sign-in until it is installed.
 
-If you already run Libre Hardware Monitor yourself, you do not need a second copy: in its window choose **Options → Remote Web Server → Run**. Tessera reads `http://127.0.0.1:8085/data.json`, so leave the port at 8085 and the server without a password. The sensor tile turns to `LIVE` within a few seconds.
+If you already run Libre Hardware Monitor yourself, you do not need a second copy. Tessera reads its web server without a password, and without one Libre Hardware Monitor also takes fan and pump settings from anyone who reaches port 8085. It adds no firewall rule of its own, so first block the port from the network, once, in PowerShell as administrator:
+
+```powershell
+New-NetFirewallRule -Name Tessera-Sensors-Block-Network -DisplayName 'Tessera Sensors: block network access to Libre Hardware Monitor' -Direction Inbound -Action Block -Protocol TCP -LocalPort 8085 -Profile Any
+```
+
+`setup_sensors.ps1` and `Tessera.cmd --sensors` add the same rule. Tessera reads over loopback, which the rule does not touch. Then, in Libre Hardware Monitor's window, choose **Options → Remote Web Server → Run**. Tessera reads `http://127.0.0.1:8085/data.json`, so set **Options → Remote Web Server → Interface / Port** to 0.0.0.0 and port 8085, and leave **Authentication** off. After a change there, switch **Run** off and on again. The temperature unit does not matter: Tessera reads the values in °C. The sensor tile turns to `LIVE` within a few seconds. When Tessera cannot read the sensors, point at the connection status in the editor: it says what to change.
 
 ### Control from scripts and AI tools
 
@@ -356,6 +362,6 @@ Start with **More → Host log …**. It shows what the USB host does: connectio
 |---|---|
 | A page change takes several seconds | The panel's image cache holds about 33 animated icons of 12 frames. With more on the pages you switch between, the host sends them again on a page change, about 0.65 s each. Use still icons for most keys. |
 | The panel stays black but touch works | A touch wakes a dimmed panel. If it stays black, restart the host; it wakes the backlight on connect. |
-| Gauges show `--` | CPU temperature and power need Libre Hardware Monitor: `tools\setup_sensors.ps1`, or **Options → Remote Web Server → Run** in a copy you already run. FPS needs Libre Hardware Monitor with a Radeon card and a game in full screen, or HWiNFO with PresentMon. |
+| Gauges show `--` | CPU temperature and power need Libre Hardware Monitor: `tools\setup_sensors.ps1`, or **Options → Remote Web Server → Run** in a copy you already run. Point at the connection status in the editor to see what is missing. FPS needs Libre Hardware Monitor with a Radeon card and a game in full screen, or HWiNFO with PresentMon. |
 | A key does nothing | Check the key for a yellow dot (unfinished). **Test** the key and read the steps. Then read the host log. |
 | An action list click made a key on the wrong slot | A click uses the selected slot if it is empty, else the first free one. Select the empty slot first, or drag the action to it. |

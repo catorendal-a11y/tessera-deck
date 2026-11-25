@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Sensors: Libre Hardware Monitor without PawnIO shows `--` and the driver hint instead of 0, readings come through when it is set to Fahrenheit or reports Tctl and Tdie apart, and a password or another interface on its web server gets a hint that names the setting (#47).
 - Four new readings for status cards and key gauges: the busiest CPU core, CPU voltage, GPU voltage and GPU hot spot.
 
 ## 1.2.12
