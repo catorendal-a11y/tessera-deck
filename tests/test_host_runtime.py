@@ -650,13 +650,14 @@ class HostRuntimeTests(HostCase):
             controller.runtime_path.write_text(json.dumps({
                 'pid': 77, 'updated': __import__('time').time(), 'connected': True,
                 'port': 'COM4', 'profile': 'main', 'page': 'apps', 'buttons': 8, 'board': 'tessera-p4-crowpanel7',
-                'last_action': {'id': 2, 'label': 'ChatGPT', 'ok': True, 'at': 10},
+                'last_action': {'id': 2, 'label': 'ChatGPT', 'ok': True, 'at': 10}, 'stats_max': 12,
                 'vars': {'claude': 'working'}, 'stats': {'cpu_temp': '58'}}))
             status = controller.status()
             self.assertTrue(status['device']['connected'])
             self.assertEqual((status['device']['profile'], status['device']['page']), ('main', 'apps'))
             self.assertEqual(status['device']['last_action']['label'], 'ChatGPT')
             self.assertEqual(status['device']['board'], 'tessera-p4-crowpanel7')  # the update check picks its package
+            self.assertEqual(status['device']['stats_max'], 12)  # the editor offers that many readings
             # The editor previews $(var:…) and $(stat:…) labels with these values.
             self.assertEqual((status['vars'], status['stats']), ({'claude': 'working'}, {'cpu_temp': '58'}))
 
