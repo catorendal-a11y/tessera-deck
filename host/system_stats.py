@@ -14,20 +14,22 @@ LHM_EXE = Path(__file__).resolve().parent / 'sensors' / 'LibreHardwareMonitor' /
 HINT_NOT_RUNNING = ('CPU temperature and power need Libre Hardware Monitor, which is installed but not running. '
                     'Run Tessera.cmd --sensors to start it. On an administrator account it then starts at every '
                     'sign-in; on a standard account, run --sensors again after each sign-in.')
-HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If you already run it, switch on '
-                      'Options > Remote Web Server > Run (port 8085). If not, run powershell -ExecutionPolicy Bypass '
-                      '-File tools\\setup_sensors.ps1 in the Tessera folder, then Tessera.cmd --sensors.')
+# Without a password Libre also takes fan and pump settings from anyone who reaches the port, and it adds no
+# firewall rule. setup_sensors.ps1 and --sensors add the block rule; a copy the user runs alone may have none, so every
+# hint that opens the web server asks for the block first.
+FIREWALL_FIRST = ('First block port 8085 from the network in Windows Firewall: without a password, other PCs could '
+                  'change its fan settings. Then ')
+HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If you already run it: '
+                      + FIREWALL_FIRST + 'switch on Options > Remote Web Server > Run (port 8085). If not, run '
+                      'powershell -ExecutionPolicy Bypass -File tools\\setup_sensors.ps1 in the Tessera folder, '
+                      'then Tessera.cmd --sensors.')
 HINT_NO_CPU_TEMP = ('Libre Hardware Monitor is running but reports no CPU temperature. It asks to install its PawnIO driver; '
                     'if you cancelled that box, close Libre Hardware Monitor, start it again and click OK.')
-# Without a password Libre also takes fan and pump settings from anyone who reaches the port, and it adds no
-# firewall rule. setup_sensors.ps1 and --sensors add the block rule; a copy the user runs alone may have none.
-FIREWALL_NOTE = (' Keep port 8085 blocked from the network in Windows Firewall: without a password, other PCs '
-                 'could change its fan settings.')
-HINT_PASSWORD = ('Libre Hardware Monitor is running but its web server asks for a password. Switch off '
-                 'Options > Remote Web Server > Authentication, then switch Run off and on again.' + FIREWALL_NOTE)
-HINT_INTERFACE = ('Libre Hardware Monitor is running but its web server turns Tessera away. Set Options > Remote '
-                  'Web Server > Interface / Port to 0.0.0.0 and port 8085, then switch Run off and on again.'
-                  + FIREWALL_NOTE)
+HINT_PASSWORD = ('Libre Hardware Monitor is running but its web server asks for a password. ' + FIREWALL_FIRST
+                 + 'switch off Options > Remote Web Server > Authentication and switch Run off and on again.')
+HINT_INTERFACE = ('Libre Hardware Monitor is running but its web server turns Tessera away. ' + FIREWALL_FIRST
+                  + 'set Options > Remote Web Server > Interface / Port to 0.0.0.0 and port 8085 and switch Run off '
+                  'and on again.')
 
 
 # Sensor names that identify a graphics card on any vendor; integrated ones are demoted below.

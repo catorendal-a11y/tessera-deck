@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import gpu_sources as gpu
 from platform_windows import gpu_adl
-from system_stats import SystemStats
+from system_stats import HINT_NOT_INSTALLED, SystemStats
 
 # What an RX 6950 XT and the integrated graphics of a Ryzen reported on a real machine (slot -> value).
 DISCRETE = {1: 0, 2: 2240, 8: 47, 14: 301, 15: 15, 19: 0, 20: 1, 21: 0, 23: 43, 27: 56, 40: 3, 41: 16}
@@ -179,11 +179,14 @@ class SensorHintTests(unittest.TestCase):
         self.assertIn('8085', hint)
         self.assertNotIn('not running', hint)
 
-    def test_hints_that_open_the_web_server_say_to_keep_the_port_blocked(self):
+    def test_hints_that_open_the_web_server_ask_for_the_firewall_block_first(self):
         # Without Authentication, Libre accepts /Sensor?action=Set from anyone who reaches the port, and it adds no
-        # firewall rule of its own.
-        for status in (401, 400):
-            self.assertIn('Windows Firewall', self.hint(True, [], status=status))
+        # firewall rule of its own. The block has to come before the step that opens the server.
+        for hint, step in ((self.hint(True, [], status=401), 'Authentication'),
+                           (self.hint(True, [], status=400), '0.0.0.0'),
+                           (HINT_NOT_INSTALLED, 'Remote Web Server > Run')):
+            self.assertIn('Windows Firewall', hint)
+            self.assertLess(hint.index('Windows Firewall'), hint.index(step))
 
 
 if __name__ == '__main__':
