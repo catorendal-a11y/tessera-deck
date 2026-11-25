@@ -1111,7 +1111,7 @@ extern "C" void ui_init(void) {
     /* Mixer: no heading, the faders take the whole height */
     mixer_area=clear_box(views[ViewMixer],Pad,Top,ContentW,H-2*Top);
     lv_obj_set_flex_flow(mixer_area,LV_FLEX_FLOW_ROW);lv_obj_set_style_pad_column(mixer_area,FaderGap,0);
-    /* Status: four cards to a row (4 x StatW and 3 gaps fit ContentW), the rest wrap below */
+    /* Status: four cards to a row (4 x StatW and 3 gaps fit ContentW), the rest wrap below. Three rows fit at 1024 x 600 and 800 x 480. */
     head(views[ViewStatus],"This PC",&stats_summary);
     stats_area=clear_box(views[ViewStatus],Pad,Top+HeadH,ContentW,H-Top-HeadH);
     lv_obj_set_flex_flow(stats_area,LV_FLEX_FLOW_ROW_WRAP);lv_obj_set_style_pad_column(stats_area,StatGap,0);lv_obj_set_style_pad_row(stats_area,StatGap,0);

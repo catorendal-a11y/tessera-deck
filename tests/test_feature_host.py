@@ -235,12 +235,19 @@ class ReadingTests(unittest.TestCase):
         self.assertEqual((by_name['FPS']['value'], by_name['FPS']['p']), ('--', 0))
         self.assertEqual(by_name['Uptime']['value'], '--')
 
-    def test_never_more_than_eight_are_sent(self):
+    def test_without_a_choice_a_panel_with_room_for_twelve_gets_the_first_twelve(self):
         display = {key: '1' for key in cockpit.STAT_IDS}
-        stats = json.loads(cockpit.stats_payload(display, {}, list(cockpit.STAT_IDS)))['stats']
-        self.assertEqual(len(stats), 8)
+        names = [stat['name'] for stat in json.loads(cockpit.stats_payload(display, {}, limit=12))['stats']]
+        self.assertEqual(names, [label for label, *_ in cockpit.STATS][:12])
 
-    def test_the_configuration_refuses_more_than_eight_and_accepts_the_new_ones(self):
+    def test_never_more_than_the_panel_shows_are_sent(self):
+        display = {key: '1' for key in cockpit.STAT_IDS}
+        for limit in (8, 12):
+            stats = json.loads(cockpit.stats_payload(display, {}, list(cockpit.STAT_IDS), limit=limit))['stats']
+            self.assertEqual(len(stats), limit)
+        self.assertEqual(len(json.loads(cockpit.stats_payload(display, {}, list(cockpit.STAT_IDS)))['stats']), 8)
+
+    def test_the_configuration_refuses_more_than_twelve_and_accepts_the_new_ones(self):
         def check(stats):
             config = two_profiles()
             config['panel'] = {'stats': stats}
@@ -248,9 +255,10 @@ class ReadingTests(unittest.TestCase):
         check(list(self.NEW))
         check(list(self.MORE))
         check(['fps', 'cpu_load'])
+        check(list(cockpit.STAT_IDS[:12]))
         with self.assertRaises(ValueError) as raised:
             check(list(cockpit.STAT_IDS))
-        self.assertIn('8', str(raised.exception))
+        self.assertIn('12', str(raised.exception))
         with self.assertRaises(ValueError):
             check(['fps', 'nonsense'])
 
