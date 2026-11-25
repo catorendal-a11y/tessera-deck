@@ -315,7 +315,13 @@ To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -
 
 The first time it starts, Libre Hardware Monitor asks to install its PawnIO driver. Click OK: without it Libre Hardware Monitor lists the CPU temperature and power as 0, Tessera shows them as `--` while the tile shows `LIVE`, and the box comes back at every sign-in until it is installed.
 
-If you already run Libre Hardware Monitor yourself, you do not need a second copy: in its window choose **Options → Remote Web Server → Run**. Tessera reads `http://127.0.0.1:8085/data.json`, so set **Options → Remote Web Server → Interface / Port** to 0.0.0.0 and port 8085, and leave **Authentication** off. After a change there, switch **Run** off and on again. The temperature unit does not matter: Tessera reads the values in °C. The sensor tile turns to `LIVE` within a few seconds. When Tessera cannot read the sensors, point at the connection status in the editor: it says what to change.
+If you already run Libre Hardware Monitor yourself, you do not need a second copy: in its window choose **Options → Remote Web Server → Run**. Tessera reads `http://127.0.0.1:8085/data.json`, so set **Options → Remote Web Server → Interface / Port** to 0.0.0.0 and port 8085, and leave **Authentication** off. After a change there, switch **Run** off and on again. Without a password, Libre Hardware Monitor also takes fan and pump settings from anyone who reaches port 8085, and it adds no firewall rule of its own. `setup_sensors.ps1` and `Tessera.cmd --sensors` add a rule that blocks the port from the network. For a copy you run alone, add the same rule once in PowerShell as administrator:
+
+```powershell
+New-NetFirewallRule -Name Tessera-Sensors-Block-Network -DisplayName 'Tessera Sensors: block network access to Libre Hardware Monitor' -Direction Inbound -Action Block -Protocol TCP -LocalPort 8085 -Profile Any
+```
+
+Tessera reads over loopback, which the rule does not touch. The temperature unit does not matter: Tessera reads the values in °C. The sensor tile turns to `LIVE` within a few seconds. When Tessera cannot read the sensors, point at the connection status in the editor: it says what to change.
 
 ### Control from scripts and AI tools
 

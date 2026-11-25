@@ -179,6 +179,12 @@ class SensorHintTests(unittest.TestCase):
         self.assertIn('8085', hint)
         self.assertNotIn('not running', hint)
 
+    def test_hints_that_open_the_web_server_say_to_keep_the_port_blocked(self):
+        # Without Authentication, Libre accepts /Sensor?action=Set from anyone who reaches the port, and it adds no
+        # firewall rule of its own.
+        for status in (401, 400):
+            self.assertIn('Windows Firewall', self.hint(True, [], status=status))
+
 
 if __name__ == '__main__':
     unittest.main()

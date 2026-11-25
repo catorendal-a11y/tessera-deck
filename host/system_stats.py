@@ -19,10 +19,15 @@ HINT_NOT_INSTALLED = ('CPU temperature and power need Libre Hardware Monitor. If
                       '-File tools\\setup_sensors.ps1 in the Tessera folder, then Tessera.cmd --sensors.')
 HINT_NO_CPU_TEMP = ('Libre Hardware Monitor is running but reports no CPU temperature. It asks to install its PawnIO driver; '
                     'if you cancelled that box, close Libre Hardware Monitor, start it again and click OK.')
+# Without a password Libre also takes fan and pump settings from anyone who reaches the port, and it adds no
+# firewall rule. setup_sensors.ps1 and --sensors add the block rule; a copy the user runs alone may have none.
+FIREWALL_NOTE = (' Keep port 8085 blocked from the network in Windows Firewall: without a password, other PCs '
+                 'could change its fan settings.')
 HINT_PASSWORD = ('Libre Hardware Monitor is running but its web server asks for a password. Switch off '
-                 'Options > Remote Web Server > Authentication, then switch Run off and on again.')
+                 'Options > Remote Web Server > Authentication, then switch Run off and on again.' + FIREWALL_NOTE)
 HINT_INTERFACE = ('Libre Hardware Monitor is running but its web server turns Tessera away. Set Options > Remote '
-                  'Web Server > Interface / Port to 0.0.0.0 and port 8085, then switch Run off and on again.')
+                  'Web Server > Interface / Port to 0.0.0.0 and port 8085, then switch Run off and on again.'
+                  + FIREWALL_NOTE)
 
 
 # Sensor names that identify a graphics card on any vendor; integrated ones are demoted below.
