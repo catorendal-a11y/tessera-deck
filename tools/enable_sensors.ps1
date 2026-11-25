@@ -110,6 +110,7 @@ try {
         Register-ScheduledTask -TaskName $TaskName -Action $Action -Trigger $Trigger -Principal $Principal `
             -Settings $Settings -Force | Out-Null
     }
+    $Unread = $false
     if (-not (Get-Process -Name 'LibreHardwareMonitor' -ErrorAction SilentlyContinue)) {
         Write-Host 'If Libre Hardware Monitor asks to install PawnIO, click OK: without it there is no CPU temperature.'
         if ($Once) { Start-Process -FilePath $Exe -WorkingDirectory $InstallDir }
@@ -123,6 +124,11 @@ try {
             throw "Libre Hardware Monitor did not start within 10 seconds. Open $Exe yourself to see what stops it."
         }
     }
+    else {
+        # A copy that already runs, often the user's own: Tessera can read it only through its web server.
+        try { Invoke-WebRequest -Uri "http://127.0.0.1:$LhmPort/data.json" -UseBasicParsing -TimeoutSec 3 | Out-Null }
+        catch { $Unread = $true }
+    }
     if ($StandardAccount) {
         Write-Host 'Done. Libre Hardware Monitor is running now and stops when you sign out.'
         Write-Host 'Windows cannot start it at sign-in without a prompt on a standard account, because it needs administrator rights.'
@@ -130,7 +136,12 @@ try {
     }
     elseif ($Once) { Write-Host 'Done. Libre Hardware Monitor is running. Tessera.cmd --sensors starts it at every sign-in.' }
     else { Write-Host 'Done. Libre Hardware Monitor starts at every sign-in and is running now.' }
-    Write-Host 'The temperatures appear on the status screen within a few seconds.'
+    if ($Unread) {
+        Write-Host "Libre Hardware Monitor was already running, but Tessera cannot read it on port $LhmPort." -ForegroundColor Yellow
+        Write-Host 'In its window, switch on Options > Remote Web Server > Run, set Interface / Port to 0.0.0.0 and'
+        Write-Host "port $LhmPort, and switch off Authentication. Then switch Run off and on again."
+    }
+    else { Write-Host 'The temperatures appear on the status screen within a few seconds.' }
 }
 catch {
     Write-Host "Could not finish: $($_.Exception.Message)" -ForegroundColor Red
