@@ -37,7 +37,8 @@ from substitution import ENV_REFERENCE, check_web_url, expand_environment, subst
 from pc_state import PcState
 import remote_devices
 from system_audio import MediaReader, control_audio, control_media, read_audio
-from host_runtime import (DEFAULT_PORT, InstanceLock, SuspendableRLock, _installed_ports, candidate_ports,
+from host_runtime import (DEFAULT_PORT, InstanceLock, SuspendableRLock, _installed_ports, candidate_ports, device_name,
+                          pinned_port,
                           is_remembered_panel, remember_port, session_locked)
 from system_stats import SystemStats, gauge_state
 
@@ -1079,7 +1080,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
     def open_panel(self):
         """Open the first candidate port that completes the identity and protocol handshake."""
         failures = []
-        pinned = os.environ.get('TESSERA_PORT')  # the user named the panel's port: no other device is opened
+        # the user named the panel's port: no other device is opened, and the panel is not followed to another port
+        pinned = pinned_port(self.device_state_path.parent)
         try:
             installed = _installed_ports()
         except (ImportError, OSError):
@@ -1087,7 +1089,8 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
         else:
             self.forget_unplugged(installed)
         for port in [pinned] if pinned else candidate_ports(self.args.port, self.device_state_path, installed):
-            entry = self.passed_over.get(port)
+            device = device_name(port)  # the port list's name; a pinned port on Linux may be a link to it
+            entry = self.passed_over.get(device)
             if entry and entry[2] >= SILENT_TRIES:
                 failures.append(entry[1])
                 continue
@@ -1098,12 +1101,14 @@ class Daemon(DisplayMixin, BackgroundMixin, PressMixin):
                 # A silent remembered or named panel is always asked again: it may hang and come back without leaving USB.
                 # Firmware this host does not speak stays so until it is flashed. The editor's install restarts the host,
                 # which forgets this; after another flasher the panel is asked again once it is unplugged or the host restarts.
-                if port in installed and (exc.kind in ('board', 'protocol') or exc.kind == 'silent' and port != pinned
-                                          and not is_remembered_panel(port, self.device_state_path, installed)):
+                if device in installed and (exc.kind in ('board', 'protocol') or exc.kind == 'silent' and port != pinned
+                                            and not is_remembered_panel(port, self.device_state_path, installed)):
                     silent = (entry[2] if entry else 0) + 1
-                    self.passed_over[port] = [installed[port], str(exc), silent if exc.kind == 'silent' else SILENT_TRIES]
+                    self.passed_over[device] = [installed[device], str(exc), silent if exc.kind == 'silent' else SILENT_TRIES]
             except OSError as exc:
                 failures.append(port_trouble(port, exc))
+        if pinned:  # the likeliest cause is a panel that now has another port name, which a pinned host does not follow
+            failures.append(f'Tessera is set to use only {pinned}')
         raise OSError('; '.join(failures) or 'No USB port found')
 
     def run(self):

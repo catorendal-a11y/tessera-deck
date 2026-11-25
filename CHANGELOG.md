@@ -6,6 +6,7 @@
 - Sensors: Libre Hardware Monitor without PawnIO shows `--` and the driver hint instead of 0, readings come through when it is set to Fahrenheit or reports Tctl and Tdie apart, and a password or another interface on its web server gets a hint that names the setting (#47).
 - The *This PC* screen shows up to 12 readings instead of 8. A panel on older firmware still gets 8.
 - Four new readings for status cards and key gauges: the busiest CPU core, CPU voltage, GPU voltage and GPU hot spot.
+- USB: the panel's port can be fixed in the editor in *Program settings* (`COM7` on Windows, `/dev/ttyUSB0` or a name under `/dev/serial/by-id` on Linux). With a fixed port Tessera opens only that port and looks for the panel on no other, also for a firmware install, which before went on to the other Espressif and CH340 ports even with `TESSERA_PORT` set. `TESSERA_PORT` still works and wins over the choice in the editor. Program settings says when the variable is set, and asks before it saves a port the variable overrules. Not run on a panel.
 
 ## 1.2.12
 

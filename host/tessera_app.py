@@ -2,7 +2,7 @@
 from default_profile import seed_path
 from process_flags import NEW_CONSOLE, NO_WINDOW
 from desktop import open_path
-from platform_support import IS_WINDOWS, load
+from platform_support import IS_LINUX, IS_WINDOWS, load
 from venv_paths import venv_python
 import argparse
 import contextlib
@@ -38,7 +38,7 @@ import firmware_update
 import iconify
 import plugins
 import updates
-from host_runtime import ESPRESSIF_VID, InstanceLock
+from host_runtime import ESPRESSIF_VID, InstanceLock, device_name
 from action_preview import preview
 from import_review import adapt_to_this_system, export_left_out, redact_secrets, review, strip_executable
 
@@ -398,17 +398,34 @@ class Editor:
                          name='firmware-install', daemon=True).start()
         return {'message': f'Installing firmware {package.version} ...'}
 
-    def firmware_port(self):
-        # The first candidate is only TESSERA_PORT/COM4 when no panel is remembered, so it is not trusted: the port
-        # whose device answers as a panel wins. Without an answer (a blank panel) only a lone Espressif port is used,
-        # so an install on a panel that does not answer never writes to another device or a second ESP32.
+    def ask_panel(self, port):
+        """identify_panel for the port an install uses. A pinned port that does not open is named as the pinned one:
+        the panel is not looked for elsewhere, so a panel that now has another port name is the likeliest cause."""
         import host_runtime
+        try:
+            return self.identify_panel(port)
+        except firmware_update.InstallError as exc:
+            if port != host_runtime.pinned_port(self.path.parent):
+                raise
+            raise firmware_update.InstallError(
+                f'{exc}. Tessera is set to use only {port}. If the panel has another port now, choose it in '
+                'Program settings.') from exc
+
+    def firmware_port(self):
+        # The first candidate is only COM4 when no panel is remembered, so it is not trusted: the port whose device
+        # answers as a panel wins. Without an answer (a blank panel) only a lone Espressif port is used, so an install
+        # on a panel that does not answer never writes to another device or a second ESP32.
+        # A port the user pinned is the only one used, whatever answers there: install() still checks what it is.
+        import host_runtime
+        pinned = host_runtime.pinned_port(self.path.parent)
+        if pinned:
+            return pinned
         try:
             installed = host_runtime._installed_ports()
             espressif = sorted(host_runtime._espressif_ports())
         except (ImportError, OSError):
             installed, espressif = {}, []
-        ports = [port for port in host_runtime.candidate_ports(os.environ.get('TESSERA_PORT', host_runtime.DEFAULT_PORT),
+        ports = [port for port in host_runtime.candidate_ports(host_runtime.DEFAULT_PORT,
                                                                ROOT / 'host/deck-device.local.json', installed, espressif)
                  if port in installed]
         rejected = set()
@@ -427,12 +444,59 @@ class Editor:
         raise firmware_update.InstallError(f'No Tessera panel answered on {", ".join(ports)}. Unplug the other '
                                            'USB serial devices, or connect only the panel, and try again.')
 
+    def usb_ports(self):
+        """What Program settings shows for the USB port: the pinned port and the serial ports that are there. Opens none of them."""
+        import host_runtime
+        try:
+            from serial.tools import list_ports
+            listed = sorted(list_ports.comports(), key=lambda item: item.device)
+        except Exception:  # the same as host_runtime.port_baud: a driver that cannot be listed
+            listed = []
+        listed = [item for item in listed if item.vid is not None]  # USB devices: not the PC's 32 ttyS names, not COM1
+        ports = [{'port': item.device, 'name': item.description or item.device,
+                  'panel': item.vid in host_runtime.PANEL_VIDS} for item in listed]
+        if IS_LINUX:
+            # A ttyUSB number goes to whichever device is plugged in first. A link keeps its name: the one under
+            # by-id that the system makes, and one in /dev from a udev rule of the user's own (/dev/ttyTesseraDeck).
+            for link in sorted(Path('/dev').glob('*')) + sorted(Path('/dev/serial/by-id').glob('*')):
+                device = next((item for item in ports if link.is_symlink() and item['port'] == os.path.realpath(link)), None)
+                if device:
+                    ports.append({'port': str(link), 'name': f'{link} · fixed name of {device["port"]}', 'panel': device['panel']})
+        pinned = host_runtime.stored_pin(self.path.parent)
+        # a udev link the user wrote is not in the list, yet the device behind it may be
+        present = bool(pinned) and any(item.device == device_name(pinned) for item in listed)
+        return {'pinned': pinned, 'present': present, 'variable': os.environ.get('TESSERA_PORT', '').strip() or None,
+                'example': host_runtime.PORT_EXAMPLE, 'ports': ports}
+
+    def pin_usb_port(self, data):
+        import host_runtime
+        port = data.get('port')
+        if not isinstance(port, str):
+            raise ValueError('Choose a USB port')
+        if self.firmware_job.get('state') == 'running':
+            raise ValueError('The panel firmware is being installed. Change the USB port when it is done.')
+        variable = os.environ.get('TESSERA_PORT', '').strip()
+        with self.lock:
+            pinned = host_runtime.pin_port(self.path.parent, port)
+            # A connected host keeps its port: start it again so the choice counts now. With TESSERA_PORT set the
+            # host uses that port either way, so it is left running.
+            if not variable and self.controller.processes():
+                self.controller.stop()
+                self.controller.start()
+        if variable:
+            message = (f'Saved, but Tessera keeps using {variable}: the environment variable TESSERA_PORT is set. '
+                       'Remove it and start Tessera again to use the port chosen here.')
+        else:
+            message = f'Tessera now uses only {pinned}.' if pinned else 'Tessera finds the panel by itself again.'
+        return dict(self.usb_ports(), message=message)
+
     @staticmethod
     def usb_device(port):
         # The pyserial listing entry of `port` (vid, description), or None when it cannot be listed.
         try:
             from serial.tools import list_ports
-            return next((item for item in list_ports.comports() if item.device == port), None)
+            device = device_name(port)
+            return next((item for item in list_ports.comports() if item.device == device), None)
         except Exception:  # the same as host_runtime.port_baud: a driver that cannot be listed
             return None
 
@@ -453,7 +517,7 @@ class Editor:
                 self.controller.stop()
             port = self.firmware_port()
             self.restart_agreed = port if restart else None
-            info = self.identify_panel(port)
+            info = self.ask_panel(port)
             if info is not None:
                 board = info.get('boardId', firmware_update.BOARD_ID)
                 found = {'port': port, 'board': board, 'firmware': info.get('firmwareVersion'), 'boards': [board]}
@@ -476,7 +540,7 @@ class Editor:
     def identify_for_install(self, port):
         # identify_panel for an install, which restarts the device: a silent USB serial adapter only after the user
         # agreed to that in the look (detect_panel), as it may be an Arduino or a 3D printer.
-        info = self.identify_panel(port)
+        info = self.ask_panel(port)
         device = self.usb_device(port) if info is None and port != self.restart_agreed else None
         if device is not None and device.vid != ESPRESSIF_VID:
             name = device.description or port
@@ -708,6 +772,10 @@ class Editor:
                 return {'places': ambient.search_places(str(data.get('query', '')))}
             except OSError as exc:
                 raise ValueError('The city search could not be reached. Check your internet connection.') from exc
+        if command == 'usb-ports':
+            return self.usb_ports()
+        if command == 'usb-port-pin':
+            return self.pin_usb_port(data)
         if command == 'firmware-list':
             return self.firmware_list()
         if command == 'firmware-detect':

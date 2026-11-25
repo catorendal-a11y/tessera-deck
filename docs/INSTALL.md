@@ -70,7 +70,10 @@ show desktop, lock) and the Status, Desktop, Audio and Tools folders. Your chang
 `host/profiles.json`, which is created from `host/profiles.default.json`.
 
 Tessera finds the panel's USB Serial/JTAG port by itself and remembers the board's USB serial number, so it follows
-the board if Windows renumbers the port. Set the environment variable `TESSERA_PORT` (for example `COM7`) only if it picks the wrong port.
+the board if Windows renumbers the port. If it picks the wrong port, or you do not want it to open any other serial device,
+choose the port in the editor in **⚙ Program settings**, under *The panel's USB port*. Tessera then opens only that port and looks for the panel on no
+other, so it does not follow the board to a new port number either: choose the port again if Windows renumbers it. The
+environment variable `TESSERA_PORT` (for example `COM7`) does the same and wins over the choice in the editor.
 
 ### Start options
 

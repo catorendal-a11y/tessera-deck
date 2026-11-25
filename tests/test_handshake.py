@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'host'))
 import panel_serial
 import tesserad as deck
 import host_support  # noqa: E402
+import platform_marks  # noqa: E402
 from host_runtime import candidate_ports
 
 
@@ -641,6 +642,117 @@ class ReconnectProbeTests(unittest.TestCase):
         import os
         os.environ['TESSERA_PORT'] = 'COM8'
         self.assertEqual(set(self.attempts(self.daemon(port='COM8'), 3)), {'COM8'})
+
+
+    def test_with_a_port_pinned_in_the_editor_only_that_port_is_opened(self):
+        import host_runtime
+        name = '/dev/ttyACM8' if host_runtime.IS_LINUX else 'COM8'
+        host_runtime.pin_port(self.state.parent, name)
+        # the remembered panel is on COM5: a pinned host does not follow it there
+        self.listed = [self.DEVKIT, types.SimpleNamespace(device='COM5', vid=0x303A, serial_number='PANEL123')]
+        daemon = self.daemon()
+        with patch.object(panel_serial, 'RESETS_ON_OPEN', False):  # a /dev name would wait out a board's restart
+            self.assertEqual(set(self.attempts(daemon, 3)), {name})
+            with self.assertRaises(OSError) as raised:
+                daemon.open_panel()
+        self.assertTrue(str(raised.exception).endswith(f'Tessera is set to use only {name}'), str(raised.exception))
+        host_runtime.pin_port(self.state.parent, '')
+        FakeSerial.opened = []
+        self.assertEqual(self.attempts(daemon, 1), ['COM5', self.DEVKIT.device])
+
+    def test_the_variable_wins_over_the_port_pinned_in_the_editor(self):
+        import os
+        import host_runtime
+        linux = host_runtime.IS_LINUX
+        stored, named = ('/dev/ttyACM8', '/dev/ttyUSB9') if linux else ('COM8', 'COM9')
+        host_runtime.pin_port(self.state.parent, stored)
+        os.environ['TESSERA_PORT'] = f' {named} ' if linux else ' com9 '
+        self.assertEqual(host_runtime.pinned_port(self.state.parent), named)
+        self.assertEqual(host_runtime.stored_pin(self.state.parent), stored, 'the choice in the editor is kept')
+        # the host opens the variable's port and never the one chosen in the editor
+        self.listed = [types.SimpleNamespace(device=stored, vid=0x303A, serial_number='PANEL123')]
+        daemon = self.daemon()
+        with patch.object(panel_serial, 'RESETS_ON_OPEN', False):
+            self.assertEqual(set(self.attempts(daemon, 2)), {named})
+            with self.assertRaises(OSError) as raised:
+                daemon.open_panel()
+        self.assertTrue(str(raised.exception).endswith(f'Tessera is set to use only {named}'), str(raised.exception))
+        del os.environ['TESSERA_PORT']  # without the variable the choice in the editor counts again
+        FakeSerial.opened = []
+        with patch.object(panel_serial, 'RESETS_ON_OPEN', False):
+            self.assertEqual(self.attempts(daemon, 1), [stored])
+
+    def test_a_pinned_port_that_fails_is_explained_with_the_port_dialog_in_the_editor(self):
+        from test_editor import run_editor
+        error = 'COM8 is not there. Check the USB cable.; Tessera is set to use only COM8'
+        said = run_editor(self, f'return panelProblem({json.dumps(error)});')
+        self.assertIn('only COM8', said[0])
+        self.assertEqual(said[1][0], 'Program settings …')
+        self.assertEqual(said[2], error)
+        silent = 'COM8 did not identify itself as a Tessera panel; Tessera is set to use only COM8'
+        said = run_editor(self, f'return panelProblem({json.dumps(silent)});')
+        self.assertEqual([said[1][0], said[3][0]], ['Panel firmware …', 'Program settings …'], 'it may be a panel without firmware')
+        busy = 'COM8 is in use by another program. Close the serial monitor.; Tessera is set to use only COM8'
+        self.assertIn('Another program', run_editor(self, f'return panelProblem({json.dumps(busy)});')[0])
+
+    PORT_SETTINGS = """
+            const sent=[],asked=[];let fields,save,answer=false;
+            dashboard={};config={};hostRules={};mutate=()=>{};
+            api=async(path,data)=>{if(path.includes('usb'))sent.push([path,data]);return STATE;};
+            dialog=(title,list,onSave)=>{fields=Object.fromEntries(list.map(f=>[f.name,f]));save=onSave;};
+            askDialog=async(title,message,options)=>{asked.push([message,options.ok]);return answer;};
+            const apply=async(port,otherPort='')=>{save({calendar:'',port,otherPort});await settle();await settle();};
+            await appSettings();"""
+
+    def port_settings(self, state, script):
+        from test_editor import run_editor
+        return run_editor(self, self.PORT_SETTINGS.replace('STATE', json.dumps(state)) + script)
+
+    def test_program_settings_list_the_ports_and_send_a_changed_choice(self):
+        state = {'pinned': '/dev/panel', 'present': True, 'variable': None, 'example': '/dev/ttyUSB0',
+                 'ports': [{'port': '/dev/ttyUSB0', 'name': 'USB Serial', 'panel': True}]}
+        said = self.port_settings(state, """
+            await apply('/dev/panel');                  // the port that is saved already: nothing is sent
+            await apply('/dev/ttyUSB0');await apply('', ' /dev/other ');await apply('');
+            return [sent,fields.port.options,fields.port.value,fields.port.note,asked,Object.keys(fields)];""")
+        # the list is asked for with data: without it the editor's api() sends a GET, which the host does not answer
+        self.assertEqual(said[0], [['command/usb-ports', {}], ['command/usb-port-pin', {'port': '/dev/ttyUSB0'}],
+                                   ['command/usb-port-pin', {'port': '/dev/other'}], ['command/usb-port-pin', {'port': ''}]])
+        self.assertEqual(said[1], [['', 'Find the panel by itself'], ['/dev/ttyUSB0', '/dev/ttyUSB0 · USB Serial'],
+                                   ['/dev/panel', '/dev/panel']])
+        self.assertEqual(said[2], '/dev/panel')
+        self.assertNotIn('TESSERA_PORT', said[3])
+        self.assertEqual(said[4], [])
+        self.assertEqual(said[5][:4], ['autostart', 'notifications', 'autoProfiles', 'calendar'], 'the other settings stay')
+
+    def test_program_settings_say_that_the_variable_is_set_and_ask_before_they_save_another_port(self):
+        state = {'pinned': 'COM3', 'present': True, 'variable': 'COM8', 'example': 'COM7',
+                 'ports': [{'port': 'COM3', 'name': 'USB Serial', 'panel': True}]}
+        said = self.port_settings(state, """
+            await apply('COM5');                        // Cancel in the question: nothing is saved
+            answer=true;await apply('');
+            await apply('COM3');                        // unchanged, as when only another setting was applied: no question
+            return [fields.port.note,sent.slice(1),asked];""")
+        self.assertIn('TESSERA_PORT is set to COM8', said[0])
+        self.assertEqual(said[1], [['command/usb-port-pin', {'port': ''}]])
+        self.assertEqual(len(said[2]), 2)
+        self.assertIn('wins over the port chosen here', said[2][0][0])
+        self.assertIn('Save COM5 anyway?', said[2][0][0])
+        self.assertIn('Find the panel by itself', said[2][1][0])
+        self.assertEqual(said[2][0][1], 'Save anyway')
+
+    @platform_marks.linux_only
+    def test_a_pinned_link_to_a_uart_board_gets_its_speed_and_its_refusal_is_kept(self):
+        import os
+        import host_runtime
+        link = self.state.parent / 'tessera-panel'
+        os.symlink('/dev/ttyUSB7', link)
+        self.listed = [types.SimpleNamespace(device='/dev/ttyUSB7', vid=0x1A86, serial_number=None)]
+        self.assertEqual(host_runtime.port_baud(str(link)), host_runtime.UART_BAUD)
+        os.environ['TESSERA_PORT'] = str(link)
+        daemon = self.daemon()
+        FakeSerial.script = info(boardId='other-esp32')
+        self.assertEqual(self.attempts(daemon, 3), [str(link)], 'another board is not asked again until it is unplugged')
 
 
 if __name__ == '__main__':
