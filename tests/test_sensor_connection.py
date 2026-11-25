@@ -73,12 +73,22 @@ class SensorConnectionTests(unittest.TestCase):
         self.assertEqual(self.reader.read(), [])
         self.assertEqual(self.server.requests, 1)
 
+    def test_the_status_of_an_error_reply_is_kept_for_the_hint(self):
+        self.server.status = 401  # Options > Remote Web Server > Authentication
+        self.assertEqual(self.reader.read(), [])
+        self.assertEqual(self.reader.status, 401)
+        self.reader._retry_at = 0.0
+        self.server.status = 200
+        self.assertTrue(self.reader.read())
+        self.assertIsNone(self.reader.status)
+
     def test_no_server_reads_as_no_sensors(self):
         self.server.shutdown()
         self.server.server_close()
         self.addCleanup(lambda: None)
         reader = LibreHardwareMonitorReader('http://127.0.0.1:9/data.json', timeout=.2)
         self.assertEqual(reader.read(), [])
+        self.assertIsNone(reader.status)
 
 
 class ChildNameTests(unittest.TestCase):

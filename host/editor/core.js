@@ -47,7 +47,10 @@ const gaugeSensors={
   gpu_temp:['GPU temperature',{max:110,unit:'C',warn:85,critical:100}],gpu_power:['GPU power',{max:350,unit:'W',warn:320,critical:360}],
   gpu_clock:['GPU clock',{max:2600,fmt:'ghz'}],gpu_fan:['GPU fan',{max:3000,unit:'rpm'}],
   net_down:['Download',{max:125000000,fmt:'rate',scale:'log'}],net_up:['Upload',{max:125000000,fmt:'rate',scale:'log'}],
-  uptime:['Uptime',{max:604800,fmt:'uptime'}],sensors:['Sensor source',{max:1,fmt:'live'}]
+  uptime:['Uptime',{max:604800,fmt:'uptime'}],sensors:['Sensor source',{max:1,fmt:'live'}],
+  cpu_core_max:['Busiest CPU core',{max:100,unit:'%'}],
+  cpu_volt:['CPU voltage (Libre Hardware Monitor or HWiNFO)',{max:1500,unit:'mV'}],
+  gpu_volt:['GPU voltage',{max:1200,unit:'mV'}],gpu_hotspot:['GPU hot spot',{max:110,unit:'C',warn:100,critical:105}]
 };
 const presets = [
   {name:'Mute / unmute',icon:'minus',keys:'volumemute'}, {name:'Volume down',icon:'minus',keys:'volumedown'},

@@ -610,7 +610,8 @@ $('#iconify-query').addEventListener('keydown', event => { if (event.key === 'En
 /* The agents and readings the panel's agents and status screens can show (chosen on those screens in the rail). */
 const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', 'ZCode']];
 const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed'],
-  ['net_up', 'Upload speed'], ['uptime', 'Uptime'], ['cpu_clock', 'CPU clock'], ['cpu_power', 'CPU power'], ['gpu_power', 'GPU power'], ['gpu_clock', 'GPU clock'], ['gpu_fan', 'GPU fan'], ['fps', 'FPS']];
+  ['net_up', 'Upload speed'], ['uptime', 'Uptime'], ['cpu_clock', 'CPU clock'], ['cpu_power', 'CPU power'], ['gpu_power', 'GPU power'], ['gpu_clock', 'GPU clock'], ['gpu_fan', 'GPU fan'], ['fps', 'FPS'],
+  ['cpu_core_max', 'Busiest CPU core'], ['cpu_volt', 'CPU voltage'], ['gpu_volt', 'GPU voltage'], ['gpu_hotspot', 'GPU hot spot']];
 const PANEL_STATS_MAX = 8;  // the panel shows eight, and the host refuses more
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */

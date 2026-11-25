@@ -5,12 +5,12 @@ import sys
 import tempfile
 import types
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'host'))
 import gpu_sources as gpu
 from platform_windows import gpu_adl
-from system_stats import SystemStats
+from system_stats import HINT_NOT_INSTALLED, SystemStats
 
 # What an RX 6950 XT and the integrated graphics of a Ryzen reported on a real machine (slot -> value).
 DISCRETE = {1: 0, 2: 2240, 8: 47, 14: 301, 15: 15, 19: 0, 20: 1, 21: 0, 23: 43, 27: 56, 40: 3, 41: 16}
@@ -29,7 +29,15 @@ class AmdTests(unittest.TestCase):
 
     def test_the_slots_become_gauge_values(self):
         self.assertEqual(gpu_adl.parse_pmlog(DISCRETE), {'gpu_temp': 47.0, 'gpu_power': 43.0, 'gpu_clock': 0.0,
-                                                     'gpu_fan': 301.0, 'gpu_load': 0.0})
+                                                     'gpu_fan': 301.0, 'gpu_load': 0.0, 'gpu_hotspot': 56.0,
+                                                     'gpu_volt': 0.0})
+
+    def test_the_hot_spot_and_the_core_voltage_have_their_own_readings(self):
+        # ADL_PMLOG_TEMPERATURE_HOTSPOT (27) in degrees and ADL_PMLOG_GFX_VOLTAGE (21) in millivolts
+        values = gpu_adl.parse_pmlog(DISCRETE | {21: 862})
+        self.assertEqual((values['gpu_temp'], values['gpu_hotspot'], values['gpu_volt']), (47.0, 56.0, 862.0))
+        self.assertNotIn('gpu_hotspot', gpu_adl.parse_pmlog({27: 9999}))
+        self.assertNotIn('gpu_volt', gpu_adl.parse_pmlog({8: 50}))
 
     def test_the_hotspot_stands_in_for_a_missing_edge_temperature_and_nonsense_is_ignored(self):
         self.assertEqual(gpu_adl.parse_pmlog({27: 61})['gpu_temp'], 61.0)
@@ -119,11 +127,29 @@ class StatusScreenTests(unittest.TestCase):
         self.assertEqual(shown['gpu_temp'], '52')
         self.assertEqual(shown['sensor_status'], 'LIVE')
 
+    def test_the_busiest_core_is_the_highest_load_of_any_one_core(self):
+        def loads(interval=None, percpu=False):
+            return [12.0, 97.4, 30.0] if percpu else 46.0
+        with patch('system_stats.psutil.cpu_percent', side_effect=loads) as cpu_percent:
+            stats = self.stats([], {})
+            primed = list(cpu_percent.call_args_list)
+            shown = stats.sample()
+        self.assertIn(call(None, percpu=True), primed, 'primed like the average, or the first sample is wrong')
+        self.assertEqual((shown['cpu_core_max'], shown['cpu_load']), ('97', '46'))
+        self.assertEqual(stats.raw['cpu_core_max'], 97.4)
+
+    def test_voltages_show_as_whole_millivolts_and_a_missing_reading_as_dashes(self):
+        card = 'AMD Radeon RX 9070 gpu-amd/1'
+        readings = [{'sensor': card, 'label': 'GPU Core', 'unit': 'V', 'value': 0.8621},
+                    {'sensor': card, 'label': 'GPU Hot Spot', 'unit': '°C', 'value': 71.6}]
+        shown = self.stats(readings, {}).sample()
+        self.assertEqual((shown['gpu_volt'], shown['gpu_hotspot'], shown['cpu_volt']), ('862', '72', '--'))
+
 
 class SensorHintTests(unittest.TestCase):
     """Without Libre Hardware Monitor the CPU temperature cannot be read; say how to fix that instead of showing "--"."""
 
-    def hint(self, installed, readings):
+    def stats(self, installed, readings, status=None):
         import system_stats
         with tempfile.TemporaryDirectory() as folder:
             exe = Path(folder) / 'LibreHardwareMonitor.exe'
@@ -131,13 +157,17 @@ class SensorHintTests(unittest.TestCase):
                 exe.write_bytes(b'x')
             lhm, hwinfo, counters, reader = Mock(), Mock(), Mock(), Mock()
             lhm.read.return_value = readings
+            lhm.status = status
             hwinfo.read.return_value = []
             counters.sample.return_value = {}
             reader.sample.return_value = {}
             with patch.object(system_stats, 'LHM_EXE', exe):
                 stats = SystemStats(hwinfo=hwinfo, lhm=lhm, counters=counters, gpu=reader)
                 stats.sample()
-                return stats.hint
+                return stats
+
+    def hint(self, installed, readings, status=None):
+        return self.stats(installed, readings, status).hint
 
     def test_installed_but_not_running_points_to_the_one_time_setup(self):
         self.assertIn('--sensors', self.hint(True, []))
@@ -154,6 +184,35 @@ class SensorHintTests(unittest.TestCase):
         reading = {'type': 1, 'sensor': 'NVIDIA GeForce RTX 3060', 'id': 1, 'label': 'GPU Core', 'unit': '°C', 'value': 50.0,
                    'min': 0, 'max': 0, 'avg': 0}
         self.assertIn('PawnIO', self.hint(True, [reading]))
+
+    def test_zeros_from_a_cpu_without_the_driver_show_dashes_and_name_the_driver(self):
+        # Libre 0.9.6 without PawnIO lists the CPU sensors at 0 (issue 47).
+        cpu = 'AMD Ryzen 7 8845HS amdcpu/0'
+        stats = self.stats(True, [{'sensor': cpu, 'label': 'Core (Tctl/Tdie)', 'unit': 'c', 'value': 0.0},
+                                  {'sensor': cpu, 'label': 'Package', 'unit': 'w', 'value': 0.0}])
+        self.assertEqual((stats.display['cpu_temp'], stats.display['cpu_power']), ('--', '--'))
+        self.assertIn('PawnIO', stats.hint)
+
+    def test_a_web_server_with_a_password_says_to_switch_it_off(self):
+        for installed in (True, False):
+            hint = self.hint(installed, [], status=401)
+            self.assertIn('Authentication', hint)
+            self.assertNotIn('not running', hint)
+
+    def test_a_web_server_on_another_interface_says_what_to_set(self):
+        hint = self.hint(True, [], status=400)
+        self.assertIn('0.0.0.0', hint)
+        self.assertIn('8085', hint)
+        self.assertNotIn('not running', hint)
+
+    def test_hints_that_open_the_web_server_ask_for_the_firewall_block_first(self):
+        # Without Authentication, Libre accepts /Sensor?action=Set from anyone who reaches the port, and it adds no
+        # firewall rule of its own. The block has to come before the step that opens the server.
+        for hint, step in ((self.hint(True, [], status=401), 'Authentication'),
+                           (self.hint(True, [], status=400), '0.0.0.0'),
+                           (HINT_NOT_INSTALLED, 'Remote Web Server > Run')):
+            self.assertIn('Windows Firewall', hint)
+            self.assertLess(hint.index('Windows Firewall'), hint.index(step))
 
 
 if __name__ == '__main__':
