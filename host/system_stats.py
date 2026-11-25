@@ -45,6 +45,10 @@ def gpu_discrete_bonus(sensor: str) -> int:
     return 4 if any(name in sensor for name in DISCRETE_GPU) else 0
 
 
+# Labels that only match in full, so "VDDCR" leaves out "VDDCR SoC".
+EXACT_LABELS = ('vddcr',)
+
+
 def _norm(value: str) -> str:
     return value.casefold().replace('°', '').strip()
 
@@ -69,6 +73,11 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
         'gpu_fan': (('gpu fan', 'fan speed'), GPU_SENSORS, ('rpm',)),
         'vram': (('gpu memory usage', 'gpu memory utilization', 'vram usage'),
                   GPU_SENSORS, ('%',)),
+        'gpu_hotspot': (('gpu hot spot', 'gpu hotspot'), GPU_SENSORS, ('c',)),
+        # The core rail, else a per-core VID ("Core #1 VID" in Libre Hardware Monitor, "Core VIDs" in HWiNFO).
+        # Zen 4 desktop has no SVI2 reading in Libre Hardware Monitor, but its SMU table gives "VDDCR".
+        'cpu_volt': (('cpu core', 'core (svi2 tfn)', 'vddcr', 'vid'), ('cpu', 'ryzen'), ('v',)),
+        'gpu_volt': (('gpu core',), GPU_SENSORS, ('v',)),
     }
     selected = {}
     for key, (labels, sensors, units) in specs.items():
@@ -78,7 +87,7 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
             sensor = _norm(str(item.get('sensor', '')))
             unit = _norm(str(item.get('unit', '')))
             label_rank = next((len(labels) - i for i, name in enumerate(labels)
-                               if label == name or name in label), 0)
+                               if label == name or (name in label and name not in EXACT_LABELS)), 0)
             if not label_rank or unit not in units:
                 continue
             if key in ('cpu_temp', 'cpu_power') and float(item['value']) <= 0:
@@ -88,8 +97,10 @@ def select_hwinfo_metrics(readings: list[dict]) -> dict[str, float]:
                 continue  # a generic label such as 'Package' must come from the right chip
             discrete_bonus = gpu_discrete_bonus(sensor) if key.startswith(('gpu', 'vram')) else 0
             score = label_rank * 10 + sensor_rank + discrete_bonus
-            if best is None or score > best[0]:
-                best = (score, float(item['value']))
+            value = float(item['value']) * (1000 if unit == 'v' else 1)  # voltages are shown in mV
+            # All cores share one rail, which follows the highest VID, so the highest of equal CPU voltages wins.
+            if best is None or score > best[0] or (key == 'cpu_volt' and score == best[0] and value > best[1]):
+                best = (score, value)
         if best is not None:
             selected[key] = best[1]
     return selected
@@ -154,16 +165,18 @@ class SystemStats:
         self.display = {key: '--' for key in (
             'cpu_temp', 'cpu_load', 'cpu_power', 'cpu_clock', 'gpu_temp',
             'gpu_load', 'gpu_power', 'gpu_clock', 'gpu_fan', 'ram', 'vram',
-            'disk', 'net_down', 'net_up', 'uptime', 'fps')}
+            'disk', 'net_down', 'net_up', 'uptime', 'fps', 'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot')}
         self.display['sensor_status'] = 'BASIC'
         self.hint = ''  # why temperatures may be missing and what to do about it
         self._net = psutil.net_io_counters()
         self._net_at = time.monotonic()
         psutil.cpu_percent(None)
+        psutil.cpu_percent(None, percpu=True)  # psutil counts the per-core loads from their own first call
 
     def sample(self) -> dict[str, str]:
         now = time.monotonic()
         cpu = psutil.cpu_percent(None)
+        cores = psutil.cpu_percent(None, percpu=True)
         ram = psutil.virtual_memory().percent
         drive = load('sensors').disk_root()
         try:
@@ -188,10 +201,10 @@ class SystemStats:
             fps = select_radeon_fps(lhm_readings)
         if fps is not None:
             merged['fps'] = fps
-        self.raw = dict(merged, cpu_load=cpu, ram=ram, disk=disk, net_down=down, net_up=up,
-                        uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
+        self.raw = dict(merged, cpu_load=cpu, cpu_core_max=max(cores, default=cpu), ram=ram, disk=disk, net_down=down,
+                        net_up=up, uptime=time.time() - psutil.boot_time(), sensors=1.0 if readings else 0.0)
         for key in ('cpu_temp', 'cpu_load', 'cpu_power', 'gpu_temp', 'gpu_load',
-                    'gpu_power', 'ram', 'vram', 'disk', 'fps'):
+                    'gpu_power', 'ram', 'vram', 'disk', 'fps', 'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'):
             value = self.raw.get(key)
             self.display[key] = '--' if value is None else f'{value:.0f}'
         for key in ('cpu_clock', 'gpu_clock'):

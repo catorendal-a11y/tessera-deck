@@ -1,4 +1,4 @@
-"""AMD graphics cards on Windows: temperature, power, fan and clock from the driver's own ADL library.
+"""AMD graphics cards on Windows: temperatures, power, fan, clock and core voltage from the driver's own ADL library.
 
 The same numbers Radeon Software shows, read without administrator rights. Nothing is written to the card.
 """
@@ -12,6 +12,7 @@ PMLOG_GFX_CLOCK, PMLOG_EDGE_TEMP, PMLOG_FAN_RPM, PMLOG_ACTIVITY, PMLOG_ASIC_POWE
 
 
 PMLOG_FAN_PERCENT = 15
+PMLOG_GFX_VOLTAGE = 21  # the core rail, in millivolts
 # Cards from the RX 7000 series on report the power of the whole board here and leave PMLOG_ASIC_POWER out
 # (ADL_PMLOG_BOARD_POWER in AMD's adl_defines.h; Libre Hardware Monitor reads the same slot for them).
 PMLOG_BOARD_POWER = 73
@@ -40,6 +41,11 @@ def parse_pmlog(sensors: dict[int, int]) -> dict[str, float]:
         result['gpu_fan'] = float(sensors[PMLOG_FAN_RPM])
     if PMLOG_ACTIVITY in sensors:
         result['gpu_load'] = float(sensors[PMLOG_ACTIVITY])
+    hotspot = sensors.get(PMLOG_HOTSPOT_TEMP)
+    if hotspot is not None and 0 < hotspot < 150:
+        result['gpu_hotspot'] = float(hotspot)
+    if PMLOG_GFX_VOLTAGE in sensors:
+        result['gpu_volt'] = float(sensors[PMLOG_GFX_VOLTAGE])
     return result
 
 

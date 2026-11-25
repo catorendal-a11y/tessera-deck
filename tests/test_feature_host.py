@@ -195,10 +195,22 @@ class KeepBackupTests(unittest.TestCase):
 class ReadingTests(unittest.TestCase):
     NEW = ('net_up', 'uptime', 'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps')
     OLD = ('cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down')
+    MORE = ('cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot')  # issue 47
 
-    def test_the_choices_are_the_old_eight_and_the_new_eight(self):
-        self.assertEqual(set(cockpit.STAT_IDS), set(self.OLD + self.NEW))
-        self.assertEqual(len(cockpit.STAT_IDS), 16)
+    def test_the_choices_are_the_old_eight_the_next_eight_and_four_more_at_the_end(self):
+        self.assertEqual(set(cockpit.STAT_IDS), set(self.OLD + self.NEW + self.MORE))
+        self.assertEqual(len(cockpit.STAT_IDS), 20)
+        self.assertEqual(cockpit.STAT_IDS[-4:], self.MORE)
+
+    def test_the_four_new_readings_have_names_units_and_bars(self):
+        display = {'cpu_core_max': '97', 'cpu_volt': '1200', 'gpu_volt': '862'}
+        raw = {'cpu_core_max': 97.0, 'cpu_volt': 1200.0, 'gpu_volt': 862.0}
+        by_name = {stat['name']: stat for stat in json.loads(cockpit.stats_payload(display, raw, list(self.MORE)))['stats']}
+        self.assertEqual(list(by_name), ['Busiest core', 'CPU voltage', 'GPU voltage', 'GPU hot spot'])
+        self.assertEqual((by_name['Busiest core']['value'], by_name['Busiest core']['unit'], by_name['Busiest core']['p']), ('97', '%', 97))
+        self.assertEqual((by_name['CPU voltage']['value'], by_name['CPU voltage']['unit'], by_name['CPU voltage']['p']), ('1200', 'mV', 80))
+        self.assertEqual(by_name['GPU voltage']['unit'], 'mV')
+        self.assertEqual((by_name['GPU hot spot']['value'], by_name['GPU hot spot']['unit'], by_name['GPU hot spot']['p']), ('--', 'C', 0))
 
     def test_without_a_choice_the_panel_gets_the_old_eight(self):
         display = {key: '1' for key in cockpit.STAT_IDS}
@@ -234,6 +246,7 @@ class ReadingTests(unittest.TestCase):
             config['panel'] = {'stats': stats}
             deck.validate_config(config)
         check(list(self.NEW))
+        check(list(self.MORE))
         check(['fps', 'cpu_load'])
         with self.assertRaises(ValueError) as raised:
             check(list(cockpit.STAT_IDS))

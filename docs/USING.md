@@ -138,7 +138,7 @@ The rail on the left of the panel switches between your keys, the AI **agents**,
 
 Click **Mixer** in the editor's rail. *Programs* takes up to three names that end in `.exe`, for example `spotify.exe, chrome.exe`. Leave it empty to use the programs that play sound. *Microphone* adds a microphone fader. The faders show the PC's levels right now. *Remote devices* adds the volume of a device paired with KDE Connect, such as a phone or a second laptop, as one more fader (see [Remote devices](#remote-devices-kde-connect)). Choose *The first one that is connected*, *Every connected device* or one device by name. The panel shows five faders, so the programs make room: the speaker, the remote devices and the microphone stay. With more connected devices than places (five minus the speaker and the microphone), the devices that come last are left out.
 
-The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed, and also upload speed, uptime, CPU clock, CPU power, GPU power, GPU clock, GPU fan and FPS. The panel shows eight, so with eight ticked you untick one to choose another.
+The **Status** screen has a *Show* box for each reading: CPU load, CPU temperature, RAM, disk, GPU load, GPU temperature, video memory and download speed, and also upload speed, uptime, CPU clock, CPU power, GPU power, GPU clock, GPU fan, FPS, the busiest CPU core, CPU voltage, GPU voltage and GPU hot spot. Voltages are in millivolts, and a CPU that reports no core voltage shows `--`. The panel shows eight, so with eight ticked you untick one to choose another.
 
 ### Remote devices (KDE Connect)
 
@@ -306,9 +306,9 @@ The panel shows the value in the gauge's color, amber from `warn` and red from `
 
 | Source | Needs | Provides |
 |---|---|---|
-| Windows | Nothing | CPU load, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
-| Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power and clock; fan speed on AMD only |
-| Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks; on a Radeon card also the FPS of a full-screen game |
+| Windows | Nothing | CPU load and busiest core, RAM, disk, network, uptime, GPU load, VRAM, CPU clock |
+| Graphics driver | Nothing (AMD through ADL, NVIDIA through `nvidia-smi`) | GPU temperature, power and clock; fan speed, hot spot and voltage on AMD only |
+| Libre Hardware Monitor | Free download, administrator rights | Temperatures, CPU and GPU power, fan speed, clocks, CPU and GPU voltage; on a Radeon card also the FPS of a full-screen game |
 | HWiNFO | Running with shared memory enabled (`host\Enable-HWiNFO.ps1`, as administrator, turns it on) | Sensor readings when Libre Hardware Monitor is not running; FPS from its PresentMon sensor |
 
 To install the optional sensor source, run `powershell -ExecutionPolicy Bypass -File tools\setup_sensors.ps1` in the Tessera folder. It downloads the official release, verifies its SHA-256, enables the remote web server on `127.0.0.1:8085` and starts it (Windows asks for confirmation once). `Tessera.cmd --sensors` then starts it at every sign-in. On a standard Windows account it cannot, because Libre Hardware Monitor needs administrator rights: `--sensors` starts it once after the prompt, and you run it again after each sign-in. Until it runs, the sensor tile shows `BASIC` and the affected gauges show `--`.
