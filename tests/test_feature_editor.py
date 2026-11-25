@@ -104,10 +104,48 @@ result.unticked = PANEL_STATS.length - 12;
 return result;
 """)
         self.assertEqual(found['twelve'], [12, 12])
-        for name in ('old', 'gone', 'odd'):
+        self.assertEqual(found['gone'], [12, 12])  # the panel last seen, while it is unplugged or updating
+        for name in ('old', 'odd'):
             self.assertEqual(found[name], [8, 8], name)
         self.assertIn('12 readings', found['hint'])
         self.assertEqual(found['locked'], found['unticked'])
+
+    def test_more_saved_readings_than_the_panel_shows_tick_only_the_ones_it_shows(self):
+        found = self.run_editor(r"""
+const made = [], plain = element;
+element = (tag, attrs = {}, ...children) => { const node = plain(tag, attrs, ...children); made.push([attrs, node]); return node; };
+const boxes = () => made.filter(([attrs]) => attrs.type === 'checkbox');
+const ids = PANEL_STATS.map(s => s[0]), saved = [...ids.slice(4, 12), ...ids.slice(16, 20)];
+editorView = 'status'; profile = 'Main'; page = 'First';
+dashboard = {device: {connected: true}};  // firmware without statsMax: eight
+config = {profiles: {Main: {match: [], pages: {First: []}}}, panel: {stats: saved}};
+renderScreen();
+const result = {ticked: ids.filter((id, i) => boxes()[i][1].checked), locked: boxes().filter(([, box]) => box.disabled).length};
+const [untick] = boxes()[ids.indexOf(saved[0])];
+made.length = 0;
+untick.onchange({target: {checked: false}});
+result.after = {saved: config.panel.stats.length, locked: boxes().filter(([, box]) => box.disabled).length};
+return result;
+""")
+        ids = ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down', 'net_up', 'uptime',
+               'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps']
+        self.assertEqual(found['ticked'], ids[4:12])  # what the panel shows: the first eight in screen order
+        self.assertEqual(found['locked'], 12)
+        self.assertEqual(found['after'], {'saved': 7, 'locked': 0})
+
+    def test_the_eight_readings_older_versions_saved_by_themselves_count_as_no_choice(self):
+        found = self.run_editor(r"""
+const old = ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down'];
+dashboard = {device: {connected: true, stats_max: 12}}; profile = 'Main'; page = 'First';
+config = {profiles: {Main: {match: [], pages: {First: []}}}, panel: {mic: false, stats: old}};
+const result = {shown: panelChoice().stats.length};
+savePanel({mic: true});
+result.saved = 'stats' in config.panel;
+config.panel.stats = [...old].reverse();
+result.picked = panelChoice().stats.length;
+return result;
+""")
+        self.assertEqual(found, {'shown': 12, 'saved': False, 'picked': 8})
 
     def test_another_panel_setting_saves_no_readings_the_user_never_picked(self):
         found = self.run_editor(r"""

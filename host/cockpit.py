@@ -38,6 +38,17 @@ def stats_limit(info: dict) -> int:
     return min(value, MAX_STATS) if type(value) is int and value > 0 else OLD_PANEL_STATS
 
 
+# Every 1.x editor wrote its default eight into panel.stats when any other panel setting changed, so that list in that
+# order is no choice: it leaves the readings to follow the panel. host/editor/dialogs.js has the same rule.
+LEGACY_DEFAULT_STATS = STAT_IDS[:OLD_PANEL_STATS]
+
+
+def saved_stats(choice: dict) -> list | None:
+    """The readings the user picked for the status screen, or None for the panel's default."""
+    stats = choice.get('stats')
+    return list(stats) if stats and tuple(stats) != LEGACY_DEFAULT_STATS else None
+
+
 def _line(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=True, separators=(',', ':'))
 

@@ -612,10 +612,18 @@ const PANEL_AGENTS = [['claude', 'Claude Code'], ['codex', 'Codex'], ['zcode', '
 const PANEL_STATS = [['cpu_load', 'CPU load'], ['cpu_temp', 'CPU temperature'], ['ram', 'RAM'], ['disk', 'Disk'], ['gpu_load', 'GPU load'], ['gpu_temp', 'GPU temperature'], ['vram', 'Video memory'], ['net_down', 'Download speed'],
   ['net_up', 'Upload speed'], ['uptime', 'Uptime'], ['cpu_clock', 'CPU clock'], ['cpu_power', 'CPU power'], ['gpu_power', 'GPU power'], ['gpu_clock', 'GPU clock'], ['gpu_fan', 'GPU fan'], ['fps', 'FPS'],
   ['cpu_core_max', 'Busiest CPU core'], ['cpu_volt', 'CPU voltage'], ['gpu_volt', 'GPU voltage'], ['gpu_hotspot', 'GPU hot spot']];
-/* How many readings the connected panel shows (statsMax, up to the host's twelve); eight for older firmware or no panel. */
+/* How many readings the panel shows (statsMax, up to the host's twelve). The host keeps the panel it last saw while it is
+ * unplugged or updating; eight for older firmware or when no panel has been seen. */
 function panelStatsMax() {
-  const most = dashboard.device?.connected && dashboard.device.stats_max;
+  const most = dashboard.device?.stats_max;
   return Number.isInteger(most) && most > 0 ? Math.min(most, 12) : 8;
+}
+/* Every 1.x editor saved its default eight whenever another panel setting changed, so that list in that order is no
+ * choice (cockpit.saved_stats has the same rule). */
+const LEGACY_DEFAULT_STATS = PANEL_STATS.slice(0, 8).map(s => s[0]).join();
+function savedStats() {
+  const stats = config?.panel?.stats;
+  return Array.isArray(stats) && stats.join() !== LEGACY_DEFAULT_STATS ? stats : null;
 }
 
 /* Connect Claude Code: the hooks that tell the agents screen what Claude is doing and let the panel answer its questions. */
@@ -758,12 +766,13 @@ const RAIL = [
 ];
 let editorView = 'keys', hooksState = null;
 function panelChoice() {
-  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, stats: PANEL_STATS.slice(0, panelStatsMax()).map(s => s[0]), ...(config?.panel || {})};
+  return {agents: PANEL_AGENTS.map(a => a[0]), apps: [], mic: true, ...(config?.panel || {}),
+          stats: savedStats() ?? PANEL_STATS.slice(0, panelStatsMax()).map(s => s[0])};
 }
 function savePanel(change) {
   const label = document.activeElement?.getAttribute?.('aria-label');
   // The default readings follow the connected panel, so they are saved only once the user picks some.
-  mutate(() => { const {stats, ...rest} = panelChoice(); config.panel = {...rest, ...(config.panel?.stats ? {stats} : {}), ...change}; });
+  mutate(() => { const {stats, ...rest} = panelChoice(); config.panel = {...rest, ...(savedStats() ? {stats} : {}), ...change}; });
   renderScreen();
   if (typeof label === 'string') document.querySelector(`#screens-view [aria-label="${CSS.escape(label)}"]`)?.focus();  // the screen was redrawn under the control
 }
@@ -857,10 +866,12 @@ function renderScreen() {
       element('div', {class: 'screen-card'}, element('div', {}, text('strong', 'Remote devices'), text('small', 'The volume of a device paired with KDE Connect, such as a phone, as a fader. It takes a place of the programs: the panel shows five faders.')), remoteSelect) ];
   } else {
     const stats = dashboard.stats || {};
-    const most = panelStatsMax(), full = choice.stats.length >= most;
+    // The panel shows the first `most` of the list in screen order (cockpit.stats_payload), so only those are ticked.
+    const most = panelStatsMax(), shown = PANEL_STATS.map(s => s[0]).filter(key => choice.stats.includes(key)).slice(0, most);
+    const full = shown.length >= most;
     const cards = PANEL_STATS.map(([id, name]) => {
-      const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: PANEL_STATS.map(s => s[0]).filter(key => key === id ? event.target.checked : choice.stats.includes(key))})});
-      box.checked = choice.stats.includes(id);
+      const box = element('input', {type: 'checkbox', 'aria-label': `Show ${name}`, onchange: event => savePanel({stats: PANEL_STATS.map(s => s[0]).filter(key => key === id ? event.target.checked : shown.includes(key))})});
+      box.checked = shown.includes(id);
       box.disabled = !box.checked && full;
       return element('label', {class: 'screen-stat' + (box.checked ? '' : ' off')}, text('small', name), text('strong', stats[id] === undefined ? '--' : String(stats[id])), element('span', {class: 'screen-check'}, box, text('span', 'Show')));
     });

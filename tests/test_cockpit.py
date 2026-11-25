@@ -70,6 +70,16 @@ class PayloadTests(unittest.TestCase):
         self.assertTrue(0 < len(names) < 12)
         self.assertEqual(names, [label for label, *_ in cockpit.STATS][:len(names)])
 
+    def test_the_eight_readings_older_editors_saved_by_themselves_count_as_no_choice(self):
+        # Every 1.x editor wrote its default eight into panel.stats when any other panel setting changed.
+        old = ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down']
+        self.assertIsNone(cockpit.saved_stats({'stats': old}))
+        self.assertIsNone(cockpit.saved_stats({}))
+        self.assertEqual(cockpit.saved_stats({'stats': old[::-1]}), old[::-1])
+        self.assertEqual(cockpit.saved_stats({'stats': ['ram']}), ['ram'])
+        line = cockpit.stats_payload({}, {}, cockpit.saved_stats({'stats': old}), cockpit.stats_limit({'statsMax': 12}))
+        self.assertEqual(len(json.loads(line)['stats']), 12)
+
     def test_the_panel_says_how_many_readings_it_shows_and_an_older_one_shows_eight(self):
         self.assertEqual(cockpit.stats_limit({'statsMax': 12}), 12)
         self.assertEqual(cockpit.stats_limit({'statsMax': 10}), 10)
