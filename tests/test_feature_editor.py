@@ -73,13 +73,14 @@ return {calls: calls.filter(c => c[0] === 'command/keep-backup'), reloaded: call
         self.assertNotIn('kept', found['plain'])
         self.assertTrue(found['kept'].endswith(' · kept'))
 
-    def test_the_status_screen_offers_sixteen_readings_and_shows_eight_by_default(self):
+    def test_the_status_screen_offers_twenty_readings_and_shows_eight_by_default(self):
         found = self.run_editor(r"""
 config = {profiles: {}};
 return {all: PANEL_STATS.map(s => s[0]), shown: panelChoice().stats};
 """)
         self.assertEqual(found['all'], ['cpu_load', 'cpu_temp', 'ram', 'disk', 'gpu_load', 'gpu_temp', 'vram', 'net_down', 'net_up', 'uptime',
-                                        'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps'])
+                                        'cpu_clock', 'cpu_power', 'gpu_power', 'gpu_clock', 'gpu_fan', 'fps',
+                                        'cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'])
         self.assertEqual(found['shown'], found['all'][:8])
 
     def test_the_status_screen_offers_as_many_readings_as_the_connected_panel_shows(self):
@@ -99,13 +100,14 @@ config = {profiles: {}, panel: {stats: PANEL_STATS.slice(0, 12).map(s => s[0])}}
 renderScreen();
 result.hint = made.map(([attrs]) => String(attrs.text || '')).find(line => line.startsWith('The panel shows')) || '';
 result.locked = made.filter(([attrs, node]) => attrs.type === 'checkbox' && node.disabled).length;
+result.unticked = PANEL_STATS.length - 12;
 return result;
 """)
         self.assertEqual(found['twelve'], [12, 12])
         for name in ('old', 'gone', 'odd'):
             self.assertEqual(found[name], [8, 8], name)
         self.assertIn('12 readings', found['hint'])
-        self.assertEqual(found['locked'], 4)
+        self.assertEqual(found['locked'], found['unticked'])
 
     def test_another_panel_setting_saves_no_readings_the_user_never_picked(self):
         found = self.run_editor(r"""
@@ -125,6 +127,14 @@ return result;
         self.assertEqual(found['none'], {'mic': False, 'has': False})
         self.assertEqual(found['kept'], ['ram'])
         self.assertEqual(found['picked'], ['cpu_load', 'fps'])
+
+    def test_the_four_new_readings_can_be_key_gauges(self):
+        found = self.run_editor(r"""
+return Object.fromEntries(['cpu_core_max', 'cpu_volt', 'gpu_volt', 'gpu_hotspot'].map(key => [key, gaugeSensors[key] || null]));
+""")
+        self.assertTrue(all(found.values()), found)
+        self.assertEqual((found['cpu_volt'][1]['unit'], found['gpu_volt'][1]['unit']), ('mV', 'mV'))
+        self.assertEqual((found['cpu_core_max'][1]['unit'], found['gpu_hotspot'][1]['unit']), ('%', 'C'))
 
     def test_a_ready_made_key_that_shows_state_keeps_its_states_only_for_a_new_key(self):
         found = self.run_editor(r"""

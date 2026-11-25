@@ -3,6 +3,7 @@
 ## Unreleased
 
 - The *This PC* screen shows up to 12 readings instead of 8. A panel on older firmware still gets 8.
+- Four new readings for status cards and key gauges: the busiest CPU core, CPU voltage, GPU voltage and GPU hot spot.
 
 ## 1.2.12
 

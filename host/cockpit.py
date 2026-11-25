@@ -8,7 +8,8 @@ from __future__ import annotations
 import json
 
 PROTOCOL = 4
-MAX_LINE = 1000
+# The payload after the command word. Twelve of the 20 readings, all full and over their limits, come to 1004.
+MAX_LINE = 1050
 MAX_ID = 39  # DECK_ID_MAX in main/deck_model.h: the panel refuses a longer id
 AGENTS = (('claude', 'Claude Code', 'claude.exe'), ('codex', 'Codex', 'codex.exe'), ('zcode', 'ZCode', 'zcode.exe'))
 AGENT_ACTIONS = ('allow', 'deny', 'stop', 'open')
@@ -23,7 +24,9 @@ STATS = (('CPU load', 'cpu_load', '%', 100, 95, GREEN), ('CPU temp', 'cpu_temp',
          ('Upload', 'net_up', '/s', 10 * 1024 * 1024, None, GREY), ('Uptime', 'uptime', '', 7 * 86400, None, GREY),
          ('CPU clock', 'cpu_clock', 'MHz', 6000, None, GREEN), ('CPU power', 'cpu_power', 'W', 250, None, GREEN),
          ('GPU power', 'gpu_power', 'W', 450, None, PURPLE), ('GPU clock', 'gpu_clock', 'MHz', 3000, None, PURPLE),
-         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE))
+         ('GPU fan', 'gpu_fan', 'RPM', 3000, None, PURPLE), ('FPS', 'fps', '', 144, None, BLUE),
+         ('Busiest core', 'cpu_core_max', '%', 100, None, GREEN), ('CPU voltage', 'cpu_volt', 'mV', 1500, None, GREEN),
+         ('GPU voltage', 'gpu_volt', 'mV', 1200, None, PURPLE), ('GPU hot spot', 'gpu_hotspot', 'C', 110, 100, PURPLE))
 STAT_IDS = tuple(key for _, key, *_ in STATS)
 MAX_STATS = 12  # DECK_STATS_MAX in main/deck_model.h
 OLD_PANEL_STATS = 8  # firmware that does not send statsMax shows eight

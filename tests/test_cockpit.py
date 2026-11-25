@@ -34,6 +34,10 @@ class PayloadTests(unittest.TestCase):
         lanes = json.loads(cockpit.agents_payload({'claude': 'working', 'codex': 'idle'}, {'codex': True}, since=since))['agents']
         self.assertEqual({lane['id']: lane.get('at') for lane in lanes}, {'claude': '14:05', 'codex': None})
 
+    def test_the_longest_line_with_its_command_word_fits_the_panels_buffer(self):
+        # main.cpp reads a line into char line[1100]: 1099 characters, or the panel drops it.
+        self.assertLess(len('AD_AGENTS ') + cockpit.MAX_LINE + len('\n'), 1100)
+
     def test_every_line_fits_the_panels_buffer_even_with_long_foreign_text(self):
         variables = {key: 'working' for key, _, _ in cockpit.AGENTS}
         variables.update({f'{key}.message': 'æøå' * 200 for key, _, _ in cockpit.AGENTS})
