@@ -30,8 +30,10 @@ def flatten_sensor_tree(node: dict, depth: int = 0, hardware: str = '') -> list[
     readings = []
     sensor_id = str(node.get('SensorId', ''))
     if sensor_id and 'Value' in node:
-        # Value follows Options > Temperature Unit; RawValue (in 0.9.6) stays in °C.
+        # Value follows Options > Temperature Unit; RawValue (from 0.9.5) stays in °C.
         parsed = parse_value(str(node.get('RawValue', node['Value'])))
+        if parsed and parsed[1] == 'f':  # 0.9.4 and older have no RawValue
+            parsed = round((parsed[0] - 32) / 1.8, 1), 'c'
         if parsed:
             kind = '/'.join(sensor_id.split('/')[1:3])  # e.g. 'amdcpu/0' or 'gpu-amd/0'
             readings.append({'label': text, 'sensor': f'{hardware} {kind}'.strip(), 'unit': parsed[1],

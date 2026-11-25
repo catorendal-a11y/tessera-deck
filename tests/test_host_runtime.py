@@ -87,13 +87,23 @@ class HostRuntimeTests(HostCase):
         self.assertEqual(metrics['gpu_clock'], 313.0)
         self.assertEqual(metrics['gpu_fan'], 301.0)
 
-    def test_libre_hardware_monitor_set_to_fahrenheit_still_gives_celsius(self):
-        # Options > Temperature Unit > Fahrenheit changes Value; RawValue stays in °C (Libre 0.9.6 data.json).
-        from lhm_reader import flatten_sensor_tree
-        tree = {'Text': 'Sensor', 'Children': [{'Text': 'PC', 'Children': [{'Text': 'AMD Ryzen 7 8845HS', 'Children': [
+    @staticmethod
+    def fahrenheit_tree(**values):
+        return {'Text': 'Sensor', 'Children': [{'Text': 'PC', 'Children': [{'Text': 'AMD Ryzen 7 8845HS', 'Children': [
             {'Text': 'Temperatures', 'Children': [{'Text': 'Core (Tctl/Tdie)', 'SensorId': '/amdcpu/0/temperature/2',
-                                                   'Value': '135,0 °F', 'RawValue': '57,2 °C', 'Children': []}]}]}]}]}
+                                                   'Value': '135,0 °F', 'Children': [], **values}]}]}]}]}
+
+    def test_libre_hardware_monitor_set_to_fahrenheit_still_gives_celsius(self):
+        # Options > Temperature Unit > Fahrenheit changes Value; RawValue stays in °C (Libre 0.9.5 and later).
+        from lhm_reader import flatten_sensor_tree
+        tree = self.fahrenheit_tree(RawValue='57,2 °C')
         self.assertEqual(select_hwinfo_metrics(flatten_sensor_tree(tree))['cpu_temp'], 57.2)
+
+    def test_an_older_libre_hardware_monitor_set_to_fahrenheit_still_gives_celsius(self):
+        # Libre 0.9.4 and older write only Value, so a °F reading is turned back into °C.
+        from lhm_reader import flatten_sensor_tree
+        self.assertAlmostEqual(select_hwinfo_metrics(flatten_sensor_tree(self.fahrenheit_tree()))['cpu_temp'], 57.2,
+                               places=1)
 
     def test_zeros_from_libre_hardware_monitor_without_its_driver_are_no_reading(self):
         # Libre 0.9.6 without PawnIO still lists the CPU sensors, all at 0 (issue 47).
