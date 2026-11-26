@@ -42,19 +42,19 @@ Questions, ideas and photos of your setup go in [Discussions](https://github.com
 
 | Board | Chip and screen | State |
 |---|---|---|
-| [GUITION JC1060P470C](https://www.aliexpress.com/item/1005010022828767.html) | ESP32-P4, 7-inch, 1024 × 600 | The main board, about $35 to $42. Tested on hardware, with firmware in every release. Newer boards with a v3.x chip take their own package, which a user runs on a v3.2 board ([INSTALL.md](docs/INSTALL.md#flash-the-panel)). |
-| [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Works on a contributor's board, colors and touch included. The firmware is in the releases from 1.2.0. |
-| [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. One tester has the display, touch, keys and PC actions working over native USB. |
+| [GUITION JC1060P470C](https://www.aliexpress.com/item/1005010022828767.html) | ESP32-P4, 7-inch, 1024 × 600 | The main board, about $35 to $42. Tested on hardware. Boards with a v3.x chip take their own package ([Install](docs/INSTALL.md#flash-the-panel)). |
+| [Elecrow CrowPanel Advance 7.0](docs/CROWPANEL.md) | ESP32-P4, 7-inch, 1024 × 600 | Works on a contributor's board, colors and touch included. |
+| [Waveshare ESP32-S3-Touch-LCD-7](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. One tester has the display, touch, keys and PC actions working. |
 | [Waveshare ESP32-S3-Touch-LCD-7B](docs/S3.md) | ESP32-S3, 7-inch, 1024 × 600 | Experimental. One tester has the display, touch and the USB link working; the backlight is on/off. |
-| [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. The firmware is in the releases, but nobody has run it on the board yet. |
+| [Sunton ESP32-8048S070](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental. Nobody has run it on the board yet. |
 | [Elecrow CrowPanel Advance 7.0 ESP32-S3](docs/S3.md) | ESP32-S3, 7-inch, 800 × 480 | Experimental, hardware V1.3 to V1.5. One tester has the display, touch and brightness working on a V1.5 board. |
 
-If you have one of the S3 boards, [tell me how it goes in the S3 test reports](https://github.com/catorendal-a11y/tessera-deck/discussions/29). [Contributing](CONTRIBUTING.md#port-to-another-board) says what a port to another board needs.
+The releases have firmware for every board in the table. If you have one of the S3 boards, [tell me how it goes in the S3 test reports](https://github.com/catorendal-a11y/tessera-deck/discussions/29). [Contributing](CONTRIBUTING.md#port-to-another-board) says what a port to another board needs.
 
 ## In short
 
-- When Claude Code asks for permission, the question shows on the panel and you touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
-- There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on, such as the update check or the weather on the clock screen. [Security](SECURITY.md#what-tessera-contacts) lists every address. The panel talks to a small host on the PC over USB.
+- When Claude Code asks for permission, you touch *Allow* or *Deny* on the panel. The agents screen shows what Claude Code, Codex and ZCode are doing and in which project.
+- There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on. [Security](SECURITY.md#what-tessera-contacts) lists every address.
 - Firmware, host and editor are open source (MIT), with over 1,300 automated tests, a documented serial protocol and a plugin API.
 - You flash the board from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
 
@@ -70,44 +70,35 @@ If you have one of the S3 boards, [tell me how it goes in the S3 test reports](h
   <img src="docs/images/editor-widgets.png" alt="The editor: the rail, the keys with their page tabs, the selected key's settings and the action list" width="900">
 </p>
 
-<sub>The panel images are drawn by the firmware UI itself in a native build (`tools/render_screens.py` and `test_ui`). The agents and mixer screens show sample data. The editor images are screenshots of the real editor.</sub>
+<sub>The panel images are drawn by the firmware UI itself in a native build. The agents and mixer screens show sample data. The editor image is a screenshot of the real editor.</sub>
 
 ## Quick start
 
 ### Quick start on Windows
 
-The release zip has the host and the panel firmware, so you need no build tools.
+1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up and opens the editor. You need no build tools.
+2. Connect the panel with USB.
+3. Open **Panel → Panel firmware and updates …**. The dialog reads the board's chip and chooses its firmware; when two boards share the chip, choose yours. Press *Install*.
+4. Click an action in the list on the right. It becomes a new key, and changes are saved automatically.
+5. Press the key on the panel. Keys run only there, never in the editor.
 
-1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up and puts a shortcut on the Desktop. The editor opens.
-2. Connect the panel with USB. The *Getting started* checklist in the editor ticks off *Host running* and *Panel connected* by itself.
-3. Open **Panel → Panel firmware and updates …** with the board plugged in. The dialog reads which chip a new board has and chooses the firmware and *Full install* for it; when two boards share the chip, choose yours in the list. Press *Install*. More in [Install](docs/INSTALL.md).
-4. Click an action in the list on the right. It becomes a new key. Fill it in on the **Look** and **Actions** tabs. Changes are saved automatically.
-5. Press the key on the panel. The editor says "It works" and lights up the key.
+Windows SmartScreen may warn about the download because Tessera is not code-signed; [Install](docs/INSTALL.md#download-and-verify) shows how to check it against `SHA256SUMS`. Tessera needs 64-bit (x64) Python 3.11 or newer, and the first start installs Python 3.12 with winget if none is found. If Tessera picks the wrong USB port, choose the panel's port in **⚙ Program settings**.
 
-Nothing runs in the editor. Keys run only when you press them on the panel.
+From a terminal (cmd or PowerShell):
 
-About the first start:
-
-- Windows SmartScreen may warn about the download because Tessera is not code-signed. `SHA256SUMS` in the same release has the zip's checksum, and [Install](docs/INSTALL.md#download-and-verify) shows how to compare.
-- Tessera needs 64-bit (x64) Python 3.11 or newer; 32-bit and arm64 Python do not work. If none is found, the first start installs x64 Python 3.12 for your user with winget and accepts its license terms.
-- Tessera finds the panel's USB port by itself. If it picks the wrong one, choose the port in **⚙ Program settings** in the editor, under *The panel's USB port*.
-- You can also download and start it from a terminal, with the tools Windows 10 and 11 have built in (cmd or PowerShell):
-
-  ```
-  curl.exe -L -o tessera-host.zip https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip
-  mkdir Tessera
-  tar -xf tessera-host.zip -C Tessera --strip-components=1
-  Tessera\Tessera.cmd
-  ```
+```
+curl.exe -L -o tessera-host.zip https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip
+mkdir Tessera
+tar -xf tessera-host.zip -C Tessera --strip-components=1
+Tessera\Tessera.cmd
+```
 
 ### Quick start on Linux
 
-The host runs in an X11 session, or in a Wayland session on KDE Plasma or GNOME. Install it in one of two ways:
+The host runs in an X11 session, or in a Wayland session on KDE Plasma or GNOME.
 
-- **Arch Linux:** install the [`tessera-deck`](https://aur.archlinux.org/packages/tessera-deck) package from the AUR, for example `yay -S tessera-deck`. It brings the dependencies. Start *Tessera* from the application menu, or run `tessera` in a terminal: it starts the tray icon, the USB host and the editor. `tessera --tray` starts the tray icon and the host without the editor. The package keeps your profiles and logs in `~/.local/share/tessera`.
-- **Any distribution:** unpack the release zip and run `./Tessera.sh`. It needs Python 3.12 or newer with `venv`, `xdotool` and `xclip`; `libpulse` (`pactl`) gives the volume actions, and a Secret Service such as GNOME Keyring stores plugin passwords. The first start creates `host/.venv` and adds the same two menu entries. The tray starts first: click its icon to open the editor, or run `./Tessera.sh --editor`. A StatusNotifier icon (the kind a Wayland desktop shows) opens its menu on a click instead: choose *Open editor* there.
-
-  From a terminal:
+- **Arch Linux:** install [`tessera-deck`](https://aur.archlinux.org/packages/tessera-deck) from the AUR, for example `yay -S tessera-deck`, and run `tessera` (`tessera --tray` starts without the editor). Your profiles and logs are in `~/.local/share/tessera`.
+- **Any distribution:** unpack the release zip and run `./Tessera.sh`. It needs Python 3.12 or newer with `venv`, `xdotool` and `xclip`. Click the tray icon to open the editor.
 
   ```
   curl -L -o tessera-host.zip https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip
@@ -115,18 +106,13 @@ The host runs in an X11 session, or in a Wayland session on KDE Plasma or GNOME.
   ./Tessera/Tessera.sh
   ```
 
-Your user must be allowed to open serial ports: add it to the group `uucp` (Arch) or `dialout` (Debian, Ubuntu) and log in again. Then continue with step 2 of the Windows steps above.
+Add your user to the group `uucp` (Arch) or `dialout` (Debian, Ubuntu) and log in again, so it may open serial ports. Then continue with step 2 above.
 
-A Wayland session needs other tools than `xdotool` and `xclip`:
-
-- **KDE Plasma:** install `ydotool` (and run `systemctl --user enable --now ydotool`), `kdotool-bin` from the AUR and `wl-clipboard`. [Tessera on Linux](docs/LINUX.md#wayland) has the details.
-- **GNOME:** install `wl-clipboard` and, for keys and typing, `ydotool` as above; without `ydotool` they go through the desktop's RemoteDesktop portal, which asks once. The tray icon needs the *AppIndicator and KStatusNotifierItem Support* extension. Window actions and smart profiles need the Tessera extension for GNOME Shell (marked for GNOME 51 only): run `./Tessera.sh --gnome-extension` in the Tessera folder, or `tessera --gnome-extension` with the AUR package, sign in again and run `gnome-extensions enable tessera-windows@tessera`. [Tessera on Linux](docs/LINUX.md#windows-on-gnome) has the details.
-
-To stop Tessera from a terminal run `killall Tessera`; `tessera --uninstall` (the package) or `./Tessera.sh --uninstall` removes the autostart and menu entries. [Tessera on Linux](docs/LINUX.md) covers the tray menu, what differs from Windows and what stays Windows-only.
+A Wayland session needs other tools than `xdotool` and `xclip`. On GNOME, window actions and smart profiles also need Tessera's extension for GNOME Shell (marked for GNOME 51 only), which `./Tessera.sh --gnome-extension` or `tessera --gnome-extension` installs. [Tessera on Linux](docs/LINUX.md#wayland) has the full list, the tray menu and what differs from Windows.
 
 ### Updating
 
-To update later, open **Panel → Panel firmware and updates …** and press *Check for updates*. From 1.2.4 the editor updates Tessera itself from there, starts it again, and then offers the panel's firmware without another download. [Install](docs/INSTALL.md#update-the-windows-program) has the details.
+Open **Panel → Panel firmware and updates …** and press *Check for updates*. The editor updates Tessera, starts it again and then offers the panel's firmware. [Install](docs/INSTALL.md#update-the-windows-program) has the details.
 
 ## Build it or buy one?
 
@@ -139,37 +125,34 @@ To update later, open **Panel → Panel firmware and updates …** and press *Ch
 
 You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand.
 
-Tessera is glass, so you give up the feel of a real key. A key shows it is pressed as soon as your finger lands and runs its action when you lift it. Drawing the whole screen takes about 55 ms; [Verification](VERIFICATION.md#screen-speed) has the measurements.
+Tessera is glass, so you give up the feel of a real key. A key shows it is pressed as soon as your finger lands and runs its action when you lift it. Drawing the whole screen takes about 55 ms ([Verification](VERIFICATION.md#screen-speed)).
 
-Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026, so they may have changed.
+<sub>Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026.</sub>
 
 ## What it does
 
-- Screens on the panel: as many pages of keys as you like, the AI agents, a sound mixer and the PC's status. A side bar you arrange yourself switches between them and can hold shortcuts to up to three of your pages. When the panel is idle it shows a clock with the weather.
+- Screens: as many pages of keys as you like, the AI agents, a sound mixer and the PC's status. A side bar you arrange yourself switches between them and can hold shortcuts to up to three of your pages. When the panel is idle it shows a clock with the weather.
 - Wide keys and widgets: a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, your next meeting, the music that plays or a timer.
 - Icons: real app icons from the PC, 1,895 Lucide icons or your own images.
 - Live gauges: CPU, GPU, VRAM, RAM, disk, network, temperatures, voltages, power, fan and FPS. The status screen shows up to 12 of them.
 - Profiles that follow the program in front. Hold Home to stay on the one you are in.
 - Over 130 ready-made actions and 10 profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
 - Macros: multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
-- Scripts and AI tools: run a script from a key, drive keys or put a message on the panel from your own scripts with the local API or `deckctl`, or add plugins (one for Home Assistant through the PC and one for OBS Studio are included) and Claude Code hooks.
-- Offline layout, auto-dim, a banner that says why a key failed, and an updater in the editor for both the program and the panel's firmware.
-- Home Assistant over Wi-Fi (beta, not in the release yet): the panel joins your Wi-Fi and shows up in Home Assistant through the ESPHome integration. See [below](#home-assistant-beta).
+- Scripts and plugins: run a script from a key, drive the panel from your own scripts with the local API or `deckctl`, and add plugins. Plugins for Home Assistant (through the PC) and OBS Studio are included, as are Claude Code hooks.
+- Offline layout, auto-dim, a banner that says why a key failed, and an updater in the editor for the program and the panel's firmware.
 
 See [all features](docs/FEATURES.md).
 
 ## Home Assistant (beta)
 
-This is not in the release yet. On the [`esphome-beta`](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta) branch, the panel can also join your Wi-Fi and show up in Home Assistant through the ESPHome integration. USB to Windows keeps working as before, so one panel does both.
+This is not in the release yet. On the [`esphome-beta`](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta) branch, the panel can also join your Wi-Fi and show up in Home Assistant through the ESPHome integration, while USB to the PC keeps working as before.
 
-- Keys run Home Assistant actions straight from the panel, also when the PC is off: toggle a light, start a scene or call any other action.
-- Keys can follow an entity: a key can change color while a light is on, or show a value such as 21.5 °C as its label.
-- Every key is also an event (press, hold, double press) for your automations, and there are entities for the backlight, the page, the Wi-Fi signal and whether the PC is connected.
-- The connection is encrypted. Home Assistant discovers the panel over mDNS and asks for its key. Wi-Fi and Home Assistant stay off until you turn them on in *Panel → Wi-Fi and Home Assistant*.
+- Keys run Home Assistant actions straight from the panel, also when the PC is off.
+- A key can follow an entity: change color while a light is on, or show a value such as 21.5 °C as its label.
+- Every key is also an event (press, hold, double press) for your automations.
+- The connection is encrypted, and Wi-Fi and Home Assistant stay off until you turn them on.
 
-The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it, check out the branch and build its firmware, since the releases have no beta firmware: [its README](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta#home-assistant-beta) has the steps, and what to know before you go back to `main`. The beta firmware needs the host from the same branch.
-
-Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome. The [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
+The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it you build the firmware from the branch: [its README](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta#home-assistant-beta) has the steps and what to know before you go back to `main`. Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome, and the [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
 
 ## A desk console to print
 
@@ -177,7 +160,7 @@ Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are 
   <img src="docs/images/console-printed.jpg" alt="A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen" width="900">
 </p>
 
-The console in these pictures is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant). It has been printed, and that panel fits it. A second console holds the bare Elecrow CrowPanel Advance 7.0.
+The console reclines the panel 45° and hides the cables, and it prints without supports. It is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant), has been printed, and that panel fits it. A second console holds the bare Elecrow CrowPanel Advance 7.0, and there is a lighter open dock.
 
 <p align="center">
   <img src="docs/images/console-hero.jpg" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back" width="900">
@@ -187,9 +170,9 @@ The console in these pictures is made for the GUITION JC1060P470C in its factory
 |---|---|---|
 | <img src="docs/images/console-user.jpg" alt="The console seen from the front at eye height, with the panel's main page"> | <img src="docs/images/console-back.jpg" alt="The back of the console: air openings, two screwdriver holes and the cable arch"> | <img src="docs/images/console-detail.jpg" alt="Close-up of the tile mark in the chin, with the printed layer lines"> |
 
-The panel drops into a printed console that reclines it 45° and hides the cables, or into a lighter open dock. Both are drawn to print without supports. [hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened. The print files are also on [Printables](https://www.printables.com/model/1921087-tessera-desk-console-for-7-inch-esp32-p4-panels-gu) and [MakerWorld](https://makerworld.com/en/models/3640174-tessera-desk-console-for-7-inch-esp32-p4-panels); MakerWorld has sliced print profiles for Bambu printers.
+[hardware/](hardware/README.md) has the STL and STEP files, the CAD models, the print settings and how the panel is fastened. The print files are also on [Printables](https://www.printables.com/model/1921087-tessera-desk-console-for-7-inch-esp32-p4-panels-gu) and [MakerWorld](https://makerworld.com/en/models/3640174-tessera-desk-console-for-7-inch-esp32-p4-panels), where MakerWorld has sliced profiles for Bambu printers.
 
-<sub>The first picture is a photo of the printed console. The others are rendered in Blender from the CAD model, with the panel's real screen. [`make_render.py`](hardware/scripts/make_render.py) builds the scene, saves it as [`tessera-console.blend`](hardware/render/tessera-console.blend) and renders it in 4K. See [Render the console](hardware/README.md#render-the-console).</sub>
+<sub>The first picture is a photo of the printed console. The others are rendered in Blender from the CAD model, with the panel's real screen. See [Render the console](hardware/README.md#render-the-console).</sub>
 
 ## How it works
 
@@ -211,19 +194,19 @@ The host is the only owner of the USB port. It sends the page to the panel, rece
 
 | | |
 |---|---|
-| [Features](docs/FEATURES.md) | Everything Tessera does, by panel screen and editor area |
+| [Features](docs/FEATURES.md) | Everything Tessera does |
 | [Install](docs/INSTALL.md) | Hardware, start options, flashing from source |
-| [Tessera on Linux](docs/LINUX.md) | The tools the Linux host needs, what differs from Windows and what stays Windows-only |
-| [Desk console](hardware/README.md) | Printable stands for the GUITION panel and the CrowPanel: STL, STEP, the CAD models and a Blender scene for renders |
-| [Using Tessera](docs/USING.md) | Actions, labels, gauges, sensors, brightness, scripts, troubleshooting |
+| [Tessera on Linux](docs/LINUX.md) | The tools the Linux host needs and what differs from Windows |
+| [Using Tessera](docs/USING.md) | Actions, gauges, sensors, scripts, troubleshooting |
+| [Desk console](hardware/README.md) | Print files, CAD models and print settings |
 | [Plugins](docs/PLUGINS.md) | Write your own integration |
 | [Serial protocol](docs/PROTOCOL.md) | What the host and the panel say to each other |
 | [Development](docs/DEVELOPMENT.md) | Project layout, tests and tools |
 | [Contributing](CONTRIBUTING.md) | Reporting bugs, sending changes, porting to another board |
 | [Security](SECURITY.md) | Imported profiles, tokens and network use |
-| [Verification](VERIFICATION.md) | What the tests cover, what was checked on a real panel and what has not been tried or measured yet |
-| [ESP32-S3 boards](docs/S3.md) | The experimental port to four S3 boards (800 x 480, and 1024 x 600 on the Waveshare 7B) and what is still untested |
-| [CrowPanel Advance 7.0](docs/CROWPANEL.md) | The Elecrow CrowPanel Advance 7.0 (ESP32-P4): building, flashing and what is still open |
+| [Verification](VERIFICATION.md) | What the tests cover and what was checked on a real panel |
+| [ESP32-S3 boards](docs/S3.md) | The experimental port to four S3 boards |
+| [CrowPanel Advance 7.0](docs/CROWPANEL.md) | Building and flashing for the ESP32-P4 CrowPanel |
 | [Roadmap](docs/ROADMAP.md) | What is not done yet |
 
 ## Credits and license
