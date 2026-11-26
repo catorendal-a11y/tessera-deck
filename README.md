@@ -56,7 +56,7 @@ If you have one of the S3 boards, [tell me how it goes in the S3 test reports](h
 - When Claude Code asks for permission, the question shows on the panel and you touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
 - There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on, such as the update check or the weather on the clock screen. [Security](SECURITY.md#what-tessera-contacts) lists every address. The panel talks to a small host on the PC over USB.
 - Firmware, host and editor are open source (MIT), with over 1,300 automated tests, a documented serial protocol and a plugin API.
-- It needs one board, which you flash from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
+- You flash the board from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
 
 | Widgets on wide keys | Answer Claude Code from the panel |
 |---|---|
@@ -162,13 +162,7 @@ This is not in the release yet. On the [`esphome-beta`](https://github.com/cator
 - Every key is also an event (press, hold, double press) for your automations, and there are entities for the backlight, the page, the Wi-Fi signal and whether the PC is connected.
 - The connection is encrypted. Home Assistant discovers the panel over mDNS and asks for its key. Wi-Fi and Home Assistant stay off until you turn them on in *Panel → Wi-Fi and Home Assistant*.
 
-The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it:
-
-1. Check out the branch and start Tessera.
-2. Install the panel firmware from the branch with *Full install*. It needs the host from the same branch.
-3. Open *Panel → Wi-Fi and Home Assistant*.
-
-To go back, check out `main` again and install its firmware with *Full install*. *Update* does not work on the beta firmware, because the host on main cannot talk to it. Your profile file still loads there: it keeps the Wi-Fi and Home Assistant settings and steps, and keys skip those steps until you switch to the beta again. Main does not check the beta's limits for one page (24 Home Assistant steps and 4,096 bytes of them, pinned keys included). If you copy or pin keys with those steps on main and a page goes past them, the beta starts with an older backup instead.
+The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it, check out the branch: [its README](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta#home-assistant-beta) has the steps, and what to know before you go back to `main`. The beta firmware needs the host from the same branch.
 
 Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome. The [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
 
