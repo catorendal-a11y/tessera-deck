@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md)
 
-Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into a Stream Deck-style panel with 18 keys and four screens. A small host on the PC, for Windows or Linux, owns the USB connection and runs the actions. It also serves the editor, which shows the same keys as the panel. The [README](../README.md#supported-boards) lists the other boards with firmware.
+Tessera turns the 1024 × 600 touchscreen of the **GUITION 7-inch ESP32-P4 display board** into a Stream Deck-style panel with pages of 18 keys, screens for AI agents, a mixer and the PC's status, and an idle clock. A small host on the PC, for Windows or Linux, owns the USB connection and runs the actions. It also serves the editor, which shows the same keys as the panel. The [README](../README.md#supported-boards) lists the other boards with firmware.
 
 This page lists what the latest release does, as it works on Windows. [Tessera on Linux](LINUX.md) says what differs there, and the [changelog](../CHANGELOG.md) lists what changed. For how to use each part, see [Using Tessera](USING.md).
 
