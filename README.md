@@ -145,7 +145,7 @@ Board prices are AliExpress street prices and the Stream Deck prices are US list
 
 ## What it does
 
-- Screens on the panel: as many pages of keys as you like, the AI agents, a sound mixer and the PC's status, plus an idle clock with the weather. A side bar you arrange yourself switches between them and can hold shortcuts to up to three of your pages.
+- Screens on the panel: as many pages of keys as you like, the AI agents, a sound mixer and the PC's status. A side bar you arrange yourself switches between them and can hold shortcuts to up to three of your pages. When the panel is idle it shows a clock with the weather.
 - Wide keys and widgets: a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, your next meeting, the music that plays or a timer.
 - Icons: real app icons from the PC, 1,895 Lucide icons or your own images.
 - Live gauges: CPU, GPU, VRAM, RAM, disk, network, temperatures, voltages, power, fan and FPS. The status screen shows up to 12 of them.
