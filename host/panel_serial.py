@@ -25,15 +25,15 @@ RESET_HANDSHAKE_SECONDS = 10.0
 ASK_AGAIN_SECONDS = 1.0
 # It answers get_info before its boot screen has finished; a layout sent in that moment can lose bytes on the UART.
 SETTLE_AFTER_RESET_SECONDS = 1.5
-PANEL_CACHE_BYTES = 8 * 1024 * 1024  # what firmware without "imgCache" in get_info keeps; CacheLimit in main/deck_images.cpp
+PANEL_CACHE_BYTES = 8 * 1024 * 1024  # what firmware without "imgCache" in get_info keeps; CacheLimit in esp/main/deck_images.cpp
 PANEL_SIZE = (1024, 600)  # what firmware without "w"/"h" in get_info has
-OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in main/main.cpp
-OTA_CHUNK = 512  # image bytes per AD_OTA_DATA line; OTA_CHUNK in main/main.cpp
-OTA_WINDOW = 2048  # the panel acknowledges every OTA_WINDOW bytes; OTA_ACK_BYTES in main/main.cpp
+OFFLINE_LAYOUT_BYTES = 8192  # what the panel keeps in flash for offline use; LAYOUT_MAX in esp/main/main.cpp
+OTA_CHUNK = 512  # image bytes per AD_OTA_DATA line; OTA_CHUNK in esp/main/main.cpp
+OTA_WINDOW = 2048  # the panel acknowledges every OTA_WINDOW bytes; OTA_ACK_BYTES in esp/main/main.cpp
 OTA_ANSWER_SECONDS = 5  # the panel answers a window within tens of milliseconds; after this long the answer is lost
 OTA_LOST_ANSWERS = 2  # windows in a row that may stay unanswered; unread windows would overflow the panel's buffer
-IMG_CHUNK = 512  # image bytes per AD_IMG_DATA line to a panel with "imgAck":1; ImgChunk in main/deck_images.cpp
-IMG_WINDOW = 2048  # such a panel acknowledges every IMG_WINDOW image bytes; ImgAckBytes in main/deck_images.cpp
+IMG_CHUNK = 512  # image bytes per AD_IMG_DATA line to a panel with "imgAck":1; ImgChunk in esp/main/deck_images.cpp
+IMG_WINDOW = 2048  # such a panel acknowledges every IMG_WINDOW image bytes; ImgAckBytes in esp/main/deck_images.cpp
 # Handshake "reset" reasons that mean the panel crashed or lost power rather than being restarted on purpose.
 CRASH_RESETS = {'panic': 'a crash', 'int_wdt': 'a hang (interrupt watchdog)', 'task_wdt': 'a hang (task watchdog)',
                 'wdt': 'a hang (watchdog)', 'brownout': 'a power dip (brownout)'}

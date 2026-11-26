@@ -33,7 +33,7 @@ def main():
     if built and built != args.board:
         sys.exit(f'The build is for {built}; pass --board {built}')
     version = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
-    header = (ROOT / 'main' / 'protocol_version.h').read_text(encoding='utf-8')
+    header = (ROOT / 'esp' / 'main' / 'protocol_version.h').read_text(encoding='utf-8')
     protocol = int(re.search(r'#define\s+TESSERA_PROTOCOL\s+(\d+)', header).group(1))
     # The A/B table needs the OTA data image in the package, or an esptool app install would keep an old slot.
     flash_files = json.loads((args.build_dir / 'flasher_args.json').read_text(encoding='utf-8'))['flash_files']

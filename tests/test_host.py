@@ -154,7 +154,7 @@ class HostTests(HostCase):
         daemon.panel.push_buttons.assert_called_once()
 
     def test_1024x600_panel_is_enabled_after_controller_init(self):
-        source = (ROOT / 'components/espressif__esp32_p4_function_ev_board/'
+        source = (ROOT / 'esp/components/espressif__esp32_p4_function_ev_board/'
                   'esp32_p4_function_ev_board.c').read_text(encoding='utf-8')
         init = source.index('esp_lcd_panel_init(disp_panel)')
         display_on = source.index('esp_lcd_panel_disp_on_off(disp_panel, true)', init)

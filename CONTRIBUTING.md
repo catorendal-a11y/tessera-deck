@@ -30,7 +30,7 @@ host\.venv\Scripts\python.exe host\tessera_terminal.py --check
 
 CI also audits `host/requirements.txt` with `pip-audit`, runs the tests from the lock file, builds the firmware, runs `cppcheck` on it and runs the native UI tests. After an editor change, `foreach ($f in 'core','app','dialogs') { node --check host/editor/$f.js }` in PowerShell catches a syntax error early (`node --check` reads only its first file).
 
-**UI changes without a board.** If you change `main/ui/ui.cpp` or `main/deck_model.c`, build and run the native tests. They need `managed_components/`, which is not in git: run `idf.py -B build/idf6 build` or `idf.py reconfigure` once. Then:
+**UI changes without a board.** If you change `esp/main/ui/ui.cpp` or `esp/main/deck_model.c`, build and run the native tests. They need `esp/managed_components/`, which is not in git: run `idf.py -B build/idf6 build` or `idf.py reconfigure` once in the `esp` folder. Then:
 
 ```powershell
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -66,6 +66,6 @@ Commit both files. CI installs from the lock file on Windows with Python 3.11 an
 
 ## Port to another board
 
-Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and a board id of its own. The UI scales its 1024 x 600 layout to the screen size at start. The [CrowPanel Advance 7.0 port](docs/CROWPANEL.md) shows what that takes for another ESP32-P4 board. It adds a board choice and its id to `main/Kconfig.projbuild`, puts its pins, power and screen setup behind `CONFIG_TESSERA_BOARD_P4_CROWPANEL7` in `components/espressif__esp32_p4_function_ev_board`, keeps its build settings in `boards/crowpanel-p4-7.defaults` and adds the id to `BOARD_IDS` in `host/panel_serial.py` and `BOARD_CHIPS` in `host/firmware_update.py`. `tests/test_boards.py` checks that the two lists match. Open an issue with the board's name and resolution and we can work out what it takes.
+Tessera is made for the GUITION 7-inch ESP32-P4 board (JC1060P470C). A port needs a board support package for the display and touch, and a board id of its own. The UI scales its 1024 x 600 layout to the screen size at start. The [CrowPanel Advance 7.0 port](docs/CROWPANEL.md) shows what that takes for another ESP32-P4 board. It adds a board choice and its id to `esp/main/Kconfig.projbuild`, puts its pins, power and screen setup behind `CONFIG_TESSERA_BOARD_P4_CROWPANEL7` in `esp/components/espressif__esp32_p4_function_ev_board`, keeps its build settings in `esp/boards/crowpanel-p4-7.defaults` and adds the id to `BOARD_IDS` in `host/panel_serial.py` and `BOARD_CHIPS` in `host/firmware_update.py`. `tests/test_boards.py` checks that the two lists match. Open an issue with the board's name and resolution and we can work out what it takes.
 
 By contributing you agree that your work is released under the [MIT License](LICENSE).

@@ -5,7 +5,7 @@ revision. idf.py takes those from boards/tessera-p4-v3.defaults, so the two buil
 revision needs. Built from sdkconfig.defaults alone, about 60 other options (watchdog, LVGL, FreeRTOS) came out
 different from the tested build.
 
-    python3 tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
+    cd esp && python3 ../tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
 """
 import re
 import sys

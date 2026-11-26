@@ -40,10 +40,10 @@ class P4BoardTests(unittest.TestCase):
         self.assertEqual(updates.firmware_asset(assets, 'tessera-p4-v3')['name'], 'tessera-firmware-tessera-p4-v3-1.0.0.zip')
         self.assertEqual(updates.firmware_asset(assets, 'tessera-p4')['name'], 'tessera-firmware-1.0.0.zip')
         self.assertIsNone(updates.firmware_asset(assets[:1], 'tessera-p4-v3'))
-        overlay = (ROOT / 'boards' / 'tessera-p4-v3.defaults').read_text(encoding='utf-8')
+        overlay = (ROOT / 'esp' / 'boards' / 'tessera-p4-v3.defaults').read_text(encoding='utf-8')
         self.assertIn('# CONFIG_ESP32P4_SELECTS_REV_LESS_V3 is not set', overlay)
         self.assertIn('"tessera-p4-v3" if TESSERA_BOARD_P4_GUITION && !ESP32P4_SELECTS_REV_LESS_V3',
-                      (ROOT / 'main' / 'Kconfig.projbuild').read_text(encoding='utf-8'))
+                      (ROOT / 'esp' / 'main' / 'Kconfig.projbuild').read_text(encoding='utf-8'))
 
 
 def table(*entries):

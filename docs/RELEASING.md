@@ -6,7 +6,7 @@
 
 `VERSION` holds one number (for example `1.0.0`). The firmware (`PROJECT_VER`), the host, the firmware packages and the release tag all use it.
 
-The firmware's USB protocol has its own number in `main/protocol_version.h`. The host accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. It refuses a panel outside that range with a message that says which side to update.
+The firmware's USB protocol has its own number in `esp/main/protocol_version.h`. The host accepts the protocols listed in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. It refuses a panel outside that range with a message that says which side to update.
 
 | Protocol | Added |
 |---|---|
@@ -32,7 +32,7 @@ The configuration file has its own `version` (currently 2). Opening an older fil
    ```
 
 5. The *Release* workflow (`.github/workflows/release.yml`) starts on the tag and publishes the release.
-6. The AUR package is in `packaging/aur`. Set `pkgver` and the first `sha256sums` entry (the `tessera-host-v<version>.zip` line in the release's `SHA256SUMS`) in `PKGBUILD` and `.SRCINFO`, commit, and push the folder to the AUR repository `tessera-deck`. Its maintainer has the push access.
+6. The AUR package [`tessera-deck`](https://aur.archlinux.org/packages/tessera-deck) lives in its own AUR repository, and its maintainer updates it for a new release.
 
 ### What the workflow does
 
@@ -61,7 +61,8 @@ gh attestation verify tessera-host-v1.2.13.zip --repo catorendal-a11y/tessera-de
 A firmware package is a zip with `manifest.json` and the images. The manifest holds the board, chip, version, protocol, flash settings and the SHA-256 of every image. Build one locally with:
 
 ```powershell
-python tools/package_firmware.py build/idf6 dist
+cd esp
+python ../tools/package_firmware.py build/idf6 ../dist
 ```
 
 ## Update the panel
@@ -75,7 +76,7 @@ Use **Panel → Panel firmware and updates …** in the editor, or `esptool` by 
 
 ## A/B slots and rollback
 
-`partitions.csv` defines two 6 MB application slots (`ota_0` at 0x10000 and `ota_1`), `otadata`, a 16 KB `nvs` and a `storage` SPIFFS partition for the offline layout.
+`esp/partitions.csv` defines two 6 MB application slots (`ota_0` at 0x10000 and `ota_1`), `otadata`, a 16 KB `nvs` and a `storage` SPIFFS partition for the offline layout.
 
 A panel that reports `"ota":1` takes *Update* over its own USB connection (`AD_OTA_*`, see [PROTOCOL.md](PROTOCOL.md)) into the idle slot:
 

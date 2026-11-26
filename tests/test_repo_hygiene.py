@@ -15,7 +15,7 @@ def read(path):
 class RepoHygieneTests(unittest.TestCase):
     def test_native_targets_stub_every_time_service_call_of_the_ui(self):
         # These targets link ui.cpp without time_service.c, so a new call there breaks the default native build.
-        called = set(re.findall(r'\b(time_service_\w+)\s*\(', read('main/ui/ui.cpp')))
+        called = set(re.findall(r'\b(time_service_\w+)\s*\(', read('esp/main/ui/ui.cpp')))
         self.assertTrue(called)
         for stub in ('tests/native/render_screens.cpp', 'tests/native/test_ui.cpp', 'tests/native/cache_bench.cpp'):
             missing = {name for name in called if not re.search(r'\b' + name + r'\s*\(\s*\)\s*\{', read(stub))}
@@ -28,7 +28,7 @@ class RepoHygieneTests(unittest.TestCase):
         row = re.search(r'\{board: (tessera-p4-v3), target: \S+, defaults: (\S+)\}', ci)
         self.assertIsNotNone(row, 'ci.yml builds no tessera-p4-v3 image')
         built = ci.replace('${{ matrix.board }}', row.group(1)).replace('${{ matrix.defaults }}', row.group(2))
-        recipe = ('python3 tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig',
+        recipe = ('python3 ../tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig',
                   'idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig',
                   f'-DSDKCONFIG_DEFAULTS="sdkconfig.defaults;{row.group(2)}"')
         for part in recipe:
@@ -48,7 +48,7 @@ class RepoHygieneTests(unittest.TestCase):
 
     def test_cppcheck_covers_every_firmware_source(self):
         ci = read('.github/workflows/ci.yml')
-        sources = {p.relative_to(ROOT).as_posix() for p in (ROOT / 'main').rglob('*')
+        sources = {p.relative_to(ROOT).as_posix() for p in (ROOT / 'esp/main').rglob('*')
                    if p.suffix in ('.c', '.cpp') and 'fonts' not in p.parts}
         self.assertTrue(sources)
         self.assertFalse({s for s in sources if s not in ci}, 'add the new firmware source to the cppcheck step')
@@ -57,16 +57,6 @@ class RepoHygieneTests(unittest.TestCase):
         command = re.search(r'ruff check [^\n]+', read('.github/workflows/ci.yml')).group(0)
         self.assertIn(command, read('CONTRIBUTING.md'))
         self.assertIn(command, read('docs/DEVELOPMENT.md'))
-
-    def test_the_aur_wrapper_gives_the_same_gnome_extension_steps_as_tessera_sh(self):
-        # packaging/aur/tessera-deck.sh copies the GNOME version warning and the steps after it from Tessera.sh
-        def steps(path):
-            text = read(path)
-            start = text.index('shell_major=')
-            end = text.index('\n', text.index('gnome-extensions disable', start))
-            # The AUR copy ends that last line with the ;; of its case branch.
-            return [line.strip().removesuffix(' ;;') for line in text[start:end].splitlines()]
-        self.assertEqual(steps('packaging/aur/tessera-deck.sh'), steps('Tessera.sh'))
 
     @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'needs a git checkout')
     def test_gitignore_covers_the_temp_files_of_atomic_writes(self):

@@ -782,7 +782,7 @@ class Clock:
 
 class JtagBoard(Board):
     """A board on the chip's own USB. A new image also keeps itself after a minute of running (app_confirm in
-    main/main.cpp), so a reset after that minute no longer brings the old one back.
+    esp/main/main.cpp), so a reset after that minute no longer brings the old one back.
 
     `usb_gap` is how long it is off USB while it restarts (None: a UART board, whose port stays), and a new image
     that `hangs` never answers and never keeps itself."""

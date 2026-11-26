@@ -2,7 +2,7 @@
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-path = root / 'main/ui/fonts/deck_lucide_60.c'
+path = root / 'esp/main/ui/fonts/deck_lucide_60.c'
 marker = '/* Lucide 1.59.0 icon outlines; original license notices follow.\n'
 source = path.read_text(encoding='utf-8')
 if not source.startswith(marker):

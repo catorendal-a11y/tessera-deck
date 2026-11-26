@@ -10,11 +10,12 @@
 
 The firmware also builds for the Elecrow CrowPanel Advance 7.0 (ESP32-P4, 1024 x 600, EK79007 screen, GT911 touch). It works on the contributor's board: the colors look right, touch works, and most of the hotkeys and actions they tried work. The panel reports the board id `tessera-p4-crowpanel7`, 1024 x 600, protocol 4; the GUITION build is unchanged and keeps `tessera-p4`. Pins, panel timing and power come from Elecrow's V1.2 example code. CI builds it, and the releases have its package from 1.2.0 on. The Linux host was written and tested with this board ([Tessera on Linux](LINUX.md)).
 
-To build it yourself, from the repository root, with ESP-IDF 6.1:
+To build it yourself, from the `esp` folder, with ESP-IDF 6.1:
 
 ```
+cd esp
 idf.py -B build/crowpanel -DSDKCONFIG=build/crowpanel/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/crowpanel-p4-7.defaults" build
-python tools/package_firmware.py build/crowpanel dist --board tessera-p4-crowpanel7
+python ../tools/package_firmware.py build/crowpanel ../dist --board tessera-p4-crowpanel7
 ```
 
 `idf.py -B build/crowpanel -p COM5 flash` writes the build straight to the board (use your board's port). The package lands in `dist/` as `tessera-firmware-tessera-p4-crowpanel7-<version>.zip`; installing it from the editor's firmware dialog has not been tried on this board yet. A board that still runs Elecrow's own firmware does not answer the host, so the dialog asks before it restarts the board to read its chip, then offers a full install. An ESP32-P4 behind the USB-UART bridge can only be this board, so the dialog picks *Elecrow CrowPanel Advance 7.0 (ESP32-P4)*. That build is for the v1.x chip; on a board with a v3.x chip the dialog says there is no firmware for it yet.

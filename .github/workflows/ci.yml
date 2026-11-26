@@ -27,13 +27,13 @@ jobs:
         id: diff
         shell: bash
         run: |
-          # A pull request with only Markdown and docs/ skips the steps of the firmware jobs. The jobs still report,
-          # because the "Protect main" ruleset waits for their names. The host jobs run in full:
-          # tests/test_repo_hygiene.py reads those pages.
+          # A pull request that changes nothing the firmware is built or tested from skips the steps of the firmware
+          # jobs: host code, host tests, docs. The jobs still report, because the "Protect main" ruleset waits for
+          # their names. The host jobs always run in full.
           firmware=true
           if [ "${{ github.event_name }}" = pull_request ]; then
             files=$(git diff --name-only HEAD^1 HEAD)
-            grep -qvE '\.md$|^docs/' <<< "$files" || firmware=false
+            grep -qE '^(esp/|tests/native/|tests/cache_bench\.py$|tools/(package_firmware|v3_sdkconfig)\.py$|vendor/|VERSION$|\.github/workflows/)' <<< "$files" || firmware=false
           fi
           echo "firmware=$firmware" >> "$GITHUB_OUTPUT"
 
@@ -138,7 +138,7 @@ jobs:
         if: needs.changes.outputs.firmware == 'true'
         run: >
           cppcheck --enable=warning,portability --inline-suppr --std=c++17 --error-exitcode=1 --quiet
-          -I main -I main/ui main/main.cpp main/deck_model.c main/deck_images.cpp main/time_service.c main/ui/ui.cpp
+          -I esp/main -I esp/main/ui esp/main/main.cpp esp/main/deck_model.c esp/main/deck_images.cpp esp/main/time_service.c esp/main/ui/ui.cpp
 
   firmware:
     name: Firmware build and native LVGL tests
@@ -153,12 +153,13 @@ jobs:
         shell: bash
         run: |
           . $IDF_PATH/export.sh
+          cd esp
           idf.py -B build/idf6 build
           ls -l build/idf6/tessera.bin
       - name: Package firmware
         if: needs.changes.outputs.firmware == 'true'
         shell: bash
-        run: python3 tools/package_firmware.py build/idf6 dist
+        run: python3 tools/package_firmware.py esp/build/idf6 dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: needs.changes.outputs.firmware == 'true'
         with:
@@ -205,15 +206,16 @@ jobs:
         shell: bash
         run: |
           . $IDF_PATH/export.sh
+          cd esp
           # The v3.x GUITION build starts from the tested v1.x sdkconfig; only the revision options come from its board file
-          if [ "${{ matrix.board }}" = tessera-p4-v3 ]; then python3 tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig; fi
+          if [ "${{ matrix.board }}" = tessera-p4-v3 ]; then python3 ../tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig; fi
           idf.py -B build/${{ matrix.board }} -DSDKCONFIG=build/${{ matrix.board }}/sdkconfig -DIDF_TARGET=${{ matrix.target }} \
             -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;${{ matrix.defaults }}" build
           ls -l build/${{ matrix.board }}/tessera.bin
       - name: Package firmware
         if: needs.changes.outputs.firmware == 'true'
         shell: bash
-        run: python3 tools/package_firmware.py build/${{ matrix.board }} dist --board ${{ matrix.board }}
+        run: python3 tools/package_firmware.py esp/build/${{ matrix.board }} dist --board ${{ matrix.board }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: needs.changes.outputs.firmware == 'true'
         with:
