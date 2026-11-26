@@ -210,4 +210,6 @@ GitHub Actions runs these on every pull request and every push to main:
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 | `audit.yml` | `pip-audit` on the versions in `host/requirements.lock`, once on Windows and once on Linux, because each skips the packages marked for the other system. It runs when `host/requirements*` changes and every Monday |
 
+A pull request that changes only Markdown files and `docs/` skips the steps of the three firmware jobs. The jobs still report, and the host jobs run in full, because `tests/test_repo_hygiene.py` reads those pages.
+
 [VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).
