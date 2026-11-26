@@ -162,7 +162,7 @@ This is not in the release yet. On the [`esphome-beta`](https://github.com/cator
 - Every key is also an event (press, hold, double press) for your automations, and there are entities for the backlight, the page, the Wi-Fi signal and whether the PC is connected.
 - The connection is encrypted. Home Assistant discovers the panel over mDNS and asks for its key. Wi-Fi and Home Assistant stay off until you turn them on in *Panel → Wi-Fi and Home Assistant*.
 
-The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it, check out the branch: [its README](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta#home-assistant-beta) has the steps, and what to know before you go back to `main`. The beta firmware needs the host from the same branch.
+The beta runs on one panel and works with aioesphomeapi, the library Home Assistant uses to talk to ESPHome devices, but it has not been tried in a full Home Assistant install yet. To try it, check out the branch and build its firmware, since the releases have no beta firmware: [its README](https://github.com/catorendal-a11y/tessera-deck/tree/esphome-beta#home-assistant-beta) has the steps, and what to know before you go back to `main`. The beta firmware needs the host from the same branch.
 
 Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are welcome. The [design](https://github.com/catorendal-a11y/tessera-deck/blob/esphome-beta/docs/design/esphome.md) explains how it works.
 
