@@ -144,7 +144,7 @@ The first build downloads LVGL and the other components into `esp/managed_compon
 
 ## Native LVGL tests and render tools
 
-The native build compiles the real firmware UI (`esp/main/ui/ui.cpp`) and model (`esp/main/deck_model.c`) for the PC, so you can test and look at the panel without a board. It needs CMake, a C/C++ compiler and the LVGL sources in `esp/managed_components/`, so run the firmware build or `idf.py reconfigure` once first. On Windows, `scoop install cmake ninja mingw` covers the tools.
+The native build compiles the real firmware UI (`esp/main/ui/ui.cpp`) and model (`esp/main/deck_model.c`) for the PC, so you can test and look at the panel without a board. It needs CMake, a C/C++ compiler and the LVGL sources in `esp/managed_components/`, so run the firmware build or `idf.py reconfigure` in `esp` once first. Run the commands below from the repository root. On Windows, `scoop install cmake ninja mingw` covers the tools.
 
 ```powershell
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release

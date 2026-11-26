@@ -30,7 +30,7 @@ host\.venv\Scripts\python.exe host\tessera_terminal.py --check
 
 CI also audits `host/requirements.txt` with `pip-audit`, runs the tests from the lock file, builds the firmware, runs `cppcheck` on it and runs the native UI tests. After an editor change, `foreach ($f in 'core','app','dialogs') { node --check host/editor/$f.js }` in PowerShell catches a syntax error early (`node --check` reads only its first file).
 
-**UI changes without a board.** If you change `esp/main/ui/ui.cpp` or `esp/main/deck_model.c`, build and run the native tests. They need `esp/managed_components/`, which is not in git: run `idf.py -B build/idf6 build` or `idf.py reconfigure` once in the `esp` folder. Then:
+**UI changes without a board.** If you change `esp/main/ui/ui.cpp` or `esp/main/deck_model.c`, build and run the native tests. They need `esp/managed_components/`, which is not in git: run `idf.py -B build/idf6 build` or `idf.py reconfigure` once in the `esp` folder. Then, from the repository root:
 
 ```powershell
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release
