@@ -145,7 +145,7 @@ Board prices are AliExpress street prices and the Stream Deck prices are US list
 
 ## What it does
 
-- Four screens on the panel: your keys, the AI agents, a sound mixer and the PC's status. A side bar you arrange yourself switches between them.
+- Screens on the panel: as many pages of keys as you like, the AI agents, a sound mixer and the PC's status, plus an idle clock with the weather. A side bar you arrange yourself switches between them and can hold shortcuts to up to three of your pages.
 - Wide keys and widgets: a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, your next meeting, the music that plays or a timer.
 - Icons: real app icons from the PC, 1,895 Lucide icons or your own images.
 - Live gauges: CPU, GPU, VRAM, RAM, disk, network, temperatures, voltages, power, fan and FPS. The status screen shows up to 12 of them.
@@ -153,7 +153,7 @@ Board prices are AliExpress street prices and the Stream Deck prices are US list
 - Over 130 ready-made actions and 10 profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
 - Macros: multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
 - Scripts and AI tools: run a script from a key, drive keys or put a message on the panel from your own scripts with the local API or `deckctl`, or add plugins (one for Home Assistant through the PC and one for OBS Studio are included) and Claude Code hooks.
-- Clock screen, offline layout, auto-dim, a banner that says why a key failed, and an updater in the editor for both the program and the panel's firmware.
+- Offline layout, auto-dim, a banner that says why a key failed, and an updater in the editor for both the program and the panel's firmware.
 - Home Assistant over Wi-Fi (beta, not in the release yet): the panel joins your Wi-Fi and shows up in Home Assistant through the ESPHome integration. See [below](#home-assistant-beta).
 
 See [all features](docs/FEATURES.md).
