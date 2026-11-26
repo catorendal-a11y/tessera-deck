@@ -14,6 +14,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Changed files
+    runs-on: ubuntu-latest
+    outputs:
+      firmware: ${{ steps.diff.outputs.firmware }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2  # a pull request is checked out as its merge commit, so HEAD^1 is the base
+      - name: Does this change need the firmware jobs?
+        id: diff
+        shell: bash
+        run: |
+          # A pull request with only Markdown and docs/ skips the steps of the firmware jobs. The jobs still report,
+          # because the "Protect main" ruleset waits for their names. The host jobs run in full:
+          # tests/test_repo_hygiene.py reads those pages.
+          firmware=true
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            files=$(git diff --name-only HEAD^1 HEAD)
+            grep -qvE '\.md$|^docs/' <<< "$files" || firmware=false
+          fi
+          firmware=false  # TEMPORARY: tries the skip path on this pull request
+          echo "firmware=$firmware" >> "$GITHUB_OUTPUT"
+
   host:
     name: "Windows host (Python ${{ matrix.python }}: tests, lint, dependency audit)"
     runs-on: windows-latest
@@ -103,36 +127,46 @@ jobs:
 
   firmware-analysis:
     name: Firmware static analysis (cppcheck)
+    needs: changes
     runs-on: ubuntu-latest  # not the ESP-IDF container: apt inside it could not reach the Ubuntu archive
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.firmware == 'true'
       - name: Install cppcheck
+        if: needs.changes.outputs.firmware == 'true'
         run: sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
       - name: Check the firmware sources (the generated fonts are left out)
+        if: needs.changes.outputs.firmware == 'true'
         run: >
           cppcheck --enable=warning,portability --inline-suppr --std=c++17 --error-exitcode=1 --quiet
           -I main -I main/ui main/main.cpp main/deck_model.c main/deck_images.cpp main/time_service.c main/ui/ui.cpp
 
   firmware:
     name: Firmware build and native LVGL tests
+    needs: changes
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.1
+    container: ${{ needs.changes.outputs.firmware == 'true' && 'espressif/idf:v6.1' || '' }}  # no image to pull when the steps are skipped
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.firmware == 'true'
       - name: Build firmware
+        if: needs.changes.outputs.firmware == 'true'
         shell: bash
         run: |
           . $IDF_PATH/export.sh
           idf.py -B build/idf6 build
           ls -l build/idf6/tessera.bin
       - name: Package firmware
+        if: needs.changes.outputs.firmware == 'true'
         shell: bash
         run: python3 tools/package_firmware.py build/idf6 dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: needs.changes.outputs.firmware == 'true'
         with:
           name: tessera-firmware
           path: dist/
       - name: Native LVGL render and model tests
+        if: needs.changes.outputs.firmware == 'true'
         shell: bash
         run: |
           . $IDF_PATH/export.sh
@@ -141,6 +175,7 @@ jobs:
           build/native/test_ui build/native/out
           TESSERA_SCREEN=800x480 build/native/test_ui build/native/out-800x480  # the small layout, as ui_init picks it for 800 x 480 screens
       - name: Image cache benchmark
+        if: needs.changes.outputs.firmware == 'true'
         shell: bash
         run: |
           python3 -m venv /tmp/bench
@@ -150,8 +185,9 @@ jobs:
 
   firmware-boards:
     name: Firmware build for ${{ matrix.board }}
+    needs: changes
     runs-on: ubuntu-latest
-    container: espressif/idf:v6.1
+    container: ${{ needs.changes.outputs.firmware == 'true' && 'espressif/idf:v6.1' || '' }}  # no image to pull when the steps are skipped
     strategy:
       fail-fast: false
       matrix:  # the boards with a board file; the GUITION P4 build is the firmware job above
@@ -164,7 +200,9 @@ jobs:
           - {board: tessera-p4-v3, target: esp32p4, defaults: boards/tessera-p4-v3.defaults}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.firmware == 'true'
       - name: Build firmware
+        if: needs.changes.outputs.firmware == 'true'
         shell: bash
         run: |
           . $IDF_PATH/export.sh
@@ -174,9 +212,11 @@ jobs:
             -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;${{ matrix.defaults }}" build
           ls -l build/${{ matrix.board }}/tessera.bin
       - name: Package firmware
+        if: needs.changes.outputs.firmware == 'true'
         shell: bash
         run: python3 tools/package_firmware.py build/${{ matrix.board }} dist --board ${{ matrix.board }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: needs.changes.outputs.firmware == 'true'
         with:
           name: tessera-firmware-${{ matrix.board }}
           path: dist/
