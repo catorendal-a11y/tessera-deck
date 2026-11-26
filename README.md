@@ -90,6 +90,7 @@ About the first start:
 
 - Windows SmartScreen may warn about the download because Tessera is not code-signed. `SHA256SUMS` in the same release has the zip's checksum, and [Install](docs/INSTALL.md#download-and-verify) shows how to compare.
 - Tessera needs 64-bit (x64) Python 3.11 or newer; 32-bit and arm64 Python do not work. If none is found, the first start installs x64 Python 3.12 for your user with winget and accepts its license terms.
+- Tessera finds the panel's USB port by itself. If it picks the wrong one, choose the port in **⚙ Program settings** in the editor, under *The panel's USB port*.
 - You can also download and start it from a terminal, with the tools Windows 10 and 11 have built in (cmd or PowerShell):
 
   ```
@@ -136,7 +137,11 @@ To update later, open **Panel → Panel firmware and updates …** and press *Ch
 | Live widgets, mixer, PC status, AI agents | built in | through plugins | through plugins |
 | Source code | MIT | closed | closed |
 
-You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand. Tessera is glass, so you give up the feel of a real key. A key shows it is pressed as soon as your finger lands and runs its action when you lift it. Drawing the whole screen takes about 55 ms; [Verification](VERIFICATION.md#screen-speed) has the measurements. Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026, so they may have changed.
+You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk-console-to-print) or use a small tablet stand.
+
+Tessera is glass, so you give up the feel of a real key. A key shows it is pressed as soon as your finger lands and runs its action when you lift it. Drawing the whole screen takes about 55 ms; [Verification](VERIFICATION.md#screen-speed) has the measurements.
+
+Board prices are AliExpress street prices and the Stream Deck prices are US list prices, both from November 2026, so they may have changed.
 
 ## What it does
 
@@ -172,7 +177,7 @@ Reports in [issues](https://github.com/catorendal-a11y/tessera-deck/issues) are 
   <img src="docs/images/console-printed.jpg" alt="A photo of the console printed in light grey plastic, standing on a desk with the panel in it and the main page of keys on the screen" width="900">
 </p>
 
-The console in these pictures is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant). It has been printed, and that panel fits it perfectly. A second console holds the bare Elecrow CrowPanel Advance 7.0.
+The console in these pictures is made for the GUITION JC1060P470C in its factory housing (the `_Y` variant). It has been printed, and that panel fits it. A second console holds the bare Elecrow CrowPanel Advance 7.0.
 
 <p align="center">
   <img src="docs/images/console-hero.jpg" alt="The printed desk console in dark grey PLA with the panel in place, reclined 45 degrees, the main page on the screen and a USB-C cable out of the back" width="900">

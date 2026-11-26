@@ -4,7 +4,7 @@ This page says what is tested automatically, what was checked on a real panel, w
 
 ## Tested automatically
 
-CI and `python -m unittest discover -s tests` run over 850 tests on Windows and on Linux. Each system skips the tests written only for the other. None needs hardware.
+CI and `python -m unittest discover -s tests` run over 1,300 tests on Windows and on Linux. Each system skips the tests written only for the other. None needs hardware.
 
 | Area | What the tests cover |
 |---|---|
