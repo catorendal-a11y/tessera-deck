@@ -12,11 +12,11 @@
 
 <p align="center">
   <img alt="Windows" src="https://img.shields.io/badge/host-Windows%2010%2F11-0078D4?logo=windows&logoColor=white">
-  <img alt="Linux (X11, Plasma Wayland)" src="https://img.shields.io/badge/host-Linux%20(X11%2C%20Plasma%20Wayland)-FCC624?logo=linux&logoColor=black">
+  <img alt="Linux (X11, Plasma or GNOME on Wayland)" src="https://img.shields.io/badge/host-Linux%20(X11%2C%20Plasma%2FGNOME%20Wayland)-FCC624?logo=linux&logoColor=black">
   <a href="https://aur.archlinux.org/packages/tessera-deck"><img alt="AUR package tessera-deck" src="https://img.shields.io/aur/version/tessera-deck?logo=archlinux&logoColor=white&color=1793D1"></a>
   <img alt="ESP-IDF 6.1" src="https://img.shields.io/badge/ESP--IDF-6.1-E7352C?logo=espressif&logoColor=white">
   <img alt="LVGL 9.6" src="https://img.shields.io/badge/LVGL-9.6-2C3E50">
-  <img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white">
+  <img alt="Python 3.11+ on Windows, 3.12+ on Linux" src="https://img.shields.io/badge/Python-3.11%2B%20(Linux%203.12%2B)-3776AB?logo=python&logoColor=white">
   <a href="https://github.com/catorendal-a11y/tessera-deck/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/catorendal-a11y/tessera-deck?color=35D07F"></a>
   <a href="https://github.com/catorendal-a11y/tessera-deck/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/catorendal-a11y/tessera-deck/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue">
@@ -54,8 +54,8 @@ If you have one of the S3 boards, [tell me how it goes in the S3 test reports](h
 ## In short
 
 - When Claude Code asks for permission, the question shows on the panel and you touch *Allow* or *Deny* to answer. The agents screen also shows what Claude Code, Codex and ZCode are doing, since when, and in which project.
-- There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on, such as the update check or the weather. [Security](SECURITY.md#what-tessera-contacts) lists every address. The panel talks to a small host on the PC over USB.
-- Firmware, host and editor are open source (MIT), with over 900 automated tests, a documented serial protocol and a plugin API.
+- There is no account, cloud service or subscription. Your profiles stay on your PC, and the host goes online only for features you turn on, such as the update check or the weather on the clock screen. [Security](SECURITY.md#what-tessera-contacts) lists every address. The panel talks to a small host on the PC over USB.
+- Firmware, host and editor are open source (MIT), with over 1,300 automated tests, a documented serial protocol and a plugin API.
 - It needs one board, which you flash from the editor without a toolchain. See [Build it or buy one?](#build-it-or-buy-one)
 
 | Widgets on wide keys | Answer Claude Code from the panel |
@@ -79,18 +79,6 @@ If you have one of the S3 boards, [tell me how it goes in the S3 test reports](h
 The release zip has the host and the panel firmware, so you need no build tools.
 
 1. Unpack `tessera-host-<version>.zip` from the [latest release](https://github.com/catorendal-a11y/tessera-deck/releases/latest) and double-click `Tessera.cmd`. The first start sets everything up and puts a shortcut on the Desktop. The editor opens.
-   Windows SmartScreen may warn about the download because Tessera is not code-signed. You can compare the zip's SHA-256 with `SHA256SUMS` first, as [Install](docs/INSTALL.md#download-and-verify) explains. Tessera needs 64-bit (x64) Python 3.11 or newer; 32-bit and arm64 Python do not work. If none is found, the first start installs x64 Python 3.12 for your user with winget and accepts its license terms.
-   On Linux, see [Quick start on Linux](#quick-start-on-linux) below.
-   Or from a terminal, with the tools Windows 10 and 11 have built in (cmd or PowerShell):
-
-   ```
-   curl.exe -L -o tessera-host.zip https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip
-   mkdir Tessera
-   tar -xf tessera-host.zip -C Tessera --strip-components=1
-   Tessera\Tessera.cmd
-   ```
-
-   `SHA256SUMS` from the same release has the file's checksum; [Install](docs/INSTALL.md#download-and-verify) shows how to compare.
 2. Connect the panel with USB. The *Getting started* checklist in the editor ticks off *Host running* and *Panel connected* by itself.
 3. Open **Panel → Panel firmware and updates …** with the board plugged in. The dialog reads which chip a new board has and chooses the firmware and *Full install* for it; when two boards share the chip, choose yours in the list. Press *Install*. More in [Install](docs/INSTALL.md).
 4. Click an action in the list on the right. It becomes a new key. Fill it in on the **Look** and **Actions** tabs. Changes are saved automatically.
@@ -98,14 +86,25 @@ The release zip has the host and the panel firmware, so you need no build tools.
 
 Nothing runs in the editor. Keys run only when you press them on the panel.
 
+About the first start:
+
+- Windows SmartScreen may warn about the download because Tessera is not code-signed. `SHA256SUMS` in the same release has the zip's checksum, and [Install](docs/INSTALL.md#download-and-verify) shows how to compare.
+- Tessera needs 64-bit (x64) Python 3.11 or newer; 32-bit and arm64 Python do not work. If none is found, the first start installs x64 Python 3.12 for your user with winget and accepts its license terms.
+- You can also download and start it from a terminal, with the tools Windows 10 and 11 have built in (cmd or PowerShell):
+
+  ```
+  curl.exe -L -o tessera-host.zip https://github.com/catorendal-a11y/tessera-deck/releases/latest/download/tessera-host.zip
+  mkdir Tessera
+  tar -xf tessera-host.zip -C Tessera --strip-components=1
+  Tessera\Tessera.cmd
+  ```
+
 ### Quick start on Linux
 
 The host runs in an X11 session, or in a Wayland session on KDE Plasma or GNOME. Install it in one of two ways:
 
 - **Arch Linux:** install the [`tessera-deck`](https://aur.archlinux.org/packages/tessera-deck) package from the AUR, for example `yay -S tessera-deck`. It brings the dependencies. Start *Tessera* from the application menu, or run `tessera` in a terminal: it starts the tray icon, the USB host and the editor. `tessera --tray` starts the tray icon and the host without the editor. The package keeps your profiles and logs in `~/.local/share/tessera`.
 - **Any distribution:** unpack the release zip and run `./Tessera.sh`. It needs Python 3.12 or newer with `venv`, `xdotool` and `xclip`; `libpulse` (`pactl`) gives the volume actions, and a Secret Service such as GNOME Keyring stores plugin passwords. The first start creates `host/.venv` and adds the same two menu entries. The tray starts first: click its icon to open the editor, or run `./Tessera.sh --editor`. A StatusNotifier icon (the kind a Wayland desktop shows) opens its menu on a click instead: choose *Open editor* there.
-- **Wayland on KDE Plasma:** instead of `xdotool` and `xclip`, install `ydotool` (and run `systemctl --user enable --now ydotool`), `kdotool-bin` from the AUR and `wl-clipboard`. [Tessera on Linux](docs/LINUX.md#wayland) has the details.
-- **Wayland on GNOME:** install `wl-clipboard` and, for keys and typing, `ydotool` as above; without `ydotool` they go through the desktop's RemoteDesktop portal, which asks once. Window actions and smart profiles need the Tessera extension for GNOME Shell (marked for GNOME 51 only), and the tray icon needs the *AppIndicator and KStatusNotifierItem Support* extension. Install the Tessera extension with `./Tessera.sh --gnome-extension` from the folder you unpacked; after the commands below you are in the folder above it, so there it is `./Tessera/Tessera.sh --gnome-extension`. With the AUR package it is `tessera --gnome-extension` from 1.2.8 on. An older package does not have that option: copy the extension from it instead, with `mkdir -p ~/.local/share/gnome-shell/extensions && cp -r /usr/share/tessera/host/linux/gnome-extension/tessera-windows@tessera ~/.local/share/gnome-shell/extensions/`. Then sign in again and run `gnome-extensions enable tessera-windows@tessera`. [Tessera on Linux](docs/LINUX.md#windows-on-gnome) has the details.
 
   From a terminal:
 
@@ -115,7 +114,16 @@ The host runs in an X11 session, or in a Wayland session on KDE Plasma or GNOME.
   ./Tessera/Tessera.sh
   ```
 
-Your user must be allowed to open serial ports: add it to the group `uucp` (Arch) or `dialout` (Debian, Ubuntu) and log in again. Then continue with step 2 above. To stop Tessera from a terminal run `killall Tessera`; `tessera --uninstall` (the package) or `./Tessera.sh --uninstall` removes the autostart and menu entries. [Tessera on Linux](docs/LINUX.md) has the details: the tray menu, what differs from Windows and what stays Windows-only.
+Your user must be allowed to open serial ports: add it to the group `uucp` (Arch) or `dialout` (Debian, Ubuntu) and log in again. Then continue with step 2 of the Windows steps above.
+
+A Wayland session needs other tools than `xdotool` and `xclip`:
+
+- **KDE Plasma:** install `ydotool` (and run `systemctl --user enable --now ydotool`), `kdotool-bin` from the AUR and `wl-clipboard`. [Tessera on Linux](docs/LINUX.md#wayland) has the details.
+- **GNOME:** install `wl-clipboard` and, for keys and typing, `ydotool` as above; without `ydotool` they go through the desktop's RemoteDesktop portal, which asks once. The tray icon needs the *AppIndicator and KStatusNotifierItem Support* extension. Window actions and smart profiles need the Tessera extension for GNOME Shell (marked for GNOME 51 only): run `./Tessera.sh --gnome-extension` in the Tessera folder, or `tessera --gnome-extension` with the AUR package, sign in again and run `gnome-extensions enable tessera-windows@tessera`. [Tessera on Linux](docs/LINUX.md#windows-on-gnome) has the details.
+
+To stop Tessera from a terminal run `killall Tessera`; `tessera --uninstall` (the package) or `./Tessera.sh --uninstall` removes the autostart and menu entries. [Tessera on Linux](docs/LINUX.md) covers the tray menu, what differs from Windows and what stays Windows-only.
+
+### Updating
 
 To update later, open **Panel → Panel firmware and updates …** and press *Check for updates*. From 1.2.4 the editor updates Tessera itself from there, starts it again, and then offers the panel's firmware without another download. [Install](docs/INSTALL.md#update-the-windows-program) has the details.
 
@@ -135,7 +143,7 @@ You also need a USB-C cable, and a stand helps: print the [desk console](#a-desk
 - Four screens on the panel: your keys, the AI agents, a sound mixer and the PC's status. A side bar you arrange yourself switches between them.
 - Wide keys and widgets: a key can cover two or three slots and show the clock, the date, CPU, GPU, memory, network, volume, the AI agents, your next meeting, the music that plays or a timer.
 - Icons: real app icons from the PC, 1,895 Lucide icons or your own images.
-- Live gauges: CPU, GPU, VRAM, RAM, disk, network, temperatures, power, fan and FPS.
+- Live gauges: CPU, GPU, VRAM, RAM, disk, network, temperatures, voltages, power, fan and FPS. The status screen shows up to 12 of them.
 - Profiles that follow the program in front. Hold Home to stay on the one you are in.
 - Over 130 ready-made actions and 10 profile templates for Windows, VS Code, browsers, meetings, media, Codex, Claude Code and ZCode.
 - Macros: multi-step actions, long press, double press, hold to confirm, toggle keys, counters and timers.
@@ -195,7 +203,7 @@ flowchart LR
         Sensors["Windows counters, Libre Hardware Monitor<br/>or hwmon on Linux"] --> Host
         Host["tesserad: USB host<br/>actions, profiles, sensors"]
     end
-    Host <-->|"USB Serial/JTAG<br/>JSON + line protocol"| Panel["ESP32-P4 panel<br/>LVGL UI, touch"]
+    Host <-->|"USB serial<br/>JSON + line protocol"| Panel["ESP32-P4 or S3 panel<br/>LVGL UI, touch"]
 ```
 
 The host is the only owner of the USB port. It sends the page to the panel, receives key presses and runs the actions on the PC. The editor and the control API listen on `127.0.0.1` only.
