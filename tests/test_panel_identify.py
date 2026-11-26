@@ -62,7 +62,7 @@ class SilentPortTests(unittest.TestCase):
 
 class V3ConfigTests(unittest.TestCase):
     def test_the_v3_start_is_the_tested_v1_config_without_the_revision_options(self):
-        tested = (ROOT / 'sdkconfig').read_text(encoding='utf-8')
+        tested = (ROOT / 'esp/sdkconfig').read_text(encoding='utf-8')
         v3 = v3_sdkconfig(tested)
         for gone in ('CONFIG_ESP32P4_SELECTS_REV_LESS_V3=y', 'CONFIG_ESP32P4_REV_MIN_100=y', 'CONFIG_ESP32P4_REV_MAX_FULL=',
                      'CONFIG_ESP_REV_MIN_FULL=', 'CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_360=y', 'CONFIG_TESSERA_BOARD_ID=',

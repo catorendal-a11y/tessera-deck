@@ -22,7 +22,7 @@ class LayoutSizeTests(unittest.TestCase):
         self.assertEqual(deck.layout_bytes(buttons), len(sent[0].encode()))
 
     def test_the_offline_limit_matches_the_firmware(self):
-        firmware = (ROOT / 'main/main.cpp').read_text(encoding='utf-8')
+        firmware = (ROOT / 'esp/main/main.cpp').read_text(encoding='utf-8')
         self.assertIn(f'LAYOUT_MAX = {deck.OFFLINE_LAYOUT_BYTES};', firmware)
 
     def test_the_runtime_state_carries_the_size_and_the_controller_passes_it_on(self):

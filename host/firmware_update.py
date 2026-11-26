@@ -270,7 +270,7 @@ def detect_chip(port: str, runner: Callable | None = None, uart: bool = False) -
 
 
 NEW_FIRMWARE_SECONDS = 30  # the new image checks itself and boots in a few seconds
-KEPT_SECONDS = 70  # a new image keeps itself once it has run for a minute (app_confirm in main/main.cpp)
+KEPT_SECONDS = 70  # a new image keeps itself once it has run for a minute (app_confirm in esp/main/main.cpp)
 LOOK_AGAIN = ('Once the host has found the panel again, Panel firmware and updates shows which firmware it runs. '
               'If it is still the old one, install again.')
 

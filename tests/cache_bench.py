@@ -31,7 +31,7 @@ import panel_serial  # noqa: E402
 from deck_assets import Assets  # noqa: E402
 
 NEXT_KEY = 18  # the key that goes to the next page; the live keys sit just before it
-UI_TICK = 0.040  # the panel takes up a new layout on its next UI tick: lv_timer_create(update, 40, ...) in main/ui/ui.cpp
+UI_TICK = 0.040  # the panel takes up a new layout on its next UI tick: lv_timer_create(update, 40, ...) in esp/main/ui/ui.cpp
 WAITED = (b'AD_IMG_DATA ', b'AD_IMG_END ', b'AD_CFG_END ')  # answers the host waits for before it sends more
 
 

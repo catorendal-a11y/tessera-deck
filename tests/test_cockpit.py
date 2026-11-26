@@ -89,9 +89,9 @@ class PayloadTests(unittest.TestCase):
 
     def test_the_limit_matches_the_firmware(self):
         root = Path(__file__).resolve().parents[1]
-        header = (root / 'main/deck_model.h').read_text(encoding='utf-8')
+        header = (root / 'esp/main/deck_model.h').read_text(encoding='utf-8')
         self.assertEqual(re.search(r'#define DECK_STATS_MAX (\d+)', header).group(1), str(cockpit.MAX_STATS))
-        self.assertIn('"statsMax",DECK_STATS_MAX', (root / 'main/main.cpp').read_text(encoding='utf-8'))
+        self.assertIn('"statsMax",DECK_STATS_MAX', (root / 'esp/main/main.cpp').read_text(encoding='utf-8'))
 
     def test_a_program_name_becomes_a_short_title(self):
         self.assertEqual(cockpit.app_title('spotify.exe'), 'Spotify')

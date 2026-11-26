@@ -31,7 +31,7 @@ class Waits(threading.Event):
 
 
 def firmware_ack(received, size):
-    """What main/deck_images.cpp answers after an AD_IMG_DATA line of an upload begun with "ack"."""
+    """What esp/main/deck_images.cpp answers after an AD_IMG_DATA line of an upload begun with "ack"."""
     return f'AD_IMG_DATA OK {received}' if received % 2048 == 0 or received == size else None
 
 

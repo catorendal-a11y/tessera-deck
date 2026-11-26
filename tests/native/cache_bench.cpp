@@ -1,5 +1,5 @@
 // Stands in for the panel in tests/cache_bench.py. It reads the host's lines on stdin and handles images and
-// layouts, AD_CONTEXT and AD_FEEDBACK as main/main.cpp does, with the real image cache, model and UI; other lines
+// layouts, AD_CONTEXT and AD_FEEDBACK as esp/main/main.cpp does, with the real image cache, model and UI; other lines
 // are ignored. After each layout and the AD_CONTEXT that follows it, it draws and prints one line (a refused layout
 // gets it at once, with paint_us 0):
 //   BENCH {"paint_us":1234,"bytes":..,"count":..,"missing":[..],"evicted":[..]}

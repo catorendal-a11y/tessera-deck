@@ -1,6 +1,6 @@
 """Generate the Tessera logo in docs/images: logo-mark.svg, logo.svg and logo.png.
 
-The geometry matches the device header (main/ui/ui.cpp) and the editor (host/editor/app.js):
+The geometry matches the device header (esp/main/ui/ui.cpp) and the editor (host/editor/app.js):
 a 3x3 mosaic with its top-right tile broken loose, plus TESSERA drawn from rounded 5x7 tiles,
 both swept across the mint -> cyan -> purple brand gradient.
 """

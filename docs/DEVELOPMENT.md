@@ -14,14 +14,15 @@ Plugins and AI tools         --control API------> host
 - The host (`tesserad.py`) is the only owner of the USB port. It sends the active page (layout, live values, images) to the panel and receives key presses.
 - For each press the host runs the key's actions on the PC and answers the panel with a green or red flash.
 - The editor and the control API listen on `127.0.0.1` only.
-- The USB protocol is in [PROTOCOL.md](PROTOCOL.md). The host accepts the protocol numbers in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. The firmware reports its own number from `main/protocol_version.h`.
+- The USB protocol is in [PROTOCOL.md](PROTOCOL.md). The host accepts the protocol numbers in `SUPPORTED_PROTOCOLS` in `host/panel_serial.py`. The firmware reports its own number from `esp/main/protocol_version.h`.
 
 ## Project layout
 
 ```text
-main/            Panel firmware: USB console, button model, LVGL UI, fonts, image decoder
-components/      Board support package for the ESP32-P4 Function EV Board (the GUITION board and the CrowPanel)
-boards/          Build settings for the CrowPanel and the four S3 boards, and the S3 board support
+esp/             The panel firmware, an ESP-IDF project
+  main/            USB console, button model, LVGL UI, fonts, image decoder
+  components/      Board support package for the ESP32-P4 Function EV Board (the GUITION board and the CrowPanel)
+  boards/          Build settings for the CrowPanel and the four S3 boards, and the S3 board support
 host/            The host, for Windows and Linux
   tesserad.py          USB daemon: owns the panel, the job queue and the actions
   daemon_presses.py    Key presses: fast lane, slow lane, double taps
@@ -123,26 +124,27 @@ It talks to a connected panel: identity, layout push, 21 synthetic presses, boot
 
 ## Firmware
 
-The firmware builds with ESP-IDF 6.1. The commands here build it for the GUITION board (ESP32-P4); [CrowPanel Advance 7.0](CROWPANEL.md) and [ESP32-S3 boards](S3.md) have the commands for the other boards. In an ESP-IDF 6.1 shell:
+The firmware builds with ESP-IDF 6.1. The commands here build it for the GUITION board (ESP32-P4); [CrowPanel Advance 7.0](CROWPANEL.md) and [ESP32-S3 boards](S3.md) have the commands for the other boards. In an ESP-IDF 6.1 shell, from the `esp` folder:
 
 ```powershell
+cd esp
 idf.py -B build/idf6 build
-python tools/package_firmware.py build/idf6 dist    # writes dist/tessera-firmware-<version>.zip
+python ../tools/package_firmware.py build/idf6 ../dist    # writes dist/tessera-firmware-<version>.zip
 ```
 
 For a GUITION board with a v3.x chip ([INSTALL.md](INSTALL.md#flash-the-panel)), build the v3 image instead. It starts from the tested v1.x `sdkconfig`, minus the chip revision options, which `boards/tessera-p4-v3.defaults` sets:
 
 ```powershell
-python tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
+python ../tools/v3_sdkconfig.py sdkconfig build/tessera-p4-v3/sdkconfig
 idf.py -B build/tessera-p4-v3 -DSDKCONFIG=build/tessera-p4-v3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;boards/tessera-p4-v3.defaults" build
-python tools/package_firmware.py build/tessera-p4-v3 dist --board tessera-p4-v3
+python ../tools/package_firmware.py build/tessera-p4-v3 ../dist --board tessera-p4-v3
 ```
 
-The first build downloads LVGL and the other components into `managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). The screen is drawn by one thread (`CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1` in `sdkconfig.defaults`); two threads garbled text and icons, see [VERIFICATION.md](../VERIFICATION.md#screen-speed). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
+The first build downloads LVGL and the other components into `esp/managed_components/` (not in git). `dependencies.lock` pins their versions. `VERSION` sets the firmware version, and a change to it reconfigures the build. The flash layout is in `partitions.csv` (two 6 MB app slots). The screen is drawn by one thread (`CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=1` in `sdkconfig.defaults`); two threads garbled text and icons, see [VERIFICATION.md](../VERIFICATION.md#screen-speed). Install a package with *Panel firmware and updates …* in the editor, or by hand as [INSTALL.md](INSTALL.md) describes.
 
 ## Native LVGL tests and render tools
 
-The native build compiles the real firmware UI (`main/ui/ui.cpp`) and model (`main/deck_model.c`) for the PC, so you can test and look at the panel without a board. It needs CMake, a C/C++ compiler and the LVGL sources in `managed_components/`, so run the firmware build or `idf.py reconfigure` once first. On Windows, `scoop install cmake ninja mingw` covers the tools.
+The native build compiles the real firmware UI (`esp/main/ui/ui.cpp`) and model (`esp/main/deck_model.c`) for the PC, so you can test and look at the panel without a board. It needs CMake, a C/C++ compiler and the LVGL sources in `esp/managed_components/`, so run the firmware build or `idf.py reconfigure` in `esp` once first. Run the commands below from the repository root. On Windows, `scoop install cmake ninja mingw` covers the tools.
 
 ```powershell
 cmake -S tests/native -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -210,6 +212,6 @@ GitHub Actions runs these on every pull request and every push to main:
 | `editor-smoke.yml` | The editor smoke test, when `host/**` or the smoke test changes |
 | `audit.yml` | `pip-audit` on the versions in `host/requirements.lock`, once on Windows and once on Linux, because each skips the packages marked for the other system. It runs when `host/requirements*` changes and every Monday |
 
-A pull request that changes only Markdown files and `docs/` skips the steps of the three firmware jobs. The jobs still report, and the host jobs run in full, because `tests/test_repo_hygiene.py` reads those pages.
+A pull request runs the steps of the three firmware jobs only when it changes `esp/`, `tests/native/`, `tests/cache_bench.py`, `tools/package_firmware.py`, `tools/v3_sdkconfig.py`, `vendor/`, `VERSION` or a workflow. A pull request for the host or the docs skips them. The jobs still report, and the host jobs always run in full. Pushes to main and releases build everything.
 
 [VERIFICATION.md](../VERIFICATION.md) says what the checks cover and what nobody has tried on the panel. [RELEASING.md](RELEASING.md) describes the release process. For design background, see [SMARTDECK_COMPARISON.md](SMARTDECK_COMPARISON.md) and [ELGATO_RESEARCH.md](ELGATO_RESEARCH.md).
