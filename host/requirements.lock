@@ -196,8 +196,8 @@ esp-pylib==1.2.1 \
     --hash=sha256:c0854cc57b86e2745e9f7ac820d5d5e8a9f2c2d93caf12623c419b8d08d852f6 \
     --hash=sha256:fb05017676200e38dc182013c994e62d9088d377081c88562e14a2f5aaae6456
     # via esptool
-esptool==5.6.0 \
-    --hash=sha256:86c7249e9cc3a824e032ede9ba20abad057a2c49e231418cc4f02b177bb36f42
+esptool==5.7.0 \
+    --hash=sha256:cc5e66bfa7e0e01ac814c12618abf56e2d793d92827820f65755c6c128034da5
     # via -r requirements.txt
 intelhex==2.3.0 \
     --hash=sha256:87cc5225657524ec6361354be928adfd56bcf2a3dcc646c40f8f094c39c07db4 \
