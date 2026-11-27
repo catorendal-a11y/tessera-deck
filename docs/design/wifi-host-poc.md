@@ -1,6 +1,6 @@
 # Wi-Fi Host PoC (draft)
 
-Status: proposal only; no Wi-Fi Host transport is implemented in this commit.
+Status: minimal implementation in progress; hardware verification is outstanding.
 
 ## Scope
 
@@ -16,15 +16,16 @@ This work targets `esphome-beta` only. The first usable PoC must prove exactly o
 
 - Keep Wi-Fi Host transport opt-in and disabled by default.
 - The panel is the API server; Host connects outward to the panel on the LAN. Do not add a Host listener or unauthenticated command endpoint.
-- Require a deliberate approval in the Host UI before pairing. Obtain the panel's API key over the already-connected USB link only as part of that approval; never print or log it.
+- The PoC's `aioesphomeapi` package is an optional dependency in `host/requirements-wifi-poc.txt`; normal Host startup does not install or use it.
+- Require an explicit interactive confirmation before this standalone PoC connects. The operator enters the panel API key through a hidden prompt; it is not saved, printed, or logged. This is a development pairing flow, not a Host UI integration.
 - Use the panel's Noise-encrypted Native API connection. Do not fall back to plaintext if encryption or authentication fails.
-- Keep the pairing secret in the operating system's protected credential store, with an explicit unpair action. Do not put it in profiles, logs, or source control.
+- This PoC does not persist a pairing secret. A future Host UI integration must use the operating system's protected credential store and provide an explicit unpair action.
 - Do not expose discovery or the transport beyond the local network.
 
-## Open implementation detail
+## Minimal implementation
 
-Native API key events can cover panel-to-Host input. The reverse direction needs a narrowly defined Host-to-panel request that updates one visible status value. The existing Native API entities are primarily panel-to-client state reports; the PoC must establish whether an existing authenticated command is suitable or whether one small authenticated API message is needed. Do not repurpose an unrelated entity command or claim bidirectional status support until this path is defined and verified.
+Native API key events cover panel-to-Host input. The PoC uses the standard ESPHome TextCommand message ID 99 with a dedicated `host_status` key; the panel accepts it only inside the existing Noise-authenticated API session and displays the text as a short informational banner. It is not exposed as an open Host endpoint and does not execute a panel action. The standalone Host PoC asks for confirmation, prompts for the key without echo, sends one status update, and records one key event without forwarding it into the existing action engine. USB remains the regular Host startup path.
 
 ## Acceptance evidence
 
-The draft is ready for review when it contains a traceable one-key event and one Host-to-panel status update over the encrypted API, has a clear opt-in/pairing path, and demonstrates that a normal start still selects USB. Until then this PR remains a design/WIP draft.
+This draft demonstrates the intended one-key event and one status update in code, with explicit opt-in and Noise authentication. Hardware operation has not been verified; the standalone PoC is not part of normal Host startup and never flashes firmware.

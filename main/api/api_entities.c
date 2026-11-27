@@ -32,6 +32,7 @@ uint32_t api_key_slot_key(int slot)
 #define OBJ_PROFILE "profile"
 #define OBJ_PAGE "page"
 #define OBJ_CLOCK "show_clock"
+#define OBJ_HOST_STATUS "host_status"
 
 /* 1 KB, so off the task stack. Only the tessera_api task calls into this file. */
 static deck_api_options_t s_options;
@@ -313,6 +314,16 @@ void api_entities_message(api_session_t *s, api_peer_t *peer, const api_device_t
         uint32_t key = 0;
         if (api_decode_button_command(data, len, &key) && key == api_fnv1(OBJ_CLOCK) && !too_soon(peer, now_ms))
             deck_model_request_screen(DECK_SCREEN_AMBIENT);
+        break;
+    }
+    case API_TEXT_COMMAND: {
+        api_text_command_t command;
+        if (api_decode_text_command(data, len, &command) && command.key == api_fnv1(OBJ_HOST_STATUS) &&
+            !too_soon(peer, now_ms)) {
+            char notice[API_TEXT_MAX + 16];
+            snprintf(notice, sizeof(notice), "info 10 %.63s", command.state);
+            deck_model_notice_from_line(notice);
+        }
         break;
     }
     default:

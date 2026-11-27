@@ -1,0 +1,2 @@
+# Optional and isolated from the normal USB Host install.
+aioesphomeapi==46.31.0
