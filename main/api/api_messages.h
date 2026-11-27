@@ -49,6 +49,7 @@ enum {
     API_BUTTON_COMMAND = 62,
     API_LIST_EVENT = 107,
     API_EVENT = 108,
+    API_TEXT_COMMAND = 99,
 };
 
 enum { API_ENTITY_CATEGORY_NONE = 0, API_ENTITY_CATEGORY_CONFIG = 1, API_ENTITY_CATEGORY_DIAGNOSTIC = 2 };
@@ -124,6 +125,11 @@ typedef struct {
 } api_select_command_t;
 
 typedef struct {
+    uint32_t key;
+    char state[API_TEXT_MAX + 1];
+} api_text_command_t;
+
+typedef struct {
     uint32_t epoch_seconds;
     /* POSIX TZ string: built from parsed_timezone (3) when present, else the deprecated string (2) when it has
      * a POSIX shape; "" when neither gives a usable zone (an IANA name, say). */
@@ -140,6 +146,7 @@ bool api_decode_ha_state(const uint8_t *data, size_t len, api_ha_state_t *out);
 bool api_decode_hello_request(const uint8_t *data, size_t len, api_hello_request_t *out);
 bool api_decode_light_command(const uint8_t *data, size_t len, api_light_command_t *out);
 bool api_decode_select_command(const uint8_t *data, size_t len, api_select_command_t *out);
+bool api_decode_text_command(const uint8_t *data, size_t len, api_text_command_t *out);
 bool api_decode_button_command(const uint8_t *data, size_t len, uint32_t *key);
 bool api_decode_get_time_response(const uint8_t *data, size_t len, api_get_time_response_t *out);
 

@@ -241,6 +241,22 @@ bool api_decode_select_command(const uint8_t *data, size_t len, api_select_comma
     return ok && !r.error;
 }
 
+bool api_decode_text_command(const uint8_t *data, size_t len, api_text_command_t *out)
+{
+    memset(out, 0, sizeof(*out));
+    pb_reader_t r;
+    pb_reader_init(&r, data, len);
+    pb_field_t f;
+    while (pb_next(&r, &f)) {
+        if (f.field == 1 && f.wire == PB_FIXED32) out->key = f.fixed32;
+        else if (f.field == 2 && f.wire == PB_LEN) {
+            if (!f.len || f.len > API_TEXT_MAX || memchr(f.data, '\0', f.len)) return false;
+            if (!pb_field_string(&f, out->state, sizeof(out->state))) return false;
+        }
+    }
+    return !r.error && out->key != 0 && out->state[0] != 0;
+}
+
 bool api_decode_button_command(const uint8_t *data, size_t len, uint32_t *key)
 {
     *key = 0;
