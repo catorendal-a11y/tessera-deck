@@ -21,6 +21,9 @@ def fnv1(text: str) -> int:
     return value
 
 
+KEY_SLOT_HASHES = {fnv1(f"key_{slot}"): slot for slot in range(1, 19)}
+
+
 async def run(host: str, port: int) -> None:
     if input(f"Connect to Tessera panel at {host}:{port} over encrypted Wi-Fi? [y/N] ").strip().lower() != "y":
         print("Cancelled; USB operation is unchanged.")
@@ -33,10 +36,10 @@ async def run(host: str, port: int) -> None:
     first_event = asyncio.Event()
 
     def on_state(state: object) -> None:
-        entity_id = str(getattr(state, "entity_id", ""))
+        key_slot = KEY_SLOT_HASHES.get(getattr(state, "key", None))
         event_type = getattr(state, "event_type", None)
-        if entity_id.startswith("key_") and event_type and not first_event.is_set():
-            print(f"Panel event received: {entity_id} / {event_type}")
+        if key_slot is not None and event_type and not first_event.is_set():
+            print(f"Panel event received: key_{key_slot} / {event_type}")
             first_event.set()
 
     try:
